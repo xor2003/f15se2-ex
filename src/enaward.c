@@ -13,19 +13,6 @@ int dos_free(int segment);
 void loadPicFromFile(char *name, int segment);
 void loadPicFromFileAt(char *name, int segment, int off, int whence);
 
-uint16 allocBuffer(int size) {
-    int segment;
-    TRACE(("allocBuffer"));
-    segment = dos_alloc(size);
-    if ((unsigned)segment < 0x10) {
-        cleanup();
-        dos_printstring(str_allocError);
-        exit(0);
-    }
-    return segment;
-}
-
-
 void freeBuffer(int segment) {
     TRACE(("freeBuffer"));
     if (dos_free(segment) != 0) {

@@ -473,8 +473,8 @@ char str_timeLabel[] = "\x8d" "TIME: \x80";
 char str_timeZeros[] = "\x80";
 char str_timeFormat[] = "00:00:00";
 
-/* Error strings ($ terminated for DOS int 21h/09h) */
-char str_allocError[] = "Insufficient system memory - AllocBuffer$";
+/* Error strings ($ terminated for DOS int 21h/09h). str_allocError is the
+ * shared comm-state spelling defined in stdata.c. */
 char str_deallocError[] = "Buffer dealloc error$";
 
 /* Popup sprite coordinate tables (18 entries each, as int arrays) */
@@ -553,18 +553,15 @@ int colorTablePtr;
 char inputChanged;
 int colorAnimIdx;
 int colorAnimEnabled;
-char joyRepeatFlag;
 char spriteToggle;
 char animDone;
 int curRecordIdx;
-char worldObjects[8];
 char worldObjectsBuf[1188];
 char waypointData[4];
 int totalFlightRecords;
 char slotInfoTable[6];
 unsigned int cursorX;
 unsigned int cursorY;
-char hercFlag[518];
 int hasVgaMode[2];
 int spriteBufSeg;
 int vgaBufSeg;
@@ -783,40 +780,16 @@ char str_pressKey2[] = "<Press a key when ready>";
 char str_dbicons2[] = "dbicons.spr";
 char str_missionDebrief[] = "  MISSION DEBRIEFING\0";
 
-/* Ctrl-Break handler state */
+/* Ctrl-Break handler state. origCBreak* and the timer block are shared
+ * impl state owned by stdata.c. */
 uint8 quitFlag = 0;
-int16 origCBreakSeg = 0;
-int16 origCBreakOfs = 0;
-
-/* Timer variables */
-uint8 var_timerFlag = 0;
-uint8 timerHandlerInstalled = 0;
-int16 timerCountLo = 0;
-int16 timerCountHi = 0;
-int16 timerTarget = 0;
-int16 timerDivisor = 0;
-int16 timerTickCnt = 0;
-int16 timerReload = 0;
-uint8 timerDivider = 0;
-int16 timerMode = 0;
-int16 timerCalSumLo = 0;
-int16 timerCalSumHi = 0;
-uint8 timerSyncRetrace = 0;
-int16 timerTick = 0;
-int16 timerRetrace = 0;
-uint8 timerCounter = 0;
-uint8 timerCounter4 = 0;
-uint8 timerCounter2 = 0;
-uint8 timerCounter3 = 0;
 
 /* Random number generator */
 int16 randSeed = 1;
 int16 randState = 0;
 
 /* File I/O variables */
-uint8 errorCodeStr = 0;
 uint8 errorCodeTerminator = 0;
-uint8 fileReadBuf[512] = {0};
 char str_fileNotFound[] = ":File not found$";
 char str_noFileBufs[] = ":No file buffers available$";
 char str_openError[] = ":Open error $";
@@ -826,70 +799,20 @@ char str_writeError[] = "Write error$";
 int16 fileIoVar1 = 0;
 int16 fileIoVar2 = 0;
 int16 fileIoVar3 = 0;
-int16 fileReadPos = 0;
-int16 tmpFileHandle = 0;
 
-/* Pic decoder state */
-uint8 picDecodedRowBuf[320] = {0};
-int16 picScreenBufSize = 0;
-int16 picPageIndex = 0;
-int16 picRowOffset = 0;
+/* The pic-decoder, clear-rect, line-drawing, clipping and joystick-calibration
+ * globals below are owned by the shared graphics impl (stdata.c). */
 int16 picRowPad = 0;
-int16 picRow = 0;
-int16 picReadFromFilePtr = 0;
-
-/* Clear rect parameters */
-int16 clearRectX = 0;
-int16 clearRectY = 0;
-int16 clearRectWidth = 0;
-int16 clearRectHeight = 0;
 uint8 clearRectHeightPad = 0;
-
-/* Line drawing parameters */
-int16 lineX1 = 0;
-int16 lineX2 = 0;
-int16 lineY1 = 0;
-int16 lineY2 = 0;
-
-/* Clipping state */
-uint8 clipOutcode = 0;
-int16 clipDx = 0;
-int16 clipDy = 0;
-int16 clipDxHalf = 0;
-int16 clipDyHalf = 0;
-int16 clipMaxX = 0x13F;
-int16 clipMaxY = 0x6F;
 uint8 clipMaxYPad = 0;
-
-/* Joystick calibration arrays */
-int16 joyMinValues[4] = {0};
-int16 joyMaxValues[4] = {0};
-int16 joyCenterValues[4] = {0};
-int16 joyRangeBelow[4] = {0};
-int16 joyRangeAbove[4] = {0};
-int16 joyRawAxis0 = 0;
-int16 joyRawAxis1 = 0;
-int16 joyRawAxis2 = 0;
-int16 joyRawAxis3 = 0;
 char joyAxisX = 0;
 char joyAxisY = 0;
 
-/* Pic decoder state */
+/* Pic decoder state (the picReadBufEndPtr..picSlotCounter run is shared impl
+ * state owned by stdata.c). */
 int16 worldBufOffset = 0;
 int16 worldBufSegment = 0;
-int16 picReadBufEndPtr = 0;
-int16 picWorkDataPtr = 0;
-int16 picRowLength = 0;
 uint8 picProcessFlag = 0;
-uint8 picLookupResult = 0;
-uint8 picTmp9BitCount = 0;
-uint8 picByte = 0;
-int16 picFileReadBufEnd = 0;
-int16 picNumberDictSlots = 0;
-int16 picFileWord = 0;
-uint8 picRemainingBitCount = 0;
-uint8 picByteUnsignedFlag = 0;
-int16 picSlotCounter = 0;
 
 /* Second LZW decoder state */
 uint8 lzw2CodeBitWidth = 0;
@@ -905,24 +828,21 @@ int16 lzw2CurCode = 0;
 int16 lzw2FirstChar = 0;
 uint8 lzw2WorkBuf[10] = {0};
 
-/* Overlay insane flag - used by overlay slot setup */
-uint8 ovlInsaneFlag = 0;
+/* gameData, commData, worldObjectCount and ovlInsaneFlag are the shared
+ * inter-module comm state owned by stdata.c. */
 
 /* BSS variables */
 uint8 worldMiscHeader[4] = {0};
-struct Game far *gameData = 0;
 uint8 bssPad179[4] = {0};
 uint8 worldRouteTable[516] = {0};
 int16 animExitFlag = 0;
 int16 worldWaypointCount = 0;
 uint8 worldSamTable[720] = {0};
-uint16 worldObjectCount = 0;
 uint8 worldUnitFlags[102] = {0};
 int16 menuItemUnused = 0;
 int16 worldGridSize = 0;
 uint8 worldSamCount[6] = {0};
 int16 worldRouteCount = 0;
-struct GameComm far *commData = 0;
 int16 gfxBufSeg = 0;
 uint8 gfxBufPad[512] = {0};
 int16 flightTimeTable = 0;

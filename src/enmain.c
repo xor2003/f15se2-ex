@@ -17,7 +17,7 @@
 #include "enrand.h"
 
 /* Private helpers for this translation unit. */
-void initGraphics(void);
+void enInitGraphics(void);
 void checkQuitFlag(void);
 
 int end_main(void) {
@@ -41,7 +41,7 @@ int end_main(void) {
     clearKeybuf();
     hercFlag = (char)commData->setupMono;
     installCBreakHandler();
-    initGraphics();
+    enInitGraphics();
     if (commData->setupUseJoy == 1) {
         copyJoystickData(commData->joyData);
     } else {
@@ -79,11 +79,11 @@ void checkQuitFlag(void) {
     }
 }
 
-void initGraphics(void) {
+void enInitGraphics(void) {
     int a, b, c, d, e, f, g, h;
     (void)a; (void)b; (void)c; (void)d;
     (void)e; (void)f; (void)g; (void)h;
-    seedRandom();
+    enSeedRandom();
     gfx_setPageN(0);
     gfx_allocPage(0);
     gfx_getCurPage(0);

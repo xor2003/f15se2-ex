@@ -7,7 +7,7 @@
 #include "enfile.h"
 #include "enrand.h"
 
-void seedRandom(void) {
-    TRACE(("seedRandom"));
+void enSeedRandom(void) {
+    TRACE(("enSeedRandom"));
     srandInit(getTimeOfDay());
 }

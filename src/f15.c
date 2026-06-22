@@ -182,15 +182,11 @@ int start_main(void);
 int egame_main(void);
 int end_main(void);
 
-/* Run one of the former sub-programs in-process and return its exit code.
- * egame/end are only dispatched when compiled in (ENABLE_EGAME/ENABLE_END);
- * otherwise their stage falls through to the FATAL below. */
+/* Run one of the former sub-programs in-process and return its exit code. */
 static int game_dispatch(const char* filename) {
     if (filename == GAME_MENU)       return start_main();
     if (filename == GAME_FLIGHT)     return egame_main();
-#ifdef ENABLE_END
     if (filename == GAME_DEBRIEFING) return end_main();
-#endif
     FATAL("Unknown program: %s", filename);
     return -1;
 }

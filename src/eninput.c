@@ -7,12 +7,6 @@
 #include "eninput.h"
 #include "shared/common.h"
 
-void clearKeybuf(void) {
-    while (misc_checkKeyBuf() == 0) {
-        misc_getKey();
-    }
-}
-
 void waitForKeyOrJoy(void) {
     int key;
     TRACE(("waitForKeyOrJoy"));

@@ -14,14 +14,6 @@ project(F15SE2-EX
 # (configuration fails if one is missing).
 option(DOWNLOAD_DEPENDENCIES "Download and build missing third-party dependencies from source" ON)
 
-# The egame (in-flight) and end (debrief) modules currently define conflicting
-# symbols. While the SDL graphics system is being brought up they can each be
-# excluded from the build; game_dispatch() in f15.c #ifdef-gates the calls into
-# them, so a disabled stage just falls through to a FATAL. Turn back ON once the
-# symbol conflicts are resolved.
-option(ENABLE_EGAME "Build the egame (in-flight) module" OFF)
-option(ENABLE_END "Build the end (debrief) module" OFF)
-
 #==============================================================================
 # Global settings
 #==============================================================================
@@ -104,7 +96,7 @@ set(F15SE2_SOURCES
     ${SRC_DIR}/stdata.c
 )
 
-# egame (in-flight) module — optional, see ENABLE_EGAME above.
+# egame (in-flight) module
 set(EGAME_SOURCES
     # egame-side cdecl->register gfx shims (counterpart of gfx_regshim.c)
     ${SRC_DIR}/compat64/egregsh.c
@@ -142,7 +134,7 @@ set(EGAME_SOURCES
     ${SRC_DIR}/egstubs.c
 )
 
-# end (debrief) module — optional, see ENABLE_END above.
+# end (debrief) module
 set(END_SOURCES
     ${SRC_DIR}/enmain.c
     ${SRC_DIR}/enmisc.c
@@ -158,9 +150,7 @@ set(END_SOURCES
 )
 
 list(APPEND F15SE2_SOURCES ${EGAME_SOURCES})
-if(ENABLE_END)
-    list(APPEND F15SE2_SOURCES ${END_SOURCES})
-endif()
+list(APPEND F15SE2_SOURCES ${END_SOURCES})
 
 #==============================================================================
 # Target
@@ -180,12 +170,6 @@ target_include_directories(f15se2 BEFORE PRIVATE
     ${SRC_DIR}
     ${SRC_DIR}/shared
 )
-
-# Tell f15.c's game_dispatch() which sub-program entry points are compiled in,
-# so it only dispatches (and references) the ones that are present.
-if(ENABLE_END)
-    target_compile_definitions(f15se2 PRIVATE ENABLE_END)
-endif()
 
 # SDL3::SDL3 is exported by both the system package and the FetchContent build,
 # so this works regardless of how SDL3 was provided.
