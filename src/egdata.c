@@ -32,10 +32,10 @@ uint8 g_dacSupported = 0;
 
 int16 gfxModeUnset = 0;
 int16 f15DgtlResult = 0;
-char *regnStr = (char *)aRegn_xxx;
+char *regnStr = aRegn_xxx;
 char *scenarioPlh[8] = {
-    (char *)aLb_xxx, (char *)aPg_xxx, (char *)aVn_xxx, (char *)aMe_xxx,
-    (char *)aNc_xxx, (char *)aCe_xxx, (char *)aJp_xxx, (char *)aNa_xxx
+    aLb_xxx, aPg_xxx, aVn_xxx, aMe_xxx,
+    aNc_xxx, aCe_xxx, aJp_xxx, aNa_xxx
 };
 
 /* aEmpty_5950: empty string passed to drawPanelText to clear a panel label. */
@@ -245,11 +245,11 @@ int g_directorMode = 0;
 int16 g_resupplyCount = 1;
 int16 g_autoLandingActive = 0;
 int16 g_landingTimer = 0;
-uint8 aStoresExhauste[] = "Stores exhausted";
-uint8 aFlare[] = "Flare";
-uint8 aChaff[] = "Chaff";
-uint8 aReleased[] = " released";
-uint8 strColon[] = ":";
+char aStoresExhauste[] = "Stores exhausted";
+char aFlare[] = "Flare";
+char aChaff[] = "Chaff";
+char aReleased[] = " released";
+char strColon[] = ":";
 char aGun[] = "GUN:";
 
 /* g_weaponMarkerBoxX: 3 weapon-indicator box X-coordinates, read as g_weaponMarkerBoxX[weaponIdx]. */
@@ -714,10 +714,10 @@ uint8 g_joyRawY = 0;   /* keyboard virtual-stick raw roll axis (int9Handler) */
 /* Normalized/calibrated stick deflection: [0] = pitch, [1] = roll.
    Produced by readCalibratedJoystick (egseg2) or scaled from the keyboard
    raw axes; read by the stick dot and tac map. */
-uint8 aLandingGearRaised[] = "Landing gear raised";
-uint8 aBrakesOn[] = "Brakes on";
-uint8 a_[] = ".";
-uint8 aG[] = "G";
+char aLandingGearRaised[] = "Landing gear raised";
+char aBrakesOn[] = "Brakes on";
+char a_[] = ".";
+char aG[] = "G";
 char aFiring[] = " firing ";
 /* g_rollGeeTable: g-load lookup indexed by (abs(roll) >> 8) & 0x7f. Lowest near
    wings-level, peaking past 90 degrees of bank where lift bleeds off. */

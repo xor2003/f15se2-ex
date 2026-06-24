@@ -752,8 +752,8 @@ int16 fileIoVar3 = 0;
 int16 picRowPad = 0;
 uint8 clearRectHeightPad = 0;
 uint8 clipMaxYPad = 0;
-char joyAxisX = 0;
-char joyAxisY = 0;
+uint8 joyAxisX = 0;
+uint8 joyAxisY = 0;
 
 /* Pic decoder state (the picReadBufEndPtr..picSlotCounter run is shared impl
  * state owned by stdata.c). */
