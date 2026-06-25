@@ -17,7 +17,7 @@ void drawStringCentered(int16 *page, const char *str, int startx, int y, int end
 
 int stringWidth(int16 *page, const char *str) {
     int n;
-    const char* l;
+    const char *l;
     int j;
     l = str;
     j = page[6];
@@ -28,7 +28,7 @@ int stringWidth(int16 *page, const char *str) {
     return n;
 }
 
-void my_ltoa(int32 value, char* buf) {
+void my_ltoa(int32 value, char *buf) {
     int8 i, k;
     char *p;
     int8 n[6];

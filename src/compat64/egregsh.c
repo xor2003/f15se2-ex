@@ -17,20 +17,28 @@
 
 /* Slot 0x25: flush the per-row dirty spans. eg3drast.c hands us the real span
  * buffer pointer; gfx_dirtyRect2 (gfx_impl.c) walks rows [yMin..yMax]. */
-void FAR CDECL gfx_dirtyRect(int16 *spanBuf, int yMin, int yMax)
-    { gfx_dirtyRect2(spanBuf, (uint16)yMin, (uint16)yMax); }
+void FAR CDECL gfx_dirtyRect(int16 *spanBuf, int yMin, int yMax) { gfx_dirtyRect2(spanBuf, (uint16)yMin, (uint16)yMax); }
 
 /* Slots 0x01-0x06: the clipped glyph engine. The egame HUD selects the clip
  * mode by slot index; map each to the real C glyph function. */
-void FAR CDECL gfx_drawGlyphStr(int16 *desc, const char *str, int slot)
-{
+void FAR CDECL gfx_drawGlyphStr(int16 *desc, const char *str, int slot) {
     switch (slot) {
-        case 0x01: gfx_fillDirty(desc, str);       break;
-        case 0x02: gfx_blitTransparent(desc, str); break;
-        case 0x03: gfx_blitVariant(desc, str);     break;
-        case 0x04: gfx_copyBlock(desc, str);       break;
-        case 0x06:
-        default:   gfx_drawStringUnclipped(desc, str); break;
+    case 0x01:
+        gfx_fillDirty(desc, str);
+        break;
+    case 0x02:
+        gfx_blitTransparent(desc, str);
+        break;
+    case 0x03:
+        gfx_blitVariant(desc, str);
+        break;
+    case 0x04:
+        gfx_copyBlock(desc, str);
+        break;
+    case 0x06:
+    default:
+        gfx_drawStringUnclipped(desc, str);
+        break;
     }
 }
 

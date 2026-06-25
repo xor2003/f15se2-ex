@@ -29,9 +29,9 @@ void closeFileWrapper(int handle) /* Original: CloseFile(fh). Close a resident f
 void openShowPic(char *filename, int page) /* Original chain: OpenFile + show/decode + CloseFile. Open, draw PIC to page, then close. */
 {
     int16 fileHandle;
-    Log(("openShowPic: opening file %s, page %d",filename,page));
+    Log(("openShowPic: opening file %s, page %d", filename, page));
     fileHandle = openFileWrapper(filename, 0);
-    Log(("openShowPic: showing pic, handle %d",fileHandle));
+    Log(("openShowPic: showing pic, handle %d", fileHandle));
     showPicFile(fileHandle, page);
     closeFileWrapper(fileHandle);
     Log(("openShowPic: file closed, returning"));
