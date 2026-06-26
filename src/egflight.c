@@ -782,15 +782,25 @@ void renderFrame() {
         g_viewPitch = g_ourRoll;
         g_viewRoll = -g_ourPitch;
         break;
-    case 0x84:
+    case 0x84: {
+        /* The trailing replay camera reads a pose from the per-sim-step history
+         * ring; interpolate between the two samples bracketing the delayed view
+         * time (render alpha, Q12) so it tracks smoothly instead of stepping at
+         * the sim rate. */
+        int r1, a = g_renderAlphaQ12;
+        struct ViewSnapshot *s0, *s1;
         tmp = (frameTick - ((g_frameRateScaling + 1) / 2) - 1) & 0xf;
-        g_viewHeading = g_viewSnapshotRing[tmp].heading;
-        g_viewPitch = g_viewSnapshotRing[tmp].pitch;
-        g_viewRoll = g_viewSnapshotRing[tmp].roll;
-        g_camEyeX = g_viewSnapshotRing[tmp].worldX;
-        g_camEyeY = g_viewSnapshotRing[tmp].worldY;
-        g_camEyeZ = g_viewSnapshotRing[tmp].alt;
+        r1 = (tmp + 1) & 0xf;
+        s0 = &g_viewSnapshotRing[tmp];
+        s1 = &g_viewSnapshotRing[r1];
+        g_viewHeading = s0->heading + (((int16)(s1->heading - s0->heading) * a) >> 12);
+        g_viewPitch = s0->pitch + (((int16)(s1->pitch - s0->pitch) * a) >> 12);
+        g_viewRoll = s0->roll + (((int16)(s1->roll - s0->roll) * a) >> 12);
+        g_camEyeX = s0->worldX + (int32)(((int64)(s1->worldX - s0->worldX) * a) >> 12);
+        g_camEyeY = s0->worldY + (int32)(((int64)(s1->worldY - s0->worldY) * a) >> 12);
+        g_camEyeZ = s0->alt + (((int32)(s1->alt - s0->alt) * a) >> 12);
         break;
+    }
     case 0x85:
         g_viewHeading = g_ourHead - 0x4000;
         g_viewPitch = 0;

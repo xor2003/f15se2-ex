@@ -750,6 +750,10 @@ int16 g_spinAngle = 0;
  * the per-frame spin animation (g_spinAngle) is scaled by it so it advances at
  * the sim rate, not the higher render rate. */
 int g_simStepsThisFrame = 0;
+/* Render interpolation fraction toward the next sim step, Q12 (0..4096), set by
+ * gameMainLoop each frame. Used where renderFrame interpolates sim-rate state
+ * itself (the 0x84 replay camera's history-ring lookup). */
+int g_renderAlphaQ12 = 0;
 
 /* g_objDirX/g_objDirY/g_objDirZ: rotated 3D point coordinate components
    (X/Y/Z) produced by rotatePoint3d (egseg1) and consumed by the subsequent
