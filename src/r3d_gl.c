@@ -41,8 +41,14 @@ static SDL_GLContext s_ctx;
 static int s_active;
 
 int r3dgl_wantGL(void) {
-    const char *e = SDL_getenv("F15_RENDER");
-    return e && (SDL_strcasecmp(e, "gl") == 0 || SDL_strcasecmp(e, "opengl") == 0);
+    /* Bring a GL window/context up unless software is explicitly forced — auto,
+     * "gl", and unknown names all prefer GL (an unknown name falls back to the
+     * preference order, which is GL-first). The probe in r3d_init then claims iff
+     * the context actually came up (s_active); if it didn't, gfx_videoInit falls
+     * back to an SDL_Renderer and the software backend claims. Shares
+     * r3d_requestedBackend so the window decision and the probe agree. */
+    const char *want = r3d_requestedBackend();
+    return !want || SDL_strcasecmp(want, "software") != 0;
 }
 
 void r3dgl_setGLAttributes(void) {

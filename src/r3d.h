@@ -63,7 +63,15 @@ typedef struct R3DBackend {
 
 /* Active-backend dispatch. */
 void r3d_init(void);
+void r3d_shutdown(void);
 const char *r3d_backendName(void);
+
+/* Backend selection from the F15_RENDER env var, normalized to a backend name to
+ * force ("opengl1", "software", or a future backend's name). Returns NULL for
+ * "auto"/unset, meaning probe the list in preference order. A forced backend that
+ * is unavailable (declines or unknown name) falls back to the probe. Shared by
+ * r3d_init() and the GL window decision (r3dgl_wantGL) so the two agree. */
+const char *r3d_requestedBackend(void);
 R3DMesh r3d_registerMesh(R3DMesh raw);
 void r3d_releaseMesh(R3DMesh mesh);
 void r3d_beginScene(const R3DScene *scene);

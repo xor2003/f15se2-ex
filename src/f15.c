@@ -117,6 +117,7 @@ int main(int argc, char *argv[]) {
     }
 
     joy_shutdown();
+    r3d_shutdown();
     gfx_videoShutdown();
     return 0;
 }

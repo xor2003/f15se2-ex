@@ -15,8 +15,10 @@
 struct SDL_Window;
 struct SDL_Surface;
 
-/* Read the manual backend selection (env F15_RENDER=gl). Checked by gfx_impl.c
- * before window creation so it can request a GL window + skip the SDL_Renderer. */
+/* Whether to bring a GL window/context up (GL is the auto preference, or forced
+ * via F15_RENDER=gl). Checked by gfx_impl.c before window creation so it can
+ * request a GL window + skip the SDL_Renderer; the r3d_init probe then claims GL
+ * only if the context actually came up, else falls back to software. */
 int r3dgl_wantGL(void);
 
 /* Set the GL framebuffer attributes (depth buffer, double-buffer). Must run
