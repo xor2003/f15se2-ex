@@ -232,7 +232,10 @@ static void objApplyInterp(const SimObjSnap *sp, const SimObjSnap *sn,
             continue;
         g_projectiles[i].mapX = (uint16)lerpLinear(pp[i].mapX, pn[i].mapX, num, den);
         g_projectiles[i].mapY = (uint16)lerpLinear(pp[i].mapY, pn[i].mapY, num, den);
-        g_projectiles[i].alt = (int16)lerpLinear(pp[i].alt, pn[i].alt, num, den);
+        /* alt's low bit is the track-state flag (radar draws gray when clear),
+         * not real altitude — interpolate the altitude but keep the authoritative
+         * flag bit so "lost track" stays gray. */
+        g_projectiles[i].alt = ((int16)lerpLinear(pp[i].alt, pn[i].alt, num, den) & ~1) | (pn[i].alt & 1);
         g_projectiles[i].worldX = (int16)lerpAngle(pp[i].head, pn[i].head, num, den);
         g_projectiles[i].worldY = (int16)lerpAngle(pp[i].pitch, pn[i].pitch, num, den);
     }

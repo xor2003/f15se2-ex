@@ -43,11 +43,10 @@ The entire game is playable, software rendering is ported to SDL, sound works us
 
 ## Known bugs
 
-1. Missiles that have lost track should be shown as gray on the radar screen but aren't.
-2. With the highest LOD4 selected, mountains sometimes disappear when close and plane is pitching up and down.
-3. Fired missiles (Maverick only?) sometimes disappear near the target without any message ("Ineffective hit") or any other feedback.
-4. It's sometimes impossible to lock targets even when nearby.
-5. Some problems with input, `Alt-Q` to quit and `Alt-Enter` for fullscreen does not always register, especially during the intro. Clicking on the window close button does nothing.
+1. With the highest LOD4 selected, mountains sometimes disappear when close and plane is pitching up and down.
+2. Fired missiles (Maverick only?) sometimes disappear near the target without any message ("Ineffective hit") or any other feedback.
+3. It's sometimes impossible to lock targets even when nearby.
+4. Some problems with input, `Alt-Q` to quit and `Alt-Enter` for fullscreen does not always register, especially during the intro. Clicking on the window close button does nothing.
 
 ## Building
 
