@@ -13,6 +13,7 @@
 #include "gfx.h"
 #include "inttype.h"
 #include "pointers.h"
+#include <stddef.h>
 
 /* Forward declaration so GfxState can hold SDL backbuffers without pulling the
  * full SDL header. */
@@ -85,6 +86,7 @@ void gfx_paletteRGB(int idx, uint8 *r, uint8 *g, uint8 *b);
  * without casting the offset itself into a process address. */
 void gfx_setNearReadBuffer(uint16 nearPtr, const void *hostPtr, size_t size);
 void gfx_clearNearReadBuffer(void);
+ 
 /*
  * Reference structures documenting how the overlay accesses caller data.
  * These CANNOT be used in the asm data segments (which must maintain exact
