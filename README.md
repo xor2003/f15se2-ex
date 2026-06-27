@@ -4,13 +4,13 @@
   <img src="screenshots/title.png" width="50%" alt="F-15 title screen">
 </p>
 
-This is a work in progress project to port, fix and enhance the [reconstructed source code](https://github.com/neuviemeporte/f15se2-re) of the Microprose game F-15 Strike Eagle 2 v451.03 (the definitive 1991 Desert Storm expansion disk version) on modern architectures.
+This is a work in progress project to port, fix and enhance the [reconstructed source code](https://github.com/neuviemeporte/f15se2-re) of the Microprose game F-15 Strike Eagle 2 v451.03 (the definitive 1991 Desert Storm expansion disk version) for modern architectures.
 
-Unlike the old project, whose aim was a bug-for-bug, instruction-level faithful recreation of the game for the orginal MS-DOS platform and the MS C v5.1 compiler, here we aim to keep as much of the game's spirit intact, while taking it forward into the 21st century with modern language features, better graphics and enhanced features.
+Unlike the old project, whose aim was a bug-for-bug, instruction-level faithful recreation of the game for the orginal MS-DOS platform and the MS C v5.1 compiler, here we aim to keep as much of the game's spirit intact, while taking it forward into the 21st century with modern compilers and libraries, better graphics and enhanced features.
 
-The repository was forked off from tag `v0.9.2`, and the idea is that the reconstruction might see occasional backports from this project which clarify or document the original code, but of course these will need to make sure to preserve the reconstruction's contract of instruction-level identity with the original.
+The repository was forked off from tag `v0.9.2`, and the idea is that the reconstruction will see occasional backports from this project which provide bugfixes, clarify or document the original code, but of course these will need to make sure to preserve the contract of instruction-level identity with the original.
 
-The project is based on the [SDL3 library](https://github.com/libsdl-org/SDL/releases) for the graphical frontend. Initially, we're going to keep the original, software-based 3d rendering engine that outputs to a flat framebuffer, but the goal is to switch to a modern 3D rendering API like OpenGL or Vulkan at some point in the future.
+The project is based on the [SDL3 library](https://github.com/libsdl-org/SDL/releases) for the graphical frontend.
 
 ## Status (27.06.2026)
 
@@ -18,35 +18,37 @@ The entire game is playable, rendering and input handling is ported to SDL, soun
 
 ## Screenshots
 
-<table>
-  <tr>
-    <td align="center">
-      <a href="screenshots/screen1.png"><img src="screenshots/screen1.png" width="150"></a>
-    </td>
-    <td align="center">
-      <a href="screenshots/screen2.png"><img src="screenshots/screen2.png" width="150"></a>
-    </td>
-    <td align="center">
-      <a href="screenshots/screen3.png"><img src="screenshots/screen3.png" width="150"></a>
-    </td>
-  </tr>
-  <tr>
-    <td align="center">
-      <a href="screenshots/screen4.png"><img src="screenshots/screen4.png" width="150"></a>
-    </td>
-    <td align="center">
-      <a href="screenshots/screen5.png"><img src="screenshots/screen5.png" width="150"></a>
-    </td>
-    <td align="center">
-      <a href="screenshots/screen6.png"><img src="screenshots/screen6.png" width="150"></a>
-    </td>
-  </tr>
-</table>
+<div align="center">
+  <table>
+    <tr>
+      <td align="center">
+        <a href="screenshots/screen1.png"><img src="screenshots/screen1.png" width="150"></a>
+      </td>
+      <td align="center">
+        <a href="screenshots/screen2.png"><img src="screenshots/screen2.png" width="150"></a>
+      </td>
+      <td align="center">
+        <a href="screenshots/screen3.png"><img src="screenshots/screen3.png" width="150"></a>
+      </td>
+    </tr>
+    <tr>
+      <td align="center">
+        <a href="screenshots/screen4.png"><img src="screenshots/screen4.png" width="150"></a>
+      </td>
+      <td align="center">
+        <a href="screenshots/screen5.png"><img src="screenshots/screen5.png" width="150"></a>
+      </td>
+      <td align="center">
+        <a href="screenshots/screen6.png"><img src="screenshots/screen6.png" width="150"></a>
+      </td>
+    </tr>
+  </table>
+</div>
 
 ## Current enahncements over the original game
 
-1. The original was limited to 15 FPS with a convoluted time scale implementation to make sure the game engine kept up. This has been eliminated, with the game engine being decoupled from rendering, so now it plays much smoother. 
-2. Input loop has been upgraded to an SDL event pump which should make it deal with multiple inputs and general responsiveness much better.
+1. The original was limited to 15 FPS with a convoluted time scale implementation to make sure the game engine kept up with rendering. This has been eliminated, with the game engine being decoupled from rendering, so now it plays much smoother. 
+2. Input loop has been upgraded to an SDL event pump which should make it deal with simultaneous inputs much bettern and improve general responsiveness.
 3. The game originally supported 4 levels of detail (`0-3`, switchable with `Alt-D`), with the highest one still suffering from limited draw distance. An additional level of detail (`4`) has been implemented with unlimited draw distance, and enabled by default.
 4. Rendering has been moved out of the bespoke software engine that was capped at `320x200` resolution (still available with `F15_RENDER=software` envvar) and into OpenGL, enabling higher resolutions and improved clarity. At a later time, perhaps it will also be possible to upgrade the original software renderer to support higher resolutions.
 
