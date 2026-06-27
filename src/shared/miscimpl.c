@@ -8,6 +8,7 @@
 #include <dos.h>
 #include <string.h>
 #include <stdio.h>
+#include <time.h>
 
 static void miscdbg(const char *msg) {
     FILE *f = fopen("NOASM.LOG", "a");
@@ -44,7 +45,7 @@ void doNothing2(const char *msg, int a, int b, int c) {
 }
 
 int getTimeOfDay(void) {
-    return 0;
+    return (int)((unsigned long)((double)time(NULL) * 18.2065) & 0xFFFF);
 }
 
 int mystrlen(const char *s) {
