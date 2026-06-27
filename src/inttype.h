@@ -66,5 +66,4 @@ static inline void wrU16(void *p, uint16 v) { memcpy(p, &v, sizeof v); }
 static inline void wrU32(void *p, uint32 v) { memcpy(p, &v, sizeof v); }
 static inline void wrI16(void *p, int16 v) { memcpy(p, &v, sizeof v); }
 static inline void wrI32(void *p, int32 v) { memcpy(p, &v, sizeof v); }
-
 #endif /* INTTYPE_H */

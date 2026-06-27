@@ -49,13 +49,9 @@ int fixedMulQ14(int a, int b) {
  * The ASM dispatches to the MSC long-shift helpers; >>= on a signed long is the
  * arithmetic shift those helpers perform. */
 void pascal shiftLongLeftInPlace(int count, long *ptr) {
-    /* DOS long is always 32-bit; host long may be 64-bit, so truncate before
-     * shifting and store back the original signed 32-bit result pattern. */
-    uint32 bits = (uint32)(int32)*ptr;
-    *ptr = (int32)(bits << count);
+    *ptr <<= count;
 }
 
 void pascal shiftLongRightInPlace(int count, long *ptr) {
-    /* MSC's signed long right shift is arithmetic on a 32-bit value. */
-    *ptr = (int32)((int32)*ptr >> count);
+    *ptr >>= count;
 }
