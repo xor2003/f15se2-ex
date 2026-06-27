@@ -36,10 +36,26 @@ typedef int8_t int8;
  * accessed via their named fields instead.
  */
 #include <string.h>
-static inline uint16 rdU16(const void *p) { uint16 v; memcpy(&v, p, sizeof v); return v; }
-static inline uint32 rdU32(const void *p) { uint32 v; memcpy(&v, p, sizeof v); return v; }
-static inline int16 rdI16(const void *p) { int16 v; memcpy(&v, p, sizeof v); return v; }
-static inline int32 rdI32(const void *p) { int32 v; memcpy(&v, p, sizeof v); return v; }
+static inline uint16 rdU16(const void *p) {
+    uint16 v;
+    memcpy(&v, p, sizeof v);
+    return v;
+}
+static inline uint32 rdU32(const void *p) {
+    uint32 v;
+    memcpy(&v, p, sizeof v);
+    return v;
+}
+static inline int16 rdI16(const void *p) {
+    int16 v;
+    memcpy(&v, p, sizeof v);
+    return v;
+}
+static inline int32 rdI32(const void *p) {
+    int32 v;
+    memcpy(&v, p, sizeof v);
+    return v;
+}
 static inline void wrU16(void *p, uint16 v) { memcpy(p, &v, sizeof v); }
 static inline void wrU32(void *p, uint32 v) { memcpy(p, &v, sizeof v); }
 static inline void wrI16(void *p, int16 v) { memcpy(p, &v, sizeof v); }

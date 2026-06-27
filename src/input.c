@@ -568,8 +568,10 @@ static void rightStickView(void) {
     int y = joy_axisRaw(SDL_GAMEPAD_AXIS_RIGHTY);
     int ax = x < 0 ? -x : x, ay = y < 0 ? -y : y;
     int z = 0;
-    if (ay > GATE && ay >= ax) z = (y < 0) ? VIEW_FRONT_KEY : VIEW_REAR_KEY; /* push away / pull back */
-    else if (ax > GATE) z = (x < 0) ? VIEW_LEFT_KEY : VIEW_RIGHT_KEY;
+    if (ay > GATE && ay >= ax)
+        z = (y < 0) ? VIEW_FRONT_KEY : VIEW_REAR_KEY; /* push away / pull back */
+    else if (ax > GATE)
+        z = (x < 0) ? VIEW_LEFT_KEY : VIEW_RIGHT_KEY;
 
     if (z != zone) {
         if (z) ringPush(z); /* entering neutral leaves the current view as-is */
@@ -593,16 +595,16 @@ static void pollGamepadFlight(void) {
     }
     if (gpEdge(SDL_GAMEPAD_BUTTON_LEFT_SHOULDER)) ringPush(0x2e63);  /* L1: chaff ('c') */
     if (gpEdge(SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER)) ringPush(0x2166); /* R1: flare ('f') */
-    if (gpEdge(SDL_GAMEPAD_BUTTON_WEST)) ringPush(0x1e61);          /* X: afterburner ('a') */
-    if (gpEdge(SDL_GAMEPAD_BUTTON_SOUTH)) ringPush(0x3062);         /* A: brake ('b') */
-    if (gpEdge(SDL_GAMEPAD_BUTTON_EAST)) ringPush(0x1474);          /* B: designate target ('t') */
-    if (gpEdge(SDL_GAMEPAD_BUTTON_START)) ringPush(0x1970);         /* Start: autopilot ('p') */
-    if (gpEdge(SDL_GAMEPAD_BUTTON_BACK)) ringPush(0x266c);          /* Select: landing gear ('l') */
-    if (gpEdge(SDL_GAMEPAD_BUTTON_LEFT_STICK)) ringPush(0x1372);    /* L3: cycle radar zoom ('r') */
-    if (gpEdge(SDL_GAMEPAD_BUTTON_RIGHT_STICK)) ringPush(0x011b);   /* R3: eject (Esc) */
+    if (gpEdge(SDL_GAMEPAD_BUTTON_WEST)) ringPush(0x1e61);           /* X: afterburner ('a') */
+    if (gpEdge(SDL_GAMEPAD_BUTTON_SOUTH)) ringPush(0x3062);          /* A: brake ('b') */
+    if (gpEdge(SDL_GAMEPAD_BUTTON_EAST)) ringPush(0x1474);           /* B: designate target ('t') */
+    if (gpEdge(SDL_GAMEPAD_BUTTON_START)) ringPush(0x1970);          /* Start: autopilot ('p') */
+    if (gpEdge(SDL_GAMEPAD_BUTTON_BACK)) ringPush(0x266c);           /* Select: landing gear ('l') */
+    if (gpEdge(SDL_GAMEPAD_BUTTON_LEFT_STICK)) ringPush(0x1372);     /* L3: cycle radar zoom ('r') */
+    if (gpEdge(SDL_GAMEPAD_BUTTON_RIGHT_STICK)) ringPush(0x011b);    /* R3: eject (Esc) */
 
-    if (gpEdge(SDL_GAMEPAD_BUTTON_DPAD_LEFT)) ringPush(0x3f00);     /* D-pad left: chase cam (F5) */
-    if (gpEdge(SDL_GAMEPAD_BUTTON_DPAD_RIGHT)) ringPush(0x4400);    /* D-pad right: target view (F10) */
+    if (gpEdge(SDL_GAMEPAD_BUTTON_DPAD_LEFT)) ringPush(0x3f00);  /* D-pad left: chase cam (F5) */
+    if (gpEdge(SDL_GAMEPAD_BUTTON_DPAD_RIGHT)) ringPush(0x4400); /* D-pad right: target view (F10) */
     rightStickView();
 
     /* Thrust ramps while up/down is held. */
@@ -629,7 +631,8 @@ static bool trigEdge(SDL_GamepadAxis trig, int idx) {
  * menu cursor the hold-to-scroll the keyboard arrows get. */
 static void stickArrowRepeat(int axisVal, uint16 negKey, uint16 posKey, int *zone, Uint64 *nextAt) {
     const int GATE = 16000;
-    int z = (axisVal < -GATE) ? -1 : (axisVal > GATE) ? 1 : 0;
+    int z = (axisVal < -GATE) ? -1 : (axisVal > GATE) ? 1
+                                                      : 0;
     if (z == 0) {
         *zone = 0;
         return;

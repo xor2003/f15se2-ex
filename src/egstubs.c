@@ -8,22 +8,8 @@
 #include <stdio.h>
 #include <dos.h>
 
-int loadF15DgtlBin() { return 0; }
-
 /* Joystick input lives in joystick.c (SDL gamepad/joystick). */
 /* setInt9Handler/restoreInt9Handler (the keyboard ISR) live in eginput.c. */
 
 /* --- functions declared in egcode.h --- */
 int __cdecl drawCenteredLabelBox(int panel, const char *text) { return 0; } // Real one is also a nop
-
-/* --- sound-driver slots with no shared C implementation (egame's sound asm;
-   ovlimpl.c only covers audio_setup/audio_shutdown/audio_playIntro) --- */
-int FAR CDECL audio_playSound(int a) { return 0; }
-int FAR CDECL audio_engineDroneOn(void) { return 0; }
-int FAR CDECL audio_engineDroneOff(void) { return 0; }
-int FAR CDECL audio_playSample(int a) { return 0; }
-
-/* --- Data symbols referenced by stepFlightModel. The DOS build defines these
-   in ASM; the 64-bit stub build needs C definitions to link. --- */
-
-int FAR CDECL audio_setEnginePitch(int knots, int thrust) { return 0; }

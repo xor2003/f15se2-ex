@@ -46,7 +46,5 @@ void far cdecl misc_clearKeyFlags(void) {
     input_ringReset();
 }
 
-/* Audio overlay slots */
-int far cdecl audio_setup(int16 a, int16 b) { return 0; }
-int far cdecl audio_shutdown(void) { return 0; }
-int far cdecl audio_playIntro(void) { return 0; }
+/* Audio overlay slots (audio_setup/shutdown/playIntro) live in
+ * asound/asound_sdl.c alongside the rest of the SDL audio backend. */

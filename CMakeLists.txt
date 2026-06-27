@@ -59,6 +59,18 @@ else()
     endif()
 endif()
 
+# Nuked-OPL3: the YM3812/OPL2 emulator that turns the ported AdLib driver's
+# register state into PCM. Header-light (opl3.c/.h), no CMake of its own, so we
+# just pull the sources and compile opl3.c into the target (as C).
+include(FetchContent)
+FetchContent_Declare(
+    nuked_opl3
+    GIT_REPOSITORY "https://github.com/nukeykt/Nuked-OPL3.git"
+    GIT_TAG "cfedb09efc03f1d7b5fc1f04dd449d77d8c49d50"  # master has no release tags
+    UPDATE_DISCONNECTED TRUE
+)
+FetchContent_MakeAvailable(nuked_opl3)
+
 #==============================================================================
 # Sources
 #==============================================================================
@@ -137,6 +149,11 @@ set(EGAME_SOURCES
     ${SRC_DIR}/egtick.c
     ${SRC_DIR}/eginput.c
     ${SRC_DIR}/egstubs.c
+
+    # audio: ported ASOUND AdLib driver on SDL3
+    ${SRC_DIR}/asound/asound_model.c
+    ${SRC_DIR}/asound/asopl.c
+    ${SRC_DIR}/asound/asound_sdl.c
 )
 
 # end (debrief) module
@@ -170,6 +187,9 @@ set_target_properties(f15se2 PROPERTIES
 # Compile C as C++ for extra linting.
 set_source_files_properties(${F15SE2_SOURCES} PROPERTIES LANGUAGE CXX)
 
+# Nuked-OPL3 stays plain C (not in the CXX-forced list above).
+target_sources(f15se2 PRIVATE ${nuked_opl3_SOURCE_DIR}/opl3.c)
+
 # Keep the new log.h diagnostics live (the Log* macros compile out without DEBUG).
 target_compile_definitions(f15se2 PRIVATE DEBUG)
 
@@ -181,6 +201,8 @@ target_include_directories(f15se2 BEFORE PRIVATE
     ${SRC_DIR}/compat64
     ${SRC_DIR}
     ${SRC_DIR}/shared
+    ${SRC_DIR}/asound
+    ${nuked_opl3_SOURCE_DIR}
 )
 
 # SDL3::SDL3 is exported by both the system package and the FetchContent build,

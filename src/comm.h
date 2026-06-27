@@ -11,13 +11,13 @@
 /* In-memory only (never serialized; the three former DOS EXEs are one process
  * now) and accessed solely by named field, so no packing / size contract. */
 struct GameComm {
-    int16 gfxInitResult; /* f15.spr sprite-sheet buffer handle (radar/HUD sprites) */
+    int16 gfxInitResult;   /* f15.spr sprite-sheet buffer handle (radar/HUD sprites) */
     int16 landingType;     /* 1=crashed, 2=ejected, 3=landed */
     int16 bailoutSurvived; /* 0=survived */
-    int16 unk4;         /* nonzero enables crash exit in egame (set from theater table in start.exe) */
-    int16 trainingFlag; /* nonzero if the last mission was a training mission */
+    int16 unk4;            /* nonzero enables crash exit in egame (set from theater table in start.exe) */
+    int16 trainingFlag;    /* nonzero if the last mission was a training mission */
     int16 setupDetail;
-    int16 gunHits;    /* egame writes mission gun-hit count here for the debrief */
+    int16 gunHits;        /* egame writes mission gun-hit count here for the debrief */
     uint16 weaponType[4]; /* weapon type indices into weaponLoadouts[] (0=Sidewinder,1=AMRAAM,etc) */
     int16 weaponCount[4]; /* weapon quantities per slot */
     uint8 joyData[20];

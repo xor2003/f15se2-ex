@@ -36,12 +36,12 @@ bool input_preferGamepad(void);
 void input_pumpEvents(void);
 
 /* --- BIOS-style key ring (AH = scan code, AL = ASCII), shared by all phases - */
-void input_ringReset(void);          /* drop any queued keys, recentre stick */
-bool input_keyWaiting(void);         /* true when a key word is queued */
-uint16 input_readKey(void);          /* blocking pop: pump + wait, then return */
+void input_ringReset(void);  /* drop any queued keys, recentre stick */
+bool input_keyWaiting(void); /* true when a key word is queued */
+uint16 input_readKey(void);  /* blocking pop: pump + wait, then return */
 
 /* --- window state, set by the pump, for callers that want to react --------- */
-bool input_quitRequested(void);      /* SDL_EVENT_QUIT seen (also feeds Alt+Q) */
-bool input_hasFocus(void);           /* window currently has keyboard focus */
+bool input_quitRequested(void); /* SDL_EVENT_QUIT seen (also feeds Alt+Q) */
+bool input_hasFocus(void);      /* window currently has keyboard focus */
 
 #endif /* F15_SE2_INPUT */

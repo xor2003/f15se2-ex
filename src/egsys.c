@@ -62,7 +62,7 @@ void updateFrame(void);
 typedef struct {
     int32 viewX, viewY, viewZ;
     int32 head, pitch, roll;
-    int32 mapX, mapY;          /* g_viewX_ / g_viewY_ */
+    int32 mapX, mapY; /* g_viewX_ / g_viewY_ */
     int32 crashX, crashY, crashZ;
     int32 wreckX, wreckY, wreckAlt; /* downed-aircraft wreck/parachute */
 } CamSnapshot;
@@ -309,7 +309,7 @@ void gameMainLoop(void) {
                 break;
             }
         }
-        g_simStepsThisFrame = steps; /* paces render-rate animations (g_spinAngle) to the sim */
+        g_simStepsThisFrame = steps;                                   /* paces render-rate animations (g_spinAngle) to the sim */
         g_renderAlphaQ12 = (int)(((uint64)accumNs << 12) / simStepNs); /* for renderFrame's own interp (0x84 ring) */
 
         /* All views interpolate: camera, the player map coords + crash-cam eye,
