@@ -589,7 +589,15 @@ static void drawSub(const GlSub *r) {
                 nProj++;
             }
         }
-        if (nProj > 0 && (maxX - minX) < 2.0f && (maxY - minY) < 2.0f) {
+        /* Only collapse to a point when the WHOLE model is in front of the near
+         * plane and sub-pixel — a genuinely distant, tiny object. If any vertex is
+         * behind the near plane (nProj < nVerts) the object straddles it (near/
+         * foreground geometry, especially flat sea tiles seen edge-on or while
+         * banked): the surviving in-front verts give a bogus sub-pixel span, which
+         * would drop the tile to a single dot. Draw the real near-plane-clipped
+         * polygon instead, matching the software rasterizer's screen-space clip. */
+        if (nProj == l->nVerts && nProj > 0 &&
+            (maxX - minX) < 2.0f && (maxY - minY) < 2.0f) {
             int colorByte = -1;
             for (i = 0; i < l->nFaces; i++) {
                 int cb = l->faces[i].colorByte;
