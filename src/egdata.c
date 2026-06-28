@@ -1837,9 +1837,11 @@ struct BulletTrack bulletTracks[20];
 /* 3x3 rotation matrix scratch buffers (9 words): written by
  * multiplyMatrix3x3Far/buildRotationMatrixFar, read as [axis]/[3+axis]/[6+axis]. */
 int16 g_matrixScratch[9];
-int g_ourPitch = 0;
 /* 16-bit word-degree angles: arithmetic must wrap at 16 bits (e.g. 0x10000 - roll,
-   -head). Keep these int16 so assignments wrap on store as the DOS build did. */
+   -head). Keep these int16 so assignments wrap on store as the DOS build did.
+   g_ourPitch matters too: valueToAngle() returns 0xc000 (=-90deg) when vertical;
+   as int that reads +49152 and breaks abs()/signed compares (eject, high-gee). */
+int16 g_ourPitch = 0;
 int16 g_ourRoll = 0;
 /* player orientation/altitude view state, shared with egseg2 projection. */
 int16 g_ourHead = 0;

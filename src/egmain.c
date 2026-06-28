@@ -31,11 +31,15 @@ void __cdecl gfxInit();
 int egame_main(void) {
     /* Per-mission state reset (persists across missions in the merged build).
      * g_initPhase=0 re-arms the init block; the indicator colour trackers (+7 of
-     * the four rects at [3..22]) must match the cockpit base colour (3). */
+     * the four rects at [3..22]) must match the cockpit base colour (3). The view
+     * selector and director camera must start in the cockpit, not last mission's view. */
     g_initPhase = 0;
     g_missionEndedFlag[0] = g_missionEndedFlag[1] = 0;
     g_eventLogCount = 0;
     g_ejectState = 0;
+    keyValue = 0;
+    g_directorMode = 0;
+    g_directorEventDeadline = -1;
     g_tacmapIndicators[7] = g_tacmapIndicators[12] = g_tacmapIndicators[17] = g_tacmapIndicators[22] = 3;
     installCBreakHandler();
     if (commData->setupUseJoy == 1) {
