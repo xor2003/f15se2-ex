@@ -105,6 +105,7 @@ static void fillPools(MeshVtxPools *pools) {
 
 static int s_delegating;     /* current scene routed to the software backend */
 static int s_sceneRendered;  /* a GL 3D main view was drawn this frame (live under the present) */
+static int s_wide = -1;      /* widescreen 3D (Hor+): -1 = not yet read from F15_WIDESCREEN */
 static float s_proj[16];     /* column-major GL projection for the active scene */
 static float s_pixelScale;   /* letterbox scale: window pixels per 320-space pixel (point size) */
 static float s_vpW, s_vpH;   /* active 3D viewport size in window pixels (screen-span tests) */
@@ -219,14 +220,17 @@ static float fmulQ15(float a, float b) { return a * b * (1.0f / 32768.0f); }
  * a flat GL quad filled from that ramp, drawn in an ortho viewport with depth off
  * so the 3D objects always composite in front (matching the original's draw-first,
  * no-Z background). Runs only at detail >= 3; below that a flat clear stands in. */
-static void glDrawSphere(int Wv, int Hv) {
+static void glDrawSphere(float oLeft, float oRight, float oBottom, float oTop) {
     float rearX[17], rearY[17], foreX[17], foreY[17], facePts[8];
     int ringIx;
     float ringRad, radiusScale, i, j;
 
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    glOrtho(0, Wv, Hv, 0, -1, 1); /* y-down, viewport-local */
+    /* y-down, in 320-space virtual coords. In widescreen the extents run past
+     * 0..Wv / 0..Hv so the horizon spans the full window with the same central
+     * mapping as the 3D objects; in 4:3 they are exactly the viewport-local box. */
+    glOrtho(oLeft, oRight, oBottom, oTop, -1, 1);
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
     glDisable(GL_DEPTH_TEST);
@@ -306,7 +310,7 @@ static void computeLetterbox(int win_w, int win_h, float *scale, int *ox, int *o
 
 static void gl_beginScene(const R3DScene *s) {
     int win_w, win_h, vpTop, vpBot, vpLeft, vpRight, Wv, Hv, lbx, lby;
-    float scale, fGate;
+    float scale, fGate, sphOrtho[4];
     int16 skyIdx;
     SDL_Surface *page;
 
@@ -314,10 +318,20 @@ static void gl_beginScene(const R3DScene *s) {
      * into the page and composites as plain 2D); GL takes only the main view. */
     if (s->renderScene == 0) {
         s_delegating = 1;
+        r3d_setObjCullWiden(1, 1, 1, 1); /* MFD/target sub-view stays 4:3 */
         r3d_softwareBackend.beginScene(s);
         return;
     }
     s_delegating = 0;
+
+    if (s_wide < 0) {
+        /* Widescreen 3D (Hor+): on by default; F15_WIDESCREEN=0 forces 4:3. The
+         * stock UI stays a centred, pillarboxed 320x200 image (it never widens);
+         * only the 3D fills the extra width (docs/render-2d-overlay.md). */
+        const char *e = SDL_getenv("F15_WIDESCREEN");
+        s_wide = (e && (e[0] == '0' || e[0] == 'n' || e[0] == 'N')) ? 0 : 1;
+        LogInfo(("r3d_gl: widescreen 3D %s", s_wide ? "on" : "off"));
+    }
 
     /* Reuse the software scene setup minus the sphere / shared-vertex precompute
      * (renderScene = 0 here): view matrix + position + viewport + spin advance +
@@ -352,16 +366,51 @@ static void gl_beginScene(const R3DScene *s) {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     /* GL viewport origin is bottom-left; the 320-space rect is top-down. The
-     * uniform letterbox scale keeps the same proportions as 640x400 at any size. */
+     * uniform letterbox scale keeps the same proportions as 640x400 at any size.
+     * gx/gw/gy/gh is the centred 4:3 sub-rect the letterboxed UI quad occupies. */
     {
         int gx = lbx + (int)(vpLeft * scale);
         int gw = (int)(Wv * scale);
         int gh = (int)(Hv * scale);
         int gy = win_h - (lby + (int)(vpTop * scale)) - gh;
-        glViewport(gx, gy, gw, gh);
-        glScissor(gx, gy, gw, gh);
-        s_vpW = (float)gw;
-        s_vpH = (float)gh;
+        if (s_wide) {
+            /* Render the 3D across the WHOLE window and remap the projection so the
+             * central 320-space region still lands on exactly the gx/gw/gy/gh pixels
+             * (px = C0 + C1*camX/depth preserved, extended linearly outside). The
+             * keyed windscreen of the centred UI quad therefore stays aligned with
+             * the 3D behind it, while the side gaps — uncovered by the UI quad in
+             * present — reveal more world. At 4:3 (gw==win_w, gh==win_h) the remap
+             * is the identity, so nothing changes. */
+            float ax = s_proj[0], az = s_proj[8], by = s_proj[5], bz = s_proj[9];
+            float C0 = (float)gx + 0.5f * gw * (1.0f + az);
+            float D0 = (float)gy + 0.5f * gh * (1.0f + bz);
+            s_proj[0] = ax * gw / win_w;
+            s_proj[8] = 2.0f * C0 / win_w - 1.0f;
+            s_proj[5] = by * gh / win_h;
+            s_proj[9] = 2.0f * D0 / win_h - 1.0f;
+            glViewport(0, 0, win_w, win_h);
+            glScissor(0, 0, win_w, win_h);
+            s_vpW = (float)win_w;
+            s_vpH = (float)win_h;
+            /* Widen the object frustum cull to the same view cone the projection
+             * now covers, so peripheral buildings/terrain models in the side gaps
+             * are fetched instead of culled at the 4:3 boundary. */
+            r3d_setObjCullWiden(win_w, gw, win_h, gh);
+            /* Sphere ortho spanning the full window with the same central mapping:
+             * window x=gx -> virtual 0, x=gx+gw -> virtual Wv (scale px/virtual). */
+            sphOrtho[0] = -(float)gx / scale;                                  /* left  */
+            sphOrtho[1] = sphOrtho[0] + (float)win_w / scale;                  /* right */
+            sphOrtho[3] = -((float)lby + (float)vpTop * scale) / scale;        /* top   */
+            sphOrtho[2] = ((float)win_h - ((float)lby + (float)vpTop * scale)) / scale; /* bottom */
+        } else {
+            glViewport(gx, gy, gw, gh);
+            glScissor(gx, gy, gw, gh);
+            s_vpW = (float)gw;
+            s_vpH = (float)gh;
+            r3d_setObjCullWiden(1, 1, 1, 1); /* 4:3: original cull */
+            sphOrtho[0] = 0.0f; sphOrtho[1] = (float)Wv;
+            sphOrtho[2] = (float)Hv; sphOrtho[3] = 0.0f;
+        }
     }
     glEnable(GL_SCISSOR_TEST);
 
@@ -390,7 +439,8 @@ static void gl_beginScene(const R3DScene *s) {
     /* Sky/ground background sphere (detail >= 3) drawn first (farthest), then the
      * 3D projection is restored for the objects. Painter's order with the depth
      * test OFF — objects are sorted + drawn back-to-front in gl_endScene. */
-    if ((char)g_detailLevel >= 3) glDrawSphere(Wv, Hv);
+    if ((char)g_detailLevel >= 3)
+        glDrawSphere(sphOrtho[0], sphOrtho[1], sphOrtho[2], sphOrtho[3]);
     glMatrixMode(GL_PROJECTION);
     glLoadMatrixf(s_proj);
     glMatrixMode(GL_MODELVIEW);

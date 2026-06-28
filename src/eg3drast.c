@@ -1811,6 +1811,18 @@ static void transposeOrientationMatrix(void) {
 /* Word read of the colour LUT at byte offset `o`. */
 #define COLW(o) (*(int16 *)(colorLut + (o)))
 
+/* Widescreen frustum-cull widening (r3d_setObjCullWiden): scale the angular X/Y
+ * half-extents so a wider-than-4:3 view cone fetches its peripheral models. 1:1 =
+ * the original 4:3 cull (software default). */
+static int g_cullWidenNumX = 1, g_cullWidenDenX = 1, g_cullWidenNumY = 1, g_cullWidenDenY = 1;
+
+void r3d_setObjCullWiden(int numX, int denX, int numY, int denY) {
+    g_cullWidenNumX = (numX > 0) ? numX : 1;
+    g_cullWidenDenX = (denX > 0) ? denX : 1;
+    g_cullWidenNumY = (numY > 0) ? numY : 1;
+    g_cullWidenDenY = (denY > 0) ? denY : 1;
+}
+
 /* seg001 0x0908 — transformAndCullObject: rotate the object origin (relX/Y/Z)
  * into camera space (g_camBaseX / g_camTransX / g_camTransY) and frustum-cull.
  * Returns 0 if visible, 1 if culled. */
@@ -1839,7 +1851,9 @@ static int transformAndCullObject(int relY, int relZ, int relX) {
     {
         int bxhi = HI16(g_camBaseX);
         int absbx = (bxhi < 0) ? -bxhi : bxhi;
-        if (absbx > si) return 1;
+        /* Widen only the visibility threshold (the running si keeps the true
+         * absbx for the distance estimate below, exactly as the original). */
+        if (absbx > (int)((long)si * g_cullWidenNumX / g_cullWidenDenX)) return 1;
         si = absbx;
     }
     ax = absYHi + g_overlayCenterY[rm];
@@ -1848,7 +1862,7 @@ static int transformAndCullObject(int relY, int relZ, int relX) {
     if (g_hudVisible) bx = (((ax >> 3) + ax) >> 1);
     {
         int absXHi = (g_camTransXHi < 0) ? -g_camTransXHi : g_camTransXHi;
-        if (absXHi > bx) return 1;
+        if (absXHi > (int)((long)bx * g_cullWidenNumY / g_cullWidenDenY)) return 1;
         si += absXHi;
     }
     si >>= 2;

@@ -43,6 +43,13 @@ int far r3d_objTransformFar(char far *model, int yaw, int pitch, int roll,
                             int posX, int posY, int posZ,
                             int16 *combined, long *camBase, long *camX, long *camY,
                             int *shade, int *dirX, int *dirY, int *dirZ);
+/* Widen the object frustum cull (transformAndCullObject) to a wider-than-4:3 view
+ * cone, so widescreen 3D fetches the peripheral models the central frustum would
+ * reject. The X/Y half-extents are scaled by numX/denX and numY/denY (window vs
+ * the centred 4:3 sub-rect). Set 1,1,1,1 to disable (the software path default).
+ * Only the angular cull is widened; the near/far depth and max-distance gates are
+ * unchanged. The GL backend sets this per scene in gl_beginScene. */
+void r3d_setObjCullWiden(int numX, int denX, int numY, int denY);
 int far drawModelDisplayList();
 int far fillSpanRect(const int16 *dst, int left, int top, int right, int bottom);
 int far drawClipLineGlobal();
