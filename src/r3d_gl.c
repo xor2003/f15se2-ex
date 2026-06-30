@@ -41,6 +41,19 @@ static SDL_Window *s_win;
 static SDL_GLContext s_ctx;
 static int s_active;
 
+/* glFogCoordf (core GL 1.4) lets us drive fog from an explicit per-vertex distance
+ * instead of GL's eye-space distance. We must: the "eye" coords we submit are
+ * projection numerators (camX/camY are ~65536x the scale of the depth z we pass), so
+ * GL's built-in radial eye-distance fog is dominated by those bogus lateral values
+ * and comes out wrong (and heading-dependent). Loaded at context init. */
+#ifndef GL_FOG_COORD_SRC
+#define GL_FOG_COORD_SRC 0x8450
+#endif
+#ifndef GL_FOG_COORD
+#define GL_FOG_COORD 0x8451
+#endif
+static void (*s_glFogCoordf)(GLfloat);
+
 int r3dgl_wantGL(void) {
     /* Bring a GL window/context up unless software is explicitly forced — auto,
      * "gl", and unknown names all prefer GL (an unknown name falls back to the
@@ -66,6 +79,7 @@ int r3dgl_initContext(SDL_Window *win) {
     }
     SDL_GL_MakeCurrent(win, s_ctx);
     SDL_GL_SetSwapInterval(1);
+    s_glFogCoordf = (void (*)(GLfloat))SDL_GL_GetProcAddress("glFogCoordf");
     {
         GLint depthBits = 0;
         glGetIntegerv(GL_DEPTH_BITS, &depthBits);
@@ -209,12 +223,8 @@ static const char *s_flatPtr[256];
 static uint8 s_flatVal[256];
 static int s_flatN;
 
-/* One-shot per-pointer trace of the flatness decision (persists across frames). */
-static const char *s_flatLogPtr[256];
-static int s_flatLogN;
-
 static int modelIsFlat(const char *model) {
-    int i, minx, maxx, miny, maxy, minz, maxz, sx, sy, sz, smin, flat, nv;
+    int i, minx, maxx, miny, maxy, minz, maxz, sx, sy, sz, smin, flat;
     MeshVtxPools pools;
     MeshLod *l;
     for (i = 0; i < s_flatN; i++)
@@ -222,13 +232,11 @@ static int modelIsFlat(const char *model) {
 
     fillPools(&pools);
     flat = 0; /* undecodable / non-model -> treat as solid (z-buffer it; the safe side) */
-    sx = sy = sz = nv = 0;
     if (r3dmesh_decode((const uint8 *)model,
                        (const uint8 *)g_world3dData + WORLD3D_DATA_SIZE,
                        &pools, colorLut, &s_mesh) >= 0) {
         l = &s_mesh.lods[0];
         if (l->form == MESH_FORM_MODEL && l->nVerts > 0) {
-            nv = l->nVerts;
             minx = maxx = l->verts[0].x;
             miny = maxy = l->verts[0].y;
             minz = maxz = l->verts[0].z;
@@ -247,13 +255,46 @@ static int modelIsFlat(const char *model) {
         }
     }
     if (s_flatN < 256) { s_flatPtr[s_flatN] = model; s_flatVal[s_flatN++] = (uint8)flat; }
-
-    for (i = 0; i < s_flatLogN; i++)
-        if (s_flatLogPtr[i] == model) return flat; /* already traced */
-    if (s_flatLogN < 256) s_flatLogPtr[s_flatLogN++] = model;
-    LogInfo(("modelIsFlat: model=%p nVerts=%d spans=%d,%d,%d flat=%d",
-             (const void *)model, nv, sx, sy, sz, flat));
     return flat;
+}
+
+/* Atmospheric haze. The original colours each object by distance through 8 discrete
+ * palette bands (g_objShade = (v<<4)+0x80, added to colorLut[colorByte]): the near
+ * band 0x80 is the saturated true colour, and with distance every hue brightens and
+ * desaturates toward a light grey — but in coarse, visible steps. GL_FOG reproduces
+ * the same effect per-pixel and smooth: draw with the near/saturated base colour
+ * (colorLut[c] + GL_NEAR_SHADE) and let fog blend it toward the live horizon colour
+ * with distance, sampled from the palette each frame (so night/region repalettes follow
+ * automatically). We fog toward the GROUND side of the horizon (ground ramp base, 0x70),
+ * not the sky side (0x60): most fogged geometry is terrain and must melt into the earth
+ * band of the horizon sphere. By day the two meet at the same haze grey, but at dusk/
+ * night the sky side carries the sunset glow while the earth is dark — fogging to 0x60
+ * would wrongly brighten distant ground.
+ *
+ * Fog distance is supplied explicitly per vertex (fogVertex below) as the forward
+ * depth z we already emit — the LOD-normalized eye depth (vd_), which the z-buffer
+ * also uses and which equals true distance across LODs (so it is heading-independent).
+ * We can NOT let GL derive the distance from the submitted "eye" position: camX/camY
+ * are projection numerators ~65536x the scale of that z, so GL's radial eye-distance
+ * fog is swamped by them and comes out wrong (and heading-dependent). Range is in
+ * those vd_ forward-depth units (1..fGate, the projection's near..far). */
+static const int GL_NEAR_SHADE = 0x80;  /* the v=0 saturated band: the un-hazed colour */
+static const int GL_HORIZON_IDX = 0x70; /* ground-at-horizon (earth side); see above */
+/* Falloff curve. GL_LINEAR ramps straight from FOG_NEAR_DIST (clear) to FOG_FAR_DIST
+ * (full haze). GL_EXP / GL_EXP2 ignore near/far and use FOG_DENSITY instead, giving an
+ * exponential curve — clearer up close, thickening with distance (EXP2 is the steeper,
+ * more "atmospheric" of the two). Switch FOG_MODE to taste; tune the matching knob. */
+static const GLint FOG_MODE = GL_EXP;
+static const float FOG_NEAR_DIST = 0.0f;    /* GL_LINEAR: haze onset, vd_ forward-depth units */
+static const float FOG_FAR_DIST = 6000.0f;  /* GL_LINEAR: fully hazed (horizon) at this depth */
+static const float FOG_DENSITY = 0.0003f;   /* GL_EXP/EXP2: higher = haze closes in sooner */
+//static const float FOG_DENSITY = 0.0003f;   /* GL_EXP/EXP2: higher = haze closes in sooner */
+
+/* Emit one vertex with its fog distance = its forward depth z (planar), bypassing GL's
+ * eye-distance derivation. Falls back to a plain vertex if glFogCoordf is unavailable. */
+static void fogVertex(float x, float y, float z) {
+    if (s_glFogCoordf) s_glFogCoordf(z);
+    glVertex3f(x, y, z);
 }
 
 static const char *gl_name(void) { return "opengl1"; }
@@ -555,6 +596,31 @@ static void gl_beginScene(const R3DScene *s) {
     glEnable(GL_POLYGON_OFFSET_LINE);
     glEnable(GL_POLYGON_OFFSET_POINT);
 
+    /* Distance haze (replaces the stepped g_objShade bands). Enabled after the sky
+     * sphere so the background gradient itself isn't fogged; disabled in gl_endScene.
+     * Fog colour = live horizon colour so geometry fades into the horizon line. The
+     * distance is the per-vertex forward depth supplied by fogVertex (GL_FOG_COORD),
+     * not GL's eye-distance — see fogVertex. */
+    {
+        uint8 fr, fg, fb;
+        GLfloat fogColor[4];
+        gfx_paletteRGB(GL_HORIZON_IDX, &fr, &fg, &fb);
+        fogColor[0] = fr / 255.0f;
+        fogColor[1] = fg / 255.0f;
+        fogColor[2] = fb / 255.0f;
+        fogColor[3] = 1.0f;
+        glFogi(GL_FOG_MODE, FOG_MODE);
+        glFogfv(GL_FOG_COLOR, fogColor);
+        if (FOG_MODE == GL_LINEAR) {
+            glFogf(GL_FOG_START, FOG_NEAR_DIST);
+            glFogf(GL_FOG_END, FOG_FAR_DIST);
+        } else {
+            glFogf(GL_FOG_DENSITY, FOG_DENSITY);
+        }
+        if (s_glFogCoordf) glFogi(GL_FOG_COORD_SRC, GL_FOG_COORD); /* use fogVertex's z */
+        glEnable(GL_FOG);
+    }
+
     /* Make the page's viewport region show-through so the 2D composite reveals
      * the GL 3D under it; the HUD/cockpit then draw over it (non-key, opaque). */
     page = gfx_getCurPageSurface();
@@ -668,7 +734,7 @@ static void drawDepthPoint(float x, float y, long depth32, int colorIdx) {
     glPointSize(sz);
     glColorIndex(colorIdx);
     glBegin(GL_POINTS);
-    glVertex3f(x, y, (float)depth32 / 65536.0f);
+    fogVertex(x, y, (float)depth32 / 65536.0f);
     glEnd();
 }
 
@@ -700,7 +766,7 @@ static void drawSub(const GlSub *r) {
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         drawDepthPoint((float)r->camBase, (float)r->camX, r->camY,
-                       colorLut[l->pointColor] + r->shade);
+                       colorLut[l->pointColor] + GL_NEAR_SHADE);
         glDisable(GL_BLEND);
         glDisable(GL_POINT_SMOOTH);
         return;
@@ -811,7 +877,7 @@ static void drawSub(const GlSub *r) {
                 glEnable(GL_BLEND);
                 glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
                 drawDepthPoint((float)r->camBase, (float)r->camX, r->camY,
-                               colorLut[colorByte] + r->shade);
+                               colorLut[colorByte] + GL_NEAR_SHADE);
                 glDisable(GL_BLEND);
                 glDisable(GL_POINT_SMOOTH);
             }
@@ -865,9 +931,9 @@ static void drawSub(const GlSub *r) {
         if (n < 3) continue;
 
         paintBias();
-        glColorIndex(colorLut[f->colorByte] + r->shade);
+        glColorIndex(colorLut[f->colorByte] + GL_NEAR_SHADE);
         glBegin(GL_POLYGON);
-        for (k = 0; k < n; k++) glVertex3f(vx_[ring[k]], vy_[ring[k]], vd_[ring[k]]);
+        for (k = 0; k < n; k++) fogVertex(vx_[ring[k]], vy_[ring[k]], vd_[ring[k]]);
         glEnd();
     }
 
@@ -907,7 +973,7 @@ static void drawSub(const GlSub *r) {
             /* One width law for every wire (extrusion below is what differs). */
             float hw = WIRE_HW_SCALE * SDL_powf(len, WIRE_HW_POW);
 
-            glColorIndex(colorLut[l->lines[i].colorByte] + r->shade);
+            glColorIndex(colorLut[l->lines[i].colorByte] + GL_NEAR_SHADE);
             /* Lay flat only for a near-horizontal wire on a ground-level object
              * (|posZ| small). The object's world altitude is the clean signal — a
              * road tile sits at ~0, a flying plane carries its altitude — so a level
@@ -925,10 +991,10 @@ static void drawSub(const GlSub *r) {
                  * with the ground/deck) are ordered by draw order, not left to z-fight. */
                 paintBias();
                 glBegin(GL_QUADS);
-                glVertex3f(ax + gx, ay + gy, (az + gz) / 65536.0f);
-                glVertex3f(bx + gx, by + gy, (bz + gz) / 65536.0f);
-                glVertex3f(bx - gx, by - gy, (bz - gz) / 65536.0f);
-                glVertex3f(ax - gx, ay - gy, (az - gz) / 65536.0f);
+                fogVertex(ax + gx, ay + gy, (az + gz) / 65536.0f);
+                fogVertex(bx + gx, by + gy, (bz + gz) / 65536.0f);
+                fogVertex(bx - gx, by - gy, (bz - gz) / 65536.0f);
+                fogVertex(ax - gx, ay - gy, (az - gz) / 65536.0f);
                 glEnd();
             } else {
                 /* CAMERA-FACING: per-end normalize(cross(lineDir, ray)) * hw. */
@@ -945,10 +1011,10 @@ static void drawSub(const GlSub *r) {
                 if (pax * pbx + pay * pby + paz * pbz < 0.0f) { pbx = -pbx; pby = -pby; pbz = -pbz; }
                 paintBias(); /* per-line bias: overlapping wires order by draw order */
                 glBegin(GL_QUADS);
-                glVertex3f(ax + pax, ay + pay, (az + paz) / 65536.0f);
-                glVertex3f(bx + pbx, by + pby, (bz + pbz) / 65536.0f);
-                glVertex3f(bx - pbx, by - pby, (bz - pbz) / 65536.0f);
-                glVertex3f(ax - pax, ay - pay, (az - paz) / 65536.0f);
+                fogVertex(ax + pax, ay + pay, (az + paz) / 65536.0f);
+                fogVertex(bx + pbx, by + pby, (bz + pbz) / 65536.0f);
+                fogVertex(bx - pbx, by - pby, (bz - pbz) / 65536.0f);
+                fogVertex(ax - pax, ay - pay, (az - paz) / 65536.0f);
                 glEnd();
             }
         }
@@ -1003,6 +1069,7 @@ static void gl_endScene(void) {
         if (!s_subs[i].immediate) drawSub(&s_subs[i]);
 
     glPolygonOffset(0.0f, 0.0f);
+    glDisable(GL_FOG);
     s_nSub = 0;
     glDisable(GL_SCISSOR_TEST);
 }
