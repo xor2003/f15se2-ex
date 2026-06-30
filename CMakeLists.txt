@@ -198,6 +198,7 @@ add_executable(original_behavior_tests
     ${SRC_DIR}/egflight.c
     ${SRC_DIR}/eghudm.c
     ${SRC_DIR}/egdata.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/r3d_render_stubs.cpp
 )
 add_executable(utility_behavior_tests
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/utility_behavior_tests.cpp
@@ -254,6 +255,7 @@ add_executable(geometry_behavior_tests
     ${SRC_DIR}/eg3dmath.c
     ${SRC_DIR}/egmath.c
     ${SRC_DIR}/egdata.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/r3d_render_stubs.cpp
 )
 add_executable(file_io_behavior_tests
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/file_io_behavior_tests.cpp
@@ -274,6 +276,8 @@ add_executable(input_behavior_tests
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/input_behavior_tests.cpp
     ${SRC_DIR}/eginput.c
     ${SRC_DIR}/egdata.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/utility_stubs.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/runtime_stubs.cpp
 )
 add_executable(hud_raster_behavior_tests
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/hud_raster_behavior_tests.cpp
@@ -285,6 +289,7 @@ add_executable(view_behavior_tests
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/view_behavior_tests.cpp
     ${SRC_DIR}/eg3dview.c
     ${SRC_DIR}/egdata.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/r3d_render_stubs.cpp
 )
 add_executable(sys_behavior_tests
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/sys_behavior_tests.cpp
@@ -338,9 +343,12 @@ add_executable(shared_runtime_behavior_tests
 add_executable(shared_overlay_behavior_tests
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/shared_overlay_behavior_tests.cpp
     ${SRC_DIR}/shared/ovlimpl.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/utility_stubs.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/runtime_stubs.cpp
 )
 add_executable(shared_misc_behavior_tests
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/shared_misc_behavior_tests.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/utility_stubs.cpp
 )
 add_executable(shared_picimpl_behavior_tests
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/shared_picimpl_behavior_tests.cpp
@@ -349,12 +357,14 @@ add_executable(shared_picimpl_behavior_tests
 add_executable(eg_stubs_behavior_tests
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/eg_stubs_behavior_tests.cpp
     ${SRC_DIR}/egstubs.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/eg_stubs_behavior_aux.cpp
 )
 add_executable(eg_main_behavior_tests
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/eg_main_behavior_tests.cpp
     ${SRC_DIR}/egmain.c
     ${SRC_DIR}/egdata.c
     ${SRC_DIR}/egfarbuf.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/eg_main_behavior_aux.cpp
 )
 add_executable(eg3drast_behavior_tests
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/eg3drast_behavior_tests.cpp
@@ -390,6 +400,8 @@ add_executable(start_parse_behavior_tests
 add_executable(launcher_runtime_behavior_tests
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/launcher_runtime_behavior_tests.cpp
     ${SRC_DIR}/f15.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/utility_stubs.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/runtime_stubs.cpp
 )
 add_executable(log_behavior_tests
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/log_behavior_tests.cpp
@@ -885,9 +897,15 @@ add_test(NAME start_main_autostart_behavior_tests COMMAND start_main_autostart_b
 add_test(NAME start_main_behavior_tests COMMAND start_main_behavior_tests)
 add_test(NAME gfx_impl_behavior_tests COMMAND gfx_impl_behavior_tests)
 add_test(NAME biosfunc_behavior_tests COMMAND biosfunc_behavior_tests)
-add_test(NAME original_binary_function_harness
-    COMMAND python3 /home/xor/games/f15se2-re/mzretools/original_binary_function_harness.py
-)
+set(ORIGINAL_BINARY_FUNCTION_HARNESS "${CMAKE_CURRENT_SOURCE_DIR}/../f15se2-re/mzretools/original_binary_function_harness.py")
+if (EXISTS "${ORIGINAL_BINARY_FUNCTION_HARNESS}")
+    add_test(NAME original_binary_function_harness
+        COMMAND ${CMAKE_COMMAND} -E env F15SE2_RE=${CMAKE_CURRENT_SOURCE_DIR}
+                python3 ${ORIGINAL_BINARY_FUNCTION_HARNESS}
+    )
+else()
+    message(WARNING "Skipping original_binary_function_harness test: script not found at ${ORIGINAL_BINARY_FUNCTION_HARNESS}")
+endif()
 add_custom_target(function_coverage_audit
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
     COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/tests/function_coverage_audit.py ${CMAKE_BINARY_DIR}
