@@ -13,6 +13,8 @@
 
 void FAR CDECL gfx_setCurPageSegReg(uint16 seg);
 void FAR CDECL gfx_getCurPage(int page);
+void FAR CDECL gfx_fillRow(uint16 rowOffset, uint16 srcBuf, uint16 rowNum);
+void FAR CDECL gfx_copyRow(uint16 rowOffset);
 void FAR CDECL gfx_setPageBuf(void);
 void FAR CDECL gfx_storePageSeg(void);
 void FAR CDECL gfx_setPageSeg(void);

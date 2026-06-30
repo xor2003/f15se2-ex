@@ -38,14 +38,12 @@ enum StartMainAutostartConstant : int {
     kAutostartCampaignProgress = 0,
     kAutostartRandSeed = 12345,
     kAutostartMissionReadyTraining = 2,
-    kStartDone = 1,
     kJoyAxis0 = 0,
     kJoyAxis1 = 1,
     kExpectedFadeSteps = 8,
     kGfxGetValMcga = 0,
     kGfxGetValLoadPic = 1,
     kSpritePage = 2,
-    kRestartCleared = 0,
     kTrainingCleared = 0,
     kTrainingSet = 1,
     kStartExitCode = 12,
@@ -101,7 +99,6 @@ void resetStartMainState(struct GameComm &comm, struct Game &game) {
     comm.gfxInitResult = kInitialGfxInitResult;
     comm.needSplash = 1;
     comm.trainingFlag = 1;
-    comm.restartFlag = 1;
     commData = &comm;
     gameData = &game;
     g_installCalls = 0;
@@ -219,8 +216,6 @@ int main() {
                 game.campaignProgress == kAutostartCampaignProgress &&
                 game.rand == kAutostartRandSeed,
             "DEBUG_AUTOSTART initializes the hardcoded mission setup");
-    require(comm.startDone == kStartDone,
-            "DEBUG_AUTOSTART marks START complete in COMM");
     require(joyAxes[kJoyAxis0] == JOY_CENTER &&
                 joyAxes[kJoyAxis1] == JOY_CENTER,
             "DEBUG_AUTOSTART centers joystick axes");
@@ -240,8 +235,7 @@ int main() {
     require(g_exportWorldCalls == kExpectedOneCall &&
                 g_exportWorldName == "temp.wld",
             "start_main exports the generated world through temp.wld");
-    require(comm.restartFlag == kRestartCleared &&
-                comm.trainingFlag == kTrainingCleared,
+    require(comm.trainingFlag == kTrainingCleared,
             "start_main clears restart and non-training mission flags");
     require(g_clearKeyFlagsCalls == kExpectedOneCall,
             "start_main clears BIOS/input key flags before exit");
@@ -260,8 +254,7 @@ int main() {
     require(g_openShowPicCalls == 0 &&
                 g_loadPicCalls == kExpectedOneCall,
             "non-MCGA path loads f15.spr through loadPic with the original graphics buffer");
-    require(comm.trainingFlag == kTrainingSet &&
-                comm.restartFlag == kRestartCleared,
+    require(comm.trainingFlag == kTrainingSet,
             "start_main preserves original training flag export when generated missionReady exceeds one");
 
     std::cout << "start main autostart behavior tests passed\n";

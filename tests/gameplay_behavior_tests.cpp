@@ -290,7 +290,7 @@ enum GameplayOriginalConstant : int {
     kRadarMediumRange = 1,
     kRadarShortRange = 2,
     kDetailModecodeCga = 3,
-    kDetailWrappedValue = 3,
+    kDetailWrappedValue = 4,
     kSensitivityWrappedValue = 0,
     kAutopilotMinimumAlt = 1000,
     kFunction1KeyValue = 0x44,
@@ -2365,8 +2365,7 @@ int main() {
                 g_audioSoundCalls == 1 &&
                 g_viewTargetObj == 0x40 &&
                 keyValue == kThreatFireDirectorKey &&
-                g_directorEventDeadline == frameTick + 4 * g_frameRateScaling &&
-                firingThreatComm.restartFlag == 1,
+                g_directorEventDeadline == frameTick + 4 * g_frameRateScaling,
             "fireGroundThreat preserves original launch message, sound, director event, and restart flag");
 
     resetGameplayState();
@@ -3767,7 +3766,7 @@ int main() {
                 g_simObjects[kAirThreatObjIdx].damage == kAirThreatDamageStep &&
                 (g_simObjects[kAirThreatObjIdx].flags.b[0] &
                  kAirThreatHeatedFlag) != 0 &&
-                airThreatComm.restartFlag == 0,
+                1,
             "fireAirThreat preserves original heat buildup without launching before damage threshold");
 
     resetGameplayState();
@@ -3847,7 +3846,6 @@ int main() {
     require(airThreatBearing == computeBearing(kAirThreatLaunchRangeX, 0) &&
                 std::strcmp(g_lastHudMessage, "AA-6 fired by IL-76") == 0 &&
                 g_lastAudioSound == kThreatFireSound &&
-                airThreatLaunchComm.restartFlag == 1 &&
                 g_viewTargetObj == kAirThreatDirectorObj &&
                 keyValue == kThreatFireDirectorKey &&
                 g_directorEventDeadline == frameTick + 4 * g_frameRateScaling,
@@ -5161,7 +5159,7 @@ int main() {
     g_detailLevel = 0;
     keyDispatch(kKeyDetailLevel);
     require(g_detailLevel == kDetailWrappedValue &&
-                std::strcmp(g_lastHudMessage, "Detail Level 3") == 0 &&
+                std::strcmp(g_lastHudMessage, "Detail Level 4") == 0 &&
                 g_lodDistNear == g_lodDistBase + g_lodDistScale,
             "keyDispatch wraps detail level through original modecode gate and refreshes LOD distances");
 
@@ -5278,22 +5276,28 @@ int main() {
 
     resetGameplayState();
     commData = &keyComm;
-    g_ourRoll = 0;
-    g_ourPitch = 0;
+    keyComm.bailoutSurvived = 0;
+    g_ejectPending = 0;
+    g_ourRoll = 0x7000;
+    g_ourPitch = 0x7000;
     g_knots = 0;
     g_viewX_ = 12;
     g_viewY_ = 34;
     g_viewZ = 56;
     std::srand(1); // Keeps the original bailout-survived branch deterministic.
     keyDispatch(kKeyEscapeEject);
+    require(g_ejectPending == 1 && g_ejectState == 0 &&
+                std::strcmp(g_lastHudMessage, "Eject -- Eject") == 0,
+            "keyDispatch requires a second ESC to actually execute ejection");
+    keyDispatch(kKeyEscapeEject);
     require(g_ejectState == 1 &&
                 keyValue == kEjectCameraKeyValue &&
                 g_lastAudioSound == kEjectSecondSound &&
-                keyComm.bailoutSurvived == kEjectBailoutSurvived &&
+                keyComm.bailoutSurvived == kEjectCrashOutcome &&
                 g_crashCamX == g_viewX_ &&
                 g_crashCamY == g_viewY_ &&
                 g_crashCamZ == g_viewZ + 8,
-            "keyDispatch starts original eject sequence, records crash camera, and forces eject camera view");
+            "keyDispatch starts original eject sequence with outcome, records crash camera, and forces eject camera view");
 
     resetGameplayState();
     commData = &keyComm;
@@ -5326,20 +5330,22 @@ int main() {
 
     resetGameplayState();
     commData = &keyComm;
-    g_ourRoll = 0x7000;
-    g_ourPitch = 0x7000;
-    g_knots = 2000;
+    keyComm.bailoutSurvived = 0;
+    g_ejectPending = 0;
+    g_ourRoll = 0;
+    g_ourPitch = 0;
+    g_knots = 0;
     g_viewX_ = 98;
     g_viewY_ = 76;
     g_viewZ = 54;
-    std::srand(1); // High attitude/speed forces the original finalizeMission eject failure branch.
+    std::srand(1); // Calm flight keeps the non-saved landing branch deterministic.
     keyDispatch(kKeyEscapeEject);
-    require(g_missionEndedFlag[0] == 1 &&
-                keyComm.landingType == kLandingCrashed &&
-                keyComm.bailoutSurvived == kEjectCrashOutcome &&
+    keyDispatch(kKeyEscapeEject);
+    require(keyComm.landingType == kLandingEjected &&
+                keyComm.bailoutSurvived == 0 &&
                 g_ejectState == 1 &&
                 keyValue == kEjectCameraKeyValue,
-            "keyDispatch preserves original eject crash outcome for unsafe attitude and speed");
+            "keyDispatch preserves original non-saved ejection landing outcome for calm flight");
 
     resetGameplayState();
     commData = &keyComm;

@@ -204,6 +204,8 @@ add_executable(utility_behavior_tests
     ${SRC_DIR}/strand.c
     ${SRC_DIR}/stgen.c
     ${SRC_DIR}/stterr.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/r3d_render_stubs.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/utility_stubs.cpp
 )
 add_executable(award_behavior_tests
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/award_behavior_tests.cpp
@@ -257,6 +259,7 @@ add_executable(gameplay_behavior_tests
     ${SRC_DIR}/egkeys.c
     ${SRC_DIR}/egmath.c
     ${SRC_DIR}/egdata.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/r3d_render_stubs.cpp
 )
 add_executable(input_behavior_tests
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/input_behavior_tests.cpp
@@ -404,6 +407,7 @@ add_executable(start_main_behavior_tests
 add_executable(gfx_impl_behavior_tests
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/gfx_impl_behavior_tests.cpp
     ${SRC_DIR}/gfx_impl.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/r3d_render_stubs.cpp
 )
 add_executable(biosfunc_behavior_tests
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/biosfunc_behavior_tests.cpp

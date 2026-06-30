@@ -10,6 +10,8 @@
 #include <iostream>
 #include <utility>
 
+bool input_preferGamepad(void) { return commData != 0 && commData->setupUseJoy != 0; }
+
 extern const int16 g_angleLut[];
 extern int rangeApprox(int deltaX, int deltaY);
 extern int sinMul(int angle, int value);

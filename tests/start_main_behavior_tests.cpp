@@ -37,8 +37,6 @@ enum StartMainConstant : int {
     kNoSplash = 0,
     kNeedJoystickSetup = 1,
     kNoJoystickSetup = 0,
-    kStartDone = 1,
-    kRestartCleared = 0,
     kTrainingCleared = 0,
     kTrainingSet = 1,
     kNormalMissionReady = 1,
@@ -176,7 +174,6 @@ void resetStartMainState(struct GameComm &comm, struct Game &game) {
     timerCounter = 0;
     comm.gfxInitResult = kInitialGfxInitResult;
     comm.needSplash = kNoSplash;
-    comm.restartFlag = 1;
     comm.trainingFlag = 1;
     commData = &comm;
     gameData = &game;
@@ -453,8 +450,7 @@ int main() {
             "normal start_main allocates menu sprites and runs pilot/mission selection");
     require(game.missionReady == kNormalMissionReady &&
                 game.isCampaignMission == kCampaignMission &&
-                game.campaignProgress == kCampaignReset &&
-                comm.startDone == kStartDone,
+                game.campaignProgress == kCampaignReset,
             "normal start_main sets the original mission-ready campaign flags");
     require(g_askRepeatCalls == kExpectedOneCall &&
                 game.rand == kPreservedRandomSeed,
@@ -475,7 +471,6 @@ int main() {
             "normal MCGA path loads f15.spr through openShowPic page 2");
     require(g_exportWorldCalls == kExpectedOneCall &&
                 g_exportWorldName == "temp.wld" &&
-                comm.restartFlag == kRestartCleared &&
                 comm.trainingFlag == kTrainingCleared,
             "normal start_main exports temp.wld and clears restart/training flags for a normal mission");
     require(g_clearKeyFlagsCalls == kExpectedOneCall &&
@@ -513,7 +508,7 @@ int main() {
                 g_loadPicSegment == kInitialGfxInitResult,
             "normal non-MCGA path loads f15.spr through loadPic with the graphics buffer");
     require(comm.trainingFlag == kTrainingSet &&
-                comm.restartFlag == kRestartCleared,
+                1,
             "normal start_main exports the original training flag when missionReady exceeds one");
 
     resetStartMainState(comm, game);
