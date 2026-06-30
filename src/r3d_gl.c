@@ -111,11 +111,14 @@ static float s_proj[16];     /* column-major GL projection for the active scene 
 static float s_pixelScale;   /* letterbox scale: window pixels per 320-space pixel (point size) */
 static float s_vpW, s_vpH;   /* active 3D viewport size in window pixels (screen-span tests) */
 
-/* Deferred submission for painter's-order rendering. The game's surfaces are
- * paper-thin and frequently coplanar, which no z-buffer can resolve, so — like the
- * DOS original — we render with the depth test OFF and rely on draw order: objects
- * farthest-first by the LOD-normalized origin depth (insertSortedObject's key),
- * back-face culled, faces in display-list order. */
+/* Deferred submission for the hybrid depth ordering (see gl_endScene). A real
+ * z-buffer (GL_LEQUAL) resolves genuine occlusion painter's order alone got wrong
+ * (a plane behind a building no longer shows through); the objects are still
+ * collected and drawn in the original's painter's order — farthest-first by the
+ * LOD-normalized origin depth (insertSortedObject's key), back-face culled, faces
+ * in display-list order — so that surfaces a z-buffer cannot separate (paper-thin
+ * coplanar faces: jet fire on the engine, surf on the sea, deck markings) keep the
+ * original look, the later draw winning at equal depth. */
 typedef struct {
     char *model;
     int16 combined[9];
@@ -181,6 +184,76 @@ static int peekSortFlag(const uint8 *model, const uint8 *limit) {
     if ((p[0] & 0x60) == 0x60) p++; /* storeObjTransform byte precedes the opcode */
     if (p >= limit) return 0;
     return (p[0] & 0x40) ? 1 : 0;
+}
+
+/* A model is "flat" (a ground decal: sea, surf, road, runway/deck marking) when its
+ * geometry has no real vertical relief — it is planar, so it sits coplanar with the
+ * ground and the z-buffer cannot order it, but draw order can. A model with relief
+ * (a cargo ship and its bridge, a building) is NOT flat: it must be z-buffered so its
+ * own near faces occlude its far ones.
+ *
+ * Test: a ground decal is genuinely PLANAR — one model-space axis collapses to ~0
+ * (the world data models the sea, terrain tiles, roads and deck markings with a span
+ * of exactly 0 on their vertical axis). A solid has real extent on all three: the
+ * cargo ship measures 384x36x24, so its thinnest axis (24) sits well above any planar
+ * shape. Flat iff the thinnest axis span is at/near zero — a small absolute slack
+ * tolerates minor modelling noise while staying far below the ship's 24. (A ratio
+ * test fails here: the ship is ~16x longer than tall, so any ratio loose enough to
+ * pass real sheets also catches it.) */
+static const int GL_FLAT_SPAN = 8;
+
+/* Relief is a static property of the model, but a frame has many instances of a few
+ * models (terrain tiles), so cache the verdict per model pointer; reset each frame
+ * (the world data can reload between regions). */
+static const char *s_flatPtr[256];
+static uint8 s_flatVal[256];
+static int s_flatN;
+
+/* One-shot per-pointer trace of the flatness decision (persists across frames). */
+static const char *s_flatLogPtr[256];
+static int s_flatLogN;
+
+static int modelIsFlat(const char *model) {
+    int i, minx, maxx, miny, maxy, minz, maxz, sx, sy, sz, smin, flat, nv;
+    MeshVtxPools pools;
+    MeshLod *l;
+    for (i = 0; i < s_flatN; i++)
+        if (s_flatPtr[i] == model) return s_flatVal[i];
+
+    fillPools(&pools);
+    flat = 0; /* undecodable / non-model -> treat as solid (z-buffer it; the safe side) */
+    sx = sy = sz = nv = 0;
+    if (r3dmesh_decode((const uint8 *)model,
+                       (const uint8 *)g_world3dData + WORLD3D_DATA_SIZE,
+                       &pools, colorLut, &s_mesh) >= 0) {
+        l = &s_mesh.lods[0];
+        if (l->form == MESH_FORM_MODEL && l->nVerts > 0) {
+            nv = l->nVerts;
+            minx = maxx = l->verts[0].x;
+            miny = maxy = l->verts[0].y;
+            minz = maxz = l->verts[0].z;
+            for (i = 1; i < l->nVerts; i++) {
+                int X = l->verts[i].x, Y = l->verts[i].y, Z = l->verts[i].z;
+                if (X < minx) minx = X;
+                if (X > maxx) maxx = X;
+                if (Y < miny) miny = Y;
+                if (Y > maxy) maxy = Y;
+                if (Z < minz) minz = Z;
+                if (Z > maxz) maxz = Z;
+            }
+            sx = maxx - minx; sy = maxy - miny; sz = maxz - minz;
+            smin = sx; if (sy < smin) smin = sy; if (sz < smin) smin = sz;
+            flat = (smin <= GL_FLAT_SPAN);
+        }
+    }
+    if (s_flatN < 256) { s_flatPtr[s_flatN] = model; s_flatVal[s_flatN++] = (uint8)flat; }
+
+    for (i = 0; i < s_flatLogN; i++)
+        if (s_flatLogPtr[i] == model) return flat; /* already traced */
+    if (s_flatLogN < 256) s_flatLogPtr[s_flatLogN++] = model;
+    LogInfo(("modelIsFlat: model=%p nVerts=%d spans=%d,%d,%d flat=%d",
+             (const void *)model, nv, sx, sy, sz, flat));
+    return flat;
 }
 
 static const char *gl_name(void) { return "opengl1"; }
@@ -458,17 +531,29 @@ static void gl_beginScene(const R3DScene *s) {
     glDepthMask(GL_TRUE);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    /* Sky/ground background sphere (detail >= 3) drawn first (farthest), then the
-     * 3D projection is restored for the objects. Painter's order with the depth
-     * test OFF — objects are sorted + drawn back-to-front in gl_endScene. */
+    /* Sky/ground background sphere (detail >= 3) drawn first (farthest) with the
+     * depth test off so it stays behind everything; the 3D projection is then
+     * restored for the objects. */
     if ((char)g_detailLevel >= 3)
         glDrawSphere(sphOrtho[0], sphOrtho[1], sphOrtho[2], sphOrtho[3]);
     glMatrixMode(GL_PROJECTION);
     glLoadMatrixf(s_proj);
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
-    glDisable(GL_DEPTH_TEST);
-    glDepthMask(GL_FALSE);
+
+    /* Hybrid depth ordering (see gl_endScene): a real z-buffer resolves genuine
+     * occlusion (a plane behind a building no longer shows through), while objects
+     * are still drawn in the original's painter's order so coplanar surfaces a
+     * z-buffer can't separate keep the original look. GL_LEQUAL lets the later-drawn
+     * coplanar surface win at equal depth; a per-draw polygon offset (gl_endScene)
+     * turns draw order into a depth tiebreak so they never z-fight. The depth buffer
+     * was cleared above; the sphere left it untouched (depth writes off). */
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LEQUAL);
+    glDepthMask(GL_TRUE);
+    glEnable(GL_POLYGON_OFFSET_FILL);
+    glEnable(GL_POLYGON_OFFSET_LINE);
+    glEnable(GL_POLYGON_OFFSET_POINT);
 
     /* Make the page's viewport region show-through so the 2D composite reveals
      * the GL 3D under it; the HUD/cockpit then draw over it (non-key, opaque). */
@@ -479,6 +564,7 @@ static void gl_beginScene(const R3DScene *s) {
     }
     s_nSub = 0;
     s_subOverflow = 0;
+    s_flatN = 0; /* model-flatness cache is per-frame (world data may reload) */
     s_sceneRendered = 1;
 }
 
@@ -517,12 +603,17 @@ static void gl_submit(const R3DSubmit *o) {
     r->dirZ = dirZ;
     r->posZ = o->posZ;
 
-    /* Immediate (drawn first/behind the sorted queue) iff flat at world Z=0 with no
-     * sort flag, exactly as projectSceneObject classifies it. This keeps flat
-     * ground/sea behind elevated objects instead of a near tile overpainting them. */
+    /* Immediate = the no-z-buffer ground class (drawn first, painter's): a flat,
+     * Z=0, unsorted shape. Unlike projectSceneObject (which keys only on Z=0 + sort
+     * flag), we also require the model to be geometrically FLAT, so a 3D object that
+     * merely SITS at sea level — a cargo ship with a tall bridge — is NOT lumped in
+     * with the sea and instead gets z-buffered (pass 2), fixing its self-occlusion.
+     * The lowest-LOD ground tile (colorBase 0x400) is always flat (its non-ground
+     * faces are junk that would otherwise read as relief). */
     r->immediate = (o->posZ == 0 &&
                     !peekSortFlag((const uint8 *)o->mesh,
-                                  (const uint8 *)g_world3dData + WORLD3D_DATA_SIZE));
+                                  (const uint8 *)g_world3dData + WORLD3D_DATA_SIZE) &&
+                    (g_objColorBase == 0x400 || modelIsFlat((const char *)o->mesh)));
     r->seq = s_nSub;
     s_nSub++;
 
@@ -543,6 +634,26 @@ static void gl_submit(const R3DSubmit *o) {
  * as receding into the distance — the depth cue they exist to give. Pixel drift from
  * the integer path is accepted (Q1). REF_DEPTH (a depthHi of 2500) maps to one logical
  * pixel and aligns with the edge-run colour-shade bands. */
+/* Per-PRIMITIVE forward depth bias (glPolygonOffset units), applied in draw order
+ * via a frame-global running counter (s_paintSeq, bumped by paintBias before every
+ * face/line/point). Each successive primitive is nudged one step toward the camera,
+ * so any two surfaces the z-buffer sees as coplanar — whether in different objects
+ * (overlapping terrain tiles, sea vs deck) OR within one model (markings, fire on
+ * the engine) — are ordered by draw order: the later one wins under GL_LEQUAL
+ * instead of z-fighting. The step must exceed the depth-buffer jitter between
+ * coplanar faces (which is several LSB out at distance, where far depth resolution
+ * is poor) yet stay far below the gap between genuinely separated objects, so the
+ * z-test still drives real occlusion. Raise if coplanar faces still shimmer; lower
+ * if a clearly-nearer surface is punched through by a later, farther draw. */
+static const float GL_PAINT_BIAS = 4.0f;
+static int s_paintSeq; /* primitives drawn so far this frame (reset in gl_endScene) */
+
+/* Bias the next primitive one draw-step toward the camera. Call OUTSIDE glBegin/End,
+ * before each primitive, so draw order breaks coplanar depth ties. */
+static void paintBias(void) {
+    glPolygonOffset(0.0f, -(float)(s_paintSeq++) * GL_PAINT_BIAS);
+}
+
 #define GL_POINT_REF_DEPTH 5000.0f /* depthHi at which the point is one logical pixel */
 #define GL_POINT_NEAR_CAP 3.0f     /* max size, in logical pixels, for the nearest points */
 #define GL_POINT_MIN_SIZE 0.5f     /* smallest size; smooth coverage fades it below 1px */
@@ -553,6 +664,7 @@ static void drawDepthPoint(float x, float y, long depth32, int colorIdx) {
     sz = s_pixelScale * (GL_POINT_REF_DEPTH / (float)depthHi);
     if (sz > GL_POINT_NEAR_CAP * s_pixelScale) sz = GL_POINT_NEAR_CAP * s_pixelScale;
     if (sz < GL_POINT_MIN_SIZE) sz = GL_POINT_MIN_SIZE;
+    paintBias();
     glPointSize(sz);
     glColorIndex(colorIdx);
     glBegin(GL_POINTS);
@@ -560,8 +672,9 @@ static void drawDepthPoint(float x, float y, long depth32, int colorIdx) {
     glEnd();
 }
 
-/* Decode + transform + draw one object (painter's order; depth test already off).
- * Re-decodes the mesh (cheap; avoids caching across region reloads). */
+/* Decode + transform + draw one object (painter's order; z-buffer on, GL_LEQUAL,
+ * per-draw polygon offset set by the caller). Re-decodes the mesh (cheap; avoids
+ * caching across region reloads). */
 static void drawSub(const GlSub *r) {
     MeshVtxPools pools;
     MeshLod *l;
@@ -751,6 +864,7 @@ static void drawSub(const GlSub *r) {
         }
         if (n < 3) continue;
 
+        paintBias();
         glColorIndex(colorLut[f->colorByte] + r->shade);
         glBegin(GL_POLYGON);
         for (k = 0; k < n; k++) glVertex3f(vx_[ring[k]], vy_[ring[k]], vd_[ring[k]]);
@@ -776,7 +890,6 @@ static void drawSub(const GlSub *r) {
         float uz = (float)g_viewRotMatrix[5];
         float ul = SDL_sqrtf(ux * ux + uy * uy + uz * uz);
         if (ul > 1e-3f) { ux /= ul; uy /= ul; uz /= ul; }
-        glBegin(GL_QUADS);
         for (i = 0; i < l->nLines; i++) {
             MeshEdge *e = &l->edges[l->lines[i].edge];
             float ax, ay, az, bx, by, bz, lx, ly, lz, len;
@@ -808,10 +921,15 @@ static void drawSub(const GlSub *r) {
                 float gl = SDL_sqrtf(gx * gx + gy * gy + gz * gz);
                 if (gl < 1e-3f) continue;
                 gx = gx / gl * hw; gy = gy / gl * hw; gz = gz / gl * hw;
+                /* Per-line bias so two crossing wires on the same model (both coplanar
+                 * with the ground/deck) are ordered by draw order, not left to z-fight. */
+                paintBias();
+                glBegin(GL_QUADS);
                 glVertex3f(ax + gx, ay + gy, (az + gz) / 65536.0f);
                 glVertex3f(bx + gx, by + gy, (bz + gz) / 65536.0f);
                 glVertex3f(bx - gx, by - gy, (bz - gz) / 65536.0f);
                 glVertex3f(ax - gx, ay - gy, (az - gz) / 65536.0f);
+                glEnd();
             } else {
                 /* CAMERA-FACING: per-end normalize(cross(lineDir, ray)) * hw. */
                 float pax, pay, paz, pbx, pby, pbz, pl;
@@ -825,13 +943,15 @@ static void drawSub(const GlSub *r) {
                 pbx = pbx / pl * hw; pby = pby / pl * hw; pbz = pbz / pl * hw;
                 /* keep the two ends' offsets consistent so the quad doesn't twist */
                 if (pax * pbx + pay * pby + paz * pbz < 0.0f) { pbx = -pbx; pby = -pby; pbz = -pbz; }
+                paintBias(); /* per-line bias: overlapping wires order by draw order */
+                glBegin(GL_QUADS);
                 glVertex3f(ax + pax, ay + pay, (az + paz) / 65536.0f);
                 glVertex3f(bx + pbx, by + pby, (bz + pbz) / 65536.0f);
                 glVertex3f(bx - pbx, by - pby, (bz - pbz) / 65536.0f);
                 glVertex3f(ax - pax, ay - pay, (az - paz) / 65536.0f);
+                glEnd();
             }
         }
-        glEnd();
     }
 }
 
@@ -857,10 +977,32 @@ static void gl_endScene(void) {
 
     if (s_subOverflow)
         LogWarn(("r3d_gl: %d submissions dropped (cap %d)", s_subOverflow, GL_MAX_SUBS));
-    /* Draw back-to-front (no depth test) — the original's painter's algorithm, the
-     * only thing that resolves the game's coplanar paper-thin surfaces. */
     qsort(s_subs, s_nSub, sizeof(GlSub), subCmp);
-    for (i = 0; i < s_nSub; i++) drawSub(&s_subs[i]);
+
+    /* Pass 1 — the ground plane class (flat ground/sea/roads/surf at world Z=0, the
+     * "immediate" set): pure painter's, depth test OFF and depth writes OFF, drawn
+     * first as the background in walk order. These are huge, distant, and densely
+     * coplanar (surf on sea, markings on a road, outlines on a deck) — the case no
+     * z-buffer + offset could resolve without a bias so large it punched through
+     * small elevated models. With the test off, draw order alone orders them, exactly
+     * like the original. They write no depth, so they never wrongly occlude pass 2. */
+    glDisable(GL_DEPTH_TEST);
+    glDepthMask(GL_FALSE);
+    for (i = 0; i < s_nSub; i++)
+        if (s_subs[i].immediate) drawSub(&s_subs[i]);
+    /* Pass 2 — elevated objects (planes, missiles, buildings, terrain with relief):
+     * z-buffered (GL_LEQUAL, set in gl_beginScene) so genuine occlusion is correct —
+     * a plane behind a building no longer shows through. The per-primitive paint bias
+     * lives only here, breaking these objects' own coplanar ties by draw order; the
+     * counter resets so pass 1's primitives don't inflate it into a punch-through. */
+    glEnable(GL_DEPTH_TEST);
+    glDepthMask(GL_TRUE);
+    s_paintSeq = 0;
+
+    for (i = 0; i < s_nSub; i++)
+        if (!s_subs[i].immediate) drawSub(&s_subs[i]);
+
+    glPolygonOffset(0.0f, 0.0f);
     s_nSub = 0;
     glDisable(GL_SCISSOR_TEST);
 }
