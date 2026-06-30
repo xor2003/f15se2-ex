@@ -574,6 +574,20 @@ int FAR CDECL gfx_getPageSeg(uint16 page) {
     return (int)s->curPageSeg;
 }
 
+/* Slot 0x33: retained for the old overlay table. Native PIC decoding writes
+ * directly to SDL surfaces, so there is no caller-DS row buffer to consume here. */
+void FAR CDECL gfx_fillRow(uint16 rowOffset, uint16 srcBuf, uint16 rowNum) {
+    (void)rowOffset;
+    (void)srcBuf;
+    (void)rowNum;
+}
+
+/* Slot 0x35: DI = rowOffset. In MCGA the row is already in the page (fillRow
+ * wrote directly), so this is a no-op. */
+void FAR CDECL gfx_copyRow(uint16 rowOffset) {
+    (void)rowOffset;
+}
+
 /* ---- Slot 0x3f: gfx_getModecode ---- */
 int FAR CDECL gfx_getModecode(void) {
     return 3; /* MCGA mode code */

@@ -697,13 +697,15 @@ unsigned signedRatio16(int numerator, int denominator) { /* Original: IntDiv(A,B
     char denominatorSign = 1;
     long absNumerator;
     long absDenominator;
+    uint32 quotient;
 
     /* Divide two signed 15-bit fractions, then restore the combined sign. */
     if (numerator < 0) numeratorSign = -1;
     if (denominator < 0) denominatorSign = -1;
     absNumerator = (long)(numerator < 0 ? -numerator : numerator);
     absDenominator = (long)(denominator < 0 ? -denominator : denominator);
-    return (unsigned)((unsigned int)((((unsigned long)(unsigned int)absNumerator) << 16) / absDenominator >> 1)) * (unsigned)(int)numeratorSign * (unsigned)(int)denominatorSign;
+    quotient = (((uint32)(uint16)absNumerator) << 16) / (uint16)absDenominator;
+    return (uint16)((uint16)(quotient >> 1) * numeratorSign * denominatorSign);
 done:;
 }
 
@@ -740,7 +742,7 @@ int isqrt(int value) { /* Original: Sqrt(N). Return integer square root using Ne
     int quotient;
     int guess;
     /* Integer square root using Newton iteration seeded from value >> 2. */
-    value = abs(value);
+    value = abs16Compat(value);
     if (value < 4) {
         return 1;
     }
@@ -748,7 +750,7 @@ int isqrt(int value) { /* Original: Sqrt(N). Return integer square root using Ne
     do {
         quotient = value / guess;
         guess = (guess + quotient) >> 1;
-    } while (abs(guess - quotient) > 1);
+    } while (abs16Compat(guess - quotient) > 1);
     return guess;
 }
 
