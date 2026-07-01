@@ -6,6 +6,7 @@
 
 #include "gfx_impl.h"
 #include "gfx.h"
+#include "r2d.h"
 #include "r3d_gl.h"
 #include "struct.h"
 #include "log.h"
@@ -27,6 +28,12 @@
  * looks the same regardless of how fast we present. */
 #define FIRE_CYCLE_HZ 15
 #define FIRE_CYCLE_NS (SDL_NS_PER_SECOND / FIRE_CYCLE_HZ)
+
+enum {
+    GFX_LAST_X = LOGICAL_WIDTH - 1,
+    GFX_LAST_Y = LOGICAL_HEIGHT - 1,
+};
+
 static SDL_Window *sdlWindow = NULL;
 static SDL_Renderer *sdlRenderer = NULL;
 static bool s_useGL = false; /* OpenGL backend owns the context + present */
@@ -35,6 +42,9 @@ static bool s_useGL = false; /* OpenGL backend owns the context + present */
  * before their definitions further down. */
 static GfxState FAR *gfx_getState(void);
 static SDL_Palette *gfxPalette; /* shared 256-entry VGA DAC palette */
+static void gfx_presentSurfaceSW(SDL_Surface *surf, int shake);
+static void gfx_swLine(int x1, int y1, int x2, int y2, int color);
+static void gfx_swPoint(int x, int y, int color);
 
 /* Bring up the SDL window and renderer. The 320x200 logical surface is stretched
  * to fill the resizable window (SDL_LOGICAL_PRESENTATION_STRETCH). */
@@ -46,27 +56,49 @@ void gfx_videoInit(void) {
      * an SDL_Renderer (the two can't share a window). When it's selected, request
      * a GL-capable window and bring the context up here; the present path then
      * routes through the GL composite instead of the renderer. */
-    s_useGL = r3dgl_wantGL();
-    if (s_useGL) r3dgl_setGLAttributes();
+    /* The software 2D backend present lives here (it owns the SDL_Renderer);
+     * register it with the r2d seam so r2d_present can dispatch to it when GL is
+     * not active. */
+    r2d_registerSoftwarePresent(gfx_presentSurfaceSW);
+    r2d_registerSoftwarePrims(gfx_swLine, gfx_swPoint);
 
-    sdlWindow = SDL_CreateWindow(
-        "F-15 SE2 EX v0.9.0",
-        INITIAL_WINDOW_WIDTH,
-        INITIAL_WINDOW_HEIGHT,
-        SDL_WINDOW_RESIZABLE | (s_useGL ? SDL_WINDOW_OPENGL : 0));
-    if (!sdlWindow)
-        LogCritical(("Window creation failed: %s", SDL_GetError()));
+    s_useGL = r3dgl_wantGL();
+
+    /* GL path: request the framebuffer attributes (incl. MSAA) before window
+     * creation, then bring the context up. MSAA can force a pixel format the driver
+     * can't satisfy, so if the context won't come up we retry once without it before
+     * giving up GL entirely — losing only the anti-aliasing, not the whole backend. */
+    if (s_useGL) {
+        int msaa = r3dgl_msaaSamples();
+        for (;;) {
+            r3dgl_setGLAttributes(msaa);
+            sdlWindow = SDL_CreateWindow("F-15 SE2 EX v0.9.0",
+                                         INITIAL_WINDOW_WIDTH, INITIAL_WINDOW_HEIGHT,
+                                         SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL);
+            if (sdlWindow && r3dgl_initContext(sdlWindow)) break; /* GL up */
+            if (sdlWindow) { SDL_DestroyWindow(sdlWindow); sdlWindow = NULL; }
+            if (msaa > 0) {
+                LogWarn(("GL init failed with %dx MSAA; retrying without it", msaa));
+                msaa = 0;
+                continue;
+            }
+            LogCritical(("GL init failed; falling back to software renderer"));
+            s_useGL = false;
+            break;
+        }
+    }
+
+    if (!sdlWindow) {
+        sdlWindow = SDL_CreateWindow("F-15 SE2 EX v0.9.0", INITIAL_WINDOW_WIDTH,
+                                     INITIAL_WINDOW_HEIGHT, SDL_WINDOW_RESIZABLE);
+        if (!sdlWindow)
+            LogCritical(("Window creation failed: %s", SDL_GetError()));
+    }
 
     /* Enable SDL_EVENT_TEXT_INPUT so the keyboard slots (ovlimpl.c) receive
      * shifted/localised ASCII for pilot-name entry. */
     SDL_StartTextInput(sdlWindow);
 
-    if (s_useGL) {
-        if (!r3dgl_initContext(sdlWindow)) {
-            LogCritical(("GL init failed; falling back to software renderer"));
-            s_useGL = false;
-        }
-    }
     if (s_useGL) return;
 
     sdlRenderer = SDL_CreateRenderer(sdlWindow, NULL);
@@ -74,10 +106,9 @@ void gfx_videoInit(void) {
         LogCritical(("Renderer creation failed: %s", SDL_GetError()));
 
     SDL_SetRenderVSync(sdlRenderer, 1);
-
-    if (!SDL_SetRenderLogicalPresentation(sdlRenderer, LOGICAL_WIDTH, LOGICAL_HEIGHT,
-                                          SDL_LOGICAL_PRESENTATION_LETTERBOX))
-        LogInfo(("SetRenderLogicalPresentation failed: %s", SDL_GetError()));
+    /* No SDL logical presentation: the software present (gfx_presentSurfaceSW)
+     * letterboxes the page itself through the shared r2d mapping, so the virtual
+     * size and the virtual->window placement live in exactly one place. */
 }
 
 /* Toggle borderless-desktop fullscreen (Alt+Enter). */
@@ -116,6 +147,10 @@ static int dgroupAnchor;
  * in the same address space, so it is just a file-scope global shared directly. */
 static GfxState gfxState;
 
+static GfxState FAR *gfx_getState(void) {
+    return &gfxState;
+}
+
 /* Native substitute for a DOS caller-DS near pointer. The original overlay saw
  * `srcBuf` as a 16-bit offset in the caller's data segment; in the flat native
  * process that offset is not a usable host address, so tests/bridge code can map
@@ -123,10 +158,6 @@ static GfxState gfxState;
 static uint16 gfxNearReadBase;
 static const uint8 *gfxNearReadHost;
 static size_t gfxNearReadSize;
-
-static GfxState FAR *gfx_getState(void) {
-    return &gfxState;
-}
 
 void gfx_setNearReadBuffer(uint16 nearPtr, const void *hostPtr, size_t size) {
     gfxNearReadBase = nearPtr;
@@ -282,6 +313,17 @@ void gfx_paletteRGB(int idx, uint8 *r, uint8 *g, uint8 *b) {
 static SDL_Surface *ensurePage(int page) {
     GfxState FAR *s = gfx_getState();
     if (page < 0 || page >= 16) return NULL;
+    /* Step 5.2: pages 0 (front/visible) and 1 (back/composite) collapse onto one
+     * hidden back buffer. The DOS double buffer is redundant natively — the page
+     * surface is only snapshotted into the window at present time (SDL texture
+     * upload / GL composite), so a single draw surface can't tear, and every
+     * compose-then-present sequence finishes drawing before it presents. All
+     * page-1 references resolve to page 0's surface; the per-frame back->front
+     * copy (gfx_dacAnimate) and the front/back dual writes become self-copies.
+     * This also subsumes the old alternate-view flicker fix (no front/back
+     * divergence can exist). Pre-req: 5.1 moved every non-double-buffer use of
+     * pages 0/1 off the page array (see docs/render-2d-overlay.md). */
+    if (page == 1) page = 0;
     if (!s->pageSurfaces[page]) {
         SDL_Surface *surf = SDL_CreateSurface(LOGICAL_WIDTH, LOGICAL_HEIGHT,
                                               SDL_PIXELFORMAT_INDEX8);
@@ -321,23 +363,20 @@ uint8 *gfx_pagePixelsForSeg(uint16 seg, int *pitchOut) {
 
 /* ---- Sprite buffers --------------------------------------------------------
  * The DOS build decoded sprite sheets into 64KB "segments" (allocBuffer) and
- * gfx_blitSprite read palette indices straight out of them. Natively each
- * sprite buffer is a 320x200 8-bit SDL surface addressed by a small integer
+ * gfx_blitSprite read palette indices straight out of them. Natively each sprite
+ * buffer is an R2DImage (a 320x200 INDEX8 surface) addressed by a small integer
  * handle (which the caller keeps where the old build kept the segment value).
- * decodePic fills the surface; gfx_blitSprite reads it. */
+ * decodePic fills the surface (gfx_getSpriteSurface); gfx_blitSprite reads it
+ * via the shared r2d_blit. */
 #define MAX_SPRITE_BUFS 8
-static SDL_Surface *s_spriteBufs[MAX_SPRITE_BUFS];
+static R2DImage *s_spriteBufs[MAX_SPRITE_BUFS];
 
 int gfx_allocSpriteBuf(void) {
     int i;
     for (i = 0; i < MAX_SPRITE_BUFS; i++) {
         if (!s_spriteBufs[i]) {
-            SDL_Surface *surf = SDL_CreateSurface(LOGICAL_WIDTH, LOGICAL_HEIGHT,
-                                                  SDL_PIXELFORMAT_INDEX8);
-            if (!surf) LogCritical(("SDL_CreateSurface failed: %s", SDL_GetError()));
-            if (!gfxPalette) gfxPalette = gfx_buildPalette();
-            if (gfxPalette) SDL_SetSurfacePalette(surf, gfxPalette);
-            s_spriteBufs[i] = surf;
+            s_spriteBufs[i] = r2d_registerImage(LOGICAL_WIDTH, LOGICAL_HEIGHT);
+            if (!s_spriteBufs[i]) LogCritical(("r2d_registerImage failed"));
             return i + 1; /* 1-based handle; 0 means "none" */
         }
     }
@@ -346,15 +385,13 @@ int gfx_allocSpriteBuf(void) {
 
 struct SDL_Surface *gfx_getSpriteSurface(int handle) {
     if (handle < 1 || handle > MAX_SPRITE_BUFS) return NULL;
-    return s_spriteBufs[handle - 1];
+    return r2d_imageSurface(s_spriteBufs[handle - 1]);
 }
 
 void gfx_freeSpriteBuf(int handle) {
     if (handle < 1 || handle > MAX_SPRITE_BUFS) return;
-    if (s_spriteBufs[handle - 1]) {
-        SDL_DestroySurface(s_spriteBufs[handle - 1]);
-        s_spriteBufs[handle - 1] = NULL;
-    }
+    r2d_releaseImage(s_spriteBufs[handle - 1]);
+    s_spriteBufs[handle - 1] = NULL;
 }
 
 /* While the 640x350 title is up, the renderer presents the separate hi-res
@@ -362,10 +399,45 @@ void gfx_freeSpriteBuf(int handle) {
  * clears it when the title is dismissed. */
 static bool gfxHiResActive = false;
 
-/* Push a page's surface to the renderer (vsync-paced present). */
-static void gfx_presentPage(int page) {
-    SDL_Surface *surf;
+/* Software present: blit a page surface through the SDL_Renderer (vsync-paced).
+ * Registered with r2d (r2d_registerSoftwarePresent) as the software 2D backend's
+ * present; r2d_present calls it when GL is not active.
+ *
+ * The virtual->window letterbox comes from the shared r2d mapping (the single
+ * source of truth, derived from the surface's own dimensions so the 320x200
+ * overlay and the 640x350 hi-res title both map correctly) rather than SDL's
+ * logical presentation; we render into the centred dst rect over a black-cleared
+ * window. */
+static void gfx_presentSurfaceSW(SDL_Surface *surf, int shake) {
     SDL_Texture *tex;
+    R2DMapping m;
+    int win_w, win_h;
+    SDL_FRect dst;
+    if (!surf || !sdlRenderer) return;
+    tex = SDL_CreateTextureFromSurface(sdlRenderer, surf);
+    if (!tex) return;
+    SDL_SetTextureScaleMode(tex, SDL_SCALEMODE_NEAREST);
+
+    SDL_GetRenderOutputSize(sdlRenderer, &win_w, &win_h);
+    r2d_computeMapping(surf->w, surf->h, win_w, win_h, &m);
+
+    SDL_SetRenderDrawColor(sdlRenderer, 0, 0, 0, 255);
+    SDL_RenderClear(sdlRenderer);
+    /* Explosion screen-shake: the original jittered the CRTC display-start byte
+     * (gfx_dacCycle); natively we shift the presented frame left by the same 0-3
+     * virtual pixels (scaled to window space). */
+    dst.x = (float)m.offX - (float)shake * m.scale;
+    dst.y = (float)m.offY;
+    dst.w = (float)surf->w * m.scale;
+    dst.h = (float)surf->h * m.scale;
+    SDL_RenderTexture(sdlRenderer, tex, NULL, &dst);
+    SDL_RenderPresent(sdlRenderer);
+    SDL_DestroyTexture(tex);
+}
+
+/* Push a page's surface to the active 2D backend (GL composite or software
+ * renderer) via the r2d seam (vsync-paced present). */
+static void gfx_presentPage(int page) {
     /* During the hi-res title, the page-0 framebuffer still holds the prior
      * 320x200 image (e.g. labs.pic). Redirect generic flips/commits to the
      * hi-res title surface so frame-pacing presents don't clobber it. */
@@ -373,30 +445,7 @@ static void gfx_presentPage(int page) {
         gfx_presentHiRes();
         return;
     }
-    surf = ensurePage(page);
-    if (s_useGL) {
-        r3dgl_present(surf, gfx_getState()->shakeOffset);
-        return;
-    }
-    if (!surf || !sdlRenderer) return;
-    tex = SDL_CreateTextureFromSurface(sdlRenderer, surf);
-    if (!tex) return;
-    SDL_SetTextureScaleMode(tex, SDL_SCALEMODE_NEAREST);
-    SDL_RenderClear(sdlRenderer);
-    {
-        /* Explosion screen-shake: the original jittered the CRTC display-start
-         * byte (gfx_dacCycle); natively we shift the presented frame left by the
-         * same 0-3 pixels. Drawn into the full logical 320x200 area otherwise. */
-        int shake = gfx_getState()->shakeOffset;
-        if (shake) {
-            SDL_FRect dst = {(float)-shake, 0.0f, (float)LOGICAL_WIDTH, (float)LOGICAL_HEIGHT};
-            SDL_RenderTexture(sdlRenderer, tex, NULL, &dst);
-        } else {
-            SDL_RenderTexture(sdlRenderer, tex, NULL, NULL);
-        }
-    }
-    SDL_RenderPresent(sdlRenderer);
-    SDL_DestroyTexture(tex);
+    r2d_present(ensurePage(page), gfx_getState()->shakeOffset);
 }
 
 /* Hi-res (640x350) title surface. The EGA-title path (picimpl.c picBlit)
@@ -417,28 +466,15 @@ SDL_Surface *gfx_getHiResSurface(void) {
 }
 
 void gfx_presentHiRes(void) {
-    SDL_Surface *surf = gfx_getHiResSurface();
-    SDL_Texture *tex;
-    if (s_useGL) {
-        r3dgl_present(surf, 0);
-        return;
-    }
-    if (!surf || !sdlRenderer) return;
-    tex = SDL_CreateTextureFromSurface(sdlRenderer, surf);
-    if (!tex) return;
-    SDL_SetTextureScaleMode(tex, SDL_SCALEMODE_NEAREST);
-    SDL_RenderClear(sdlRenderer);
-    SDL_RenderTexture(sdlRenderer, tex, NULL, NULL);
-    SDL_RenderPresent(sdlRenderer);
-    SDL_DestroyTexture(tex);
+    r2d_present(gfx_getHiResSurface(), 0);
 }
 
 /* Initialize row offset table */
 static void initRowOffsets(void) {
     int i;
     if (gfx_getState()->rowOffsetsReady) return;
-    for (i = 0; i < 200; i++)
-        gfx_getState()->rowOffsets[i] = (uint16)(i * 320);
+    for (i = 0; i < LOGICAL_HEIGHT; i++)
+        gfx_getState()->rowOffsets[i] = (uint16)(i * LOGICAL_WIDTH);
     gfx_getState()->rowOffsetsReady = 1;
 }
 
@@ -476,9 +512,6 @@ void FAR CDECL gfx_setMode13(void) {
 
     initRowOffsets();
 
-    if (sdlRenderer)
-        SDL_SetRenderLogicalPresentation(sdlRenderer, LOGICAL_WIDTH, LOGICAL_HEIGHT,
-                                         SDL_LOGICAL_PRESENTATION_LETTERBOX);
     gfxHiResActive = false;
 
     s = gfx_getState();
@@ -488,19 +521,13 @@ void FAR CDECL gfx_setMode13(void) {
     s->modeFlag = 1;
 }
 
-/* Title-screen hi-res attempt: ask SDL to present at 640x350 and report whether it took. */
+/* Title-screen hi-res: switch to the 640x350 title surface. Both backends scale
+ * whatever surface they're handed to the window via the shared r2d mapping (which
+ * derives the virtual size from the surface), so this just flags hi-res; the
+ * present picks up the 640x350 hi-res surface from gfx_presentHiRes. */
 bool video_setHiRes(void) {
-    bool ok;
-    /* In GL mode the overlay composite scales any page surface to the window, so
-     * just flag hi-res; there's no renderer logical presentation to switch. */
-    if (s_useGL) {
-        gfxHiResActive = true;
-        return true;
-    }
-    ok = SDL_SetRenderLogicalPresentation(sdlRenderer, HIRES_WIDTH, HIRES_HEIGHT,
-                                          SDL_LOGICAL_PRESENTATION_LETTERBOX);
-    if (ok) gfxHiResActive = true;
-    return ok;
+    gfxHiResActive = true;
+    return true;
 }
 
 /* ---- Slot 0x45: gfx_waitRetrace ---- */
@@ -585,13 +612,13 @@ int FAR CDECL gfx_getBufSize(void) {
  * args (DI/SI/BP/BX) into cdecl stack args and call these *_impl bodies. DS is
  * the caller's DGROUP throughout, so `srcBuf` is read as a near pointer. */
 
-/* Slot 0x3a: DI = y -> AX = row byte offset (y*320). */
+/* Slot 0x3a: DI = y -> AX = row byte offset (y*scanline_width). */
 int FAR CDECL gfx_getRowOffset(int y) {
     GfxState FAR *s = gfx_getState();
     initRowOffsets();
-    if (y >= 0 && y < 200)
+    if (y >= 0 && y < LOGICAL_HEIGHT)
         return (int)s->rowOffsets[y];
-    return (int)((uint16)y * 320);
+    return (int)((uint16)y * LOGICAL_WIDTH);
 }
 
 /* Slot 0x38: SI = page -> select it as current page, return its segment. */
@@ -605,7 +632,7 @@ int FAR CDECL gfx_getPageSeg(uint16 page) {
 }
 
 /* Slot 0x33: DI = rowOffset, BP = srcBuf (caller DS), BX = rowNum.
- * Copy one 320-byte decoded row into the current page (MCGA: direct write). */
+ * Copy one scanline-width decoded row into the current page (MCGA: direct write). */
 void FAR CDECL gfx_fillRow(uint16 rowOffset, uint16 srcBuf, uint16 rowNum) {
     GfxState FAR *s = gfx_getState();
     const uint8 *src = gfx_resolveNearReadPtr(srcBuf, LOGICAL_WIDTH); /* near ptr, caller's DS */
@@ -791,7 +818,7 @@ static void drawStringCore(int16 *params, const char *string,
 
 /* ---- Slot 0x05: gfx_drawString (cdecl, unclipped) ---- */
 void FAR CDECL gfx_drawString(int16 *pageNum, const char *string) {
-    drawStringCore(pageNum, string, 0, 319, 0, 199);
+    drawStringCore(pageNum, string, 0, GFX_LAST_X, 0, GFX_LAST_Y);
     return;
 }
 
@@ -801,7 +828,7 @@ void FAR CDECL gfx_drawString(int16 *pageNum, const char *string) {
  * bit1 = vertical window (params word 7/8). The two X (resp. Y) bounds are
  * stored without a fixed min/max order across blocks, so normalise them. */
 void gfx_drawStringClipped_impl(int16 *params, const char *string, int mode) {
-    int clipL = 0, clipR = 319, clipT = 0, clipB = 199;
+    int clipL = 0, clipR = GFX_LAST_X, clipT = 0, clipB = GFX_LAST_Y;
     if (!params) return;
     if (mode & 1) { /* horizontal clip window */
         int bound1 = (int)params[9], bound2 = (int)params[10];
@@ -814,9 +841,9 @@ void gfx_drawStringClipped_impl(int16 *params, const char *string, int mode) {
         clipB = bound1 < bound2 ? bound2 : bound1;
     }
     if (clipL < 0) clipL = 0;
-    if (clipR > 319) clipR = 319;
+    if (clipR > GFX_LAST_X) clipR = GFX_LAST_X;
     if (clipT < 0) clipT = 0;
-    if (clipB > 199) clipB = 199;
+    if (clipB > GFX_LAST_Y) clipB = GFX_LAST_Y;
     drawStringCore(params, string, clipL, clipR, clipT, clipB);
 }
 
@@ -855,31 +882,41 @@ void FAR CDECL gfx_drawGlyphStr(int16 *desc, const char *str, int slot) {
 }
 
 /* ---- Slot 0x2a: gfx_copyRect ---- */
-/* Copy a width x height rect between two page surfaces. The original streamed
- * rows between DOS page segments via movedata; natively the pages are SDL
- * surfaces, so copy row-by-row between them (clipped to each surface). */
+/* Opaque copy of a width x height rect between two page surfaces (clipped to
+ * each). The original streamed rows between DOS page segments via movedata;
+ * natively both pages are SDL surfaces, copied by the shared r2d_blit. */
 void FAR CDECL gfx_copyRect(int srcPage, uint16 srcX, uint16 srcY,
                             int dstPage, uint16 dstX, uint16 dstY,
                             int width, int height) {
-    SDL_Surface *src = ensurePage(srcPage);
-    SDL_Surface *dst = ensurePage(dstPage);
-    int row;
+    r2d_blit(ensurePage(srcPage), (int)srcX, (int)srcY,
+             ensurePage(dstPage), (int)dstX, (int)dstY,
+             width, height, -1);
+}
 
-    if (!src || !dst || width <= 0 || height <= 0) return;
+/* ---- Off-buffer save/restore images (Step 5) ----
+ * Bridge page indices to the r2d image API: gfx_captureToImage copies a page
+ * region into an owned image (the save-under), gfx_restoreFromImage copies it
+ * back. They replace the DOS-era offscreen-page scratch, which was a separate
+ * 320x200 surface in the page array; an image is the same surface, just no longer
+ * a "page". Coordinates match gfx_copyRect's so call sites map 1:1. */
+struct R2DImage *gfx_allocImage(int w, int h) { return r2d_registerImage(w, h); }
+void gfx_freeImage(struct R2DImage *img) { r2d_releaseImage(img); }
 
-    for (row = 0; row < height; row++) {
-        int sy = (int)srcY + row;
-        int dy = (int)dstY + row;
-        int w = width;
-        if (sy < 0 || sy >= src->h || dy < 0 || dy >= dst->h) continue;
-        if ((int)srcX + w > src->w) w = src->w - (int)srcX;
-        if ((int)dstX + w > dst->w) w = dst->w - (int)dstX;
-        if (w <= 0) continue;
-        SDL_memmove((uint8 *)dst->pixels + (size_t)dy * dst->pitch + dstX,
-                    (uint8 *)src->pixels + (size_t)sy * src->pitch + srcX,
-                    (size_t)w);
-    }
-    return;
+void gfx_captureToImage(struct R2DImage *img, int srcPage, int srcX, int srcY,
+                        int dstX, int dstY, int w, int h) {
+    r2d_blit(ensurePage(srcPage), srcX, srcY,
+             r2d_imageSurface(img), dstX, dstY, w, h, -1);
+}
+
+void gfx_restoreFromImage(struct R2DImage *img, int dstPage, int srcX, int srcY,
+                          int dstX, int dstY, int w, int h) {
+    r2d_drawImage(img, srcX, srcY, w, h, ensurePage(dstPage), dstX, dstY, -1);
+}
+
+void gfx_drawSpriteOpaque(int handle, int srcX, int srcY, int dstPage,
+                          int dstX, int dstY, int w, int h) {
+    r2d_blit(gfx_getSpriteSurface(handle), srcX, srcY,
+             ensurePage(dstPage), dstX, dstY, w, h, -1);
 }
 
 /* ---- Slot 0x29: gfx_switchColor ---- */
@@ -1043,9 +1080,6 @@ void FAR CDECL gfx_getCurPage(int page) {
  * opaque, copying its black background as a square behind the reticle (bug 7). */
 int FAR CDECL gfx_blitSprite(struct SpriteParams *p) {
     SDL_Surface *srcSurf, *dstSurf;
-    uint8 *srcBase, *dstBase;
-    int srcPitch, dstPitch, srcW, srcH, dstW, dstH;
-    int row, col, w, h;
 
     if (!p) return 0;
     if (p->page < 0 || p->page >= 16) return 0;
@@ -1056,31 +1090,11 @@ int FAR CDECL gfx_blitSprite(struct SpriteParams *p) {
     srcSurf = gfx_surfaceForSeg((uint16)p->bufPtr);
     if (!srcSurf) srcSurf = gfx_getSpriteSurface((int)p->bufPtr);
     dstSurf = gfx_getPageSurface((int)p->page);
-    if (!srcSurf || !dstSurf) return 0;
-    srcBase = (uint8 *)srcSurf->pixels;
-    srcPitch = srcSurf->pitch;
-    dstBase = (uint8 *)dstSurf->pixels;
-    dstPitch = dstSurf->pitch;
-    srcW = srcSurf->w;
-    srcH = srcSurf->h;
-    dstW = dstSurf->w;
-    dstH = dstSurf->h;
-    w = p->width;
-    h = p->height;
-
-    for (row = 0; row < h; row++) {
-        int sy = (int)p->srcY + row;
-        int dy = (int)p->dstY + row;
-        if (sy < 0 || sy >= srcH || dy < 0 || dy >= dstH) continue;
-        for (col = 0; col < w; col++) {
-            int sx = (int)p->srcX + col;
-            int dx = (int)p->dstX + col;
-            uint8 px;
-            if (sx < 0 || sx >= srcW || dx < 0 || dx >= dstW) continue;
-            px = srcBase[(size_t)sy * srcPitch + sx];
-            if (px) dstBase[(size_t)dy * dstPitch + dx] = px;
-        }
-    }
+    /* Unconditionally transparent (skip index 0): the gun-sight/symbol sprites
+     * rely on the see-through background (see thunk comment above). */
+    r2d_blit(srcSurf, (int)p->srcX, (int)p->srcY,
+             dstSurf, (int)p->dstX, (int)p->dstY,
+             (int)p->width, (int)p->height, 0);
     return 0;
 }
 /* Slot 0x1f: register-called via the _gfx_drawLine shim (regshim.asm).
@@ -1094,84 +1108,29 @@ static int gfx_lineOutcode(int x, int y) {
     int code = 0;
     if (x < 0)
         code |= 1;
-    else if (x > 319)
+    else if (x > GFX_LAST_X)
         code |= 2;
     if (y < 0)
         code |= 4;
-    else if (y > 199)
+    else if (y > LOGICAL_HEIGHT - 1)
         code |= 8;
     return code;
 }
 
-void FAR CDECL gfx_drawLine(uint16 ux1, uint16 uy1, uint16 ux2, uint16 uy2) {
-    GfxState FAR *s = gfx_getState();
-    SDL_Surface *surf;
+/* Software 2D-primitive rasterizers — the software backend's realization of a
+ * submitted line/point (registered with r2d via r2d_registerSoftwarePrims).
+ * Endpoints/coords arrive already blitOffset-absolute and clipped to the page;
+ * these just write the current page surface. The GL backend instead records the
+ * submission and replays it at native resolution (docs Step 4). */
+static void gfx_swLine(int x1, int y1, int x2, int y2, int colorArg) {
+    SDL_Surface *surf = gfx_getCurPageSurface();
     uint8 *base;
-    int pitch;
-    uint8 color = s->fillColor;
-    int vx, vy;         /* blitOffset decomposed into a viewport origin */
-    int x1, y1, x2, y2; /* endpoints translated into absolute page coords */
-    int code1, code2;
-    int dx, dy, sx, sy, err, e2;
-
-    /* MGRAPHIC slot 0x1f adds the blitOffset ([cs:0x1a0]) viewport base to the
-     * start offset and is loop-counter-bounded; for off-screen endpoints it
-     * just wraps writes inside the 64K page. Our earlier position-based loop
-     * (while x0!=x2) infinite-looped once a delta overflowed a 16-bit int —
-     * the 3D projection emits clamped near-plane coords like (13618,28486),
-     * which hung the game on the first terrain frame. Rather than reproduce
-     * MGRAPHIC's wrapping (~28000 useless writes per off-screen line, which is
-     * far too slow in C and paints on-screen garbage), clip the segment to the
-     * page with Cohen-Sutherland and draw only the visible part. The blitOffset
-     * is folded in as a viewport origin so the radar/MFD lines land in their
-     * sub-window instead of the main viewport. */
-    vx = (int)((uint16)s->blitOffset % 320u);
-    vy = (int)((uint16)s->blitOffset / 320u);
-    x1 = (int)(int16)ux1 + vx;
-    y1 = (int)(int16)uy1 + vy;
-    x2 = (int)(int16)ux2 + vx;
-    y2 = (int)(int16)uy2 + vy;
-
-    /* Clip the segment to [0,319]x[0,199]. */
-    code1 = gfx_lineOutcode(x1, y1);
-    code2 = gfx_lineOutcode(x2, y2);
-    for (;;) {
-        if ((code1 | code2) == 0) break;  /* trivially inside */
-        if ((code1 & code2) != 0) return; /* trivially outside */
-        {
-            int outcode = code1 ? code1 : code2;
-            int clipX = 0, clipY = 0;
-            if (outcode & 8) {
-                clipX = x1 + (long)(x2 - x1) * (199 - y1) / (y2 - y1);
-                clipY = 199;
-            } else if (outcode & 4) {
-                clipX = x1 + (long)(x2 - x1) * (0 - y1) / (y2 - y1);
-                clipY = 0;
-            } else if (outcode & 2) {
-                clipY = y1 + (long)(y2 - y1) * (319 - x1) / (x2 - x1);
-                clipX = 319;
-            } else {
-                clipY = y1 + (long)(y2 - y1) * (0 - x1) / (x2 - x1);
-                clipX = 0;
-            }
-            if (outcode == code1) {
-                x1 = clipX;
-                y1 = clipY;
-                code1 = gfx_lineOutcode(x1, y1);
-            } else {
-                x2 = clipX;
-                y2 = clipY;
-                code2 = gfx_lineOutcode(x2, y2);
-            }
-        }
-    }
-
-    /* Bresenham over the now-on-screen segment (deltas <= 320, no overflow).
-     * Writes into the current page's backing surface. */
-    surf = gfx_getCurPageSurface();
+    int pitch, dx, dy, sx, sy, err, e2;
+    uint8 color = (uint8)colorArg;
     if (!surf) return;
     base = (uint8 *)surf->pixels;
     pitch = surf->pitch;
+    /* Bresenham over the on-screen segment (deltas <= 320, no overflow). */
     dx = x2 - x1;
     if (dx < 0) dx = -dx;
     dy = y2 - y1;
@@ -1192,6 +1151,77 @@ void FAR CDECL gfx_drawLine(uint16 ux1, uint16 uy1, uint16 ux2, uint16 uy2) {
             y1 += sy;
         }
     }
+}
+
+static void gfx_swPoint(int x, int y, int colorArg) {
+    SDL_Surface *surf = gfx_getCurPageSurface();
+    if (!surf || x < 0 || x >= surf->w || y < 0 || y >= surf->h) return;
+    ((uint8 *)surf->pixels)[(size_t)y * surf->pitch + x] = (uint8)colorArg;
+}
+
+void FAR CDECL gfx_drawLine(uint16 ux1, uint16 uy1, uint16 ux2, uint16 uy2) {
+    GfxState FAR *s = gfx_getState();
+    uint8 color = s->fillColor;
+    int vx, vy;         /* blitOffset decomposed into a viewport origin */
+    int x1, y1, x2, y2; /* endpoints translated into absolute page coords */
+    int code1, code2;
+
+    /* MGRAPHIC slot 0x1f adds the blitOffset ([cs:0x1a0]) viewport base to the
+     * start offset and is loop-counter-bounded; for off-screen endpoints it
+     * just wraps writes inside the 64K page. Our earlier position-based loop
+     * (while x0!=x2) infinite-looped once a delta overflowed a 16-bit int —
+     * the 3D projection emits clamped near-plane coords like (13618,28486),
+     * which hung the game on the first terrain frame. Rather than reproduce
+     * MGRAPHIC's wrapping (~28000 useless writes per off-screen line, which is
+     * far too slow in C and paints on-screen garbage), clip the segment to the
+     * page with Cohen-Sutherland and draw only the visible part. The blitOffset
+     * is folded in as a viewport origin so the radar/MFD lines land in their
+     * sub-window instead of the main viewport. */
+    vx = (int)((uint16)s->blitOffset % (uint16)LOGICAL_WIDTH);
+    vy = (int)((uint16)s->blitOffset / (uint16)LOGICAL_WIDTH);
+    x1 = (int)(int16)ux1 + vx;
+    y1 = (int)(int16)uy1 + vy;
+    x2 = (int)(int16)ux2 + vx;
+    y2 = (int)(int16)uy2 + vy;
+
+    /* Clip the segment to [0,width)x[0,height). */
+    code1 = gfx_lineOutcode(x1, y1);
+    code2 = gfx_lineOutcode(x2, y2);
+    for (;;) {
+        if ((code1 | code2) == 0) break;  /* trivially inside */
+        if ((code1 & code2) != 0) return; /* trivially outside */
+        {
+            int outcode = code1 ? code1 : code2;
+            int clipX = 0, clipY = 0;
+            if (outcode & 8) {
+                clipX = x1 + (long)(x2 - x1) * (LOGICAL_HEIGHT - 1 - y1) / (y2 - y1);
+                clipY = LOGICAL_HEIGHT - 1;
+            } else if (outcode & 4) {
+                clipX = x1 + (long)(x2 - x1) * (0 - y1) / (y2 - y1);
+                clipY = 0;
+            } else if (outcode & 2) {
+                clipY = y1 + (long)(y2 - y1) * (GFX_LAST_X - x1) / (x2 - x1);
+                clipX = GFX_LAST_X;
+            } else {
+                clipY = y1 + (long)(y2 - y1) * (0 - x1) / (x2 - x1);
+                clipX = 0;
+            }
+            if (outcode == code1) {
+                x1 = clipX;
+                y1 = clipY;
+                code1 = gfx_lineOutcode(x1, y1);
+            } else {
+                x2 = clipX;
+                y2 = clipY;
+                code2 = gfx_lineOutcode(x2, y2);
+            }
+        }
+    }
+
+    /* Submit the clipped, blitOffset-absolute segment. The software backend
+     * Bresenhams it into the current page (gfx_swLine); the GL backend records it
+     * for a crisp native-resolution replay (docs/render-2d-overlay.md, Step 4). */
+    r2d_submitLine(x1, y1, x2, y2, color);
 }
 /* drawLineWrapper - draw a line from the lineX1..lineY2 globals.
  * The original clipped the endpoints (Cohen-Sutherland) before passing them to
@@ -1228,7 +1258,7 @@ void FAR CDECL gfx_dirtyRect2(const int16 *spanMinBuf, uint16 yMin, uint16 yMax)
     pagePx = (uint8 *)surf->pixels;
     /* MGRAPHIC slot 0x25: `or ax,ax; js exit` — if firstRow < 0, draw nothing. */
     if (firstRow < 0) return;
-    if (lastRow > 199) lastRow = 199; /* rowOffsets[] safety */
+    if (lastRow > GFX_LAST_Y) lastRow = GFX_LAST_Y; /* rowOffsets[] safety */
     for (y = (int)lastRow; y >= (int)firstRow; y--) {
         uint16 spanLo = minBuf[y];
         uint16 spanHi = maxBuf[y];
@@ -1245,14 +1275,14 @@ void FAR CDECL gfx_dirtyRect2(const int16 *spanMinBuf, uint16 yMin, uint16 yMax)
          * [0..hi], painting a spurious full-width scanline across the left-MFD
          * ocean (and the equivalent on 3D fills). */
         if (spanHi < spanLo) continue; /* unsigned */
-        if (spanHi == spanLo && (spanHi == 0 || spanHi == 319)) continue;
+        if (spanHi == spanLo && (spanLo == 0 || spanLo == GFX_LAST_X)) continue;
         /* Clamp the write extent to the visible row. The 3D projection emits
          * near-plane-clamped columns (e.g. ~0x7000), so an unclamped width would
          * loop tens of thousands of times per row in C (MGRAPHIC wraps cheaply in
          * the 64K page; we clip instead). This does NOT change the draw decision
          * above — only how many bytes land on screen. */
-        if (spanLo > 319) continue; /* span off right edge */
-        if (spanHi > 319) spanHi = 319;
+        if (spanLo > GFX_LAST_X) continue; /* span off right edge */
+        if (spanHi > GFX_LAST_X) spanHi = GFX_LAST_X;
         width = (uint16)(spanHi - spanLo + 1);
         /* The original wrote at the linear page offset rowOffsets[y]+blitOffset+
          * spanLo; split it into (row,col) so the surface pitch (not assumed 320)
@@ -1331,7 +1361,7 @@ void FAR CDECL gfx_setFadeSteps(int steps) {
  * middle MFD's −32x/+32y offset and the left/right MFD misplacement. */
 int FAR CDECL gfx_calcRowAddr(int col, int row) {
     GfxState FAR *s = gfx_getState();
-    if (!s->rowOffsetsReady) return (int)(row * 320 + col);
+    if (!s->rowOffsetsReady) return (int)(row * LOGICAL_WIDTH + col);
     return (int)(s->rowOffsets[row] + col);
 }
 /* Slots 0x40/0x41: MGRAPHIC stored the arg to absolute 0000:0x00CC / 0x00CE — a
@@ -1400,18 +1430,13 @@ void FAR CDECL gfx_blitToCurrent(int16 pagePtr) {
     GfxState FAR *s = gfx_getState();
     int srcPage = gfx_pageForSeg((uint16)pagePtr);
     SDL_Surface *src, *dst;
-    int row;
 
     if (srcPage < 0) return;
     src = ensurePage(srcPage);
     dst = ensurePage(s->curPage);
     if (!src || !dst || src == dst) return;
 
-    for (row = 0; row < LOGICAL_HEIGHT; row++)
-        SDL_memcpy((uint8 *)dst->pixels + (size_t)row * dst->pitch,
-                   (uint8 *)src->pixels + (size_t)row * src->pitch,
-                   LOGICAL_WIDTH);
-    return;
+    r2d_blit(src, 0, 0, dst, 0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT, -1);
 }
 
 /* ---- Slot 0x12/0x4a: gfx_blitCore — transparent sprite core ----
@@ -1427,32 +1452,12 @@ void FAR CDECL gfx_blitToCurrent(int16 pagePtr) {
  * background instead of an opaque black box. */
 void FAR CDECL gfx_blitCore(int16 *blk) {
     GfxState FAR *s = gfx_getState();
-    uint16 srcSeg = (uint16)blk[0];
-    uint16 srcCol = (uint16)blk[1];
-    int srcRow = blk[2];
-    uint16 dstCol = (uint16)blk[4];
-    int dstRow = blk[5];
-    int w = blk[6];
-    int h = blk[7];
-    int row, col;
-    SDL_Surface *srcSurf, *dstSurf;
     if (blk[3] < 0 || blk[3] >= 16) return;
-    srcSurf = gfx_surfaceForSeg(srcSeg);
-    dstSurf = gfx_surfaceForSeg(s->pageSegs[blk[3]]);
-    if (!srcSurf || !dstSurf) return;
-    for (row = 0; row < h; row++) {
-        int sr = srcRow + row, dr = dstRow + row;
-        uint8 *src, *dst;
-        if (sr < 0 || sr >= srcSurf->h || dr < 0 || dr >= dstSurf->h) continue;
-        src = (uint8 *)srcSurf->pixels + (size_t)sr * srcSurf->pitch + srcCol;
-        dst = (uint8 *)dstSurf->pixels + (size_t)dr * dstSurf->pitch + dstCol;
-        for (col = 0; col < w; col++) {
-            uint8 px;
-            if (srcCol + col >= (uint16)srcSurf->w || dstCol + col >= (uint16)dstSurf->w) break;
-            px = src[col];
-            if (px) dst[col] = px;
-        }
-    }
+    /* Transparent (skip index 0) blit from a sprite/page segment to the page
+     * named by pageSegs[blk[3]] — the see-through HUD gun-sight/symbol path. */
+    r2d_blit(gfx_surfaceForSeg((uint16)blk[0]), (int)blk[1], (int)blk[2],
+             gfx_surfaceForSeg(s->pageSegs[blk[3]]), (int)blk[4], (int)blk[5],
+             (int)blk[6], (int)blk[7], 0);
 }
 
 /* ---- Stubs for declared-but-unimplemented slots ---- */
@@ -1590,29 +1595,12 @@ void FAR CDECL gfx_clearVga(void) {
     for (y = 0; y < front->h; y++)
         SDL_memset((uint8 *)front->pixels + (size_t)y * front->pitch, 0, front->w);
 }
-/* Slot 0x2c: present the composited back buffer to the visible page.
- * MGRAPHIC's slot 0x2c copies the full 64000-byte page from pageSegs[1] (the
- * back buffer, where gameMainLoop's renderFrame/renderHudFrame composite the
- * frame) to pageSegs[0] (the visible page), then sets displayPage=1. It is
- * called once per frame from gameMainLoop (egame_rc.asm). Args (AX/BX) ignored.
- * Without this the dynamic frame never reaches the screen — only the static
- * cockpit copied to page 0 at startup, plus direct-to-page-0 draws, show. */
+/* Slot 0x2c: advance the fire colour-cycle and present the frame, once per frame
+ * from gameMainLoop (egame_rc.asm). MGRAPHIC copied the back page to the visible
+ * page here; under the single back buffer (Step 5.2) compose and present target
+ * the one surface, so the copy is gone — just present it. Args (AX/BX) ignored. */
 void FAR CDECL gfx_dacAnimate(void) {
     GfxState FAR *s = gfx_getState();
-    /* Copy from the page the frame was just composited into (curPage), not a
-     * hardcoded page 1: the side/rear views render into page 0, so sourcing page 1
-     * here copied a stale frame over the live one (the alternate-view flicker). */
-    SDL_Surface *back = ensurePage(s->curPage);
-    SDL_Surface *front = ensurePage(0);
-    if (back && front && back != front) {
-        int y, w = (back->w < front->w) ? back->w : front->w;
-        int h = (back->h < front->h) ? back->h : front->h;
-        for (y = 0; y < h; y++) {
-            SDL_memcpy((uint8 *)front->pixels + (size_t)y * front->pitch,
-                       (const uint8 *)back->pixels + (size_t)y * back->pitch,
-                       (size_t)w);
-        }
-    }
     s->displayPage = 1;
     /* Advance the fire colour-cycle on a fixed FIRE_CYCLE_HZ wall-clock schedule. */
     {
