@@ -47,7 +47,7 @@ The entire game is playable, rendering and input handling is ported to SDL, soun
   </table>
 </div>
 
-## Current enahncements over the original game
+## Current enhancements over the original game
 
 1. The original was limited to 15 FPS with a convoluted time scale implementation to make sure the game engine kept up with rendering. This has been eliminated, with the game engine being decoupled from rendering, so now it plays much smoother. 
 2. Input loop has been upgraded to an SDL event pump which should make it deal with simultaneous inputs much bettern and improve general responsiveness.
