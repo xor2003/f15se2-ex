@@ -896,6 +896,23 @@ static void paintBias(void) {
     glPolygonOffset(0.0f, -(float)(s_paintSeq++) * GL_PAINT_BIAS);
 }
 
+/* Round anti-aliased points come from GL_POINT_SMOOTH's coverage-blended alpha. The
+ * GL spec routes point AA through the multisample resolve instead when MULTISAMPLE is
+ * on, which rasterizes the point as a hard SQUARE and drops the soft rim fade — so we
+ * suspend multisampling for the point draw and restore it after (polygons/lines keep
+ * their MSAA edges). Restore mirrors the init gate (GL_MSAA_SAMPLES > 0). */
+static void beginSmoothPoints(void) {
+    glDisable(GL_MULTISAMPLE);
+    glEnable(GL_POINT_SMOOTH);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+}
+static void endSmoothPoints(void) {
+    glDisable(GL_BLEND);
+    glDisable(GL_POINT_SMOOTH);
+    if (GL_MSAA_SAMPLES > 0) glEnable(GL_MULTISAMPLE);
+}
+
 #define GL_POINT_REF_DEPTH 5000.0f /* depthHi at which the point is one logical pixel */
 #define GL_POINT_NEAR_CAP 3.0f     /* max size, in logical pixels, for the nearest points */
 #define GL_POINT_MIN_SIZE 0.5f     /* smallest size; smooth coverage fades it below 1px */
@@ -938,13 +955,10 @@ static void drawSub(const GlSub *r) {
      * so no scaleDiv is needed. Sized by distance (drawDepthPoint). */
     if (l->form == MESH_FORM_POINT) {
         if ((int)(r->camY >> 16) < 1) return; /* g_camTransYHi < 1 cull */
-        glEnable(GL_POINT_SMOOTH);
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        beginSmoothPoints();
         drawDepthPoint((float)r->camBase, (float)r->camX, r->camY,
                        colorLut[l->pointColor] + GL_NEAR_SHADE);
-        glDisable(GL_BLEND);
-        glDisable(GL_POINT_SMOOTH);
+        endSmoothPoints();
         return;
     }
 
@@ -952,9 +966,7 @@ static void drawSub(const GlSub *r) {
      * vertex transformed by the object matrix (the on-the-fly path's emitModelVertex).
      * No LOD scale (emitModelVertex applies none), so depth feeds glEdgeRunColor raw. */
     if (l->form == MESH_FORM_EDGERUN) {
-        glEnable(GL_POINT_SMOOTH);
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        beginSmoothPoints();
         for (i = 0; i < 9; i++) cm[i] = (float)r->combined[i];
         for (i = 0; i < l->nRunRefs; i++) {
             int ref = l->runRefs[i];
@@ -976,8 +988,7 @@ static void drawSub(const GlSub *r) {
             if ((int)(depthRaw >> 16) < 1) continue; /* dHi >= 1 */
             drawDepthPoint(camX, camY, depthRaw, glEdgeRunColor((int)(depthRaw >> 16)));
         }
-        glDisable(GL_BLEND);
-        glDisable(GL_POINT_SMOOTH);
+        endSmoothPoints();
         return;
     }
 
@@ -1049,13 +1060,10 @@ static void drawSub(const GlSub *r) {
             }
             if (colorByte < 0 && l->nLines) colorByte = l->lines[0].colorByte;
             if (colorByte >= 0) {
-                glEnable(GL_POINT_SMOOTH);
-                glEnable(GL_BLEND);
-                glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+                beginSmoothPoints();
                 drawDepthPoint((float)r->camBase, (float)r->camX, r->camY,
                                colorLut[colorByte] + GL_NEAR_SHADE);
-                glDisable(GL_BLEND);
-                glDisable(GL_POINT_SMOOTH);
+                endSmoothPoints();
             }
             return;
         }
