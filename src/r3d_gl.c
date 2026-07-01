@@ -162,6 +162,20 @@ static GlSub s_subs[GL_MAX_SUBS];
 static int s_nSub;
 static int s_subOverflow;
 
+/* World-space 3D line segments (cannon tracers, explosion sparks) submitted this
+ * frame; drawn as camera-facing ribbons (z-tested + fogged) at the end of the
+ * scene. Endpoints are the scene camera-space (screen-X axis, screen-Y axis,
+ * depth) triples; color is a final palette index. */
+typedef struct {
+    long baseXA, camXA, camYA;
+    long baseXB, camXB, camYB;
+    int color;
+} GlLine;
+#define GL_MAX_LINES 256
+static GlLine s_lines[GL_MAX_LINES];
+static int s_nLine;
+static int s_lineOverflow;
+
 /* INDEX8 -> RGBA8888 conversion scratch, shared by the page composite, the sprite
  * textures and the sub-view backdrop snapshot. */
 static uint8 *s_rgba;
@@ -609,6 +623,8 @@ static void gl_beginSubScene(const R3DScene *s) {
     beginModelPass();
     s_nSub = 0;
     s_subOverflow = 0;
+    s_nLine = 0;
+    s_lineOverflow = 0;
     s_flatN = 0;
     s_sceneRendered = 1; /* live 3D is now in the framebuffer; the present must not clear it */
 }
@@ -809,6 +825,8 @@ static void gl_beginScene(const R3DScene *s) {
     }
     s_nSub = 0;
     s_subOverflow = 0;
+    s_nLine = 0;
+    s_lineOverflow = 0;
     s_flatN = 0; /* model-flatness cache is per-frame (world data may reload) */
     s_sceneRendered = 1;
 }
@@ -863,6 +881,22 @@ static void gl_submit(const R3DSubmit *o) {
     r->sortLo = (int)(uint16)(int16)depth;
     r->sortHi = (int)(int16)(depth >> 16);
     if (g_curLod == 2 && g_objRenderMode == 5) r->sortHi += 0x20;
+}
+
+static void gl_submitLine(const R3DLine *o) {
+    GlLine *l;
+    if (s_nLine >= GL_MAX_LINES) {
+        s_lineOverflow++;
+        return;
+    }
+    l = &s_lines[s_nLine++];
+    l->baseXA = o->baseXA;
+    l->camXA = o->camXA;
+    l->camYA = o->camYA;
+    l->baseXB = o->baseXB;
+    l->camXB = o->camXB;
+    l->camYB = o->camYB;
+    l->color = o->color;
 }
 
 /* Distance-scaled single-pixel decoration. The original drew these as a fixed 1px
@@ -1189,6 +1223,66 @@ static void drawSub(const GlSub *r) {
     }
 }
 
+/* Effect-line ribbon half-width as a fraction of camera depth, so a tracer /
+ * explosion spark keeps a roughly constant thin screen width (the offset is added
+ * in camera space and divided by depth on projection). Tune to taste. */
+static const float GL_EFFECT_HW_FRAC = 0.0016f;
+
+/* The LOD coordinate scale drawWorldObject/gl_submit apply to these effects
+ * (g_curLod == 1 -> 1 << (8 - 2*1)). drawSub divides every model vertex by the
+ * same scaleDiv; it cancels in the x/y projection ratio but sets the absolute
+ * magnitude the fog distance (vd_) is read in, so a loose line must divide too or
+ * it hazes ~64x too hard. */
+static const float GL_EFFECT_SCALEDIV = 64.0f;
+
+/* Draw one world-space 3D line (tracer / explosion spark) as a camera-facing
+ * ribbon quad, the same construction as a model wire (drawSub): work in true
+ * camera space (z = depth, same scale as x/y) so the perpendicular is Euclidean
+ * and the near plane clips it, divide z out on emit. z-tested + fogged by the
+ * caller's GL state, so it occludes and hazes like scene geometry. */
+static void drawGlLine(const GlLine *ln) {
+    const float sd = GL_EFFECT_SCALEDIV;
+    float ax = (float)ln->baseXA / sd, ay = (float)ln->camXA / sd, az = (float)ln->camYA / sd;
+    float bx = (float)ln->baseXB / sd, by = (float)ln->camXB / sd, bz = (float)ln->camYB / sd;
+    float lx = bx - ax, ly = by - ay, lz = bz - az;
+    float len = SDL_sqrtf(lx * lx + ly * ly + lz * lz);
+    float avgDepth, hw, pax, pay, paz, pbx, pby, pbz, pl;
+    if (len < 1.0f) return;
+    avgDepth = 0.5f * (az + bz);
+    if (avgDepth < 1.0f) avgDepth = 1.0f;
+    hw = avgDepth * GL_EFFECT_HW_FRAC;
+
+    /* per-end normalize(cross(lineDir, ray)) * hw (ray = endpoint position) */
+    pax = ly * az - lz * ay;
+    pay = lz * ax - lx * az;
+    paz = lx * ay - ly * ax;
+    pl = SDL_sqrtf(pax * pax + pay * pay + paz * paz);
+    if (pl < 1e-3f) return;
+    pax = pax / pl * hw;
+    pay = pay / pl * hw;
+    paz = paz / pl * hw;
+    pbx = ly * bz - lz * by;
+    pby = lz * bx - lx * bz;
+    pbz = lx * by - ly * bx;
+    pl = SDL_sqrtf(pbx * pbx + pby * pby + pbz * pbz);
+    if (pl < 1e-3f) return;
+    pbx = pbx / pl * hw;
+    pby = pby / pl * hw;
+    pbz = pbz / pl * hw;
+    if (pax * pbx + pay * pby + paz * pbz < 0.0f) {
+        pbx = -pbx;
+        pby = -pby;
+        pbz = -pbz;
+    }
+    glColorIndex(ln->color);
+    glBegin(GL_QUADS);
+    fogVertex(ax + pax, ay + pay, (az + paz) / 65536.0f);
+    fogVertex(bx + pbx, by + pby, (bz + pbz) / 65536.0f);
+    fogVertex(bx - pbx, by - pby, (bz - pbz) / 65536.0f);
+    fogVertex(ax - pax, ay - pay, (az - paz) / 65536.0f);
+    glEnd();
+}
+
 /* Painter's order, reproducing projectSceneObject + renderSortedListFar: the
  * immediate (flat ground/sea) objects first in walk order, then the sorted queue
  * farthest first (descending sortHi, then unsigned sortLo). */
@@ -1230,7 +1324,16 @@ static void gl_endScene(void) {
     for (i = 0; i < s_nSub; i++)
         if (!s_subs[i].immediate) drawSub(&s_subs[i]);
 
+    /* 3D effect lines (tracers / explosion sparks): z-tested against the scene
+     * just drawn and fogged like it, so they occlude and haze. Drawn after the
+     * objects with no polygon offset (they are thin free-standing ribbons, not
+     * coplanar decals). */
+    if (s_lineOverflow)
+        LogWarn(("r3d_gl: %d effect lines dropped (cap %d)", s_lineOverflow, GL_MAX_LINES));
     glPolygonOffset(0.0f, 0.0f);
+    for (i = 0; i < s_nLine; i++) drawGlLine(&s_lines[i]);
+    s_nLine = 0;
+
     glDisable(GL_FOG);
     s_nSub = 0;
     glDisable(GL_SCISSOR_TEST);
@@ -1244,6 +1347,7 @@ const R3DBackend r3d_glBackend = {
     gl_releaseMesh,
     gl_beginScene,
     gl_submit,
+    gl_submitLine,
     gl_endScene,
 };
 
