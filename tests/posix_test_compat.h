@@ -3,6 +3,9 @@
 #if defined(_WIN32)
 
 #include <cstddef>
+#include <cstdlib>
+#include <io.h>
+#include <windows.h>
 
 using pid_t = int;
 
@@ -22,6 +25,16 @@ static inline int WTERMSIG(int) { return 0; }
 static inline int mprotect(void *, std::size_t, int) { return -1; }
 static inline void *mmap(void *, std::size_t, int, int, int, int) { return MAP_FAILED; }
 static inline int munmap(void *, std::size_t) { return -1; }
+static inline int dup(int fd) { return _dup(fd); }
+static inline int dup2(int fd1, int fd2) { return _dup2(fd1, fd2); }
+static inline int close(int fd) { return _close(fd); }
+static inline int setenv(const char *name, const char *value, int overwrite) {
+    if (!overwrite && std::getenv(name) != nullptr) return 0;
+    return _putenv_s(name, value);
+}
+static inline void usleep(unsigned int usec) {
+    Sleep((usec + 999u) / 1000u);
+}
 
 #else
 

@@ -862,7 +862,8 @@ size_t fileRead(void *ptr, size_t size, size_t count, SDL_IOStream *) {
 
 void fileClose(SDL_IOStream *) { ++g_fileCloseCalls; }
 int mystrlen(const char *s) { return static_cast<int>(std::strlen(s)); }
-char *mystrcat(char *dst, const char *src) { return std::strcat(dst, src); }
+void mystrcat(char *dst, const char *src) { std::strcat(dst, src); }
+int getTimeOfDay(void) { return 1; }
 void nearmemset(void *dst, char value, int count) { std::memset(dst, value, count); }
 void my_ltoa(int32 value, char *buf) {
     char tmp[32] = {};

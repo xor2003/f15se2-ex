@@ -167,6 +167,13 @@ void gfx_toggleFullscreen(void) {
     ++g_fullscreenToggleCalls;
 }
 
+void gfx_repaint(void) {}
+void joy_handleEvent(const SDL_Event *) {}
+bool joy_isGamepad(void) { return false; }
+bool joy_connected(void) { return false; }
+bool joy_button(SDL_GamepadButton) { return false; }
+Sint16 joy_axisRaw(SDL_GamepadAxis) { return 0; }
+
 extern "C" const bool *SDL_GetKeyboardState(int *numkeys) {
     if (numkeys) *numkeys = SDL_SCANCODE_COUNT;
     return g_keyboardState;

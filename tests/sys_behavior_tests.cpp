@@ -36,6 +36,7 @@ struct DacCall {
 
 DacCall g_dacCalls[2] = {};
 int g_dacCallCount = 0;
+uint64 g_timerNowNs = 0;
 
 void require(bool condition, const char *message) {
     if (!condition) {
@@ -59,6 +60,15 @@ void gfx_setDacRange(uint16 startReg, uint16 count, const uint8 *vgaTriples) {
             "setupDac should issue exactly the original two DAC range loads");
     g_dacCalls[g_dacCallCount++] = {startReg, count, vgaTriples};
 }
+
+void __cdecl __far drawInstrumentGaugesFar(void) {}
+void timerPump(void) {}
+uint64 timerNowNs(void) { return ++g_timerNowNs; }
+void gfx_dacAnimate(void) {}
+void renderFrame(void) {}
+void renderHudFrame(int) {}
+void stepFlightModel(void) {}
+void updateFrame(void) {}
 
 int main() {
     resetSysState();

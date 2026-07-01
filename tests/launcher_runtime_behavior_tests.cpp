@@ -10,6 +10,8 @@
 void game_init(int16 showIntro);
 int f15_program_main(int argc, char *argv[]);
 
+void timerPump(void) {}
+
 // The test target renames f15.c's program entry point; keep this file's test
 // entry point normal.
 #ifdef main

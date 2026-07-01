@@ -276,9 +276,10 @@ add_executable(gameplay_behavior_tests
 add_executable(input_behavior_tests
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/input_behavior_tests.cpp
     ${SRC_DIR}/eginput.c
+    ${SRC_DIR}/input.c
     ${SRC_DIR}/egdata.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/egdata_link_stubs.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/utility_stubs.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/tests/runtime_stubs.cpp
 )
 add_executable(hud_raster_behavior_tests
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/hud_raster_behavior_tests.cpp
@@ -297,6 +298,7 @@ add_executable(sys_behavior_tests
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/sys_behavior_tests.cpp
     ${SRC_DIR}/egsys.c
     ${SRC_DIR}/egdata.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/egdata_link_stubs.cpp
 )
 add_executable(egsys_internal_behavior_tests
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/egsys_internal_behavior_tests.cpp
@@ -318,6 +320,7 @@ add_executable(sphere_behavior_tests
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/sphere_behavior_tests.cpp
     ${SRC_DIR}/egsphere.c
     ${SRC_DIR}/egdata.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/egdata_link_stubs.cpp
 )
 add_executable(load_behavior_tests
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/load_behavior_tests.cpp
@@ -382,6 +385,7 @@ add_executable(tick_behavior_tests
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/tick_behavior_tests.cpp
     ${SRC_DIR}/egtick.c
     ${SRC_DIR}/egdata.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/egdata_link_stubs.cpp
 )
 add_executable(start_behavior_tests
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/start_behavior_tests.cpp
@@ -858,6 +862,58 @@ endif()
 target_compile_definitions(launcher_runtime_behavior_tests PRIVATE main=f15_program_main)
 target_compile_definitions(vgapal_behavior_tests PRIVATE main=vgapal_program_main)
 target_compile_definitions(start_main_autostart_behavior_tests PRIVATE DEBUG_AUTOSTART)
+
+set(BEHAVIOR_TEST_TARGETS
+    original_behavior_tests
+    utility_behavior_tests
+    award_behavior_tests
+    end_file_behavior_tests
+    end_input_behavior_tests
+    end_runtime_behavior_tests
+    end_debrief_behavior_tests
+    geometry_behavior_tests
+    file_io_behavior_tests
+    gameplay_behavior_tests
+    input_behavior_tests
+    hud_raster_behavior_tests
+    view_behavior_tests
+    sys_behavior_tests
+    egsys_internal_behavior_tests
+    io_wrapper_behavior_tests
+    farbuf_behavior_tests
+    pic_behavior_tests
+    sphere_behavior_tests
+    load_behavior_tests
+    start_runtime_behavior_tests
+    shared_timer_behavior_tests
+    shared_runtime_behavior_tests
+    shared_overlay_behavior_tests
+    shared_misc_behavior_tests
+    shared_picimpl_behavior_tests
+    eg_stubs_behavior_tests
+    eg_main_behavior_tests
+    eg3drast_behavior_tests
+    eg3drast_internal_behavior_tests
+    tick_behavior_tests
+    start_behavior_tests
+    start_parse_behavior_tests
+    launcher_runtime_behavior_tests
+    log_behavior_tests
+    dosfunc_behavior_tests
+    vgapal_behavior_tests
+    vgapal_internal_behavior_tests
+    start_main_autostart_behavior_tests
+    start_main_behavior_tests
+    gfx_impl_behavior_tests
+    biosfunc_behavior_tests
+)
+
+if(MSVC)
+    foreach(test_target IN LISTS BEHAVIOR_TEST_TARGETS)
+        target_compile_options(${test_target} PRIVATE /Gy /Gw /wd4838)
+        target_link_options(${test_target} PRIVATE /OPT:REF)
+    endforeach()
+endif()
 
 enable_testing()
 add_test(NAME original_behavior_tests COMMAND original_behavior_tests)
