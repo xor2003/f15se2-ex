@@ -118,6 +118,7 @@ set(F15SE2_SOURCES
     ${SRC_DIR}/strand.c
     ${SRC_DIR}/stpilot.c
     ${SRC_DIR}/stalloc.c
+    ${SRC_DIR}/stmath.c
     ${SRC_DIR}/stterr.c
     ${SRC_DIR}/stparse.c
     ${SRC_DIR}/stgen.c
@@ -212,8 +213,7 @@ add_executable(utility_behavior_tests
     ${SRC_DIR}/enmisc.c
     ${SRC_DIR}/endata.c
     ${SRC_DIR}/strand.c
-    ${SRC_DIR}/stgen.c
-    ${SRC_DIR}/stterr.c
+    ${SRC_DIR}/stmath.c
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/r3d_render_stubs.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/utility_stubs.cpp
 )
@@ -390,6 +390,7 @@ add_executable(tick_behavior_tests
 add_executable(start_behavior_tests
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/start_behavior_tests.cpp
     ${SRC_DIR}/stgen.c
+    ${SRC_DIR}/stmath.c
     ${SRC_DIR}/strand.c
     ${SRC_DIR}/stparse.c
     ${SRC_DIR}/stterr.c
@@ -714,6 +715,7 @@ set_source_files_properties(
     ${SRC_DIR}/enmisc.c
     ${SRC_DIR}/endata.c
     ${SRC_DIR}/strand.c
+    ${SRC_DIR}/stmath.c
     ${SRC_DIR}/stgen.c
     ${SRC_DIR}/stterr.c
     ${SRC_DIR}/enaward.c
@@ -862,6 +864,7 @@ endif()
 target_compile_definitions(launcher_runtime_behavior_tests PRIVATE main=f15_program_main)
 target_compile_definitions(vgapal_behavior_tests PRIVATE main=vgapal_program_main)
 target_compile_definitions(start_main_autostart_behavior_tests PRIVATE DEBUG_AUTOSTART)
+target_compile_definitions(gfx_impl_behavior_tests PRIVATE TEST_R3D_STUBS_NO_GFX_IMAGE)
 
 set(BEHAVIOR_TEST_TARGETS
     original_behavior_tests

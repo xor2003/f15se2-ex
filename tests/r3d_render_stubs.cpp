@@ -140,6 +140,7 @@ const R2DVectorPrim *r2d_vectorPrims(int *count) {
     if (count != nullptr) *count = 0;
     return nullptr;
 }
+#if !defined(TEST_R3D_STUBS_NO_GFX_IMAGE)
 TEST_WEAK_STUB void gfx_captureToImage(struct R2DImage *img, int srcPage, int srcX, int srcY,
                        int dstX, int dstY, int width, int height) {
     (void)img;
@@ -167,3 +168,4 @@ TEST_WEAK_STUB R2DImage *gfx_allocImage(int w, int h) {
     (void)h;
     return nullptr;
 }
+#endif
