@@ -120,6 +120,8 @@ void FAR CDECL gfx_nop37();                                                     
 int FAR CDECL gfx_getPageSeg(uint16 page);                                                                                        /* slot 0x38: select page, returns its seg */
 void FAR CDECL gfx_setPageBuf();                                                                                                  /* slot 0x39: pageSegs[idx]=val */
 int FAR CDECL gfx_getRowOffset(int y);                                                                                            /* slot 0x3a: returns y*320 */
+void FAR CDECL gfx_fillRow(uint16 rowOffset, uint16 srcBuf, uint16 rowNum);                                                          /* slot 0x33: copy decoded row bytes into current page */
+void FAR CDECL gfx_copyRow(uint16 rowOffset);                                                                                     /* slot 0x35: commit decoded row to visible page */
 void FAR CDECL gfx_clearPage(uint16 seg);                                                                                         /* slot 0x3b: select seg as curPage and clear it */
 /* dseg:0xbe4 */
 void FAR CDECL gfx_setMode13(void);          /* slot 0x3c: switch to 320x200 (lo-res) */
@@ -131,6 +133,8 @@ void FAR CDECL gfx_setOvlVal1(int val);                                       /*
 void FAR CDECL gfx_setOvlVal2(int val);                                       /* slot 0x41: writes ds:0xce */
 int FAR CDECL gfx_getModeFlag2();                                             /* slot 0x42: returns modeFlag */
 int FAR CDECL gfx_getConst1();                                                /* slot 0x43: returns baked constant 1 (cs:0x1d8) */
+void gfx_setNearReadBuffer(uint16 nearPtr, const void *hostPtr, size_t size);
+void gfx_clearNearReadBuffer(void);
 void FAR CDECL gfx_setDac(uint16 palIdx);                                     /* slot 0x44: set VGA DAC palette */
 void gfx_setDacRange(uint16 startReg, uint16 count, const uint8 *vgaTriples); /* native INT 10h AX=1012h: load DAC register block */
 void FAR CDECL gfx_waitRetrace();                                             /* slot 0x45: wait for vblank */

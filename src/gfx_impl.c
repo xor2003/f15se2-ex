@@ -28,6 +28,12 @@
  * looks the same regardless of how fast we present. */
 #define FIRE_CYCLE_HZ 15
 #define FIRE_CYCLE_NS (SDL_NS_PER_SECOND / FIRE_CYCLE_HZ)
+
+enum {
+    GFX_LAST_X = LOGICAL_WIDTH - 1,
+    GFX_LAST_Y = LOGICAL_HEIGHT - 1,
+};
+
 static SDL_Window *sdlWindow = NULL;
 static SDL_Renderer *sdlRenderer = NULL;
 static bool s_useGL = false; /* OpenGL backend owns the context + present */
@@ -143,6 +149,36 @@ static GfxState gfxState;
 
 static GfxState FAR *gfx_getState(void) {
     return &gfxState;
+}
+
+/* Native substitute for a DOS caller-DS near pointer. The original overlay saw
+ * `srcBuf` as a 16-bit offset in the caller's data segment; in the flat native
+ * process that offset is not a usable host address, so tests/bridge code can map
+ * one near range to the host buffer that owns it. */
+static uint16 gfxNearReadBase;
+static const uint8 *gfxNearReadHost;
+static size_t gfxNearReadSize;
+
+void gfx_setNearReadBuffer(uint16 nearPtr, const void *hostPtr, size_t size) {
+    gfxNearReadBase = nearPtr;
+    gfxNearReadHost = (const uint8 *)hostPtr;
+    gfxNearReadSize = size;
+}
+
+void gfx_clearNearReadBuffer(void) {
+    gfxNearReadBase = 0;
+    gfxNearReadHost = NULL;
+    gfxNearReadSize = 0;
+}
+
+static const uint8 *gfx_resolveNearReadPtr(uint16 nearPtr, size_t bytes) {
+    uint16 offset;
+    if (gfxNearReadHost) {
+        offset = (uint16)(nearPtr - gfxNearReadBase);
+        if ((size_t)offset <= gfxNearReadSize && bytes <= gfxNearReadSize - (size_t)offset)
+            return gfxNearReadHost + offset;
+    }
+    return (const uint8 *)(uintptr_t)nearPtr; /* legacy low-memory fallback */
 }
 
 /* ---- Page backbuffers (SDL surface model) ----------------------------------
@@ -437,8 +473,8 @@ void gfx_presentHiRes(void) {
 static void initRowOffsets(void) {
     int i;
     if (gfx_getState()->rowOffsetsReady) return;
-    for (i = 0; i < 200; i++)
-        gfx_getState()->rowOffsets[i] = (uint16)(i * 320);
+    for (i = 0; i < LOGICAL_HEIGHT; i++)
+        gfx_getState()->rowOffsets[i] = (uint16)(i * LOGICAL_WIDTH);
     gfx_getState()->rowOffsetsReady = 1;
 }
 
@@ -576,13 +612,13 @@ int FAR CDECL gfx_getBufSize(void) {
  * args (DI/SI/BP/BX) into cdecl stack args and call these *_impl bodies. DS is
  * the caller's DGROUP throughout, so `srcBuf` is read as a near pointer. */
 
-/* Slot 0x3a: DI = y -> AX = row byte offset (y*320). */
+/* Slot 0x3a: DI = y -> AX = row byte offset (y*scanline_width). */
 int FAR CDECL gfx_getRowOffset(int y) {
     GfxState FAR *s = gfx_getState();
     initRowOffsets();
-    if (y >= 0 && y < 200)
+    if (y >= 0 && y < LOGICAL_HEIGHT)
         return (int)s->rowOffsets[y];
-    return (int)((uint16)y * 320);
+    return (int)((uint16)y * LOGICAL_WIDTH);
 }
 
 /* Slot 0x38: SI = page -> select it as current page, return its segment. */
@@ -593,6 +629,30 @@ int FAR CDECL gfx_getPageSeg(uint16 page) {
         s->curPage = (int)page;
     }
     return (int)s->curPageSeg;
+}
+
+/* Slot 0x33: DI = rowOffset, BP = srcBuf (caller DS), BX = rowNum.
+ * Copy one scanline-width decoded row into the current page (MCGA: direct write). */
+void FAR CDECL gfx_fillRow(uint16 rowOffset, uint16 srcBuf, uint16 rowNum) {
+    GfxState FAR *s = gfx_getState();
+    const uint8 *src = gfx_resolveNearReadPtr(srcBuf, LOGICAL_WIDTH); /* near ptr, caller's DS */
+    SDL_Surface *surf = gfx_surfaceForSeg(s->curPageSeg);
+    int row, col;
+    (void)rowNum;
+    if (!surf) return;
+    row = (int)(rowOffset / LOGICAL_WIDTH); /* rowOffset is a linear y*320 index */
+    if (row < 0 || row >= surf->h) return;
+    {
+        uint8 *dst = (uint8 *)surf->pixels + (size_t)row * surf->pitch;
+        for (col = 0; col < LOGICAL_WIDTH && col < surf->w; col++)
+            dst[col] = src[col];
+    }
+}
+
+/* Slot 0x35: DI = rowOffset. In MCGA the row is already in the page (fillRow
+ * wrote directly), so this is a no-op. */
+void FAR CDECL gfx_copyRow(uint16 rowOffset) {
+    (void)rowOffset;
 }
 
 /* ---- Slot 0x3f: gfx_getModecode ---- */
@@ -758,7 +818,7 @@ static void drawStringCore(int16 *params, const char *string,
 
 /* ---- Slot 0x05: gfx_drawString (cdecl, unclipped) ---- */
 void FAR CDECL gfx_drawString(int16 *pageNum, const char *string) {
-    drawStringCore(pageNum, string, 0, 319, 0, 199);
+    drawStringCore(pageNum, string, 0, GFX_LAST_X, 0, GFX_LAST_Y);
     return;
 }
 
@@ -768,7 +828,7 @@ void FAR CDECL gfx_drawString(int16 *pageNum, const char *string) {
  * bit1 = vertical window (params word 7/8). The two X (resp. Y) bounds are
  * stored without a fixed min/max order across blocks, so normalise them. */
 void gfx_drawStringClipped_impl(int16 *params, const char *string, int mode) {
-    int clipL = 0, clipR = 319, clipT = 0, clipB = 199;
+    int clipL = 0, clipR = GFX_LAST_X, clipT = 0, clipB = GFX_LAST_Y;
     if (!params) return;
     if (mode & 1) { /* horizontal clip window */
         int bound1 = (int)params[9], bound2 = (int)params[10];
@@ -781,9 +841,9 @@ void gfx_drawStringClipped_impl(int16 *params, const char *string, int mode) {
         clipB = bound1 < bound2 ? bound2 : bound1;
     }
     if (clipL < 0) clipL = 0;
-    if (clipR > 319) clipR = 319;
+    if (clipR > GFX_LAST_X) clipR = GFX_LAST_X;
     if (clipT < 0) clipT = 0;
-    if (clipB > 199) clipB = 199;
+    if (clipB > GFX_LAST_Y) clipB = GFX_LAST_Y;
     drawStringCore(params, string, clipL, clipR, clipT, clipB);
 }
 
@@ -1048,11 +1108,11 @@ static int gfx_lineOutcode(int x, int y) {
     int code = 0;
     if (x < 0)
         code |= 1;
-    else if (x > 319)
+    else if (x > GFX_LAST_X)
         code |= 2;
     if (y < 0)
         code |= 4;
-    else if (y > 199)
+    else if (y > LOGICAL_HEIGHT - 1)
         code |= 8;
     return code;
 }
@@ -1117,14 +1177,14 @@ void FAR CDECL gfx_drawLine(uint16 ux1, uint16 uy1, uint16 ux2, uint16 uy2) {
      * page with Cohen-Sutherland and draw only the visible part. The blitOffset
      * is folded in as a viewport origin so the radar/MFD lines land in their
      * sub-window instead of the main viewport. */
-    vx = (int)((uint16)s->blitOffset % 320u);
-    vy = (int)((uint16)s->blitOffset / 320u);
+    vx = (int)((uint16)s->blitOffset % (uint16)LOGICAL_WIDTH);
+    vy = (int)((uint16)s->blitOffset / (uint16)LOGICAL_WIDTH);
     x1 = (int)(int16)ux1 + vx;
     y1 = (int)(int16)uy1 + vy;
     x2 = (int)(int16)ux2 + vx;
     y2 = (int)(int16)uy2 + vy;
 
-    /* Clip the segment to [0,319]x[0,199]. */
+    /* Clip the segment to [0,width)x[0,height). */
     code1 = gfx_lineOutcode(x1, y1);
     code2 = gfx_lineOutcode(x2, y2);
     for (;;) {
@@ -1134,14 +1194,14 @@ void FAR CDECL gfx_drawLine(uint16 ux1, uint16 uy1, uint16 ux2, uint16 uy2) {
             int outcode = code1 ? code1 : code2;
             int clipX = 0, clipY = 0;
             if (outcode & 8) {
-                clipX = x1 + (long)(x2 - x1) * (199 - y1) / (y2 - y1);
-                clipY = 199;
+                clipX = x1 + (long)(x2 - x1) * (LOGICAL_HEIGHT - 1 - y1) / (y2 - y1);
+                clipY = LOGICAL_HEIGHT - 1;
             } else if (outcode & 4) {
                 clipX = x1 + (long)(x2 - x1) * (0 - y1) / (y2 - y1);
                 clipY = 0;
             } else if (outcode & 2) {
-                clipY = y1 + (long)(y2 - y1) * (319 - x1) / (x2 - x1);
-                clipX = 319;
+                clipY = y1 + (long)(y2 - y1) * (GFX_LAST_X - x1) / (x2 - x1);
+                clipX = GFX_LAST_X;
             } else {
                 clipY = y1 + (long)(y2 - y1) * (0 - x1) / (x2 - x1);
                 clipX = 0;
@@ -1198,7 +1258,7 @@ void FAR CDECL gfx_dirtyRect2(const int16 *spanMinBuf, uint16 yMin, uint16 yMax)
     pagePx = (uint8 *)surf->pixels;
     /* MGRAPHIC slot 0x25: `or ax,ax; js exit` — if firstRow < 0, draw nothing. */
     if (firstRow < 0) return;
-    if (lastRow > 199) lastRow = 199; /* rowOffsets[] safety */
+    if (lastRow > GFX_LAST_Y) lastRow = GFX_LAST_Y; /* rowOffsets[] safety */
     for (y = (int)lastRow; y >= (int)firstRow; y--) {
         uint16 spanLo = minBuf[y];
         uint16 spanHi = maxBuf[y];
@@ -1215,14 +1275,14 @@ void FAR CDECL gfx_dirtyRect2(const int16 *spanMinBuf, uint16 yMin, uint16 yMax)
          * [0..hi], painting a spurious full-width scanline across the left-MFD
          * ocean (and the equivalent on 3D fills). */
         if (spanHi < spanLo) continue; /* unsigned */
-        if (spanHi == spanLo && (spanHi == 0 || spanHi == 319)) continue;
+        if (spanHi == spanLo && (spanLo == 0 || spanLo == GFX_LAST_X)) continue;
         /* Clamp the write extent to the visible row. The 3D projection emits
          * near-plane-clamped columns (e.g. ~0x7000), so an unclamped width would
          * loop tens of thousands of times per row in C (MGRAPHIC wraps cheaply in
          * the 64K page; we clip instead). This does NOT change the draw decision
          * above — only how many bytes land on screen. */
-        if (spanLo > 319) continue; /* span off right edge */
-        if (spanHi > 319) spanHi = 319;
+        if (spanLo > GFX_LAST_X) continue; /* span off right edge */
+        if (spanHi > GFX_LAST_X) spanHi = GFX_LAST_X;
         width = (uint16)(spanHi - spanLo + 1);
         /* The original wrote at the linear page offset rowOffsets[y]+blitOffset+
          * spanLo; split it into (row,col) so the surface pitch (not assumed 320)
@@ -1301,7 +1361,7 @@ void FAR CDECL gfx_setFadeSteps(int steps) {
  * middle MFD's −32x/+32y offset and the left/right MFD misplacement. */
 int FAR CDECL gfx_calcRowAddr(int col, int row) {
     GfxState FAR *s = gfx_getState();
-    if (!s->rowOffsetsReady) return (int)(row * 320 + col);
+    if (!s->rowOffsetsReady) return (int)(row * LOGICAL_WIDTH + col);
     return (int)(s->rowOffsets[row] + col);
 }
 /* Slots 0x40/0x41: MGRAPHIC stored the arg to absolute 0000:0x00CC / 0x00CE — a
