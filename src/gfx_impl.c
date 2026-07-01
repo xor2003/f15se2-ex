@@ -6,6 +6,7 @@
 
 #include "gfx_impl.h"
 #include "gfx.h"
+#include "r2d.h"
 #include "r3d_gl.h"
 #include "struct.h"
 #include "log.h"
@@ -47,7 +48,7 @@ void gfx_videoInit(void) {
      * a GL-capable window and bring the context up here; the present path then
      * routes through the GL composite instead of the renderer. */
     s_useGL = r3dgl_wantGL();
-    if (s_useGL) r3dgl_setGLAttributes();
+    if (s_useGL) r3dgl_setGLAttributes(r3dgl_msaaSamples());
 
     sdlWindow = SDL_CreateWindow(
         "F-15 SE2 EX v0.9.0",
@@ -880,6 +881,42 @@ void FAR CDECL gfx_copyRect(int srcPage, uint16 srcX, uint16 srcY,
                     (size_t)w);
     }
     return;
+}
+
+/* ---- Off-buffer save/restore images (step 5 bridge helpers) ---------------
+ * The native runtime keeps page surfaces in-process; these wrappers keep engine
+ * callers on a stable image API matching the original scratch-save behavior.
+ * `gfx_captureToImage` snapshots a page rect into an owned `R2DImage`,
+ * `gfx_restoreFromImage` blits it back, and `gfx_drawSpriteOpaque` performs an
+ * opaque sprite copy through the same blit helper as copyRect. */
+struct R2DImage *gfx_allocImage(int w, int h) {
+    return r2d_registerImage(w, h);
+}
+
+void gfx_freeImage(struct R2DImage *img) {
+    r2d_releaseImage(img);
+}
+
+void gfx_captureToImage(struct R2DImage *img, int srcPage, int srcX, int srcY,
+                       int dstX, int dstY, int w, int h) {
+    SDL_Surface *src = ensurePage(srcPage);
+    if (!img || !src) return;
+    r2d_blit(src, srcX, srcY, r2d_imageSurface(img), dstX, dstY, w, h, -1);
+}
+
+void gfx_restoreFromImage(struct R2DImage *img, int dstPage, int srcX, int srcY,
+                         int dstX, int dstY, int w, int h) {
+    SDL_Surface *dst = ensurePage(dstPage);
+    if (!img || !dst) return;
+    r2d_drawImage(img, srcX, srcY, w, h, dst, dstX, dstY, -1);
+}
+
+void gfx_drawSpriteOpaque(int handle, int srcX, int srcY, int dstPage,
+                         int dstX, int dstY, int w, int h) {
+    SDL_Surface *src = gfx_getSpriteSurface(handle);
+    SDL_Surface *dst = ensurePage(dstPage);
+    if (!src || !dst) return;
+    r2d_blit(src, srcX, srcY, dst, dstX, dstY, w, h, -1);
 }
 
 /* ---- Slot 0x29: gfx_switchColor ---- */
