@@ -14,6 +14,7 @@
 #include "pointers.h"
 #include "log.h"
 #include "gfx.h"
+#include "r2d.h"
 #include "slot.h"
 #include "const.h"
 #include "comm.h"
@@ -980,6 +981,19 @@ void renderFrame() {
         blitSprite(65, 95, 125, 54, 195, 2, 0);
     }
     g_hudBottomY = (g_activePanelMode == 0x13 || g_mapMode == 1 || g_hudVisible == 0) ? 200 : 97;
+
+    /* Non-retained renderers (GL) rebuild the 2D overlay every present, so the
+     * tac map — cached into g_eg2dBacking for the software page — must be re-emitted
+     * into this frame's native stream, crisp at window resolution. Runs inside the
+     * vector frame (render3DView opened it above). It reloads colorLut to the map
+     * palette; save/restore it so the HUD/gauges drawn after keep the flight
+     * palette render3DView set. The software path leaves the cached map alone. */
+    if (!r2d_overlayRetained()) {
+        uint8 savedLut[16];
+        memcpy(savedLut, colorLut, 16);
+        renderTacMapOverlay();
+        memcpy(colorLut, savedLut, 16);
+    }
 }
 
 void UpdateThrottleState(void) {

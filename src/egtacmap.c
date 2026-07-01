@@ -206,13 +206,13 @@ void initTacMapView(void) {
 }
 
 // ==== seg000:0x95c9 ====
-void redrawTacMap(int centerX, int centerY) {
-    int16 screenX, screenY, idx, c;
 
-    g_mapMode = 0;
-    if (g_hudVisible == 0) {
-        return;
-    }
+/* Recompute the map centre and render the terrain + plane/waypoint markers into
+ * the left-MFD region. Shared by redrawTacMap (which then caches the region to
+ * g_eg2dBacking) and renderTacMapOverlay (the per-frame GL vector path). */
+static void renderTacMapContent(int centerX, int centerY) {
+    int16 screenX, screenY, idx;
+
     drawPanelText(1, "Map", 0);
     idx = 72 << (9 - g_mapZoomLevel);
     g_mapCenterX = clampRange(sinMul(g_ourHead, 0x4000 >> g_mapZoomLevel) + centerX, idx, 0x7fff - idx);
@@ -242,9 +242,36 @@ void redrawTacMap(int centerX, int centerY) {
             blitSprite(screenX - 1, screenY - 1, 0xa8, 0, 4, 4, 0);
         }
     }
+}
+
+void redrawTacMap(int centerX, int centerY) {
+    g_mapMode = 0;
+    if (g_hudVisible == 0) {
+        return;
+    }
+    renderTacMapContent(centerX, centerY);
     gfx_captureToImage(g_eg2dBacking, *g_pageFront, 24, 112, 24, 112, 72, 56);
     restoreScopePanel();
     resetSimObjectLocks();
+}
+
+/* Per-frame tac-map render for renderers that do NOT retain the 2D overlay
+ * (the GL backend rebuilds its native vector/quad stream every present). The
+ * software backend keeps the cached-into-backing model instead (redrawTacMap +
+ * the per-frame marker patch in updateFrame); this path re-emits the whole map —
+ * terrain fills/lines as native polygons/vectors, all markers as textured quads —
+ * into the current frame's stream, so it stays crisp at the window resolution
+ * without touching g_eg2dBacking. Called from renderFrame inside the vector
+ * frame; the player marker is drawn here (no restore-from-backing patch). */
+void renderTacMapOverlay(void) {
+    int16 sx, sy;
+    if (g_hudVisible == 0 || g_mapMode != 0) {
+        return;
+    }
+    renderTacMapContent(g_viewX_, g_viewY_);
+    if (objectToScreen(g_viewX_, g_viewY_, &sx, &sy)) {
+        blitSprite(sx - 1, sy - 1, ((g_ourHead + 0x1000) >> 0xd & 7) * 4 + 164, 4, 4, 4, 0);
+    }
 }
 
 // ==== seg000:0x9875 ====

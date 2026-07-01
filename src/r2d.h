@@ -101,11 +101,15 @@ void r2d_blit(struct SDL_Surface *src, int srcX, int srcY,
  * Same call sites, the realization is the backend's.
  */
 typedef struct {
-    unsigned char kind;   /* R2D_PRIM_LINE / R2D_PRIM_POINT / R2D_PRIM_IMAGE */
-    unsigned char color;  /* VGA palette index (line / point) */
+    unsigned char kind;   /* R2D_PRIM_LINE / _POINT / _IMAGE / _POLY */
+    unsigned char color;  /* VGA palette index (line / point / poly fill) */
     short x1, y1, x2, y2; /* line/point: absolute 320-space, clipped to the page.
-                           * image: (x1,y1) is the destination corner. */
-    /* image submission (kind == R2D_PRIM_IMAGE): the sub-rect of `img` to draw. */
+                           * image: (x1,y1) is the destination corner.
+                           * poly: unused (vertices live in the poly pool). */
+    /* image submission (kind == R2D_PRIM_IMAGE): the sub-rect of `img` to draw.
+     * poly submission (kind == R2D_PRIM_POLY): srcX = first vertex index into the
+     * poly-vertex pool (r2d_overlayPolyVerts), srcY = vertex count; x1,y1,x2,y2 =
+     * the clip rect (absolute 320-space, half-open) the fill is scissored to. */
     R2DImage *img;
     short srcX, srcY, imgW, imgH;
     short key;            /* <0 opaque; >=0 transparent on that index (sprites: 0) */
@@ -113,6 +117,7 @@ typedef struct {
 #define R2D_PRIM_LINE  0
 #define R2D_PRIM_POINT 1
 #define R2D_PRIM_IMAGE 2
+#define R2D_PRIM_POLY  3
 
 /* Marks the start of a GL flight frame's 2D overlay (called from the 3D backend
  * once the main 3D view begins). Only between this and the present do 2D
@@ -125,11 +130,33 @@ void r2d_vectorBeginFrame(void);
  * the page. The gfx submission points branch on this. */
 int r2d_vectorActive(void);
 
+/* Whether the active backend RETAINS the 2D overlay across frames. The software
+ * backend rasterizes into a page surface that persists until overwritten, so a
+ * cached sub-image (the tac map baked into g_eg2dBacking) can be re-composited
+ * each frame without re-rendering it — a lightweight-renderer optimization. The
+ * GL backend rebuilds the native vector/quad stream every present (r2d_vector-
+ * MarkPresented clears it), so anything on that layer must be re-submitted each
+ * frame. Callers that cache-and-blit a region (redrawTacMap) branch on this: keep
+ * the cache when retained, re-render every frame when not. Inverse of a GL vector
+ * frame; false on software and on pure-2D screens (which also rasterize/persist). */
+int r2d_overlayRetained(void);
+
 /* Submit a clipped 2D line / point in absolute 320-space with a palette colour
  * index. Records for native replay when r2d_vectorActive(), else hands off to
  * the registered software rasterizer. */
 void r2d_submitLine(int x1, int y1, int x2, int y2, int color);
 void r2d_submitPoint(int x, int y, int color);
+
+/* Submit a filled convex polygon: `n` vertices as interleaved x,y pairs in
+ * absolute 320-space, filled with palette colour `color`. Only meaningful on a
+ * GL vector frame (records for a native GL_POLYGON replay); a no-op when vector
+ * recording is inactive, since the software backend fills such faces directly in
+ * the page span rasterizer (the tac-map fill path branches on r2d_vectorActive()
+ * and never calls this). Used for the left-MFD terrain-map tile fills. The verts
+ * are the UNCLIPPED projected polygon; (clipX0,clipY0)-(clipX1,clipY1) is the MFD
+ * rect (absolute 320-space, half-open) the GL fill is scissored to. */
+void r2d_submitPoly(const short *xy, int n, int color,
+                    int clipX0, int clipY0, int clipX1, int clipY1);
 
 /* Force the next line/point/image submissions to rasterize into the page (the
  * software path) instead of recording for the GL native-on-top replay. Set around
@@ -166,6 +193,10 @@ void r2d_registerSoftwareImage(void (*image)(R2DImage *img, int srcX, int srcY,
 /* The recorded overlay primitives (lines, points, images) for the current frame,
  * in submission order, for the GL backend to replay. Count via *count. */
 const R2DOverlayPrim *r2d_overlayPrims(int *count);
+
+/* The interleaved x,y vertex pool the R2D_PRIM_POLY prims index into (srcX =
+ * first index, srcY = count), for the GL backend to replay filled polygons. */
+const short *r2d_overlayPolyVerts(void);
 
 /* Called by the backend after replaying the layer at present: clears it so each
  * frame composes a fresh layer (a frame that submits nothing — e.g. after a view

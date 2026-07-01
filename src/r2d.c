@@ -138,6 +138,12 @@ static void (*s_swPoint)(int, int, int);
 static R2DOverlayPrim *s_prims;
 static int s_primCount, s_primCap;
 
+/* Vertex pool for R2D_PRIM_POLY: interleaved x,y in submission order; each poly
+ * prim indexes a contiguous run (srcX = first index, srcY = count). Cleared with
+ * the prim stream each frame. */
+static short *s_polyVerts;
+static int s_polyCount, s_polyCap;
+
 /* When set, submissions rasterize into the page even on a GL flight frame (for
  * the radar-scope MFD, whose lines must compose under their blip sprites). */
 static int s_forceRaster;
@@ -208,6 +214,8 @@ int r2d_vectorActive(void) {
     return cached;
 }
 
+int r2d_overlayRetained(void) { return !r2d_vectorActive(); }
+
 static void primAppend(int x1, int y1, int x2, int y2, int color, int kind) {
     R2DOverlayPrim *p = primGrow();
     if (!p) return;
@@ -228,13 +236,44 @@ void r2d_submitPoint(int x, int y, int color) {
     else if (s_swPoint) s_swPoint(x, y, color);
 }
 
+void r2d_submitPoly(const short *xy, int n, int color,
+                    int clipX0, int clipY0, int clipX1, int clipY1) {
+    R2DOverlayPrim *p;
+    int i;
+    /* Records only on a GL vector frame; software fills the face in the page
+     * span rasterizer and never reaches here (the call site branches first). */
+    if (n < 3 || !r2d_vectorActive() || s_forceRaster) return;
+    if (s_polyCount + n * 2 > s_polyCap) {
+        int cap = s_polyCap ? s_polyCap * 2 : 1024;
+        short *grown;
+        while (cap < s_polyCount + n * 2) cap *= 2;
+        grown = (short *)SDL_realloc(s_polyVerts, (size_t)cap * sizeof(*grown));
+        if (!grown) return;
+        s_polyVerts = grown;
+        s_polyCap = cap;
+    }
+    p = primGrow();
+    if (!p) return;
+    p->kind = R2D_PRIM_POLY;
+    p->color = (unsigned char)color;
+    p->x1 = (short)clipX0; p->y1 = (short)clipY0; /* scissor rect (320-space) */
+    p->x2 = (short)clipX1; p->y2 = (short)clipY1;
+    p->img = NULL;
+    p->srcX = (short)(s_polyCount / 2); /* first vertex index (pairs, not shorts) */
+    p->srcY = (short)n;
+    for (i = 0; i < n * 2; i++) s_polyVerts[s_polyCount++] = xy[i];
+}
+
 const R2DOverlayPrim *r2d_overlayPrims(int *count) {
     if (count) *count = s_primCount;
     return s_prims;
 }
 
+const short *r2d_overlayPolyVerts(void) { return s_polyVerts; }
+
 void r2d_vectorMarkPresented(void) {
     s_primCount = 0;
+    s_polyCount = 0;
     s_vectorFrame = 0;
 }
 

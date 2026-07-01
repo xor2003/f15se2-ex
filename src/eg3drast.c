@@ -29,6 +29,8 @@
 #include "eg3dvp.h"
 #include "struct.h"
 #include "gfx_impl.h"
+#include "gfx.h"
+#include "r2d.h"
 #include "inttype.h"
 #include "pointers.h"
 
@@ -1171,6 +1173,64 @@ static void renderPrimitiveCommand(unsigned char far **pp) {
                 return;
             }
             gfx_setColor((unsigned char)(colorLut[colorByte] + g_objShade));
+            /* On a GL vector frame the only faces reaching here are the left-MFD
+             * terrain-map tiles (the main/target 3D views render through the r3d
+             * backend, not this span rasterizer). Submit the face as a native-res
+             * filled polygon instead of rasterizing spans into the page. The face
+             * is an UNORDERED set of boundary edges (each an arbitrary-orientation
+             * v_a->v_b) — fine for the span fill, but GL_POLYGON needs the vertices
+             * in loop order, so walk the edge adjacency around the cycle (matching
+             * on the projected endpoints; the map has no near-plane clipping, so the
+             * int coords are exact). blitOffset folds the viewport origin into
+             * absolute 320-space. Software frames fall through to the span fill. */
+            if (r2d_vectorActive()) {
+                struct { short ax, ay, bx, by; uint8 used; } eg[64];
+                short ring[64 * 2];
+                int ne = 0, nv = 0, kk, cnt = g_faceVtxCount;
+                int bo = gfx_getBlitOffset();
+                int vx = (int)((uint16)bo % 320u), vy = (int)((uint16)bo / 320u);
+                unsigned char far *rp = p;
+                for (kk = 0; kk < cnt; kk++) {
+                    struct EdgeRec *rec = EREC(*rp++);
+                    if (rec->flags & 0x80) continue; /* rejected edge */
+                    if (ne < 64) {
+                        eg[ne].ax = (short)(rec->x1 + vx); eg[ne].ay = (short)(rec->y1 + vy);
+                        eg[ne].bx = (short)(rec->x2 + vx); eg[ne].by = (short)(rec->y2 + vy);
+                        eg[ne].used = 0;
+                        ne++;
+                    }
+                }
+                p += cnt + 1; /* vertex indices + the colour byte */
+                if (ne >= 2) {
+                    short curX = eg[0].bx, curY = eg[0].by;
+                    eg[0].used = 1;
+                    ring[0] = eg[0].ax; ring[1] = eg[0].ay;
+                    ring[2] = curX;     ring[3] = curY;
+                    nv = 2;
+                    while (nv < 64) {
+                        int found = -1;
+                        short ox = 0, oy = 0;
+                        for (kk = 0; kk < ne; kk++) {
+                            if (eg[kk].used) continue;
+                            if (eg[kk].ax == curX && eg[kk].ay == curY) { found = kk; ox = eg[kk].bx; oy = eg[kk].by; break; }
+                            if (eg[kk].bx == curX && eg[kk].by == curY) { found = kk; ox = eg[kk].ax; oy = eg[kk].ay; break; }
+                        }
+                        if (found < 0) break;
+                        eg[found].used = 1;
+                        if (ox == ring[0] && oy == ring[1]) break; /* closed the loop */
+                        ring[nv * 2] = ox; ring[nv * 2 + 1] = oy;
+                        nv++;
+                        curX = ox; curY = oy;
+                    }
+                }
+                /* Clip the filled polygon to the MFD viewport rect (the edges were
+                 * left unclipped above); absolute 320-space, half-open on the far
+                 * edge to match the viewport extent. */
+                r2d_submitPoly(ring, nv, colorLut[colorByte] + g_objShade,
+                               vx, vy, vx + g_clipMaxX + 1, vy + g_clipMaxY + 1);
+                *pp = p;
+                return;
+            }
         }
         resetScanlineSpansImpl();
         g_vtxSlotPhase = 0;
@@ -1331,7 +1391,15 @@ static void projectModelEdges(unsigned char far **pp) {
             rec->x2h = HI16(vtxScratch.vproj.x.v[vb]);
             rec->y2 = (int16)vtxScratch.vproj.y.v[vb];
             rec->y2h = HI16(vtxScratch.vproj.y.v[vb]);
-            clipLineSegment(rec);
+            /* On a GL vector frame leave edges UNCLIPPED: the fill path (map tiles)
+             * rebuilds the polygon ring from these endpoints and needs adjacent
+             * edges to share the exact same outside-vertex — rect clipping would
+             * split that shared vertex onto two different boundary points and break
+             * the ring (dropping every edge-crossing tile). The filled polygon is
+             * instead clipped to the MFD by a GL scissor at replay; the line path
+             * re-clips in drawClipLineGlobal, so lines are unaffected. Software
+             * still clips here (it span-fills to the viewport boundary directly). */
+            if (!r2d_vectorActive()) clipLineSegment(rec);
         }
     next:
         rec = (struct EdgeRec *)((char *)rec + 0x1a);

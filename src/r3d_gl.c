@@ -1418,6 +1418,7 @@ void r3dgl_present(SDL_Surface *page, int shakeOffset) {
     {
         int n, i;
         const R2DOverlayPrim *prims = r2d_overlayPrims(&n);
+        const short *polyV = r2d_overlayPolyVerts();
         SDL_Palette *vpal = gfx_getPalette();
         int palGen = gfx_paletteGeneration();
         float lw = scale < 1.0f ? 1.0f : scale;
@@ -1455,6 +1456,32 @@ void r3dgl_present(SDL_Surface *page, int shakeOffset) {
                     glVertex2f(x0, y1q);
                 }
                 glEnd();
+            } else if (kind == R2D_PRIM_POLY) {
+                /* Filled tile faces (left-MFD terrain map) as native-res convex
+                 * polygons; one GL_POLYGON per prim (a shared glBegin would fuse
+                 * separate faces into one loop). Vertices are 320-space pairs in
+                 * the poly pool, submitted UNCLIPPED and scissored to the MFD rect
+                 * (prim x1,y1,x2,y2) so faces crossing the border fill correctly. */
+                glEnable(GL_SCISSOR_TEST);
+                for (; i < j; i++) {
+                    const R2DOverlayPrim *p = &prims[i];
+                    SDL_Color c = vpal->colors[p->color];
+                    const short *v = polyV + (int)p->srcX * 2;
+                    int k, nv = p->srcY;
+                    float sx0 = (float)lbx + (float)p->x1 * scale - shake;
+                    float sx1 = (float)lbx + (float)p->x2 * scale - shake;
+                    float sy1w = (float)lby + (float)p->y1 * scale;
+                    float sy2w = (float)lby + (float)p->y2 * scale;
+                    glScissor((int)sx0, (int)((float)win_h - sy2w),
+                              (int)(sx1 - sx0), (int)(sy2w - sy1w));
+                    glColor3ub(c.r, c.g, c.b);
+                    glBegin(GL_POLYGON);
+                    for (k = 0; k < nv; k++)
+                        glVertex2f((float)lbx + ((float)v[k * 2] + 0.5f) * scale - shake,
+                                   (float)lby + ((float)v[k * 2 + 1] + 0.5f) * scale);
+                    glEnd();
+                }
+                glDisable(GL_SCISSOR_TEST);
             } else { /* R2D_PRIM_IMAGE */
                 glEnable(GL_TEXTURE_2D);
                 glColor3ub(255, 255, 255); /* MODULATE: white so the texture passes through */
