@@ -75,9 +75,5 @@ void enInitGraphics(void) {
     (void)g;
     (void)h;
     enSeedRandom();
-    gfx_setPageN(0);
-    gfx_allocPage(0);
-    gfx_getCurPage(0);
     gfx_setDac(1);
-    gfx_storeBufPtr(commData->gfxInitResult, 1);
 }

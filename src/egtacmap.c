@@ -43,7 +43,6 @@ void clearStatusPanel(void) {
 void renderHudFrame(int unused) {
     int climbMarkerY, angleFixed, waypointMarkerX, circleX, angle, circleY, prevX, speedBarLen, prevY, markerX, deltaX, markerY, deltaY;
     char seekerShift;
-    g_drawPage = gfx_getDisplayPage();
     // probably x,y
     deltaX = waypoints[waypointIndex].mapX - g_viewX_;
     deltaY = waypoints[waypointIndex].mapY - g_viewY_;
@@ -139,7 +138,7 @@ void renderHudFrame(int unused) {
             goto somewhere;
         }
     somewhere:
-        drawTacticalMap(g_drawPage);
+        drawTacticalMap(0);
     }
     if (g_hudMsgTimer != 0 && ((keyValue == 0 && g_halfScaleRender == 0) || (g_directorMode != 0))) {
         drawStringActivePage(tempString, -(((int16)strlen(tempString) >> 1) - 40) * 4, 24, 0xf);
@@ -208,7 +207,7 @@ void initTacMapView(void) {
 
 // ==== seg000:0x95c9 ====
 void redrawTacMap(int centerX, int centerY) {
-    int16 screenX, screenY, idx, c, savedPage;
+    int16 screenX, screenY, idx, c;
 
     g_mapMode = 0;
     if (g_hudVisible == 0) {
@@ -227,8 +226,6 @@ void redrawTacMap(int centerX, int centerY) {
     } else {
         gfx_setFadeSteps(16);
     }
-    savedPage = g_drawPage;
-    g_drawPage = gfx_getDisplayPage();
     for (idx = 1; idx < g_planeCount; idx++) {
         if (g_planeTable.planes[idx].active != 0 && !(g_planeTable.planes[idx].flags & 0x80) &&
             objectToScreen(g_planeTable.planes[idx].mapX, g_planeTable.planes[idx].mapY, &screenX, &screenY)) {
@@ -245,12 +242,7 @@ void redrawTacMap(int centerX, int centerY) {
             blitSprite(screenX - 1, screenY - 1, 0xa8, 0, 4, 4, 0);
         }
     }
-    g_drawPage = savedPage;
-    if ((char)gfx_getDisplayPage() == 0) {
-        cacheScopePanel();
-    } else {
-        gfx_captureToImage(g_eg2dBacking, *g_pageFront, 24, 112, 24, 112, 72, 56);
-    }
+    gfx_captureToImage(g_eg2dBacking, *g_pageFront, 24, 112, 24, 112, 72, 56);
     restoreScopePanel();
     resetSimObjectLocks();
 }
@@ -430,18 +422,7 @@ void drawClippedLineRegion(int x1, int y1, int x2, int y2, int clipLeft, int cli
     g_lineY2 = y2 - clipTop;
     drawClipLineGlobal();
     gfx_nop23();
-    if (drawBothPages != 0) {
-        g_drawPage = gfx_getDisplayPage();
-        gfx_setPageN(g_drawPage == 0);
-        gfx_setColor(g_pageFront[2]);
-        g_lineX1 = x1 - clipLeft;
-        g_lineY1 = y1 - clipTop;
-        g_lineX2 = x2 - clipLeft;
-        g_lineY2 = y2 - clipTop;
-        drawClipLineGlobal();
-        gfx_setPageN(g_drawPage != 0);
-        gfx_nop23();
-    }
+    (void)drawBothPages; /* the second page was the double buffer; single buffer now */
     g_clipMaxX = 319;
     g_clipMaxY = 199;
     gfx_setBlitOffset(0);

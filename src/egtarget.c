@@ -735,9 +735,7 @@ void drawMissileLock(void) {
     int markX;
     int markY;
     if (g_lockToneFlag != 0 && g_hudVisible != 0) {
-        if (g_drawPage != 0) {
-            drawStringActivePage("Missile Lock", 244, 150, 14);
-        }
+        drawStringActivePage("Missile Lock", 244, 150, 14);
         setDrawColor(14);
         markX = 268;
         markY = 156;

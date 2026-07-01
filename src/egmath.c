@@ -112,11 +112,7 @@ void drawTargetView(int shapeId, int worldX, int worldY, int altitude, int objYa
     g_targetInHudFlag = 1;
 
     dataOff = shapeDataOffset(shapeId);
-    if (g_drawPage == 0) {
-        *g_targetViewParams = 0;
-    } else {
-        *g_targetViewParams = 1;
-    }
+    *g_targetViewParams = 1;
 
     if (mode < 2) {
         g_trkRoll = 0;

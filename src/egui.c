@@ -201,7 +201,7 @@ void blitGaugeSprite(int srcCol, int srcRow, int destX, int destY) {
     gaugeSpriteParams.bufPtr = gfxBufPtr;
     gaugeSpriteParams.srcX = srcCol * 8 + 1;
     gaugeSpriteParams.srcY = srcRow * 8 + 31;
-    gaugeSpriteParams.page = (g_drawPage != 0);
+    gaugeSpriteParams.page = 0;
     gaugeSpriteParams.dstX = destX - 3;
     gaugeSpriteParams.dstY = destY - 3;
     gaugeSpriteParams.width = 7;
@@ -214,7 +214,7 @@ void blitSprite(int destX, int destY, int srcX, int srcY, int spriteWidth, int s
     blitSpriteParams.bufPtr = gfxBufPtr;
     blitSpriteParams.srcX = srcX;
     blitSpriteParams.srcY = srcY;
-    blitSpriteParams.page = (g_drawPage != 0);
+    blitSpriteParams.page = 0;
     blitSpriteParams.dstX = destX;
     blitSpriteParams.dstY = destY;
     blitSpriteParams.width = spriteWidth;

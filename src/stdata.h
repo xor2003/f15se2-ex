@@ -116,7 +116,6 @@ extern struct Game far *gameData;
 extern int16 groundUnitCount;
 extern uint8 gridBuf5[];
 extern uint8 gridBuf4[];
-extern int16 page1Ptr;
 extern uint8 gridBuf3[];
 extern struct NearestTerrain *nearestTerrainResult;
 extern uint8 gridBuf2[];

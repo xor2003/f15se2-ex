@@ -2251,7 +2251,6 @@ int16 g_currentWeaponType;
 int16 g_scopeClipRight;
 /* matrix3dt_2: per-LOD x per-vertex model-data pointers (parallels matrix3dt). */
 struct TileSceneObject *matrix3dt_2[5][32];
-char g_drawPage;
 int16 g_scopeClipBottom;
 int16 g_pitchInput;
 int16 g_cornerSpeed;

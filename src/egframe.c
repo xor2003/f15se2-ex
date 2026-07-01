@@ -163,8 +163,7 @@ void updateFrame(void) {
     applyGravityFall();
 
     if (objectToScreen(g_viewX_, g_viewY_, (int16 *)&val, (int16 *)&screenY) != 0) {
-        g_drawPage = gfx_getDisplayPage();
-        gfx_restoreFromImage(g_eg2dBacking, g_drawPage, val - 3, screenY - 3, val - 3, screenY - 3, 6, 6);
+        gfx_restoreFromImage(g_eg2dBacking, 0, val - 3, screenY - 3, val - 3, screenY - 3, 6, 6);
         blitSprite(val - 1, screenY - 1, ((g_ourHead + 0x1000) >> 0xd & 7) * 4 + 164, 4, 4, 4, 0);
         if (((int16)val < 32 || (int16)val > 88 || (int16)screenY < 118 || (int16)screenY > 162) && g_mapZoomLevel > 2) {
             g_mapZoomLevel--;

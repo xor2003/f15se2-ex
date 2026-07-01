@@ -9,7 +9,6 @@
 #include "pointers.h"
 #include <SDL3/SDL.h>
 
-extern void FAR CDECL gfx_setPageN(uint16 pageNum);
 /* Page backbuffers (gfx_impl.c): the decoder writes palette indices into these
  * 320x200 8-bit surfaces instead of the old fake DOS page segments. */
 extern SDL_Surface *gfx_getCurPageSurface(void);
@@ -321,10 +320,8 @@ static SDL_Surface *picScratchSurface(void) {
 
 void showPicFile(SDL_IOStream *handle, int page) {
     if (!handle) return;
-
-    /* Select the page, then decode straight into its backing surface. The
-     * decoder overwrites every row, so no separate page clear is needed. */
-    gfx_setPageN((uint16)page);
+    (void)page; /* all pages are the single back buffer now (Step 5.3c) */
+    /* Decode straight into the back buffer; the decoder overwrites every row. */
     picDecodeToSurface(handle, gfx_getCurPageSurface());
 }
 

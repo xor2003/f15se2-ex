@@ -976,13 +976,8 @@ void renderFrame() {
         g_lineY2 = 94;
         drawClipLineGlobal();
         gfx_nop23();
-        tmp = g_drawPage;
-        /* Blit the rear-view sprites onto the page the frame is composited on
-         * (curPage), not the back-buffer index: the rear view renders into page 0. */
-        g_drawPage = gfx_curPage();
         blitSprite(107, 48, 209, 0, 111, 47, 0);
         blitSprite(65, 95, 125, 54, 195, 2, 0);
-        g_drawPage = tmp;
     }
     g_hudBottomY = (g_activePanelMode == 0x13 || g_mapMode == 1 || g_hudVisible == 0) ? 200 : 97;
 }

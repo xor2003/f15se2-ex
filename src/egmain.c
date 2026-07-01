@@ -23,7 +23,6 @@
 /* Private helpers for this translation unit. */
 void __cdecl drawCockpit();
 void runGameSession();
-void __cdecl gfxInit();
 
 // ==== seg000:0x10 ====
 int egame_main(void) {
@@ -46,8 +45,6 @@ int egame_main(void) {
     } else {
         joyAxes[0] = joyAxes[1] = 0x80;
     }
-    gfxInit();
-    gfx_initOverlay();
     if (gameData->theater < 2) {
         gfx_setFadeSteps(12);
     } else {
@@ -126,13 +123,4 @@ void runGameSession() {
     restoreTimerIrqHandler();
     setTimerTickHook(nullptr);
     audio_shutdown();
-}
-
-// ==== seg000:0x29a ====
-void gfxInit() {
-    int var_2;
-    gfx_allocPage(0);
-    var_2 = gfx_allocPage(1);
-    gfx_storeBufPtr(var_2, 1);
-    gfx_storeBufPtr(commData->gfxInitResult, 2);
 }

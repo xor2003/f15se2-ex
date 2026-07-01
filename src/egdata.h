@@ -362,7 +362,6 @@ extern char g_stringPool[];
 extern int16 g_currentWeaponType;
 extern int16 g_scopeClipRight;
 extern struct TileSceneObject *matrix3dt_2[5][32];
-extern char g_drawPage;
 extern int16 g_scopeClipBottom;
 extern int16 g_pitchInput;
 extern int16 g_cornerSpeed;
