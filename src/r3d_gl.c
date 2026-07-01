@@ -4,8 +4,9 @@
  * and owns the GL context + the 2D-overlay composite. The 3D main view
  * renders through GL at native window resolution with a real depth buffer and
  * double-sided fill (no back-face cull — cheap on a GPU, fixes over-optimized
- * models). The MFD/target sub-view (renderScene == 0) is delegated to the
- * software backend, which draws it into the page as before.
+ * models). The target-model MFD sub-view (renderScene == 0) also renders through
+ * GL, into a scissored sub-viewport over a backdrop snapshotted from the page (the
+ * game fills that MFD region with a two-tone horizon before submitting the model).
  *
  * Transform faithfulness: rather than re-derive the camera math in float (and
  * risk a matrix-convention bug), each object reuses the exact integer
@@ -132,8 +133,7 @@ static void fillPools(MeshVtxPools *pools) {
 
 /* ---- scene state -------------------------------------------------------- */
 
-static int s_delegating;     /* current scene routed to the software backend */
-static int s_sceneRendered;  /* a GL 3D main view was drawn this frame (live under the present) */
+static int s_sceneRendered;  /* a GL 3D view was drawn this frame (live under the present) */
 static int s_wide = -1;      /* widescreen 3D (Hor+): -1 = not yet read from F15_WIDESCREEN */
 static float s_proj[16];     /* column-major GL projection for the active scene */
 static float s_pixelScale;   /* letterbox scale: window pixels per 320-space pixel (point size) */
@@ -162,6 +162,51 @@ typedef struct {
 static GlSub s_subs[GL_MAX_SUBS];
 static int s_nSub;
 static int s_subOverflow;
+
+/* INDEX8 -> RGBA8888 conversion scratch, shared by the page composite, the sprite
+ * textures and the sub-view backdrop snapshot. */
+static uint8 *s_rgba;
+static int s_rgbaCap;
+static uint8 *ensureRgbaScratch(int need) {
+    if (need > s_rgbaCap) {
+        SDL_free(s_rgba);
+        s_rgba = (uint8 *)SDL_malloc(need);
+        s_rgbaCap = s_rgba ? need : 0;
+    }
+    return s_rgba;
+}
+
+/* Upload an INDEX8 sub-rect of a surface as an RGBA texture through `tex` (created
+ * on first use), resolving indices via the live palette. Nearest + clamp. */
+static void uploadIndexedRegion(GLuint *tex, SDL_Surface *surf, SDL_Palette *pal,
+                                int rx, int ry, int rw, int rh) {
+    const uint8 *base;
+    uint8 *rgba;
+    int x, y, pitch;
+    if (!surf || !pal || rw <= 0 || rh <= 0) return;
+    rgba = ensureRgbaScratch(rw * rh * 4);
+    if (!rgba) return;
+    base = (const uint8 *)surf->pixels;
+    pitch = surf->pitch;
+    for (y = 0; y < rh; y++) {
+        const uint8 *row = base + (size_t)(ry + y) * pitch + rx;
+        uint8 *out = rgba + (size_t)y * rw * 4;
+        for (x = 0; x < rw; x++) {
+            SDL_Color c = pal->colors[row[x]];
+            out[x * 4 + 0] = c.r;
+            out[x * 4 + 1] = c.g;
+            out[x * 4 + 2] = c.b;
+            out[x * 4 + 3] = 255;
+        }
+    }
+    if (!*tex) glGenTextures(1, tex);
+    glBindTexture(GL_TEXTURE_2D, *tex);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, rw, rh, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+}
 
 /* Map a final palette index to GL colour. */
 static void glColorIndex(int idx) {
@@ -446,21 +491,141 @@ static void glDrawSphere(float oLeft, float oRight, float oBottom, float oTop) {
     glShadeModel(GL_FLAT);
 }
 
+static GLuint s_backdropTex; /* per-frame snapshot of the sub-view MFD page region */
+
+/* Common per-model GL state for a 3D scene (main view and target sub-view): the
+ * perspective projection, double-sided flat fill, and the hybrid depth setup
+ * (z-buffer + GL_LEQUAL + polygon offset — see gl_endScene). */
+static void beginModelPass(void) {
+    glMatrixMode(GL_PROJECTION);
+    glLoadMatrixf(s_proj);
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+    glDisable(GL_CULL_FACE); /* double-sided per docs */
+    glDisable(GL_TEXTURE_2D);
+    glDisable(GL_LIGHTING);
+    glDisable(GL_BLEND);
+    glShadeModel(GL_FLAT);
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LEQUAL);
+    glDepthMask(GL_TRUE);
+    glEnable(GL_POLYGON_OFFSET_FILL);
+    glEnable(GL_POLYGON_OFFSET_LINE);
+    glEnable(GL_POLYGON_OFFSET_POINT);
+}
+
+/* Target-model MFD sub-view (renderScene == 0). The game fills the MFD region of
+ * the page with its two-tone horizon before submitting the model; the software
+ * rasterizer drew the model straight over that page background. GL renders under
+ * the page, so we snapshot that region as the GL backdrop, punch the page region
+ * show-through, then render the model over the backdrop in a scissored viewport.
+ * Only depth is cleared (scissored) so the main 3D already in the framebuffer is
+ * preserved; the model's blips/labels still draw into the page (over the model). */
+static void gl_beginSubScene(const R3DScene *s) {
+    int win_w, win_h, vpTop, vpBot, vpLeft, vpRight, Wv, Hv, lbx, lby, gx, gy, gw, gh;
+    float scale, fGate;
+    SDL_Surface *page;
+    SDL_Palette *pal;
+
+    r3d_setObjCullWiden(1, 1, 1, 1); /* the MFD is inside the pillarboxed 4:3 UI box */
+    setup3DTransform(s->viewport, s->angleX, s->angleY, s->angleZ,
+                     s->posX, s->posY, s->posZ, 0);
+
+    vpTop = s->viewport[7];
+    vpBot = s->viewport[8];
+    vpLeft = s->viewport[9];
+    vpRight = s->viewport[10];
+    Wv = vpRight - vpLeft + 1;
+    Hv = vpBot - vpTop + 1;
+    if (Wv < 1) Wv = 1;
+    if (Hv < 1) Hv = 1;
+
+    fGate = (float)(*(int16 *)(colorLut + 0x20));
+    if (fGate < 2.0f) fGate = 8192.0f;
+    buildProjection(Wv, Hv, g_viewCenterX, g_viewCenterY, fGate);
+    /* The target view magnifies the model by dividing the perspective depth by
+     * 2^g_extraScaleShift (projectVertexToScreen); reproduce that as a matching
+     * boost to the projection's x/y focal terms. g_halfScaleRender halves it. */
+    {
+        float sc = 1.0f;
+        if (g_extraScaleShift) sc *= (float)(1 << g_extraScaleShift);
+        if (g_halfScaleRender) sc *= 0.5f;
+        s_proj[0] *= sc;
+        s_proj[5] *= sc;
+    }
+
+    SDL_GetWindowSizeInPixels(s_win, &win_w, &win_h);
+    {
+        R2DMapping m;
+        r2d_computeMapping(LOGICAL_WIDTH, LOGICAL_HEIGHT, win_w, win_h, &m);
+        scale = m.scale;
+        lbx = m.offX;
+        lby = m.offY;
+    }
+    s_pixelScale = scale;
+    gx = lbx + (int)(vpLeft * scale);
+    gw = (int)(Wv * scale);
+    gh = (int)(Hv * scale);
+    gy = win_h - (lby + (int)(vpTop * scale)) - gh;
+
+    /* Snapshot the page's MFD region as the backdrop, THEN punch it show-through. */
+    page = gfx_getCurPageSurface();
+    pal = gfx_getPalette();
+    uploadIndexedRegion(&s_backdropTex, page, pal, vpLeft, vpTop, Wv, Hv);
+    if (page) {
+        SDL_Rect rc = {vpLeft, vpTop, Wv, Hv};
+        SDL_FillSurfaceRect(page, &rc, GFX_GL_SHOWTHROUGH_KEY);
+    }
+
+    glViewport(gx, gy, gw, gh);
+    glScissor(gx, gy, gw, gh);
+    glEnable(GL_SCISSOR_TEST);
+    s_vpW = (float)gw;
+    s_vpH = (float)gh;
+
+    /* Backdrop quad fills the viewport (ortho, depth off); clear only this region's
+     * depth so the model z-buffers against a clean slate over the main-view depth. */
+    glDepthMask(GL_TRUE);
+    glClear(GL_DEPTH_BUFFER_BIT);
+    if (s_backdropTex) {
+        glMatrixMode(GL_PROJECTION);
+        glLoadIdentity();
+        glOrtho(0, gw, gh, 0, -1, 1);
+        glMatrixMode(GL_MODELVIEW);
+        glLoadIdentity();
+        glDisable(GL_DEPTH_TEST);
+        glDisable(GL_BLEND);
+        glColor3ub(255, 255, 255);
+        glEnable(GL_TEXTURE_2D);
+        glBindTexture(GL_TEXTURE_2D, s_backdropTex);
+        glBegin(GL_QUADS);
+        glTexCoord2f(0, 0); glVertex2f(0, 0);
+        glTexCoord2f(1, 0); glVertex2f((float)gw, 0);
+        glTexCoord2f(1, 1); glVertex2f((float)gw, (float)gh);
+        glTexCoord2f(0, 1); glVertex2f(0, (float)gh);
+        glEnd();
+        glDisable(GL_TEXTURE_2D);
+    }
+
+    beginModelPass();
+    s_nSub = 0;
+    s_subOverflow = 0;
+    s_flatN = 0;
+    s_sceneRendered = 1; /* live 3D is now in the framebuffer; the present must not clear it */
+}
+
 static void gl_beginScene(const R3DScene *s) {
     int win_w, win_h, vpTop, vpBot, vpLeft, vpRight, Wv, Hv, lbx, lby;
     float scale, fGate, sphOrtho[4];
     int16 skyIdx;
     SDL_Surface *page;
 
-    /* The tiny MFD/target sub-view stays on the software rasterizer (it draws
-     * into the page and composites as plain 2D); GL takes only the main view. */
+    /* The target-model MFD sub-view has its own scissored GL path (backdrop from
+     * the page + model), separate from the main view's full sky/fog setup. */
     if (s->renderScene == 0) {
-        s_delegating = 1;
-        r3d_setObjCullWiden(1, 1, 1, 1); /* MFD/target sub-view stays 4:3 */
-        r3d_softwareBackend.beginScene(s);
+        gl_beginSubScene(s);
         return;
     }
-    s_delegating = 0;
     /* This is a flight 3D frame: its HUD/MFD line & point submissions record for
      * native-resolution replay (the 2D-only screens never reach here, so they
      * keep rasterizing into the page). */
@@ -655,10 +820,6 @@ static void gl_submit(const R3DSubmit *o) {
     long camBase, camTransX, camTransY, depth;
     int shade, dirX, dirY, dirZ, shift, i;
 
-    if (s_delegating) {
-        r3d_softwareBackend.submit(o);
-        return;
-    }
     if (s_nSub >= GL_MAX_SUBS) {
         s_subOverflow++;
         return;
@@ -1050,12 +1211,6 @@ static int subCmp(const void *a, const void *b) {
 static void gl_endScene(void) {
     int i;
 
-    if (s_delegating) {
-        r3d_softwareBackend.endScene();
-        s_delegating = 0;
-        return;
-    }
-
     if (s_subOverflow)
         LogWarn(("r3d_gl: %d submissions dropped (cap %d)", s_subOverflow, GL_MAX_SUBS));
     qsort(s_subs, s_nSub, sizeof(GlSub), subCmp);
@@ -1101,18 +1256,6 @@ const R3DBackend r3d_glBackend = {
 };
 
 /* ---- 2D overlay composite + present ------------------------------------ */
-
-static uint8 *s_rgba;       /* INDEX8 -> RGBA8888 conversion scratch (page + sprites) */
-static int s_rgbaCap;
-
-static uint8 *ensureRgbaScratch(int need) {
-    if (need > s_rgbaCap) {
-        SDL_free(s_rgba);
-        s_rgba = (uint8 *)SDL_malloc(need);
-        s_rgbaCap = s_rgba ? need : 0;
-    }
-    return s_rgba;
-}
 
 /* Set the nearest-filter + clamp parameters shared by the page and sprite
  * textures (indexed art must not bleed or filter). */

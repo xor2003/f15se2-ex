@@ -2263,6 +2263,16 @@ int far r3d_objTransformFar(char far *model, int yaw, int pitch, int roll,
 
     if (transformAndCullObject(g_objRelY, g_objTransform[0], g_objRelX)) return 1;
 
+    /* storeObjTransform spin: if the active LOD's opcode is 0x60 the model overwrites
+     * one of its own transform slots with the runtime spin angle (rotating radar
+     * dishes / SAM launchers). projectSceneObject does this before building the
+     * orientation matrix; peek the same opcode here so the GL model spins too. */
+    {
+        unsigned char far *p = (unsigned char far *)model + 1; /* past render-mode byte */
+        skipDisplayListByLod(&p);
+        if ((*p & 0x60) == 0x60) g_objTransform[(*p) & 3] = g_spinAngle;
+    }
+
     /* Distance shade — identical to processSceneObject. */
     if (g_dacSupported == 0) {
         *shade = 0;
