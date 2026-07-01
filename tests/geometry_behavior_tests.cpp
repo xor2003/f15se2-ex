@@ -641,8 +641,9 @@ void FAR CDECL gfx_setPageN(uint16 pageNum) {
     ++g_pageSetCalls;
 }
 
-void drawClipLineGlobal(void) {
+int drawClipLineGlobal(void) {
     ++g_clipLineCalls;
+    return 0;
 }
 
 int far advanceModelPointerLod(void) {

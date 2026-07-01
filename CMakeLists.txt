@@ -202,6 +202,8 @@ add_executable(original_behavior_tests
     ${SRC_DIR}/eghudm.c
     ${SRC_DIR}/egdata.c
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/egdata_link_stubs.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/egmath_file_link_stubs.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/original_egmath_link_stubs.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/r3d_render_stubs.cpp
 )
 add_executable(utility_behavior_tests
@@ -260,6 +262,7 @@ add_executable(geometry_behavior_tests
     ${SRC_DIR}/eg3dutil.c
     ${SRC_DIR}/egdata.c
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/egdata_link_stubs.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/egmath_file_link_stubs.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/r3d_render_stubs.cpp
 )
 add_executable(file_io_behavior_tests
@@ -278,6 +281,7 @@ add_executable(gameplay_behavior_tests
     ${SRC_DIR}/eg3dutil.c
     ${SRC_DIR}/egdata.c
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/egdata_link_stubs.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/tests/egmath_file_link_stubs.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/tests/r3d_render_stubs.cpp
 )
 add_executable(input_behavior_tests
