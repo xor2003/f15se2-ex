@@ -39,11 +39,12 @@ void drawTacticalMap(char page) {
     int gridLo;
     int gridStep;
 
-    /* The radar scope's grid/marker/projectile lines and its blip icon sprites
-     * compose in submission order here; force the lines to rasterize into the page
-     * so the icons (blitted after) land on top, instead of the GL native vector
-     * layer replaying the lines over the icons (no effect in software). */
-    r2d_setForceRaster(1);
+    /* The scope's grid/marker/projectile lines and its blip icon sprites share the
+     * one ordered overlay stream, so on GL they replay at native resolution in
+     * submission order (icons, submitted last, land over the lines) — the crisp
+     * vector scope. The black backdrop is a direct page fill (fillSpanRect), so it
+     * composites behind the native stream. The interior is a plain rectangle (all
+     * content is rect-clipped at submit), not a round mask, so no scissor is needed. */
     radius = g_radarScopeRange + 1;
     setDrawColor(0);
     fillSpanRect(g_pageFront, 120, 104, 199, 175);
@@ -162,7 +163,6 @@ void drawTacticalMap(char page) {
             }
         }
     }
-    r2d_setForceRaster(0);
 }
 
 // ==== seg000:0xa740 ====

@@ -158,15 +158,6 @@ void r2d_submitPoint(int x, int y, int color);
 void r2d_submitPoly(const short *xy, int n, int color,
                     int clipX0, int clipY0, int clipX1, int clipY1);
 
-/* Force the next line/point/image submissions to rasterize into the page (the
- * software path) instead of recording for the GL native-on-top replay. Set around
- * an in-flight MFD region (the radar scope) that must compose entirely in the page
- * so its grid lines land under the blip icons in the original submission order,
- * rather than the native overlay layer (which always draws last) reordering them.
- * No effect in software (it already rasterizes). Bracket the region: 1 before,
- * 0 after. */
-void r2d_setForceRaster(int on);
-
 /* The software backend (gfx_impl.c) registers how it rasterizes a submitted
  * line/point into the page, so r2d need not own page state. */
 void r2d_registerSoftwarePrims(void (*line)(int x1, int y1, int x2, int y2, int color),

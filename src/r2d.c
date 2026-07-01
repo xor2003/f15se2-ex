@@ -144,12 +144,6 @@ static int s_primCount, s_primCap;
 static short *s_polyVerts;
 static int s_polyCount, s_polyCap;
 
-/* When set, submissions rasterize into the page even on a GL flight frame (for
- * the radar-scope MFD, whose lines must compose under their blip sprites). */
-static int s_forceRaster;
-
-void r2d_setForceRaster(int on) { s_forceRaster = on; }
-
 void r2d_registerSoftwarePrims(void (*line)(int, int, int, int, int),
                                void (*point)(int, int, int)) {
     s_swLine = line;
@@ -176,10 +170,9 @@ static R2DOverlayPrim *primGrow(void) {
 void r2d_submitImage(R2DImage *img, int srcX, int srcY, int w, int h,
                      int dstX, int dstY, int key) {
     /* On a GL flight frame record into the ordered overlay stream for a
-     * textured-quad replay (so sprites and lines keep submission order); the
-     * force-raster region (radar scope) and non-GL frames rasterize into the page,
-     * exactly like r2d_submitLine. */
-    if (img && r2d_vectorActive() && !s_forceRaster) {
+     * textured-quad replay (so sprites and lines keep submission order); non-GL
+     * frames rasterize into the page, exactly like r2d_submitLine. */
+    if (img && r2d_vectorActive()) {
         R2DOverlayPrim *p = primGrow();
         if (!p) return;
         p->kind = R2D_PRIM_IMAGE;
@@ -227,12 +220,12 @@ static void primAppend(int x1, int y1, int x2, int y2, int color, int kind) {
 }
 
 void r2d_submitLine(int x1, int y1, int x2, int y2, int color) {
-    if (r2d_vectorActive() && !s_forceRaster) primAppend(x1, y1, x2, y2, color, R2D_PRIM_LINE);
+    if (r2d_vectorActive()) primAppend(x1, y1, x2, y2, color, R2D_PRIM_LINE);
     else if (s_swLine) s_swLine(x1, y1, x2, y2, color);
 }
 
 void r2d_submitPoint(int x, int y, int color) {
-    if (r2d_vectorActive() && !s_forceRaster) primAppend(x, y, x, y, color, R2D_PRIM_POINT);
+    if (r2d_vectorActive()) primAppend(x, y, x, y, color, R2D_PRIM_POINT);
     else if (s_swPoint) s_swPoint(x, y, color);
 }
 
@@ -242,7 +235,7 @@ void r2d_submitPoly(const short *xy, int n, int color,
     int i;
     /* Records only on a GL vector frame; software fills the face in the page
      * span rasterizer and never reaches here (the call site branches first). */
-    if (n < 3 || !r2d_vectorActive() || s_forceRaster) return;
+    if (n < 3 || !r2d_vectorActive()) return;
     if (s_polyCount + n * 2 > s_polyCap) {
         int cap = s_polyCap ? s_polyCap * 2 : 1024;
         short *grown;
