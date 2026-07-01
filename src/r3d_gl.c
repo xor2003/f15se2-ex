@@ -1510,14 +1510,19 @@ void r3dgl_present(SDL_Surface *page, int shakeOffset) {
                         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
                     }
                     glBindTexture(GL_TEXTURE_2D, itex);
+                    /* Full-frame texcoords; the surface is a sprite sheet and
+                     * srcX/srcY select one frame. Pixel-snapping the quad (below)
+                     * keeps every fragment centre strictly inside the frame, so
+                     * NEAREST never rounds across a boundary into the neighbouring
+                     * frame — no atlas bleed, and no thinned edge rows. */
                     u0 = (float)p->srcX / (float)surf->w;
                     v0 = (float)p->srcY / (float)surf->h;
                     u1 = (float)(p->srcX + p->imgW) / (float)surf->w;
                     v1 = (float)(p->srcY + p->imgH) / (float)surf->h;
-                    x0 = (float)lbx + (float)p->x1 * scale - shake;
-                    y0 = (float)lby + (float)p->y1 * scale;
-                    x1q = x0 + (float)p->imgW * scale;
-                    y1q = y0 + (float)p->imgH * scale;
+                    x0 = SDL_floorf((float)lbx + (float)p->x1 * scale - shake + 0.5f);
+                    y0 = SDL_floorf((float)lby + (float)p->y1 * scale + 0.5f);
+                    x1q = x0 + SDL_floorf((float)p->imgW * scale + 0.5f);
+                    y1q = y0 + SDL_floorf((float)p->imgH * scale + 0.5f);
                     glBegin(GL_QUADS);
                     glTexCoord2f(u0, v0); glVertex2f(x0, y0);
                     glTexCoord2f(u1, v0); glVertex2f(x1q, y0);
