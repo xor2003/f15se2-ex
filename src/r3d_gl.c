@@ -916,7 +916,7 @@ static void gl_submitLine(const R3DLine *o) {
  * is poor) yet stay far below the gap between genuinely separated objects, so the
  * z-test still drives real occlusion. Raise if coplanar faces still shimmer; lower
  * if a clearly-nearer surface is punched through by a later, farther draw. */
-static const float GL_PAINT_BIAS = 4.0f;
+static const float GL_PAINT_BIAS = 20.0f;
 static int s_paintSeq; /* primitives drawn so far this frame (reset in gl_endScene) */
 
 /* Bias the next primitive one draw-step toward the camera. Call OUTSIDE glBegin/End,
