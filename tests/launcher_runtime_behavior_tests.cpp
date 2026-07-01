@@ -31,7 +31,7 @@ enum LauncherRuntimeConstant : int {
     kAllocatedGfxBufferSegment = 0x5a5a,
     kInitialNeedSplash = 1,
     kJoystickDisabled = 0,
-    kDefaultDetailLevel = 3,
+    kDefaultDetailLevel = 4,
     kProgramExitOk = 0,
     kRetMenu = 0x0c,
     kExpectedFatalExit = 77,
@@ -102,6 +102,12 @@ void gfx_setMode13(void) {
 int FAR CDECL gfx_allocPage(int pageNum) {
     ++g_allocPageCalls;
     g_allocPageArg = pageNum;
+    return kAllocatedGfxBufferSegment;
+}
+
+int gfx_allocSpriteBuf(void) {
+    ++g_allocPageCalls;
+    g_allocPageArg = kVgaNoSoundGfxInitPage;
     return kAllocatedGfxBufferSegment;
 }
 

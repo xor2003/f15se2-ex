@@ -128,6 +128,31 @@ void r2d_registerSoftwarePrims(void (*line)(int, int, int, int, int), void (*poi
     (void)line;
     (void)point;
 }
+void r2d_submitPoly(const short *xy, int n, int color,
+                    int clipX0, int clipY0, int clipX1, int clipY1) {
+    (void)xy;
+    (void)n;
+    (void)color;
+    (void)clipX0;
+    (void)clipY0;
+    (void)clipX1;
+    (void)clipY1;
+}
+int r2d_overlayRetained(void) { return 1; }
+void r2d_submitImage(R2DImage *img, int srcX, int srcY, int w, int h,
+                     int dstX, int dstY, int key) {
+    (void)img;
+    (void)srcX;
+    (void)srcY;
+    (void)w;
+    (void)h;
+    (void)dstX;
+    (void)dstY;
+    (void)key;
+}
+void r2d_registerSoftwareImage(void (*image)(R2DImage *, int, int, int, int, int, int, int)) {
+    (void)image;
+}
 void r2d_present(SDL_Surface *page, int shakeOffset) {
     (void)page;
     (void)shakeOffset;
@@ -136,10 +161,25 @@ void r2d_vectorMarkPresented(void) {}
 void r2d_vectorBeginFrame(void) {}
 int r2d_vectorActive(void) { return 0; }
 
-const R2DVectorPrim *r2d_vectorPrims(int *count) {
+const R2DOverlayPrim *r2d_overlayPrims(int *count) {
     if (count != nullptr) *count = 0;
     return nullptr;
 }
+const short *r2d_overlayPolyVerts(void) { return nullptr; }
+unsigned int r2d_imageCacheTex(R2DImage *img) {
+    (void)img;
+    return 0;
+}
+int r2d_imageCacheGen(R2DImage *img) {
+    (void)img;
+    return 0;
+}
+void r2d_imageSetCache(R2DImage *img, unsigned int tex, int gen) {
+    (void)img;
+    (void)tex;
+    (void)gen;
+}
+void r2d_registerImageDestroy(void (*hook)(R2DImage *)) { (void)hook; }
 #if !defined(TEST_R3D_STUBS_NO_GFX_IMAGE)
 TEST_WEAK_STUB void gfx_captureToImage(struct R2DImage *img, int srcPage, int srcX, int srcY,
                        int dstX, int dstY, int width, int height) {
@@ -167,5 +207,18 @@ TEST_WEAK_STUB R2DImage *gfx_allocImage(int w, int h) {
     (void)w;
     (void)h;
     return nullptr;
+}
+uint8 *gfx_pagePixels(int page, int *pitchOut) {
+    (void)page;
+    if (pitchOut != nullptr) {
+        *pitchOut = 0;
+    }
+    return nullptr;
+}
+int gfx_readImagePixel(R2DImage *img, int x, int y) {
+    (void)img;
+    (void)x;
+    (void)y;
+    return 0;
 }
 #endif

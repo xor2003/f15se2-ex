@@ -178,6 +178,13 @@ void FAR CDECL gfx_storeBufPtr(uint16 seg, int pageIdx) {
     ++g_storeBufPtrCalls;
 }
 
+void gfxInit(void) {
+    gfx_allocPage(kPage0);
+    int page1Seg = gfx_allocPage(kPage1);
+    gfx_storeBufPtr(static_cast<uint16>(page1Seg), kPage1);
+    gfx_storeBufPtr(static_cast<uint16>(commData->gfxInitResult), kGfxBufferPage);
+}
+
 void initMissionStrings(void) { ++g_initMissionStringsCalls; }
 void load15Flt3d3(void) { ++g_load15Calls; }
 void loadRegion3D(void) { ++g_loadRegionCalls; }

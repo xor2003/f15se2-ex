@@ -96,6 +96,11 @@ extern int16 *g_pageBack;
 extern int16 *g_pageOffscreen;
 extern int16 *g_pageFront;
 
+int g_drawPage = 0;
+int g_biosPixelX = 0;
+int g_biosPixelY = 0;
+int g_biosPixelPage = 0;
+
 namespace {
 
 // Behavior-sensitive constants are named here or explained at the use site.

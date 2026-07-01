@@ -11,6 +11,7 @@
 #include <utility>
 
 bool input_preferGamepad(void) { return commData != 0 && commData->setupUseJoy != 0; }
+void renderTacMapOverlay(void) {}
 
 extern const int16 g_angleLut[];
 extern int rangeApprox(int deltaX, int deltaY);

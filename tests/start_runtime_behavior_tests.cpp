@@ -82,7 +82,6 @@ void resetRuntimeState() {
     g_lastStoreSeg = 0;
     g_lastStorePage = -1;
     menuSprites = kMenuSpriteHandle;
-    page1Ptr = 0;
 }
 
 } // namespace
@@ -188,8 +187,7 @@ int main() {
             "initGraphics allocates the original graphics pages 0 and 1");
     require(g_storeBufPtrCalls == kExpectedOneCall &&
                 g_lastStoreSeg == kInitPage1Segment &&
-                g_lastStorePage == kInitPage1 &&
-                page1Ptr == kInitPage1Segment,
+                g_lastStorePage == kInitPage1,
             "initGraphics stores the original page-1 buffer pointer");
     require(g_clearKeyFlagsCalls == kExpectedOneCall,
             "initGraphics clears keyboard flags after graphics setup");

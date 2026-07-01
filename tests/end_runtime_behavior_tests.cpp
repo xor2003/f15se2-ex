@@ -35,6 +35,7 @@ enum EndRuntimeOriginalConstant : int {
     kStoredPage = 1,
     kGfxInitResult = 0x3456,
     kAuxBufSize = 0x2345,
+    kVgaBufSize = 0xFA00,
     kAuxBufMarker = 0x7100,
     kVgaBufMarker = 0x7200,
     kKeyboardOnly = 0,
@@ -232,7 +233,7 @@ int main() {
     require(g_loadWorldStringsCalls == kExpectedOneCall &&
                 g_getAuxBufSizeCalls == kExpectedOneCall &&
                 g_allocBufferCalls == 2 &&
-                g_lastAllocSize == VGA_BUF_SIZE &&
+                g_lastAllocSize == kVgaBufSize &&
                 gfxBufSeg == reinterpret_cast<void *>(static_cast<uintptr_t>(kAuxBufMarker)) &&
                 vgaBufSeg == reinterpret_cast<void *>(static_cast<uintptr_t>(kVgaBufMarker)) &&
                 vgaBufSeg2 == vgaBufSeg &&

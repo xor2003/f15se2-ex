@@ -34,12 +34,11 @@ bool video_setHiRes(void);
 struct SDL_Surface *gfx_getHiResSurface(void);
 void gfx_presentHiRes(void);
 
-/* ---- Off-buffer save/restore images (docs/render-2d-overlay.md, Step 5) ----
- * The page model's save-under scratch (the DOS-era offscreen page) becomes an
- * owned r2d image: capture a page region into it, draw it back later. These thin
- * wrappers bridge page indices to the r2d image API so the game code stays free
- * of r2d/SDL surface details. Coordinates match gfx_copyRect's, so a save-under
- * that used a scratch page maps 1:1 onto the same (x,y) in the image. */
+/* ---- Off-buffer save/restore images ----
+ * A save-under is an owned r2d image: capture a page region into it, draw it back
+ * later. These thin wrappers bridge page indices to the r2d image API so the game
+ * code stays free of r2d/SDL surface details. Coordinates match gfx_copyRect's,
+ * so a save-under maps 1:1 onto the same (x,y) in the image. */
 struct R2DImage;
 struct R2DImage *gfx_allocImage(int w, int h);  /* blank owned image; NULL on failure */
 void gfx_freeImage(struct R2DImage *img);        /* release; safe on NULL */
@@ -49,6 +48,9 @@ void gfx_captureToImage(struct R2DImage *img, int srcPage, int srcX, int srcY,
 /* Copy a w x h rect from `img` (srcX,srcY) into page `dstPage` at (dstX,dstY). */
 void gfx_restoreFromImage(struct R2DImage *img, int dstPage, int srcX, int srcY,
                           int dstX, int dstY, int w, int h);
+/* Read one palette-index pixel from `img` at (x,y); -1 if img is NULL or (x,y) is
+ * out of bounds. Lets game code sample a cached surface without touching SDL. */
+int gfx_readImagePixel(struct R2DImage *img, int x, int y);
 /* Opaque copy of a w x h rect from sprite buffer `handle` (srcX,srcY) into page
  * `dstPage` at (dstX,dstY). For asset sheets drawn opaquely (e.g. the debrief
  * popup icons), as distinct from gfx_blitSprite's transparent (skip-index-0) blit. */
@@ -57,39 +59,58 @@ void gfx_drawSpriteOpaque(int handle, int srcX, int srcY, int dstPage,
 
 /* ---- graphics slots (the public draw API, first slot 0, 84 used) ---- */
 /* dseg:0xab8 */
-int FAR CDECL gfx_allocPage(int pageNum);                                     /* slot 0x00: alloc 64K page, returns seg */
 int gfx_allocSpriteBuf(void);                                                 /* alloc a sprite-sheet surface, returns a handle */
 void gfx_freeSpriteBuf(int handle);                                           /* release a sprite-sheet surface handle */
+int FAR CDECL gfx_allocPage(int pageNum);                                     /* legacy page allocation token */
+void FAR CDECL gfx_storeBufPtr(uint16 seg, int pageIdx);                      /* legacy page token store */
+void FAR CDECL gfx_setPageN(uint16 pageNum);                                  /* select legacy current page */
+int FAR CDECL gfx_getPageSeg(uint16 page);                                    /* select page and return legacy token */
+int FAR CDECL gfx_getCurPageSeg(void);                                        /* current legacy page token */
+void FAR CDECL gfx_getCurPage(int page);                                      /* inert original slot */
+int FAR CDECL gfx_curPage(void);                                              /* native test helper: selected page index */
+void FAR CDECL gfx_setCurPageSeg(uint16 seg);                                 /* select current legacy page token */
+void FAR CDECL gfx_setCurPageSegReg(uint16 seg);                              /* register-shim-compatible wrapper */
+int FAR CDECL gfx_setPage1(uint16 page);                                      /* select page and return token */
+uint8 *gfx_pagePixelsForSeg(uint16 seg, int *pitchOut);                       /* writable pixels for a legacy page token */
+int FAR CDECL gfx_getDisplayPage(void);                                       /* legacy display/back page index */
+void FAR CDECL gfx_initOverlay(void);                                         /* legacy overlay init */
+int FAR CDECL gfx_getBufSize(void);                                           /* original 64000-byte page buffer size */
+int FAR CDECL gfx_getAuxBufSize(void);                                        /* original auxiliary buffer size */
+int FAR CDECL gfx_getFreeMem(void);                                           /* DOS free memory slot, stubbed natively */
+int FAR CDECL gfx_getVal(void);                                               /* legacy overlay value getter */
+int FAR CDECL gfx_getVal2(void);                                              /* legacy overlay value getter */
+void FAR CDECL gfx_setBlitOffset3(void);                                      /* clear blit offset */
+void FAR CDECL gfx_setBlitOffsetReg(void);                                    /* inert register shim */
+void FAR CDECL gfx_blitToCurrent(int16 srcSeg);                               /* copy source segment page to current page */
+void FAR CDECL gfx_clearVga(void);                                            /* clear visible VGA page */
+void FAR CDECL gfx_blitSpriteClipped2(void);                                  /* inert legacy slot */
+void FAR CDECL gfx_blitSpriteOpaque2(void);                                   /* inert legacy slot */
+void FAR CDECL gfx_blitCore(int16 *params);                                   /* transparent page blit core */
+void FAR CDECL gfx_fillRow2(uint16 rowOffset, uint16 rowNum);                 /* inert row commit */
+void FAR CDECL gfx_nop15(void);
+void FAR CDECL gfx_nop16(void);
+void FAR CDECL gfx_nop36(void);
+void FAR CDECL gfx_nop37(void);
+void FAR CDECL gfx_nop51(void);
+void FAR CDECL gfx_clipRight(void);
+void FAR CDECL gfx_clipTop(void);
+void FAR CDECL gfx_clipLeft(void);
+void FAR CDECL gfx_clipBottom(void);
+void FAR CDECL gfx_spriteVariant1(void);
+void FAR CDECL gfx_spriteVariant2(void);
 void FAR CDECL gfx_fillDirty(int16 *params, const char *string);              /* slot 0x01: clipped glyph variant (vertical window) */
 void FAR CDECL gfx_blitTransparent(int16 *params, const char *string);        /* slot 0x02: clipped glyph variant (horizontal window) */
 void FAR CDECL gfx_blitVariant(int16 *params, const char *string);            /* slot 0x03: clipped glyph variant (horizontal window) */
 void FAR CDECL gfx_copyBlock(int16 *params, const char *string);              /* slot 0x04: glyph blit core (no clip) */
 void FAR CDECL gfx_drawString(int16 *pageNum, const char *string);            /* slot 0x05: draw clipped string */
 void FAR CDECL gfx_drawStringUnclipped(int16 *params, const char *string);    /* slot 0x06: draw string (both clip windows) */
-void FAR CDECL gfx_clipRight();                                               /* slot 0x07: clip X right */
-void FAR CDECL gfx_clipTop();                                                 /* slot 0x08: clip Y top */
-void FAR CDECL gfx_clipLeft();                                                /* slot 0x09: clip X left */
-void FAR CDECL gfx_clipBottom();                                              /* slot 0x0a: clip Y bottom */
 void FAR CDECL gfx_complexRender(int bxArg, int dxArg, int cxArg, int siArg); /* slot 0x0b: HUD pitch-ladder renderer */
-void FAR CDECL gfx_initOverlay();                                             /* slot 0x0c: initOverlay - init state */
-int FAR CDECL gfx_setPage1(uint16 page);                                      /* slot 0x0d: curPage = pageSegs[page], returns its seg */
-/* dseg:0xafe */
-void FAR CDECL gfx_setPageN(uint16 pageNum);  /* slot 0x0e: curPage = pageSegs[n] */
-void FAR CDECL gfx_setCurPageSeg(uint16 seg); /* slot 0x0f: SETTER curPageSeg = seg */
-int FAR CDECL gfx_getCurPageSeg();            /* slot 0x10: GETTER returns curPageSeg in AX */
-/* Wwritable pixels + stride of a page segment, for the egame HUD primitives that drew straight into the page. */
-uint8 *gfx_pagePixelsForSeg(uint16 seg, int *pitchOut);
+/* Writable pixels + stride of a page (its surface is the single back buffer), for
+ * the egame HUD primitives that fill the page directly (eghudr fillSpanRect). */
+uint8 *gfx_pagePixels(int page, int *pitchOut);
 int FAR CDECL gfx_blitSprite(struct SpriteParams *spritePtr);                                                                     /* slot 0x11: sprite blit */
-void FAR CDECL gfx_blitCore(int16 *blk);                                                                                          /* slot 0x12: transparent sprite core (8-word param block) */
-void FAR CDECL gfx_spriteVariant1();                                                                                              /* slot 0x13: sprite variant */
-void FAR CDECL gfx_spriteVariant2();                                                                                              /* slot 0x14: sprite variant */
-void FAR CDECL gfx_nop15();                                                                                                       /* slot 0x15: retf stub */
-void FAR CDECL gfx_nop16();                                                                                                       /* slot 0x16: retf stub */
-int FAR CDECL gfx_getBufSize();                                                                                                   /* slot 0x17: returns baked constant 64000 (0xFA00) */
 void FAR CDECL gfx_setBlitOffset2();                                                                                              /* slot 0x18: setBlitOffset */
-void FAR CDECL gfx_setBlitOffset3();                                                                                              /* slot 0x19: setBlitOffset (=0x18) */
 void FAR CDECL gfx_setBlitOffset(int offset);                                                                                     /* slot 0x1a: setBlitOffset */
-void FAR CDECL gfx_setBlitOffsetReg();                                                                                            /* slot 0x1b: register-call tail: blitOffset = AX */
 int FAR CDECL gfx_getPresetOffset1();                                                                                             /* slot 0x1c: returns baked constant 0x5580 */
 int FAR CDECL gfx_getPresetOffset2();                                                                                             /* slot 0x1d: returns baked constant 0x1950 */
 int FAR CDECL gfx_getBlitOffset();                                                                                                /* slot 0x1e: returns live blitOffset (cs:0x1a0) */
@@ -98,27 +119,13 @@ void FAR CDECL gfx_setDrawColor(uint16 color);                                  
 void FAR CDECL gfx_setColor(int color);                                                                                           /* slot 0x21: set fill/draw color */
 void FAR CDECL gfx_nop22();                                                                                                       /* slot 0x22: bare RETF no-op (does NOT reset blitOffset) */
 void FAR CDECL gfx_nop23();                                                                                                       /* slot 0x23: bare RETF no-op */
-void FAR CDECL gfx_plotPixel();                                                                                                   /* slot 0x24: plot pixel at cached position */
 void FAR CDECL gfx_dirtyRect(int16 *spanBuf, int yMin, int yMax);                                                                 /* slot 0x25: dirtyRect (reg-called: BX=spanBuf AX=yMin CX=yMax) */
-void FAR CDECL gfx_storePageSeg();                                                                                                /* slot 0x26: store page seg */
-void FAR CDECL gfx_setPageSeg();                                                                                                  /* slot 0x27: pageSegs[idx]=seg */
 void FAR CDECL gfx_dirtyRect2(const int16 *spanMinBuf, uint16 yMin, uint16 yMax);                                                 /* slot 0x25/0x28: fill dirty spans */
 void FAR CDECL gfx_switchColor(int16 *pageDesc, int x1, int y1, int x2, int y2, int oldColor, int newColor);                      /* slot 0x29: replace color in rect */
 void FAR CDECL gfx_copyRect(int srcPage, uint16 srcX, uint16 srcY, int dstPage, uint16 dstX, uint16 dstY, int width, int height); /* slot 0x2a: copyRect between pages */
-void FAR CDECL gfx_clearVga();                                                                                                    /* slot 0x2b: clear physical VGA 0xA000 */
 void FAR CDECL gfx_dacAnimate();                                                                                                  /* slot 0x2c: DAC palette animation */
-int FAR CDECL gfx_getDisplayPage();                                                                                               /* slot 0x2d: getDisplayPage */
-int FAR CDECL gfx_curPage(void);                                                                                                  /* index of the page currently drawn into */
 void FAR CDECL gfx_dacCycle();                                                                                                    /* slot 0x2e: DAC fire/colour-cycle animation */
 int FAR CDECL gfx_setFont(uint16 ch, uint16 fontIdx);                                                                             /* slot 0x2f: setup font metrics */
-void FAR CDECL gfx_blitToCurrent(int16 pagePtr);                                                                                  /* slot 0x30: copy to curPage */
-int FAR CDECL gfx_getAuxBufSize();                                                                                                /* slot 0x31: getAuxBufSize */
-int FAR CDECL gfx_getFreeMem();                                                                                                   /* slot 0x32: DOS free-memory probe */
-void FAR CDECL gfx_fillRow2(uint16 x, uint16 y);                                                                                  /* slot 0x34: unused stub */
-void FAR CDECL gfx_nop36();                                                                                                       /* slot 0x36: retf */
-void FAR CDECL gfx_nop37();                                                                                                       /* slot 0x37: retf */
-int FAR CDECL gfx_getPageSeg(uint16 page);                                                                                        /* slot 0x38: select page, returns its seg */
-void FAR CDECL gfx_setPageBuf();                                                                                                  /* slot 0x39: pageSegs[idx]=val */
 int FAR CDECL gfx_getRowOffset(int y);                                                                                            /* slot 0x3a: returns y*320 */
 void FAR CDECL gfx_fillRow(uint16 rowOffset, uint16 srcBuf, uint16 rowNum);                                                          /* slot 0x33: copy decoded row bytes into current page */
 void FAR CDECL gfx_copyRow(uint16 rowOffset);                                                                                     /* slot 0x35: commit decoded row to visible page */
@@ -140,23 +147,10 @@ void gfx_setDacRange(uint16 startReg, uint16 count, const uint8 *vgaTriples); /*
 void FAR CDECL gfx_waitRetrace();                                             /* slot 0x45: wait for vblank */
 void FAR CDECL gfx_flipPage();                                                /* slot 0x46: vblank + flip to VGA */
 void FAR CDECL gfx_blitSpriteClipped(int16 *ptr);                             /* slot 0x47: sprite variant */
-void FAR CDECL gfx_blitSpriteClipped2();                                      /* slot 0x48: sprite variant */
 void FAR CDECL gfx_blitSpriteOpaque(int16 *ptr);                              /* slot 0x49: sprite blit (=0x11) */
-void FAR CDECL gfx_blitSpriteOpaque2();                                       /* slot 0x4a: blit core (=0x12) */
 /* dseg:0xc2f */
-void FAR CDECL gfx_storeBufPtr(uint16 seg, int pageIdx); /* slot 0x4b: pageSegs[idx]=seg */
 int FAR CDECL gfx_getModeFlag();                         /* slot 0x4c: getModeFlag */
-int FAR CDECL gfx_getVal2();                             /* slot 0x4d: getter */
-int FAR CDECL gfx_getVal();                              /* slot 0x4e: getter */
 void FAR CDECL gfx_setDacAnimCount(uint16 count);        /* slot 0x4f: setDacAnimCount */
 void FAR CDECL gfx_commitPage();                         /* slot 0x50: commitPage */
-void FAR CDECL gfx_nop51();                              /* slot 0x51: retf */
-void FAR CDECL gfx_getCurPage(int page);                 /* slot 0x53: bare RETF no-op */
-int FAR CDECL gfx_slot54();
-int FAR CDECL gfx_slot55();
-int FAR CDECL gfx_slot56();
-int FAR CDECL gfx_slot57();
-int FAR CDECL gfx_slot58();
-int FAR CDECL gfx_slot59();
 
 #endif /* F15_SE2_GFX */

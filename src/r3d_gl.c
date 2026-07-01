@@ -1,11 +1,12 @@
-/* OpenGL 1.x 3D backend (see docs/render-3d-backend.md, Step 3) — the GPU path.
+/* OpenGL 1.x 3D backend — the GPU path.
  *
  * Implements the R3DBackend 3D vtable against the *decoded* meshes (r3dmesh.c)
- * and owns the GL context + the interim 2D-overlay composite. The 3D main view
+ * and owns the GL context + the 2D-overlay composite. The 3D main view
  * renders through GL at native window resolution with a real depth buffer and
  * double-sided fill (no back-face cull — cheap on a GPU, fixes over-optimized
- * models). The MFD/target sub-view (renderScene == 0) is delegated to the
- * software backend, which draws it into the page as before.
+ * models). The target-model MFD sub-view (renderScene == 0) also renders through
+ * GL, into a scissored sub-viewport over a backdrop snapshotted from the page (the
+ * game fills that MFD region with a two-tone horizon before submitting the model).
  *
  * Transform faithfulness: rather than re-derive the camera math in float (and
  * risk a matrix-convention bug), each object reuses the exact integer
@@ -79,6 +80,8 @@ void r3dgl_setGLAttributes(int msaaSamples) {
     SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, msaaSamples > 0 ? msaaSamples : 0);
 }
 
+static void gl_imageDestroyed(R2DImage *img); /* drop an image's cached texture on release */
+
 int r3dgl_initContext(SDL_Window *win) {
     s_win = win;
     s_ctx = SDL_GL_CreateContext(win);
@@ -99,6 +102,7 @@ int r3dgl_initContext(SDL_Window *win) {
                  (const char *)glGetString(GL_VERSION), (int)depthBits, (int)samples));
     }
     s_active = 1;
+    r2d_registerImageDestroy(gl_imageDestroyed);
     return 1;
 }
 
@@ -129,8 +133,7 @@ static void fillPools(MeshVtxPools *pools) {
 
 /* ---- scene state -------------------------------------------------------- */
 
-static int s_delegating;     /* current scene routed to the software backend */
-static int s_sceneRendered;  /* a GL 3D main view was drawn this frame (live under the present) */
+static int s_sceneRendered;  /* a GL 3D view was drawn this frame (live under the present) */
 static int s_wide = -1;      /* widescreen 3D (Hor+): -1 = not yet read from F15_WIDESCREEN */
 static float s_proj[16];     /* column-major GL projection for the active scene */
 static float s_pixelScale;   /* letterbox scale: window pixels per 320-space pixel (point size) */
@@ -138,7 +141,7 @@ static float s_vpW, s_vpH;   /* active 3D viewport size in window pixels (screen
 
 /* Deferred submission for the hybrid depth ordering (see gl_endScene). A real
  * z-buffer (GL_LEQUAL) resolves genuine occlusion painter's order alone got wrong
- * (a plane behind a building no longer shows through); the objects are still
+ * (a plane behind a building does not show through); the objects are still
  * collected and drawn in the original's painter's order — farthest-first by the
  * LOD-normalized origin depth (insertSortedObject's key), back-face culled, faces
  * in display-list order — so that surfaces a z-buffer cannot separate (paper-thin
@@ -159,6 +162,51 @@ typedef struct {
 static GlSub s_subs[GL_MAX_SUBS];
 static int s_nSub;
 static int s_subOverflow;
+
+/* INDEX8 -> RGBA8888 conversion scratch, shared by the page composite, the sprite
+ * textures and the sub-view backdrop snapshot. */
+static uint8 *s_rgba;
+static int s_rgbaCap;
+static uint8 *ensureRgbaScratch(int need) {
+    if (need > s_rgbaCap) {
+        SDL_free(s_rgba);
+        s_rgba = (uint8 *)SDL_malloc(need);
+        s_rgbaCap = s_rgba ? need : 0;
+    }
+    return s_rgba;
+}
+
+/* Upload an INDEX8 sub-rect of a surface as an RGBA texture through `tex` (created
+ * on first use), resolving indices via the live palette. Nearest + clamp. */
+static void uploadIndexedRegion(GLuint *tex, SDL_Surface *surf, SDL_Palette *pal,
+                                int rx, int ry, int rw, int rh) {
+    const uint8 *base;
+    uint8 *rgba;
+    int x, y, pitch;
+    if (!surf || !pal || rw <= 0 || rh <= 0) return;
+    rgba = ensureRgbaScratch(rw * rh * 4);
+    if (!rgba) return;
+    base = (const uint8 *)surf->pixels;
+    pitch = surf->pitch;
+    for (y = 0; y < rh; y++) {
+        const uint8 *row = base + (size_t)(ry + y) * pitch + rx;
+        uint8 *out = rgba + (size_t)y * rw * 4;
+        for (x = 0; x < rw; x++) {
+            SDL_Color c = pal->colors[row[x]];
+            out[x * 4 + 0] = c.r;
+            out[x * 4 + 1] = c.g;
+            out[x * 4 + 2] = c.b;
+            out[x * 4 + 3] = 255;
+        }
+    }
+    if (!*tex) glGenTextures(1, tex);
+    glBindTexture(GL_TEXTURE_2D, *tex);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, rw, rh, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+}
 
 /* Map a final palette index to GL colour. */
 static void glColorIndex(int idx) {
@@ -443,21 +491,141 @@ static void glDrawSphere(float oLeft, float oRight, float oBottom, float oTop) {
     glShadeModel(GL_FLAT);
 }
 
+static GLuint s_backdropTex; /* per-frame snapshot of the sub-view MFD page region */
+
+/* Common per-model GL state for a 3D scene (main view and target sub-view): the
+ * perspective projection, double-sided flat fill, and the hybrid depth setup
+ * (z-buffer + GL_LEQUAL + polygon offset — see gl_endScene). */
+static void beginModelPass(void) {
+    glMatrixMode(GL_PROJECTION);
+    glLoadMatrixf(s_proj);
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+    glDisable(GL_CULL_FACE); /* double-sided per docs */
+    glDisable(GL_TEXTURE_2D);
+    glDisable(GL_LIGHTING);
+    glDisable(GL_BLEND);
+    glShadeModel(GL_FLAT);
+    glEnable(GL_DEPTH_TEST);
+    glDepthFunc(GL_LEQUAL);
+    glDepthMask(GL_TRUE);
+    glEnable(GL_POLYGON_OFFSET_FILL);
+    glEnable(GL_POLYGON_OFFSET_LINE);
+    glEnable(GL_POLYGON_OFFSET_POINT);
+}
+
+/* Target-model MFD sub-view (renderScene == 0). The game fills the MFD region of
+ * the page with its two-tone horizon before submitting the model; the software
+ * rasterizer drew the model straight over that page background. GL renders under
+ * the page, so we snapshot that region as the GL backdrop, punch the page region
+ * show-through, then render the model over the backdrop in a scissored viewport.
+ * Only depth is cleared (scissored) so the main 3D already in the framebuffer is
+ * preserved; the model's blips/labels still draw into the page (over the model). */
+static void gl_beginSubScene(const R3DScene *s) {
+    int win_w, win_h, vpTop, vpBot, vpLeft, vpRight, Wv, Hv, lbx, lby, gx, gy, gw, gh;
+    float scale, fGate;
+    SDL_Surface *page;
+    SDL_Palette *pal;
+
+    r3d_setObjCullWiden(1, 1, 1, 1); /* the MFD is inside the pillarboxed 4:3 UI box */
+    setup3DTransform(s->viewport, s->angleX, s->angleY, s->angleZ,
+                     s->posX, s->posY, s->posZ, 0);
+
+    vpTop = s->viewport[7];
+    vpBot = s->viewport[8];
+    vpLeft = s->viewport[9];
+    vpRight = s->viewport[10];
+    Wv = vpRight - vpLeft + 1;
+    Hv = vpBot - vpTop + 1;
+    if (Wv < 1) Wv = 1;
+    if (Hv < 1) Hv = 1;
+
+    fGate = (float)(*(int16 *)(colorLut + 0x20));
+    if (fGate < 2.0f) fGate = 8192.0f;
+    buildProjection(Wv, Hv, g_viewCenterX, g_viewCenterY, fGate);
+    /* The target view magnifies the model by dividing the perspective depth by
+     * 2^g_extraScaleShift (projectVertexToScreen); reproduce that as a matching
+     * boost to the projection's x/y focal terms. g_halfScaleRender halves it. */
+    {
+        float sc = 1.0f;
+        if (g_extraScaleShift) sc *= (float)(1 << g_extraScaleShift);
+        if (g_halfScaleRender) sc *= 0.5f;
+        s_proj[0] *= sc;
+        s_proj[5] *= sc;
+    }
+
+    SDL_GetWindowSizeInPixels(s_win, &win_w, &win_h);
+    {
+        R2DMapping m;
+        r2d_computeMapping(LOGICAL_WIDTH, LOGICAL_HEIGHT, win_w, win_h, &m);
+        scale = m.scale;
+        lbx = m.offX;
+        lby = m.offY;
+    }
+    s_pixelScale = scale;
+    gx = lbx + (int)(vpLeft * scale);
+    gw = (int)(Wv * scale);
+    gh = (int)(Hv * scale);
+    gy = win_h - (lby + (int)(vpTop * scale)) - gh;
+
+    /* Snapshot the page's MFD region as the backdrop, THEN punch it show-through. */
+    page = gfx_getCurPageSurface();
+    pal = gfx_getPalette();
+    uploadIndexedRegion(&s_backdropTex, page, pal, vpLeft, vpTop, Wv, Hv);
+    if (page) {
+        SDL_Rect rc = {vpLeft, vpTop, Wv, Hv};
+        SDL_FillSurfaceRect(page, &rc, GFX_GL_SHOWTHROUGH_KEY);
+    }
+
+    glViewport(gx, gy, gw, gh);
+    glScissor(gx, gy, gw, gh);
+    glEnable(GL_SCISSOR_TEST);
+    s_vpW = (float)gw;
+    s_vpH = (float)gh;
+
+    /* Backdrop quad fills the viewport (ortho, depth off); clear only this region's
+     * depth so the model z-buffers against a clean slate over the main-view depth. */
+    glDepthMask(GL_TRUE);
+    glClear(GL_DEPTH_BUFFER_BIT);
+    if (s_backdropTex) {
+        glMatrixMode(GL_PROJECTION);
+        glLoadIdentity();
+        glOrtho(0, gw, gh, 0, -1, 1);
+        glMatrixMode(GL_MODELVIEW);
+        glLoadIdentity();
+        glDisable(GL_DEPTH_TEST);
+        glDisable(GL_BLEND);
+        glColor3ub(255, 255, 255);
+        glEnable(GL_TEXTURE_2D);
+        glBindTexture(GL_TEXTURE_2D, s_backdropTex);
+        glBegin(GL_QUADS);
+        glTexCoord2f(0, 0); glVertex2f(0, 0);
+        glTexCoord2f(1, 0); glVertex2f((float)gw, 0);
+        glTexCoord2f(1, 1); glVertex2f((float)gw, (float)gh);
+        glTexCoord2f(0, 1); glVertex2f(0, (float)gh);
+        glEnd();
+        glDisable(GL_TEXTURE_2D);
+    }
+
+    beginModelPass();
+    s_nSub = 0;
+    s_subOverflow = 0;
+    s_flatN = 0;
+    s_sceneRendered = 1; /* live 3D is now in the framebuffer; the present must not clear it */
+}
+
 static void gl_beginScene(const R3DScene *s) {
     int win_w, win_h, vpTop, vpBot, vpLeft, vpRight, Wv, Hv, lbx, lby;
     float scale, fGate, sphOrtho[4];
     int16 skyIdx;
     SDL_Surface *page;
 
-    /* The tiny MFD/target sub-view stays on the software rasterizer (it draws
-     * into the page and composites as plain 2D); GL takes only the main view. */
+    /* The target-model MFD sub-view has its own scissored GL path (backdrop from
+     * the page + model), separate from the main view's full sky/fog setup. */
     if (s->renderScene == 0) {
-        s_delegating = 1;
-        r3d_setObjCullWiden(1, 1, 1, 1); /* MFD/target sub-view stays 4:3 */
-        r3d_softwareBackend.beginScene(s);
+        gl_beginSubScene(s);
         return;
     }
-    s_delegating = 0;
     /* This is a flight 3D frame: its HUD/MFD line & point submissions record for
      * native-resolution replay (the 2D-only screens never reach here, so they
      * keep rasterizing into the page). */
@@ -594,7 +762,7 @@ static void gl_beginScene(const R3DScene *s) {
     glLoadIdentity();
 
     /* Hybrid depth ordering (see gl_endScene): a real z-buffer resolves genuine
-     * occlusion (a plane behind a building no longer shows through), while objects
+     * occlusion (a plane behind a building does not show through), while objects
      * are still drawn in the original's painter's order so coplanar surfaces a
      * z-buffer can't separate keep the original look. GL_LEQUAL lets the later-drawn
      * coplanar surface win at equal depth; a per-draw polygon offset (gl_endScene)
@@ -607,8 +775,9 @@ static void gl_beginScene(const R3DScene *s) {
     glEnable(GL_POLYGON_OFFSET_LINE);
     glEnable(GL_POLYGON_OFFSET_POINT);
 
-    /* Distance haze (replaces the stepped g_objShade bands). Enabled after the sky
-     * sphere so the background gradient itself isn't fogged; disabled in gl_endScene.
+    /* Distance haze (the GL equivalent of the software path's stepped g_objShade
+     * bands). Enabled after the sky sphere so the background gradient itself isn't
+     * fogged; disabled in gl_endScene.
      * Fog colour = live horizon colour so geometry fades into the horizon line. The
      * distance is the per-vertex forward depth supplied by fogVertex (GL_FOG_COORD),
      * not GL's eye-distance — see fogVertex. */
@@ -651,10 +820,6 @@ static void gl_submit(const R3DSubmit *o) {
     long camBase, camTransX, camTransY, depth;
     int shade, dirX, dirY, dirZ, shift, i;
 
-    if (s_delegating) {
-        r3d_softwareBackend.submit(o);
-        return;
-    }
     if (s_nSub >= GL_MAX_SUBS) {
         s_subOverflow++;
         return;
@@ -731,6 +896,23 @@ static void paintBias(void) {
     glPolygonOffset(0.0f, -(float)(s_paintSeq++) * GL_PAINT_BIAS);
 }
 
+/* Round anti-aliased points come from GL_POINT_SMOOTH's coverage-blended alpha. The
+ * GL spec routes point AA through the multisample resolve instead when MULTISAMPLE is
+ * on, which rasterizes the point as a hard SQUARE and drops the soft rim fade — so we
+ * suspend multisampling for the point draw and restore it after (polygons/lines keep
+ * their MSAA edges). Restore mirrors the init gate (GL_MSAA_SAMPLES > 0). */
+static void beginSmoothPoints(void) {
+    glDisable(GL_MULTISAMPLE);
+    glEnable(GL_POINT_SMOOTH);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+}
+static void endSmoothPoints(void) {
+    glDisable(GL_BLEND);
+    glDisable(GL_POINT_SMOOTH);
+    if (GL_MSAA_SAMPLES > 0) glEnable(GL_MULTISAMPLE);
+}
+
 #define GL_POINT_REF_DEPTH 5000.0f /* depthHi at which the point is one logical pixel */
 #define GL_POINT_NEAR_CAP 3.0f     /* max size, in logical pixels, for the nearest points */
 #define GL_POINT_MIN_SIZE 0.5f     /* smallest size; smooth coverage fades it below 1px */
@@ -773,13 +955,10 @@ static void drawSub(const GlSub *r) {
      * so no scaleDiv is needed. Sized by distance (drawDepthPoint). */
     if (l->form == MESH_FORM_POINT) {
         if ((int)(r->camY >> 16) < 1) return; /* g_camTransYHi < 1 cull */
-        glEnable(GL_POINT_SMOOTH);
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        beginSmoothPoints();
         drawDepthPoint((float)r->camBase, (float)r->camX, r->camY,
                        colorLut[l->pointColor] + GL_NEAR_SHADE);
-        glDisable(GL_BLEND);
-        glDisable(GL_POINT_SMOOTH);
+        endSmoothPoints();
         return;
     }
 
@@ -787,9 +966,7 @@ static void drawSub(const GlSub *r) {
      * vertex transformed by the object matrix (the on-the-fly path's emitModelVertex).
      * No LOD scale (emitModelVertex applies none), so depth feeds glEdgeRunColor raw. */
     if (l->form == MESH_FORM_EDGERUN) {
-        glEnable(GL_POINT_SMOOTH);
-        glEnable(GL_BLEND);
-        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        beginSmoothPoints();
         for (i = 0; i < 9; i++) cm[i] = (float)r->combined[i];
         for (i = 0; i < l->nRunRefs; i++) {
             int ref = l->runRefs[i];
@@ -811,8 +988,7 @@ static void drawSub(const GlSub *r) {
             if ((int)(depthRaw >> 16) < 1) continue; /* dHi >= 1 */
             drawDepthPoint(camX, camY, depthRaw, glEdgeRunColor((int)(depthRaw >> 16)));
         }
-        glDisable(GL_BLEND);
-        glDisable(GL_POINT_SMOOTH);
+        endSmoothPoints();
         return;
     }
 
@@ -884,13 +1060,10 @@ static void drawSub(const GlSub *r) {
             }
             if (colorByte < 0 && l->nLines) colorByte = l->lines[0].colorByte;
             if (colorByte >= 0) {
-                glEnable(GL_POINT_SMOOTH);
-                glEnable(GL_BLEND);
-                glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+                beginSmoothPoints();
                 drawDepthPoint((float)r->camBase, (float)r->camX, r->camY,
                                colorLut[colorByte] + GL_NEAR_SHADE);
-                glDisable(GL_BLEND);
-                glDisable(GL_POINT_SMOOTH);
+                endSmoothPoints();
             }
             return;
         }
@@ -1046,12 +1219,6 @@ static int subCmp(const void *a, const void *b) {
 static void gl_endScene(void) {
     int i;
 
-    if (s_delegating) {
-        r3d_softwareBackend.endScene();
-        s_delegating = 0;
-        return;
-    }
-
     if (s_subOverflow)
         LogWarn(("r3d_gl: %d submissions dropped (cap %d)", s_subOverflow, GL_MAX_SUBS));
     qsort(s_subs, s_nSub, sizeof(GlSub), subCmp);
@@ -1069,7 +1236,7 @@ static void gl_endScene(void) {
         if (s_subs[i].immediate) drawSub(&s_subs[i]);
     /* Pass 2 — elevated objects (planes, missiles, buildings, terrain with relief):
      * z-buffered (GL_LEQUAL, set in gl_beginScene) so genuine occlusion is correct —
-     * a plane behind a building no longer shows through. The per-primitive paint bias
+     * a plane behind a building does not show through. The per-primitive paint bias
      * lives only here, breaking these objects' own coplanar ties by draw order; the
      * counter resets so pass 1's primitives don't inflate it into a punch-through. */
     glEnable(GL_DEPTH_TEST);
@@ -1098,14 +1265,67 @@ const R3DBackend r3d_glBackend = {
 
 /* ---- 2D overlay composite + present ------------------------------------ */
 
-static uint8 *s_rgba;       /* INDEX8 -> RGBA8888 scratch for the page texture */
-static int s_rgbaCap;
+/* Set the nearest-filter + clamp parameters shared by the page and sprite
+ * textures (indexed art must not bleed or filter). */
+static void setOverlayTexParams(void) {
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+}
+
+static void gl_imageDestroyed(R2DImage *img) {
+    GLuint tex = (GLuint)r2d_imageCacheTex(img);
+    if (tex) {
+        glDeleteTextures(1, &tex);
+        r2d_imageSetCache(img, 0, -1);
+    }
+}
+
+/* The cached RGBA texture for a submitted sprite's whole backing sheet, rebuilt
+ * only when the palette generation moved since it was uploaded. Index 0 becomes
+ * the transparent texel (alpha 0) — the sprite transparency key is always 0; an
+ * opaque draw (key<0) disables blend at draw time so alpha is ignored. */
+static GLuint imageTexture(R2DImage *img, SDL_Palette *pal, int palGen) {
+    GLuint tex = (GLuint)r2d_imageCacheTex(img);
+    SDL_Surface *surf = r2d_imageSurface(img);
+    const uint8 *src;
+    uint8 *rgba;
+    int sw, sh, pitch, x, y;
+
+    if (!surf) return 0;
+    if (tex && r2d_imageCacheGen(img) == palGen) return tex;
+    sw = surf->w;
+    sh = surf->h;
+    rgba = ensureRgbaScratch(sw * sh * 4);
+    if (!rgba) return 0;
+    src = (const uint8 *)surf->pixels;
+    pitch = surf->pitch;
+    for (y = 0; y < sh; y++) {
+        const uint8 *row = src + y * pitch;
+        uint8 *out = rgba + y * sw * 4;
+        for (x = 0; x < sw; x++) {
+            uint8 idx = row[x];
+            SDL_Color c = pal->colors[idx];
+            out[x * 4 + 0] = c.r;
+            out[x * 4 + 1] = c.g;
+            out[x * 4 + 2] = c.b;
+            out[x * 4 + 3] = (idx == 0) ? 0 : 255;
+        }
+    }
+    if (!tex) glGenTextures(1, &tex);
+    glBindTexture(GL_TEXTURE_2D, tex);
+    setOverlayTexParams();
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, sw, sh, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+    r2d_imageSetCache(img, (unsigned int)tex, palGen);
+    return tex;
+}
 
 void r3dgl_present(SDL_Surface *page, int shakeOffset) {
     int win_w, win_h, w, h, x, y, lbx, lby, qw, qh;
     SDL_Palette *pal;
     const uint8 *src;
-    int pitch, need;
+    int pitch;
     GLuint tex;
     float shake, scale;
 
@@ -1115,13 +1335,7 @@ void r3dgl_present(SDL_Surface *page, int shakeOffset) {
     pal = gfx_getPalette();
     if (!pal) return;
 
-    need = w * h * 4;
-    if (need > s_rgbaCap) {
-        SDL_free(s_rgba);
-        s_rgba = (uint8 *)SDL_malloc(need);
-        s_rgbaCap = s_rgba ? need : 0;
-    }
-    if (!s_rgba) return;
+    if (!ensureRgbaScratch(w * h * 4)) return;
 
     src = (const uint8 *)page->pixels;
     pitch = page->pitch;
@@ -1181,10 +1395,7 @@ void r3dgl_present(SDL_Surface *page, int shakeOffset) {
     glEnable(GL_TEXTURE_2D);
     glGenTextures(1, &tex);
     glBindTexture(GL_TEXTURE_2D, tex);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    setOverlayTexParams();
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, s_rgba);
 
     glEnable(GL_BLEND);
@@ -1206,52 +1417,122 @@ void r3dgl_present(SDL_Surface *page, int shakeOffset) {
     glDisable(GL_TEXTURE_2D);
     glDisable(GL_BLEND);
 
-    /* Native 2D vector layer (docs/render-2d-overlay.md, Step 4): replay the
-     * HUD/MFD lines & points recorded this frame at the window's native
-     * resolution, mapped through the same page letterbox (scale/lbx/lby) so they
-     * stay aligned with the UI box, with a line width relative to the native
-     * scale. This is the crisp vector HUD — the software-rasterized low-res
-     * version was suppressed (the submissions were recorded, not drawn). */
+    /* Native 2D overlay layer: replay the HUD/MFD lines, points and sprites
+     * recorded this frame at the window's native resolution, mapped through the
+     * same page letterbox (scale/lbx/lby) so they stay aligned with the UI box.
+     * Walked in submission order (a sprite drawn after a line lands over it);
+     * runs of the same kind batch into one GL primitive. Lines/points are crisp
+     * native-res vectors, sprites are textured quads from the per-image cache. */
     {
         int n, i;
-        const R2DVectorPrim *prims = r2d_vectorPrims(&n);
+        const R2DOverlayPrim *prims = r2d_overlayPrims(&n);
+        const short *polyV = r2d_overlayPolyVerts();
         SDL_Palette *vpal = gfx_getPalette();
-        if (n > 0 && vpal) {
-            float lw = scale < 1.0f ? 1.0f : scale;
-            glLineWidth(lw);
-            glBegin(GL_LINES);
-            for (i = 0; i < n; i++) {
-                const R2DVectorPrim *p = &prims[i];
-                SDL_Color c;
-                if (p->kind != R2D_PRIM_LINE) continue;
-                c = vpal->colors[p->color];
-                glColor3ub(c.r, c.g, c.b);
-                glVertex2f((float)lbx + ((float)p->x1 + 0.5f) * scale - shake,
-                           (float)lby + ((float)p->y1 + 0.5f) * scale);
-                glVertex2f((float)lbx + ((float)p->x2 + 0.5f) * scale - shake,
-                           (float)lby + ((float)p->y2 + 0.5f) * scale);
+        int palGen = gfx_paletteGeneration();
+        float lw = scale < 1.0f ? 1.0f : scale;
+        for (i = 0; i < n && vpal; ) {
+            unsigned char kind = prims[i].kind;
+            int j = i;
+            while (j < n && prims[j].kind == kind) j++;
+            if (kind == R2D_PRIM_LINE) {
+                glLineWidth(lw);
+                glBegin(GL_LINES);
+                for (; i < j; i++) {
+                    const R2DOverlayPrim *p = &prims[i];
+                    SDL_Color c = vpal->colors[p->color];
+                    glColor3ub(c.r, c.g, c.b);
+                    glVertex2f((float)lbx + ((float)p->x1 + 0.5f) * scale - shake,
+                               (float)lby + ((float)p->y1 + 0.5f) * scale);
+                    glVertex2f((float)lbx + ((float)p->x2 + 0.5f) * scale - shake,
+                               (float)lby + ((float)p->y2 + 0.5f) * scale);
+                }
+                glEnd();
+            } else if (kind == R2D_PRIM_POINT) {
+                /* Points (pitch-ladder marks) as scale x scale cells so they keep
+                 * their pixel footprint at native size. */
+                glBegin(GL_QUADS);
+                for (; i < j; i++) {
+                    const R2DOverlayPrim *p = &prims[i];
+                    SDL_Color c = vpal->colors[p->color];
+                    float x0 = (float)lbx + (float)p->x1 * scale - shake;
+                    float y0 = (float)lby + (float)p->y1 * scale;
+                    float x1q = x0 + scale, y1q = y0 + scale;
+                    glColor3ub(c.r, c.g, c.b);
+                    glVertex2f(x0, y0);
+                    glVertex2f(x1q, y0);
+                    glVertex2f(x1q, y1q);
+                    glVertex2f(x0, y1q);
+                }
+                glEnd();
+            } else if (kind == R2D_PRIM_POLY) {
+                /* Filled tile faces (left-MFD terrain map) as native-res convex
+                 * polygons; one GL_POLYGON per prim (a shared glBegin would fuse
+                 * separate faces into one loop). Vertices are 320-space pairs in
+                 * the poly pool, submitted UNCLIPPED and scissored to the MFD rect
+                 * (prim x1,y1,x2,y2) so faces crossing the border fill correctly. */
+                glEnable(GL_SCISSOR_TEST);
+                for (; i < j; i++) {
+                    const R2DOverlayPrim *p = &prims[i];
+                    SDL_Color c = vpal->colors[p->color];
+                    const short *v = polyV + (int)p->srcX * 2;
+                    int k, nv = p->srcY;
+                    float sx0 = (float)lbx + (float)p->x1 * scale - shake;
+                    float sx1 = (float)lbx + (float)p->x2 * scale - shake;
+                    float sy1w = (float)lby + (float)p->y1 * scale;
+                    float sy2w = (float)lby + (float)p->y2 * scale;
+                    glScissor((int)sx0, (int)((float)win_h - sy2w),
+                              (int)(sx1 - sx0), (int)(sy2w - sy1w));
+                    glColor3ub(c.r, c.g, c.b);
+                    glBegin(GL_POLYGON);
+                    for (k = 0; k < nv; k++)
+                        glVertex2f((float)lbx + ((float)v[k * 2] + 0.5f) * scale - shake,
+                                   (float)lby + ((float)v[k * 2 + 1] + 0.5f) * scale);
+                    glEnd();
+                }
+                glDisable(GL_SCISSOR_TEST);
+            } else { /* R2D_PRIM_IMAGE */
+                glEnable(GL_TEXTURE_2D);
+                glColor3ub(255, 255, 255); /* MODULATE: white so the texture passes through */
+                for (; i < j; i++) {
+                    const R2DOverlayPrim *p = &prims[i];
+                    SDL_Surface *surf = r2d_imageSurface(p->img);
+                    GLuint itex;
+                    float u0, v0, u1, v1, x0, y0, x1q, y1q;
+                    if (!surf) continue;
+                    itex = imageTexture(p->img, vpal, palGen);
+                    if (!itex) continue;
+                    /* key<0 opaque (blend off, index 0 drawn as its palette colour);
+                     * key>=0 transparent on index 0 (baked alpha). Sprites use 0/-1. */
+                    if (p->key < 0) {
+                        glDisable(GL_BLEND);
+                    } else {
+                        glEnable(GL_BLEND);
+                        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+                    }
+                    glBindTexture(GL_TEXTURE_2D, itex);
+                    /* Full-frame texcoords; the surface is a sprite sheet and
+                     * srcX/srcY select one frame. Pixel-snapping the quad (below)
+                     * keeps every fragment centre strictly inside the frame, so
+                     * NEAREST never rounds across a boundary into the neighbouring
+                     * frame — no atlas bleed, and no thinned edge rows. */
+                    u0 = (float)p->srcX / (float)surf->w;
+                    v0 = (float)p->srcY / (float)surf->h;
+                    u1 = (float)(p->srcX + p->imgW) / (float)surf->w;
+                    v1 = (float)(p->srcY + p->imgH) / (float)surf->h;
+                    x0 = SDL_floorf((float)lbx + (float)p->x1 * scale - shake + 0.5f);
+                    y0 = SDL_floorf((float)lby + (float)p->y1 * scale + 0.5f);
+                    x1q = x0 + SDL_floorf((float)p->imgW * scale + 0.5f);
+                    y1q = y0 + SDL_floorf((float)p->imgH * scale + 0.5f);
+                    glBegin(GL_QUADS);
+                    glTexCoord2f(u0, v0); glVertex2f(x0, y0);
+                    glTexCoord2f(u1, v0); glVertex2f(x1q, y0);
+                    glTexCoord2f(u1, v1); glVertex2f(x1q, y1q);
+                    glTexCoord2f(u0, v1); glVertex2f(x0, y1q);
+                    glEnd();
+                }
+                glDisable(GL_TEXTURE_2D);
+                glDisable(GL_BLEND);
             }
-            glEnd();
-            /* Points (pitch-ladder marks) as scale x scale cells so they keep
-             * their pixel footprint at native size. */
-            glBegin(GL_QUADS);
-            for (i = 0; i < n; i++) {
-                const R2DVectorPrim *p = &prims[i];
-                SDL_Color c;
-                float x0, y0, x1q, y1q;
-                if (p->kind != R2D_PRIM_POINT) continue;
-                c = vpal->colors[p->color];
-                glColor3ub(c.r, c.g, c.b);
-                x0 = (float)lbx + (float)p->x1 * scale - shake;
-                y0 = (float)lby + (float)p->y1 * scale;
-                x1q = x0 + scale;
-                y1q = y0 + scale;
-                glVertex2f(x0, y0);
-                glVertex2f(x1q, y0);
-                glVertex2f(x1q, y1q);
-                glVertex2f(x0, y1q);
-            }
-            glEnd();
         }
         r2d_vectorMarkPresented();
     }

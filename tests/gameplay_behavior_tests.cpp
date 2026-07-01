@@ -1092,6 +1092,8 @@ void drawHudViewLine(int x1, int y1, int x2, int y2) {
     g_hudLines[g_hudLineCalls++] = {x1, y1, x2, y2};
 }
 
+int g_drawPage = 0;
+
 void setDrawColor(int color) { g_lastDrawColor = color; }
 
 void drawStringActivePage(const char *text, int screenX, int screenY, int color) {

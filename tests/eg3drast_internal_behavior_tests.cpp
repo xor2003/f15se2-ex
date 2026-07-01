@@ -4,6 +4,10 @@
 
 #include "../src/eg3drast.c"
 
+int r2d_vectorActive(void) { return 0; }
+void r2d_submitPoly(const short *, int, int, int, int, int, int) {}
+int FAR CDECL gfx_getBlitOffset(void) { return 0; }
+
 namespace {
 
 // Behavior-sensitive constants are named here or explained at the use site.
@@ -1611,9 +1615,6 @@ int main() {
                     g_sortedObjCount == 1,
                 "projectSceneObject preserves the original store-transform opcode before sorted insertion");
     }
-
-    installDivZeroHandler();
-    installDivZeroVector();
 
     std::cout << "eg3drast_internal_behavior_tests passed\n";
     return 0;
