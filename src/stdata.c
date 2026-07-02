@@ -126,7 +126,7 @@ struct PageDesc page2Desc = {
     {0, 0, 0, 0, 0, 0, 0, 0}, /* pad3 */
     (int16 *)&page2Desc       /* selfPtr (page2NumPtr) */
 };
-int16 *page2NumPtr = (int16 *)&page2Desc;
+struct R2DImage *g_stBacking;
 struct PageDesc page3Desc = {
     3,                        /* pageNum */
     {0, 0},                   /* pad1 */
@@ -560,7 +560,6 @@ char terrainGrid[256];
 struct FlightUnit flightUnits[0x13];
 int16 groundUnitCount;
 uint8 wldReadBuf1[2];
-int16 page1Ptr;
 uint8 gridBuf1[17];
 uint8 gridBuf2[0x100];
 uint8 gridBuf3[0x200];

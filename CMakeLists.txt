@@ -70,6 +70,14 @@ FetchContent_Declare(
     UPDATE_DISCONNECTED TRUE
 )
 FetchContent_MakeAvailable(nuked_opl3)
+FetchContent_Declare(
+    quick_digest5
+    GIT_REPOSITORY "https://github.com/nthnn/QuickDigest5.git"
+    GIT_TAG "1d61aece0e023e4c41cf24547fa1ac2f8028219d"
+    UPDATE_DISCONNECTED TRUE
+)
+FetchContent_MakeAvailable(quick_digest5)
+
 
 #==============================================================================
 # Sources
@@ -149,6 +157,7 @@ set(EGAME_SOURCES
     ${SRC_DIR}/r3d_sw.c
     ${SRC_DIR}/r3d_gl.c
     ${SRC_DIR}/r3dmesh.c
+    ${SRC_DIR}/r2d.c
     ${SRC_DIR}/egsys.c
     ${SRC_DIR}/egtick.c
     ${SRC_DIR}/eginput.c
@@ -192,7 +201,7 @@ set_target_properties(f15se2 PROPERTIES
 set_source_files_properties(${F15SE2_SOURCES} PROPERTIES LANGUAGE CXX)
 
 # Nuked-OPL3 stays plain C (not in the CXX-forced list above).
-target_sources(f15se2 PRIVATE ${nuked_opl3_SOURCE_DIR}/opl3.c)
+target_sources(f15se2 PRIVATE ${nuked_opl3_SOURCE_DIR}/opl3.c ${quick_digest5_SOURCE_DIR}/src/quickdigest5.cpp)
 
 # Keep the new log.h diagnostics live (the Log* macros compile out without DEBUG).
 target_compile_definitions(f15se2 PRIVATE DEBUG)
@@ -207,6 +216,7 @@ target_include_directories(f15se2 BEFORE PRIVATE
     ${SRC_DIR}/shared
     ${SRC_DIR}/asound
     ${nuked_opl3_SOURCE_DIR}
+    ${quick_digest5_SOURCE_DIR}/include
 )
 
 # SDL3::SDL3 is exported by both the system package and the FetchContent build,

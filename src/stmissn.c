@@ -65,7 +65,7 @@ void waitMdaCgaStatus(int16 iter) {
 }
 
 void drawLine(const int16 *pageNum, int x1, int y1, int x2, int y2, int color) {
-    gfx_setPageN(*pageNum);
+    (void)pageNum; /* single back buffer now */
     gfx_setColor(color);
     lineX1 = x1;
     lineY1 = y1;
@@ -80,7 +80,7 @@ void showPic640(const char *filename) {
     intRegs[1] = INT_VID_MODESET;
     intRegs[0] = MODE_640_350;
     intDispatch(IRQ_VIDEO, intRegs, intRegs);
-    gfx_setDac(4);
+    gfx_setDac(0);
     fileHandle = openFileWrapper(filename, 0);
     picBlit(fileHandle, 0);
     closeFileWrapper(fileHandle);
@@ -197,7 +197,10 @@ void animateArm(int a, int b) {
     armPosition = b;
     spriteIdx = armSpriteIndex[b];
     if (a == -1) {
-        gfx_copyRect(*page1NumPtr, 0, 0, *page2NumPtr, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+        /* Snapshot the clean briefing into the save-under backing image. The
+         * arm-cursor erase below restores from here. */
+        if (!g_stBacking) g_stBacking = gfx_allocImage(SCREEN_WIDTH, SCREEN_HEIGHT);
+        gfx_captureToImage(g_stBacking, *page1NumPtr, 0, 0, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
     }
     if (b != -1) {
         if (b < 5 && enableHighlight != 0) {
@@ -206,14 +209,12 @@ void animateArm(int a, int b) {
         showSprite(*page1NumPtr, armBlitX[spriteIdx], armBlitY[spriteIdx], armSrcX[spriteIdx], armSrcY[spriteIdx], armBlitW[spriteIdx], armBlitH[spriteIdx]);
     }
     {
-        gfx_setPageN(0);
-        gfx_blitToCurrent(page1Ptr);
         gfx_commitPage();
         spriteBlitX = armBlitX[spriteIdx];
         spriteBlitY = armBlitY[spriteIdx];
         spriteBlitW = armBlitW[spriteIdx];
         spriteBlitH = armBlitH[spriteIdx];
-        gfx_copyRect(*page2NumPtr, spriteBlitX, spriteBlitY, *page1NumPtr, spriteBlitX, spriteBlitY, spriteBlitW, spriteBlitH);
+        gfx_restoreFromImage(g_stBacking, *page1NumPtr, spriteBlitX, spriteBlitY, spriteBlitX, spriteBlitY, spriteBlitW, spriteBlitH);
         if (b < 5 && enableHighlight != 0) {
             gfx_switchColor(page1NumPtr, 113, b * 21 + 34, 297, b * 21 + 42, COLOR_BRIEF_DESC_HL, COLOR_BRIEF_DESC_NORMAL);
         }

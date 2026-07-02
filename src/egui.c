@@ -10,6 +10,7 @@
 #include "pointers.h"
 #include "log.h"
 #include "gfx.h"
+#include "r2d.h"
 #include "const.h"
 
 #include "comm.h"
@@ -38,9 +39,15 @@ void drawTacticalMap(char page) {
     int gridLo;
     int gridStep;
 
+    /* The scope's grid/marker/projectile lines and its blip icon sprites share the
+     * one ordered overlay stream, so on GL they replay at native resolution in
+     * submission order (icons, submitted last, land over the lines) — the crisp
+     * vector scope. The black backdrop is a direct page fill (fillSpanRect), so it
+     * composites behind the native stream. The interior is a plain rectangle (all
+     * content is rect-clipped at submit), not a round mask, so no scissor is needed. */
     radius = g_radarScopeRange + 1;
     setDrawColor(0);
-    fillSpanRect(page == 0 ? g_pageFront : g_pageBack, 120, 104, 199, 175);
+    fillSpanRect(g_pageFront, 120, 104, 199, 175);
     setDrawColor(8);
     gridStep = 1;
     if (g_radarScopeRange < 2 && g_detailLevel != 0) {
@@ -198,7 +205,7 @@ void blitGaugeSprite(int srcCol, int srcRow, int destX, int destY) {
     gaugeSpriteParams.bufPtr = gfxBufPtr;
     gaugeSpriteParams.srcX = srcCol * 8 + 1;
     gaugeSpriteParams.srcY = srcRow * 8 + 31;
-    gaugeSpriteParams.page = (g_drawPage != 0);
+    gaugeSpriteParams.page = 0;
     gaugeSpriteParams.dstX = destX - 3;
     gaugeSpriteParams.dstY = destY - 3;
     gaugeSpriteParams.width = 7;
@@ -211,7 +218,7 @@ void blitSprite(int destX, int destY, int srcX, int srcY, int spriteWidth, int s
     blitSpriteParams.bufPtr = gfxBufPtr;
     blitSpriteParams.srcX = srcX;
     blitSpriteParams.srcY = srcY;
-    blitSpriteParams.page = (g_drawPage != 0);
+    blitSpriteParams.page = 0;
     blitSpriteParams.dstX = destX;
     blitSpriteParams.dstY = destY;
     blitSpriteParams.width = spriteWidth;
@@ -228,16 +235,15 @@ void blitSprite(int destX, int destY, int srcX, int srcY, int spriteWidth, int s
 
 // ==== seg000:0xa934 ====
 void cacheScopePanel(void) {
-    gfx_copyRect(*g_pageFront, 24, 112, *g_pageOffscreen, 24, 112, 73, 57);
+    gfx_captureToImage(g_eg2dBacking, *g_pageFront, 24, 112, 24, 112, 73, 57);
 }
 
 // ==== seg000:0xa962 ====
 void restoreScopePanel(void) {
-    gfx_copyRect(*g_pageOffscreen, 24, 112, *g_pageFront, 24, 112, 73, 57);
-    gfx_copyRect(*g_pageFront, 24, 112, *g_pageBack, 24, 112, 73, 57);
+    gfx_restoreFromImage(g_eg2dBacking, *g_pageFront, 24, 112, 24, 112, 73, 57);
 }
 
 // ==== seg000:0xa9bc ====
 void captureScopePanel(void) {
-    gfx_copyRect(*g_pageOffscreen, 24, 112, g_drawPage ? *g_pageBack : *g_pageFront, 24, 112, 73, 57);
+    gfx_restoreFromImage(g_eg2dBacking, *g_pageFront, 24, 112, 24, 112, 73, 57);
 }

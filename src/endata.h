@@ -57,6 +57,11 @@ extern char slotInfoTable[]; /* slot info table, 16 bytes per slot */
 extern char ejectedFlag;
 extern const int popupSpriteY[];
 extern const int popupSpriteX[];
+/* The popup save-under backing image: the debrief popup stores what's behind it
+ * here and restores it when dismissed. */
+struct R2DImage;
+extern struct R2DImage *g_enBacking;
+extern int g_dbiconsBuf; /* sprite buffer holding the decoded dbicons.spr popup icon sheet */
 extern struct SpriteParams *spriteAir;
 extern struct SpriteParams *spriteSam;
 extern struct SpriteParams *spriteGround;
@@ -131,14 +136,6 @@ extern struct Game far *gameData;
 extern char hercFlag;
 extern uint8 joyAxisY;
 extern uint8 joyAxisX;
-extern int hasVgaMode;
-/* END graphics scratch buffers (allocBuffer in enmain). DOS used these as raw
- * VGA/aux segments; the native debrief draws through the SDL gfx layer instead,
- * so they are allocated but never read — candidates for removal. */
-extern void *gfxBufSeg;
-extern void *vgaBufSeg;
-extern void *vgaBufSeg2;
-extern int vgaBufOffset;
 extern int spriteBufSeg;
 extern int missionResult;
 extern int selectedMenuItem;
