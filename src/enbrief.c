@@ -1,5 +1,6 @@
 /* enbrief.c — debrief UI, compiled with /Gs /Zi */
 #include "gfx.h"
+#include "r2d.h"
 #include "slot.h"
 #include <dos.h>
 #include "offsets.h"
@@ -22,7 +23,7 @@ int drawEventSprite(int recordIdx);
 void drawMapPixel(int x, int y, int color);
 int isPointInRect(const struct MenuItem *p);
 void blinkWidget(MenuItem *item, int16 *gfxPage);
-unsigned int drawFlightPath(int16 *gfxPage, unsigned int maxRecord);
+unsigned int countFlightRecords(void);
 void showEventPopup(void);
 void drawFlightLine(int p1, int p2, int p3, int p4);
 char *formatFlightTime(int timeValue, char *buffer);
@@ -30,6 +31,12 @@ void plotMapPoint(int x, int y, int color, int unused);
 void timerWait(unsigned int ticks);
 void processDebriefInput(const int16 *cursorBounds, const MenuItem *menuItem, int16 *gfxPage);
 void drawMenuItem(const MenuItem *items, unsigned int index, int16 *gfxPage);
+static void debriefPresent(void);
+static void drawEventBlinkSprite(int recordIdx);
+
+/* Popup icon (index into popupSpriteX/Y) drawn by debriefPresent while
+ * popupVisible; picked by showEventPopup. */
+static int popupSpriteIdx;
 
 void computeMissionResult(void) {
     unsigned int gridX, gridY;
@@ -90,7 +97,7 @@ int selectMenuItem(MenuItem *items, int unused, int itemCount, int16 *inputState
     c[1] = 0;
     h[0] = 0x80;
     h[1] = 0;
-    gfx_commitPage();
+    debriefPresent();
     colorAnimEnabled = 0;
     curIdx = 0;
     while (curIdx < itemCount && isPointInRect(&items[curIdx]) == 0)
@@ -99,7 +106,7 @@ int selectMenuItem(MenuItem *items, int unused, int itemCount, int16 *inputState
     for (;;) {
         // 22a8
         do {
-            gfx_commitPage();
+            debriefPresent();
             if ((items[curIdx].flags & MENUITEM_ENABLED) == 0) {
                 colorAnimEnabled = 1;
             }
@@ -201,6 +208,7 @@ int isPointInRect(const MenuItem *p) {
     int keycode;
 
     colorTablePtr = (unsigned int *)((char *)colorStyleTable + menuItem->colorTableIdx * 14);
+    blinkMarker = (menuItem->flags & MENUITEM_HAS_SPRITE) && (menuItem->flags & MENUITEM_SPRITE_BLINK);
     timerCounter2 = 0;
     joyBtn0 = joyBtn1 = 0;
     inputChanged = enterPressed = animDone = repeatActive = 0;
@@ -256,56 +264,12 @@ int isPointInRect(const MenuItem *p) {
             }
         }
 
-        /* sprite section */
-        if (!(menuItem->flags & MENUITEM_HAS_SPRITE)) goto skip_sprite;
-        if (!(menuItem->flags & MENUITEM_SPRITE_BLINK)) goto skip_sprite;
-        if (timerCounter3 <= 18) goto skip_sprite;
-        timerCounter3 = 0;
-        if (spriteToggle != 0) {
-            switch (flightRecords[curRecordIdx].status & STATUS_TYPE_MASK) {
-            case EVENT_AIR_KILL:
-            case EVENT_AIR_KILL2:
-                spriteAirBlink->dstX = mapToScreenX(flightRecords[curRecordIdx].mapX) + mapViewX1 - 2;
-                spriteAirBlink->dstY = mapToScreenY(flightRecords[curRecordIdx].mapY) + mapViewY1 - 2;
-                if (slotInfoTable[(flightRecords[curRecordIdx].unitId & UNIT_ID_MASK) << 4] & 8) {
-                    spriteAirBlink->srcX = 286;
-                } else {
-                    spriteAirBlink->srcX = 301;
-                }
-                gfx_blitSprite(spriteAirBlink);
-                break;
-            case EVENT_SAM_KILL:
-                spriteSamBlink->dstX = mapToScreenX(flightRecords[curRecordIdx].mapX) + mapViewX1 - 2;
-                spriteSamBlink->dstY = mapToScreenY(flightRecords[curRecordIdx].mapY) + mapViewY1 - 2;
-                gfx_blitSprite(spriteSamBlink);
-                break;
-            case EVENT_GROUND_KILL:
-                spriteGroundBlink->dstX = mapToScreenX(flightRecords[curRecordIdx].mapX) + mapViewX1 - 2;
-                spriteGroundBlink->dstY = mapToScreenY(flightRecords[curRecordIdx].mapY) + mapViewY1 - 2;
-                gfx_blitSprite(spriteGroundBlink);
-                break;
-            case EVENT_BOMB_HIT:
-                spriteWaypointBlink->dstX = mapToScreenX(flightRecords[curRecordIdx].mapX) + mapViewX1;
-                spriteWaypointBlink->dstY = mapToScreenY(flightRecords[curRecordIdx].mapY) + mapViewY1;
-                gfx_blitSprite(spriteWaypointBlink);
-                break;
-            case EVENT_EJECTED:
-                spriteSamBlink->dstX = mapToScreenX(flightRecords[curRecordIdx].mapX) + mapViewX1 - 2;
-                spriteSamBlink->dstY = mapToScreenY(flightRecords[curRecordIdx].mapY) + mapViewY1 - 2;
-                gfx_blitSprite(spriteSamBlink);
-                break;
-            case EVENT_WAYPOINT:
-                spriteWaypointBlink->dstX = mapToScreenX(flightRecords[curRecordIdx].mapX) + mapViewX1;
-                spriteWaypointBlink->dstY = mapToScreenY(flightRecords[curRecordIdx].mapY) + mapViewY1;
-                gfx_blitSprite(spriteWaypointBlink);
-                break;
-            }
-        } else {
-            drawEventSprite(curRecordIdx);
+        /* blink cadence for the current-event marker (drawn by debriefPresent) */
+        if (blinkMarker && timerCounter3 > 18) {
+            timerCounter3 = 0;
+            spriteToggle = (spriteToggle == 0);
         }
-        spriteToggle = (spriteToggle == 0);
-    skip_sprite:
-        gfx_commitPage();
+        debriefPresent();
     }
 
     /* post-loop input handling */
@@ -371,12 +335,6 @@ int isPointInRect(const MenuItem *p) {
         inputChanged = 1;
     }
 
-    /* final cleanup */
-    if (menuItem->flags & MENUITEM_HAS_SPRITE) {
-        if (menuItem->flags & MENUITEM_SPRITE_BLINK) {
-            drawEventSprite(curRecordIdx);
-        }
-    }
 }
 
 // 2bd1
@@ -407,12 +365,11 @@ void drawMenuItem(const MenuItem *items, unsigned int index, int16 *gfxPage) {
             mystrcat(scoreString, "Press Selector to exit Debriefing");
             drawWrappedText(gfxPage, scoreString, 80, 240, 130, 8);
             clearRect(gfxPage, 240, 100, 300, 126);
-            if (popupVisible == 1) {
-                gfx_restoreFromImage(g_enBacking, 0, 0, POPUP_SAVE_Y, popupX, popupY, POPUP_WIDTH, POPUP_HEIGHT);
-                popupVisible = 0;
-            }
+            popupVisible = 0;
+            blinkMarker = 0;
             curRecordIdx = 0;
-            totalFlightRecords = drawFlightPath(gfxPage, ALL_RECORDS);
+            totalFlightRecords = countFlightRecords();
+            pathExtent = ALL_RECORDS; /* the summary shows the full path */
             missionScore = calcMissionScore(totalFlightRecords);
             mystrcpy(scoreString, "\x8d");
             mystrcat(scoreString, "OVERALL");
@@ -463,8 +420,8 @@ void drawMenuItem(const MenuItem *items, unsigned int index, int16 *gfxPage) {
         if (ejectedFlag == 1) {
             ejectedFlag = 0;
             popupVisible = 0;
-            gfx_blitSprite(spriteMapArea);
-            curRecordIdx = prevDrawX = prevDrawY = 0;
+            pathExtent = 0; /* back to the takeoff record: no path revealed */
+            curRecordIdx = 0;
             clearRect(gfxPage, 235, 10, 319, 149);
             missionScore = calcMissionScore(SCORE_ALL_EVENTS);
             mystrcpy(scoreString, "\x8d");
@@ -618,80 +575,49 @@ int drawEventSprite(int recordIdx) {
     return 0; /* status matched no event type: nothing drawn */
 }
 
-void waitForKeyOrJoy(void);
-
-void animateFlightPath(int16 *gfxPage) {
-    char numBuf[22];
-    int pad;
-
-    if (popupVisible == 1) {
-        gfx_restoreFromImage(g_enBacking, 0, 0, POPUP_SAVE_Y, popupX, popupY, POPUP_WIDTH, POPUP_HEIGHT);
-        popupVisible = 0;
-    }
-    clearRect(gfxPage, 233, 30, 319, 69);
-    drawStringAt(gfxPage, "\x80"
-                          "In-Flight",
-                 240, 38);
-loop_top:
-    curRecordIdx++;
-    if (flightRecords[curRecordIdx].status & STATUS_TYPE_MASK) {
-        if ((flightRecords[curRecordIdx].status & STATUS_TYPE_MASK) == EVENT_TIMESTAMP) {
-            clearRect(gfxPage, 240, 30, 319, 37);
-            mystrcpy(scoreString, "\x8d"
-                                  "TIME: \x80");
-            mystrcat(scoreString, formatFlightTime(flightTimeTable[curRecordIdx * 3], numBuf));
-            drawStringAt(gfxPage, scoreString, 240, 30);
-            gfx_setColor(0);
-            if (prevDrawX == 0 && prevDrawY == 0) {
-                drawFlightLine(flightRecords[0].mapX, flightRecords[0].mapY, flightRecords[curRecordIdx].mapX, flightRecords[curRecordIdx].mapY);
-                prevDrawX = flightRecords[curRecordIdx].mapX;
-                prevDrawY = flightRecords[curRecordIdx].mapY;
-            } else {
-                lastDrawX = flightRecords[curRecordIdx].mapX;
-                lastDrawY = flightRecords[curRecordIdx].mapY;
-                drawFlightLine(lastDrawX, lastDrawY, prevDrawX, prevDrawY);
-                prevDrawX = lastDrawX;
-                prevDrawY = lastDrawY;
-            }
-            missionScore = calcMissionScore(curRecordIdx);
-            mystrcpy(scoreString, "\x80");
-            my_ltoa(missionScore, numBuf);
-            mystrcat(scoreString, numBuf);
-            clearRect(gfxPage, 232, 86, 319, 94);
-            drawStringCentered(gfxPage, scoreString, 232, 86, 87);
-            timerCounter = 0;
-        wait_loop:
-            if (timerCounter <= 5) {
-                timerYield();
-                goto wait_loop;
-            }
-            goto loop_top;
+/* The bright blink frame of the event's map marker (drawEventSprite's counterpart
+ * on the other half of the blink cadence). */
+static void drawEventBlinkSprite(int recordIdx) {
+    switch (flightRecords[recordIdx].status & STATUS_TYPE_MASK) {
+    case EVENT_AIR_KILL:
+    case EVENT_AIR_KILL2:
+        spriteAirBlink->dstX = mapToScreenX(flightRecords[recordIdx].mapX) + mapViewX1 - 2;
+        spriteAirBlink->dstY = mapToScreenY(flightRecords[recordIdx].mapY) + mapViewY1 - 2;
+        if (slotInfoTable[(flightRecords[recordIdx].unitId & UNIT_ID_MASK) << 4] & 8) {
+            spriteAirBlink->srcX = 286;
+        } else {
+            spriteAirBlink->srcX = 301;
         }
-    }
-done:
-    if (!(flightRecords[curRecordIdx].status & STATUS_TYPE_MASK)) {
-        curRecordIdx--;
-    }
-    gfx_setColor(0);
-    if (prevDrawX == 0 && prevDrawY == 0) {
-        drawFlightLine(flightRecords[0].mapX, flightRecords[0].mapY, flightRecords[curRecordIdx].mapX, flightRecords[curRecordIdx].mapY);
-        prevDrawX = flightRecords[curRecordIdx].mapX;
-        prevDrawY = flightRecords[curRecordIdx].mapY;
-    } else {
-        lastDrawX = flightRecords[curRecordIdx].mapX;
-        lastDrawY = flightRecords[curRecordIdx].mapY;
-        drawFlightLine(lastDrawX, lastDrawY, prevDrawX, prevDrawY);
-        prevDrawX = lastDrawX;
-        prevDrawY = lastDrawY;
+        gfx_blitSprite(spriteAirBlink);
+        break;
+    case EVENT_SAM_KILL:
+    case EVENT_EJECTED:
+        spriteSamBlink->dstX = mapToScreenX(flightRecords[recordIdx].mapX) + mapViewX1 - 2;
+        spriteSamBlink->dstY = mapToScreenY(flightRecords[recordIdx].mapY) + mapViewY1 - 2;
+        gfx_blitSprite(spriteSamBlink);
+        break;
+    case EVENT_GROUND_KILL:
+        spriteGroundBlink->dstX = mapToScreenX(flightRecords[recordIdx].mapX) + mapViewX1 - 2;
+        spriteGroundBlink->dstY = mapToScreenY(flightRecords[recordIdx].mapY) + mapViewY1 - 2;
+        gfx_blitSprite(spriteGroundBlink);
+        break;
+    case EVENT_BOMB_HIT:
+    case EVENT_WAYPOINT:
+        spriteWaypointBlink->dstX = mapToScreenX(flightRecords[recordIdx].mapX) + mapViewX1;
+        spriteWaypointBlink->dstY = mapToScreenY(flightRecords[recordIdx].mapY) + mapViewY1;
+        gfx_blitSprite(spriteWaypointBlink);
+        break;
     }
 }
 
-unsigned int drawFlightPath(int16 *gfxPage, unsigned int maxRecord) {
-    int curX;
-    int recIdx;
-    int prevX;
-    int curY;
-    int prevY;
+void waitForKeyOrJoy(void);
+
+/* The flight-path poly-line + start dot up to `maxRecord`: a line through the
+ * start point and every record (timestamps AND events — every record is a vertex)
+ * in path colour 0. */
+static void drawFullPathLines(unsigned int maxRecord) {
+    int curX, curY, prevX, prevY, recIdx;
+    prevX = prevY = 0;
     recIdx = -1;
     while (++recIdx, (flightRecords[recIdx].status & STATUS_TYPE_MASK) != 0 && (unsigned)recIdx <= maxRecord) {
         gfx_setColor(0);
@@ -707,14 +633,97 @@ unsigned int drawFlightPath(int16 *gfxPage, unsigned int maxRecord) {
             prevY = curY;
         }
     }
-    recIdx = -1;
+}
+
+/* The event map markers for records up to maxRecord. */
+static void drawPathSprites(unsigned int maxRecord) {
+    int recIdx = -1;
     while (++recIdx, (flightRecords[recIdx].status & STATUS_TYPE_MASK) != 0 && (unsigned)recIdx <= maxRecord) {
-        if ((flightRecords[recIdx].status & STATUS_TYPE_MASK) != EVENT_TIMESTAMP) {
+        if ((flightRecords[recIdx].status & STATUS_TYPE_MASK) != EVENT_TIMESTAMP)
             drawEventSprite(recIdx);
-        }
     }
-    recIdx--;
-    return recIdx;
+}
+
+/* Compose and present the debrief map. Everything on the map is redrawn from
+ * scratch every present, in paint order: map background, flight-path lines up to
+ * pathExtent, event markers, the blinking current-event marker, then the event
+ * popup on top. All of it goes through the r2d submission seam, so on GL the
+ * whole stack replays as one ordered native-resolution overlay (crisp lines and
+ * sprites) and on software it rasterizes into the page — the layering is the
+ * submission order on both, with no retained page state to keep consistent. */
+static void debriefPresent(void) {
+    if (r2d_hasNativeOverlay())
+        r2d_vectorBeginFrame();
+    gfx_blitSprite(spriteMapArea);
+    if (pathExtent > 0) {
+        drawFullPathLines((unsigned)pathExtent);
+        drawPathSprites((unsigned)pathExtent);
+    }
+    if (blinkMarker) {
+        if (spriteToggle)
+            drawEventBlinkSprite(curRecordIdx);
+        else
+            drawEventSprite(curRecordIdx);
+    }
+    if (popupVisible)
+        gfx_drawSpriteOpaque(g_dbiconsBuf, popupSpriteX[popupSpriteIdx], popupSpriteY[popupSpriteIdx],
+                             0, popupX, popupY, POPUP_WIDTH, POPUP_HEIGHT);
+    gfx_commitPage();
+}
+
+/* Animate the flight path from the current record forward, one timestamp step at
+ * a time, stopping at the next mission event (or the end of the recording). Each
+ * step just extends pathExtent and presents; debriefPresent draws the map. (The
+ * original never presented per step — it relied on the visible-page write.) */
+void animateFlightPath(int16 *gfxPage) {
+    char numBuf[22];
+
+    popupVisible = 0;
+    blinkMarker = 0;
+    clearRect(gfxPage, 233, 30, 319, 69);
+    drawStringAt(gfxPage, "\x80"
+                          "In-Flight",
+                 240, 38);
+
+    for (;;) {
+        curRecordIdx++;
+        if ((flightRecords[curRecordIdx].status & STATUS_TYPE_MASK) != EVENT_TIMESTAMP)
+            break; /* hit a mission event or the end of the recording */
+
+        clearRect(gfxPage, 240, 30, 319, 37);
+        mystrcpy(scoreString, "\x8d"
+                              "TIME: \x80");
+        mystrcat(scoreString, formatFlightTime(flightTimeTable[curRecordIdx * 3], numBuf));
+        drawStringAt(gfxPage, scoreString, 240, 30);
+
+        missionScore = calcMissionScore(curRecordIdx);
+        mystrcpy(scoreString, "\x80");
+        my_ltoa(missionScore, numBuf);
+        mystrcat(scoreString, numBuf);
+        clearRect(gfxPage, 232, 86, 319, 94);
+        drawStringCentered(gfxPage, scoreString, 232, 86, 87);
+
+        pathExtent = curRecordIdx;
+        debriefPresent();
+
+        timerCounter = 0;
+        while (timerCounter <= 5) timerYield();
+    }
+
+    if (!(flightRecords[curRecordIdx].status & STATUS_TYPE_MASK)) {
+        curRecordIdx--;
+    }
+
+    pathExtent = curRecordIdx;
+    debriefPresent();
+}
+
+/* Index of the last used flight record (drawing is debriefPresent's job). */
+unsigned int countFlightRecords(void) {
+    int recIdx = 0;
+    while ((flightRecords[recIdx].status & STATUS_TYPE_MASK) != 0)
+        recIdx++;
+    return recIdx - 1;
 }
 
 char *formatFlightTime(int timeValue, char *buffer) {
@@ -912,10 +921,6 @@ long calcMissionScore(int param) {
 void showEventPopup(void) {
     int spriteIdx;
 
-    if (popupVisible == 1) {
-        gfx_restoreFromImage(g_enBacking, 0, 0, POPUP_SAVE_Y, popupX, popupY, POPUP_WIDTH, POPUP_HEIGHT);
-        popupVisible = 0;
-    }
     spriteIdx = flightRecords[curRecordIdx].status & STATUS_TYPE_MASK;
     switch (spriteIdx) {
     case EVENT_AIR_KILL:
@@ -976,10 +981,6 @@ void showEventPopup(void) {
         popupX = mapToScreenX(flightRecords[curRecordIdx].mapX) + mapViewX1 + 10;
         popupY = mapToScreenY(flightRecords[curRecordIdx].mapY) + mapViewY1 - 40;
     }
-    /* Save what's behind the popup into the backing image, then draw the popup icon
-     * opaquely from the dbicons sprite-buffer image. */
-    if (!g_enBacking) g_enBacking = gfx_allocImage(LOGICAL_WIDTH, LOGICAL_HEIGHT);
-    gfx_captureToImage(g_enBacking, 0, popupX, popupY, 0, POPUP_SAVE_Y, POPUP_WIDTH, POPUP_HEIGHT);
-    gfx_drawSpriteOpaque(g_dbiconsBuf, popupSpriteX[spriteIdx], popupSpriteY[spriteIdx], 0, popupX, popupY, POPUP_WIDTH, POPUP_HEIGHT);
-    popupVisible = 1;
+    popupSpriteIdx = spriteIdx;
+    popupVisible = 1; /* debriefPresent draws the icon on top of the map each frame */
 }

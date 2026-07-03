@@ -98,6 +98,9 @@ open_dbicons:
     gfx_waitRetrace();
     clearRect(debriefPage, 0, 0, 319, 199);
     gfx_blitSprite(spriteMapArea);
+    pathExtent = 0; /* fresh map: no flight path revealed yet */
+    popupVisible = 0;
+    blinkMarker = 0;
     gfx_blitSprite(spriteStatusBar);
 
     debriefPage[2] = 0;

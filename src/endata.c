@@ -4202,11 +4202,13 @@ int missionResult;
 char enterPressed;
 
 /* Drawing state */
-int lastDrawX;
-int prevDrawX;
-int lastDrawY;
-int prevDrawY;
 char popupVisible;
+char blinkMarker; /* debriefPresent blinks the current-event map marker */
+/* How far the debrief flight path currently extends: the highest flightRecords
+ * index revealed (review), ALL_RECORDS for the full mission-summary path, or 0
+ * when the map holds no path. debriefPresent redraws the map, path and markers
+ * up to this record every frame. */
+int pathExtent;
 int primaryHit;
 
 /* Mission scoring (32-bit score occupying the slot the decompiler split into
@@ -4245,7 +4247,6 @@ uint16 cursorX;
 uint16 cursorY;
 int spriteBufSeg;
 int g_dbiconsBuf;
-struct R2DImage *g_enBacking;
 
 /* Theater sprite filename pointer table (8 entries) */
 const char *theaterSprFiles[] = {

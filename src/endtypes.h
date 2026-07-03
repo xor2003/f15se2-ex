@@ -30,7 +30,6 @@
 /* Popup overlay dimensions (pixels) */
 #define POPUP_WIDTH 48
 #define POPUP_HEIGHT 40
-#define POPUP_SAVE_Y 150 /* Y offset for popup save area */
 
 /* Normal debrief exit code */
 #define EXIT_DEBRIEF 0x23
@@ -43,7 +42,7 @@
 #define LANDING_EJECTED 2
 #define LANDING_SAFE 3
 
-/* Max record count sentinel for drawFlightPath */
+/* pathExtent sentinel: the full flight path */
 #define ALL_RECORDS 9999
 
 /* calcMissionScore: compute score for all events */

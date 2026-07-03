@@ -209,6 +209,8 @@ int r2d_vectorActive(void) {
 
 int r2d_overlayRetained(void) { return !r2d_vectorActive(); }
 
+int r2d_hasNativeOverlay(void) { return r3dgl_active(); }
+
 static void primAppend(int x1, int y1, int x2, int y2, int color, int kind) {
     R2DOverlayPrim *p = primGrow();
     if (!p) return;

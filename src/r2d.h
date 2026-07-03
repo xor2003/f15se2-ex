@@ -130,6 +130,13 @@ void r2d_vectorBeginFrame(void);
  * the page. The gfx submission points branch on this. */
 int r2d_vectorActive(void);
 
+/* Whether the active backend replays a submitted overlay at native resolution
+ * (the GL backend) as opposed to rasterizing it into the page (software). A 2D
+ * screen that wants a native vector frame must gate r2d_vectorBeginFrame() on
+ * this: on the software backend there is no native replay, so entering a vector
+ * frame would only record the primitives and never draw them. */
+int r2d_hasNativeOverlay(void);
+
 /* Whether the active backend RETAINS the 2D overlay across frames. The software
  * backend rasterizes into a page surface that persists until overwritten, so a
  * cached sub-image (the tac map baked into g_eg2dBacking) can be re-composited

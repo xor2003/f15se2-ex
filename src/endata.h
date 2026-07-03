@@ -17,11 +17,13 @@ extern int16 lineX2;
 extern int16 lineY2;
 extern int16 clipMaxX;
 extern int16 clipMaxY;
-extern int lastDrawX;
-extern int prevDrawX;
-extern int lastDrawY;
-extern int prevDrawY;
 extern char popupVisible;
+extern char blinkMarker; /* debriefPresent blinks the current-event map marker */
+/* How far the debrief flight path currently extends: the highest flightRecords
+ * index revealed (review), ALL_RECORDS for the full mission-summary path, or 0
+ * when the map holds no path. debriefPresent redraws the map, path and markers
+ * up to this record every frame. */
+extern int pathExtent;
 extern int32 missionScore;
 extern int popupX;
 extern int popupY;
@@ -57,10 +59,6 @@ extern char slotInfoTable[]; /* slot info table, 16 bytes per slot */
 extern char ejectedFlag;
 extern const int popupSpriteY[];
 extern const int popupSpriteX[];
-/* The popup save-under backing image: the debrief popup stores what's behind it
- * here and restores it when dismissed. */
-struct R2DImage;
-extern struct R2DImage *g_enBacking;
 extern int g_dbiconsBuf; /* sprite buffer holding the decoded dbicons.spr popup icon sheet */
 extern struct SpriteParams *spriteAir;
 extern struct SpriteParams *spriteSam;
