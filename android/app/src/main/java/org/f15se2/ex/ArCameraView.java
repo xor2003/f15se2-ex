@@ -54,11 +54,15 @@ public final class ArCameraView extends TextureView
     private float devicePitch;
     private float deviceRoll;
     private float yawOrigin;
+    private float pitchOrigin;
+    private float rollOrigin;
     private float deviceYawOffset;
+    private float devicePitchOffset;
+    private float deviceRollOffset;
     private float verticalFov = (float)Math.toRadians(50.0);
 
     private static native void nativeSetCameraReady(boolean ready);
-    private static native void nativeSetDeviceYaw(float yaw);
+    private static native void nativeSetDeviceAttitude(float yaw, float pitch, float roll);
     private static native void nativeGetGameAttitude(float[] attitude);
 
     public ArCameraView(Context context) {
@@ -264,9 +268,9 @@ public final class ArCameraView extends TextureView
         }
     }
 
-    private static void setDeviceYaw(float yaw) {
+    private static void setDeviceAttitude(float yaw, float pitch, float roll) {
         try {
-            nativeSetDeviceYaw(yaw);
+            nativeSetDeviceAttitude(yaw, pitch, roll);
         } catch (UnsatisfiedLinkError ignored) {
             // SDL has not loaded the application library yet.
         }
@@ -279,23 +283,13 @@ public final class ArCameraView extends TextureView
         return current + delta * amount;
     }
 
-    /** Applies game-device pitch/roll difference to the camera preview only. */
+    /** Keeps Camera2 as a stable full-screen layer behind transparent game sky. */
     private void alignPreview() {
-        try {
-            nativeGetGameAttitude(gameAttitude);
-        } catch (UnsatisfiedLinkError ignored) {
-            return;
-        }
-        float rollCorrection = gameAttitude[1] - deviceRoll;
-        float pitchCorrection = gameAttitude[0] - devicePitch;
-        pitchCorrection = Math.max(-MAX_PITCH_CORRECTION,
-                                   Math.min(MAX_PITCH_CORRECTION, pitchCorrection));
-        float focalLengthPixels =
-            getHeight() / (2.0f * (float)Math.tan(verticalFov / 2.0f));
-        setRotation((float)Math.toDegrees(rollCorrection));
-        setTranslationY((float)Math.tan(pitchCorrection) * focalLengthPixels);
-        setScaleX(CAMERA_OVERSCAN);
-        setScaleY(CAMERA_OVERSCAN);
+        setRotation(0.0f);
+        setTranslationX(0.0f);
+        setTranslationY(0.0f);
+        setScaleX(1.0f);
+        setScaleY(1.0f);
     }
 
     @Override
@@ -320,7 +314,11 @@ public final class ArCameraView extends TextureView
         SensorManager.getOrientation(adjustedMatrix, orientation);
         if (!attitudeInitialized) {
             yawOrigin = orientation[0];
+            pitchOrigin = orientation[1];
+            rollOrigin = orientation[2];
             deviceYawOffset = 0.0f;
+            devicePitchOffset = 0.0f;
+            deviceRollOffset = 0.0f;
             devicePitch = orientation[1];
             deviceRoll = orientation[2];
             attitudeInitialized = true;
@@ -329,8 +327,12 @@ public final class ArCameraView extends TextureView
                 deviceYawOffset, orientation[0] - yawOrigin, ATTITUDE_FILTER);
             devicePitch = filteredAngle(devicePitch, orientation[1], ATTITUDE_FILTER);
             deviceRoll = filteredAngle(deviceRoll, orientation[2], ATTITUDE_FILTER);
+            devicePitchOffset = filteredAngle(
+                devicePitchOffset, devicePitch - pitchOrigin, ATTITUDE_FILTER);
+            deviceRollOffset = filteredAngle(
+                deviceRollOffset, deviceRoll - rollOrigin, ATTITUDE_FILTER);
         }
-        setDeviceYaw(deviceYawOffset);
+        setDeviceAttitude(deviceYawOffset, devicePitchOffset, deviceRollOffset);
         alignPreview();
     }
 

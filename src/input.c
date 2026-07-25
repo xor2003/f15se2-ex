@@ -18,6 +18,9 @@
 #include "const.h"
 #include "gfx.h"
 #include "joystick.h"
+#if defined(__ANDROID__)
+#include "android_ar.h"
+#endif
 #include "r2d.h"
 #include <SDL3/SDL.h>
 
@@ -39,6 +42,15 @@ static void (*g_quitHandler)(void) = NULL;
 static bool g_menuPointerPending = false;
 static int g_menuPointerX = 0;
 static int g_menuPointerY = 0;
+#if defined(__ANDROID__)
+static bool g_flightFingerDown = false;
+static bool g_flightLookActive = false;
+static bool g_flightSwipeActive = false;
+static float g_flightFingerStartY = 0.0f;
+static Uint64 g_flightFingerDownNs = 0;
+static const Uint64 LOOK_HOLD_NS = 180000000;
+static const float LOOK_SWIPE_GATE = 0.025f;
+#endif
 
 /* Which device was used most recently. Defaults to the device so a connected
  * stick keeps working as before; a key press flips it to the keyboard and stick
@@ -78,6 +90,12 @@ void input_ringReset(void) {
     g_menuPointerPending = false;
     g_joyRawX = 0x80;
     g_joyRawY = 0x80;
+#if defined(__ANDROID__)
+    g_flightFingerDown = false;
+    g_flightLookActive = false;
+    g_flightSwipeActive = false;
+    android_ar_setLookMode(0);
+#endif
 }
 
 bool input_takeMenuPointer(int *x, int *y) {
@@ -520,6 +538,11 @@ static void updateStick(void) {
         x = HI;
     }
 
+#if defined(__ANDROID__)
+    if (android_ar_active()) {
+        android_ar_getFlightAxes(&x, &y);
+    }
+#endif
     g_joyRawX = x;
     g_joyRawY = y;
 }
@@ -745,6 +768,14 @@ void input_pumpEvents(void) {
      * clock too: this is what drives the tick counters those loops spin on, and
      * what keeps the window responsive on a poll-only frame. */
     timerPump();
+#if defined(__ANDROID__)
+    if (g_mode == INPUT_MODE_FLIGHT && g_flightFingerDown &&
+        !g_flightLookActive && !g_flightSwipeActive &&
+        SDL_GetTicksNS() - g_flightFingerDownNs >= LOOK_HOLD_NS) {
+        g_flightLookActive = true;
+        android_ar_setLookMode(1);
+    }
+#endif
     while (SDL_PollEvent(&ev)) {
         joy_handleEvent(&ev); /* device hotplug, every phase */
         /* Window / system events are handled here for every phase, before any
@@ -808,9 +839,48 @@ void input_pumpEvents(void) {
             if (g_mode == INPUT_MODE_MENU) {
                 queueMenuPointer(ev.tfinger.windowID, ev.tfinger.x, ev.tfinger.y, true);
             } else {
+#if defined(__ANDROID__)
+                if (g_flightLookActive) {
+                    android_ar_setLookMode(0);
+                } else if (!g_flightSwipeActive) {
+                    ringPush(INPUT_KEY_MENU_POINTER);
+                }
+                g_flightFingerDown = false;
+                g_flightLookActive = false;
+                g_flightSwipeActive = false;
+#else
                 ringPush(INPUT_KEY_MENU_POINTER);
+#endif
             }
             break;
+#if defined(__ANDROID__)
+        case SDL_EVENT_FINGER_DOWN:
+            if (g_mode == INPUT_MODE_FLIGHT) {
+                g_flightFingerDown = true;
+                g_flightLookActive = false;
+                g_flightSwipeActive = false;
+                g_flightFingerStartY = ev.tfinger.y;
+                g_flightFingerDownNs = SDL_GetTicksNS();
+            }
+            break;
+        case SDL_EVENT_FINGER_MOTION:
+            if (g_mode == INPUT_MODE_FLIGHT && g_flightFingerDown &&
+                !g_flightLookActive) {
+                float displacement = ev.tfinger.y - g_flightFingerStartY;
+                if (displacement < 0.0f) displacement = -displacement;
+                if (displacement >= LOOK_SWIPE_GATE)
+                    g_flightSwipeActive = true;
+                if (g_flightSwipeActive)
+                    android_ar_addSwipePitch(ev.tfinger.dy);
+            }
+            break;
+        case SDL_EVENT_FINGER_CANCELED:
+            if (g_flightLookActive) android_ar_setLookMode(0);
+            g_flightFingerDown = false;
+            g_flightLookActive = false;
+            g_flightSwipeActive = false;
+            break;
+#endif
         case SDL_EVENT_MOUSE_BUTTON_UP:
             /* SDL synthesizes a mouse event after a touch event. Ignore that
              * duplicate or one tap would activate the following menu too. */

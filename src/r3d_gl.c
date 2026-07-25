@@ -648,6 +648,8 @@ static void gl_beginSubScene(const R3DScene *s) {
 static void gl_beginScene(const R3DScene *s) {
     int win_w, win_h, vpTop, vpBot, vpLeft, vpRight, Wv, Hv, lbx, lby;
     int viewYaw = s->angleX;
+    int viewPitch = s->angleY;
+    int viewRoll = s->angleZ;
     float scaleX, scaleY, fGate, sphOrtho[4];
     int16 skyIdx;
 
@@ -658,8 +660,8 @@ static void gl_beginScene(const R3DScene *s) {
         return;
     }
 #if defined(R3D_GLES_BUILD)
-    android_ar_setGameAttitude(s->angleY, s->angleZ);
-    viewYaw = android_ar_adjustYaw(viewYaw);
+    android_ar_adjustView(&viewYaw, &viewPitch, &viewRoll);
+    android_ar_setGameAttitude(viewPitch, viewRoll);
 #endif
     /* This is a flight 3D frame: its HUD/MFD line & point submissions draw
      * immediately at native resolution. The page backdrop is composited mid-frame
@@ -680,7 +682,7 @@ static void gl_beginScene(const R3DScene *s) {
      * (renderScene = 0 here): view matrix + position + viewport + spin advance +
      * sort reset. The GL submit reads g_viewRotMatrix / g_viewPos* indirectly via
      * r3d_objTransformFar. */
-    setup3DTransform(s->viewport, viewYaw, s->angleY, s->angleZ,
+    setup3DTransform(s->viewport, viewYaw, viewPitch, viewRoll,
                      s->posX, s->posY, s->posZ, 0);
 
     vpTop = s->viewport[7];
