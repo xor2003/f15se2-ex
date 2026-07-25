@@ -139,6 +139,7 @@ void processPilotInput() {
     int prevIdx;
     int pointerX;
     int pointerY;
+    int pointerSelection = -1;
     int xPos;
     int shiftIdx;
     int yPos;
@@ -181,7 +182,18 @@ void processPilotInput() {
                                 xPos + PILOT_ENTRY_WIDTH, yPos + PILOT_NAME_HEIGHT,
                                 COLOR_LIGHTGRAY, COLOR_WHITE);
             }
+            /*
+             * A first tap only exposes the selected pilot visually. Requiring
+             * the same slot a second time prevents an imprecise mobile tap
+             * from immediately entering or editing the wrong pilot.
+             */
+            if (pointerSelection != selectedPilotIdx) {
+                pointerSelection = selectedPilotIdx;
+                continue;
+            }
             action = KEYCODE_ENTER;
+        } else {
+            pointerSelection = -1;
         }
         switch (action) {
         case KEYCODE_ENTER:

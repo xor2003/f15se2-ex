@@ -243,6 +243,7 @@ selectTheater:
 
 int missionMenuSelect(const char **names, const char **desc, const char *title, int selection) {
     int yPos, row, action, pointerX, pointerY;
+    int pointerSelection = -1;
     enableHighlight = 1;
     page1Desc.color = COLOR_BLUE;
     drawStringCentered(page1NumPtr, title, 113, 14, 185);
@@ -280,7 +281,18 @@ int missionMenuSelect(const char **names, const char **desc, const char *title, 
                 animateArm(selection, row);
                 selection = row;
             }
+            /*
+             * Touch has no hover state. The first tap therefore moves the
+             * visible arm to show the pending choice; only a second tap on the
+             * same row acts like Enter.
+             */
+            if (pointerSelection != row) {
+                pointerSelection = row;
+                goto again;
+            }
             action = KEYCODE_ENTER;
+        } else {
+            pointerSelection = -1;
         }
         if (action != KEYCODE_ENTER) {
             if (action == KEYCODE_UPARROW) {
