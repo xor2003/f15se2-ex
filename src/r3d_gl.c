@@ -24,7 +24,12 @@
  * have no 3D pass and composite the page at present instead.
  */
 #include <SDL3/SDL.h>
+#if defined(R3D_GLES_BUILD)
+#include <SDL3/SDL_opengles2.h>
+#include "r3d_gles_compat.h"
+#else
 #include <SDL3/SDL_opengl.h>
+#endif
 
 #include "r3d.h"
 #include "r3d_gl.h"
@@ -77,6 +82,11 @@ static const int GL_MSAA_SAMPLES = 4;
 int r3dgl_msaaSamples(void) { return GL_MSAA_SAMPLES; }
 
 void r3dgl_setGLAttributes(int msaaSamples) {
+#if defined(R3D_GLES_BUILD)
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+#endif
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
     /* 8-bit stencil (D24S8, universal on GL 1.1) — the shadow pass masks each covered
      * pixel so a self-overlapping silhouette blends exactly once. */
@@ -97,8 +107,18 @@ int r3dgl_initContext(SDL_Window *win) {
     }
     SDL_GL_MakeCurrent(win, s_ctx);
     SDL_GL_SetSwapInterval(1);
+#if defined(R3D_GLES_BUILD)
+    if (!r3dgles_compatInit()) {
+        LogCritical(("GLES2 shader initialization failed"));
+        SDL_GL_DestroyContext(s_ctx);
+        s_ctx = NULL;
+        return 0;
+    }
+    s_glFogCoordf = r3dgles_fogCoordf;
+#else
     s_glFogCoordf = (void (*)(GLfloat))SDL_GL_GetProcAddress("glFogCoordf");
     if (GL_MSAA_SAMPLES > 0) glEnable(GL_MULTISAMPLE); /* no-op if the format has 0 samples */
+#endif
     {
         GLint depthBits = 0, stencilBits = 0, samples = 0;
         glGetIntegerv(GL_DEPTH_BITS, &depthBits);
@@ -374,7 +394,13 @@ static void fogVertex(float x, float y, float z) {
     glVertex3f(x, y, z);
 }
 
-static const char *gl_name(void) { return "opengl1"; }
+static const char *gl_name(void) {
+#if defined(R3D_GLES_BUILD)
+    return "opengles2";
+#else
+    return "opengl1";
+#endif
+}
 
 static int gl_init(void) { return s_active; } /* claims iff the context came up */
 static void gl_shutdown(void) {}
