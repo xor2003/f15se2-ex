@@ -18,6 +18,7 @@
 #include "const.h"
 #include "gfx.h"
 #include "joystick.h"
+#include "r2d.h"
 #include <SDL3/SDL.h>
 
 /* Game tick clock (timer.c); pumped here so the window stays responsive and the
@@ -35,6 +36,9 @@ static InputMode g_mode = INPUT_MODE_MENU;
 static bool g_quitRequested = false;
 static bool g_hasFocus = true;
 static void (*g_quitHandler)(void) = NULL;
+static bool g_menuPointerPending = false;
+static int g_menuPointerX = 0;
+static int g_menuPointerY = 0;
 
 /* Which device was used most recently. Defaults to the device so a connected
  * stick keeps working as before; a key press flips it to the keyboard and stick
@@ -71,8 +75,17 @@ static void ringPush(uint16 word) {
 
 void input_ringReset(void) {
     ringHead = ringTail = 0;
+    g_menuPointerPending = false;
     g_joyRawX = 0x80;
     g_joyRawY = 0x80;
+}
+
+bool input_takeMenuPointer(int *x, int *y) {
+    if (!g_menuPointerPending) return false;
+    if (x) *x = g_menuPointerX;
+    if (y) *y = g_menuPointerY;
+    g_menuPointerPending = false;
+    return true;
 }
 
 bool input_keyWaiting(void) {
@@ -694,6 +707,31 @@ static void pollGamepadMenu(void) {
     stickArrowRepeat(joy_axisRaw(SDL_GAMEPAD_AXIS_LEFTY), KEYCODE_UPARROW, KEYCODE_DNARROW, &zoneY, &repY);
 }
 
+/* Convert a window-space pointer release to the same 320x200 coordinate system
+ * used by all legacy menu layouts. Touch coordinates arrive normalized; mouse
+ * coordinates arrive in window pixels. The shared R2D mapping removes any
+ * letterbox/pillarbox offset so hit boxes stay aligned with the visible menu. */
+static void queueMenuPointer(Uint32 windowID, float x, float y, bool normalized) {
+    SDL_Window *window;
+    R2DMapping mapping;
+    int winW = LOGICAL_WIDTH;
+    int winH = LOGICAL_HEIGHT;
+    float pixelX = x;
+    float pixelY = y;
+
+    window = SDL_GetWindowFromID(windowID);
+    if (window) SDL_GetWindowSizeInPixels(window, &winW, &winH);
+    if (normalized) {
+        pixelX *= winW;
+        pixelY *= winH;
+    }
+    r2d_computeMapping(LOGICAL_WIDTH, LOGICAL_HEIGHT, winW, winH, 0, &mapping);
+    g_menuPointerX = (int)((pixelX - mapping.offX) / mapping.scaleX);
+    g_menuPointerY = (int)((pixelY - mapping.offY) / mapping.scaleY);
+    g_menuPointerPending = true;
+    ringPush(INPUT_KEY_MENU_POINTER);
+}
+
 /* --- the single event pump ------------------------------------------------- */
 
 void input_pumpEvents(void) {
@@ -760,6 +798,17 @@ void input_pumpEvents(void) {
                     if (c >= 0x20 && c < 0x80) ringPush(c);
                 }
             }
+            break;
+        case SDL_EVENT_FINGER_UP:
+            if (g_mode == INPUT_MODE_MENU)
+                queueMenuPointer(ev.tfinger.windowID, ev.tfinger.x, ev.tfinger.y, true);
+            break;
+        case SDL_EVENT_MOUSE_BUTTON_UP:
+            /* SDL synthesizes a mouse event after a touch event. Ignore that
+             * duplicate or one tap would activate the following menu too. */
+            if (g_mode == INPUT_MODE_MENU && ev.button.button == SDL_BUTTON_LEFT &&
+                ev.button.which != SDL_TOUCH_MOUSEID)
+                queueMenuPointer(ev.button.windowID, ev.button.x, ev.button.y, false);
             break;
         default:
             break;

@@ -2,6 +2,7 @@
 #include "egdata.h"
 #include "eginput.h"
 #include "headless.h"
+#include "input.h"
 
 #include <SDL3/SDL.h>
 
@@ -87,6 +88,8 @@ enum InputOriginalConstant : int {
     kBiosF9 = 0x4300,
     kBiosF10 = 0x4400,
     kBiosEscape = 0x011B,
+    kLogicalPointerX = 160,
+    kLogicalPointerY = 50,
     kRingStoredCapacity = 31,
     kRingOverflowAttempts = 40,
     kBlockingPushDelayMs = 5,
@@ -123,6 +126,15 @@ void pushKey(SDL_Scancode scancode, SDL_Keymod modifiers = SDL_KMOD_NONE) {
 void pushMouseMotion() {
     SDL_Event event = {};
     event.type = SDL_EVENT_MOUSE_MOTION;
+    SDL_PushEvent(&event);
+}
+
+void pushFingerRelease(float x, float y) {
+    SDL_Event event = {};
+    event.type = SDL_EVENT_FINGER_UP;
+    event.tfinger.type = SDL_EVENT_FINGER_UP;
+    event.tfinger.x = x;
+    event.tfinger.y = y;
     SDL_PushEvent(&event);
 }
 
@@ -244,6 +256,19 @@ int main() {
     pushMouseMotion();
     require(kbhit() == 0,
             "egReadKey ignores non-key SDL events");
+
+    input_setMode(INPUT_MODE_MENU);
+    input_ringReset();
+    pushFingerRelease(0.5f, 0.25f);
+    require(input_keyWaiting() && input_readKey() == INPUT_KEY_MENU_POINTER,
+            "menu touch release queues the pointer event");
+    int pointerX = 0;
+    int pointerY = 0;
+    require(input_takeMenuPointer(&pointerX, &pointerY) &&
+            pointerX == kLogicalPointerX && pointerY == kLogicalPointerY,
+            "menu touch coordinates map into the logical 320x200 layout");
+    require(!input_takeMenuPointer(nullptr, nullptr),
+            "menu pointer coordinates are consumed once");
 
     resetInputState();
     std::thread delayedKey([] {
