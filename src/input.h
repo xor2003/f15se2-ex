@@ -25,6 +25,8 @@ typedef enum {
  * Flight mode queues the same otherwise-unassigned word without coordinates,
  * allowing "press any key" demo gates to accept touch without firing a command. */
 #define INPUT_KEY_MENU_POINTER 0x7e00
+/* Internal pointer action: queue both original countermeasure keys. */
+#define INPUT_KEY_BOTH_COUNTERMEASURES 0x7d00
 
 /* Select how the pump translates keyboard/gamepad into the key ring. Set by the
  * phase's key readers (kbhit/egReadKey -> FLIGHT, misc_* -> MENU). */

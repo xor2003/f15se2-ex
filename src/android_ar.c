@@ -27,6 +27,10 @@ static std::atomic<float> g_swipePitch(0.0f);
 static std::atomic<int> g_lookMode(0);
 static float g_smoothFlightRoll = 0.0f;
 static float g_smoothFlightPitch = 0.0f;
+static float g_previousGameRoll = 0.0f;
+static float g_previousGamePitch = 0.0f;
+static float g_gameRollRate = 0.0f;
+static float g_gamePitchRate = 0.0f;
 
 static const float PI = 3.14159265358979323846f;
 static const float FLIGHT_MAX_TILT = 40.0f * PI / 180.0f;
@@ -38,6 +42,7 @@ static const float FLIGHT_MAX_TILT = 40.0f * PI / 180.0f;
  */
 static const float ATTITUDE_ERROR_DEAD_ZONE = 2.5f * PI / 180.0f;
 static const float ATTITUDE_FULL_STICK_ERROR = 32.0f * PI / 180.0f;
+static const float ATTITUDE_FULL_DAMPING_RATE = 4.0f * PI / 180.0f;
 static const float LOOK_MAX_PITCH = 70.0f * PI / 180.0f;
 static const float STICK_DEFLECTION = 56.0f;
 
@@ -92,6 +97,8 @@ int android_ar_preventCrashes(void) {
 void android_ar_setGameAttitude(int pitchAngle, int rollAngle) {
     const float pitch = angleToRadians(pitchAngle);
     const float roll = angleToRadians(rollAngle);
+    const int recenter =
+        g_flightGameCenterPending.exchange(0, std::memory_order_acq_rel);
     g_gamePitch.store(pitch, std::memory_order_relaxed);
     g_gameRoll.store(roll, std::memory_order_relaxed);
     /*
@@ -99,10 +106,17 @@ void android_ar_setGameAttitude(int pitchAngle, int rollAngle) {
      * attitude. Capture the aircraft centre from the first authoritative
      * flight-model update rather than from stale menu/previous-flight state.
      */
-    if (g_flightGameCenterPending.exchange(0, std::memory_order_acq_rel)) {
+    if (recenter) {
         g_flightGamePitchCenter.store(pitch, std::memory_order_relaxed);
         g_flightGameRollCenter.store(roll, std::memory_order_relaxed);
+        g_gamePitchRate = 0.0f;
+        g_gameRollRate = 0.0f;
+    } else {
+        g_gamePitchRate = angleDifference(pitch, g_previousGamePitch);
+        g_gameRollRate = angleDifference(roll, g_previousGameRoll);
     }
+    g_previousGamePitch = pitch;
+    g_previousGameRoll = roll;
 }
 
 void android_ar_adjustView(int *yawAngle, int *pitchAngle, int *rollAngle) {
@@ -174,6 +188,18 @@ void android_ar_getFlightAxes(uint8 *rollAxis, uint8 *pitchAxis) {
         targetRoll, g_gameRoll.load(std::memory_order_relaxed)));
     pitchCommand = attitudeErrorToStick(angleDifference(
         targetPitch, g_gamePitch.load(std::memory_order_relaxed)));
+
+    /*
+     * Brake the aircraft's angular motion before it crosses the requested
+     * attitude. A proportional-only virtual stick alternated between steering
+     * and centre because the legacy flight model retained roll/pitch momentum.
+     */
+    rollCommand -= clampFloat(
+        g_gameRollRate / ATTITUDE_FULL_DAMPING_RATE, -0.65f, 0.65f);
+    pitchCommand -= clampFloat(
+        g_gamePitchRate / ATTITUDE_FULL_DAMPING_RATE, -0.65f, 0.65f);
+    rollCommand = clampFloat(rollCommand, -1.0f, 1.0f);
+    pitchCommand = clampFloat(pitchCommand, -1.0f, 1.0f);
 
     /* Smooth only the controller output; the target remains the exact handset
      * angle and is not integrated as a turn-rate command. */

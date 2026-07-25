@@ -383,7 +383,7 @@ public final class ArCameraView extends TextureView
         if (originPlanar > 1.0e-3f && gravityPlanar > 1.0e-3f) {
             float planarCross = originY * gravityX - originX * gravityY;
             float planarDot = originX * gravityX + originY * gravityY;
-            rollTarget = (float)Math.atan2(planarCross, planarDot);
+            rollTarget = -(float)Math.atan2(planarCross, planarDot);
         }
 
         /*

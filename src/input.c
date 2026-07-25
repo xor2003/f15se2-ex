@@ -773,8 +773,12 @@ uint16 input_flightPointerKey(int x, int y) {
         if (x >= 12 && x < 51) return 0x326d;  /* left ammo count: M */
         if (x >= 51 && x < 89) return 0x1f73;  /* middle ammo count: S */
         if (x >= 89 && x < 131) return 0x2267; /* right ammo count: G */
+        if (x >= 164 && x < 183)
+            return INPUT_KEY_BOTH_COUNTERMEASURES; /* painted R: flare + chaff */
         if (x >= 183 && x < 218) return 0x266c; /* landing-gear G */
     }
+    if (x >= 219 && x < LOGICAL_WIDTH && y >= 104 && y < 190)
+        return 0x1474; /* right target display: T designates the next target */
     if (x >= 110 && x < 211 && y >= 8 && y < 113)
         return 0x1c0d; /* target/seeker area: Enter fires selected missile */
     return 0;
@@ -801,8 +805,14 @@ static void queueFlightPointer(Uint32 windowID, float x, float y,
     key = input_flightPointerKey(
         (int)((pixelX - mapping.offX) / mapping.scaleX),
         (int)((pixelY - mapping.offY) / mapping.scaleY));
-    /* Preserve tap-to-dismiss for the original in-engine demo key waits. */
-    ringPush(key ? key : INPUT_KEY_MENU_POINTER);
+    if (key == INPUT_KEY_BOTH_COUNTERMEASURES) {
+        /* Preserve the original stores, messages, sounds, and cooldown paths. */
+        ringPush(0x2166); /* F: flare */
+        ringPush(0x2e63); /* C: chaff */
+    } else {
+        /* Preserve tap-to-dismiss for the original in-engine demo key waits. */
+        ringPush(key ? key : INPUT_KEY_MENU_POINTER);
+    }
 }
 
 /* --- the single event pump ------------------------------------------------- */

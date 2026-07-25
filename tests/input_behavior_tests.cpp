@@ -283,6 +283,11 @@ int main() {
             "cockpit ammo-count taps select all three weapon groups");
     require(input_flightPointerKey(200, 194) == 0x266c,
             "cockpit landing-gear indicator tap queues the L command");
+    require(input_flightPointerKey(173, 190) ==
+                INPUT_KEY_BOTH_COUNTERMEASURES,
+            "cockpit R-image tap releases both countermeasures");
+    require(input_flightPointerKey(270, 145) == 0x1474,
+            "right target-display tap queues target designation");
     require(input_flightPointerKey(5, 150) == 0,
             "flight taps outside cockpit controls remain neutral");
 
