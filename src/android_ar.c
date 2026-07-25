@@ -20,6 +20,7 @@ static std::atomic<float> g_flightPitchCenter(0.0f);
 static std::atomic<float> g_flightRollCenter(0.0f);
 static std::atomic<float> g_flightGamePitchCenter(0.0f);
 static std::atomic<float> g_flightGameRollCenter(0.0f);
+static std::atomic<int> g_flightGameCenterPending(0);
 static std::atomic<float> g_lookPitchOrigin(0.0f);
 static std::atomic<float> g_lookRollOrigin(0.0f);
 static std::atomic<float> g_swipePitch(0.0f);
@@ -89,8 +90,19 @@ int android_ar_preventCrashes(void) {
 }
 
 void android_ar_setGameAttitude(int pitchAngle, int rollAngle) {
-    g_gamePitch.store(angleToRadians(pitchAngle), std::memory_order_relaxed);
-    g_gameRoll.store(angleToRadians(rollAngle), std::memory_order_relaxed);
+    const float pitch = angleToRadians(pitchAngle);
+    const float roll = angleToRadians(rollAngle);
+    g_gamePitch.store(pitch, std::memory_order_relaxed);
+    g_gameRoll.store(roll, std::memory_order_relaxed);
+    /*
+     * Flight mode begins before the legacy flight model initializes its
+     * attitude. Capture the aircraft centre from the first authoritative
+     * flight-model update rather than from stale menu/previous-flight state.
+     */
+    if (g_flightGameCenterPending.exchange(0, std::memory_order_acq_rel)) {
+        g_flightGamePitchCenter.store(pitch, std::memory_order_relaxed);
+        g_flightGameRollCenter.store(roll, std::memory_order_relaxed);
+    }
 }
 
 void android_ar_adjustView(int *yawAngle, int *pitchAngle, int *rollAngle) {
@@ -189,12 +201,9 @@ void android_ar_recenterFlight(void) {
     g_flightRollCenter.store(
         g_deviceRollOffset.load(std::memory_order_relaxed),
         std::memory_order_relaxed);
-    g_flightGamePitchCenter.store(
-        g_gamePitch.load(std::memory_order_relaxed),
-        std::memory_order_relaxed);
-    g_flightGameRollCenter.store(
-        g_gameRoll.load(std::memory_order_relaxed),
-        std::memory_order_relaxed);
+    /* The authoritative aircraft attitude is published after flight-model
+     * initialization; defer that half of recentering until then. */
+    g_flightGameCenterPending.store(1, std::memory_order_release);
     g_swipePitch.store(0.0f, std::memory_order_relaxed);
     g_smoothFlightRoll = 0.0f;
     g_smoothFlightPitch = 0.0f;
