@@ -170,6 +170,7 @@ set(EGAME_SOURCES
     ${SRC_DIR}/asound/asound_model.c
     ${SRC_DIR}/asound/asopl.c
     ${SRC_DIR}/asound/asound_sdl.c
+    ${SRC_DIR}/android_haptics.cpp
 )
 
 if(ANDROID)
