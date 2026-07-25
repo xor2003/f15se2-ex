@@ -725,7 +725,12 @@ static void queueMenuPointer(Uint32 windowID, float x, float y, bool normalized)
         pixelX *= winW;
         pixelY *= winH;
     }
-    r2d_computeMapping(LOGICAL_WIDTH, LOGICAL_HEIGHT, winW, winH, 0, &mapping);
+    /*
+     * gfx_presentSurface() displays legacy menu pages with square pixels.
+     * Hit-testing must use that exact mapping; aspect-corrected mapping shifts
+     * rows vertically on wide Android displays.
+     */
+    r2d_computeMapping(LOGICAL_WIDTH, LOGICAL_HEIGHT, winW, winH, 1, &mapping);
     g_menuPointerX = (int)((pixelX - mapping.offX) / mapping.scaleX);
     g_menuPointerY = (int)((pixelY - mapping.offY) / mapping.scaleY);
     g_menuPointerPending = true;
@@ -800,15 +805,23 @@ void input_pumpEvents(void) {
             }
             break;
         case SDL_EVENT_FINGER_UP:
-            if (g_mode == INPUT_MODE_MENU)
+            if (g_mode == INPUT_MODE_MENU) {
                 queueMenuPointer(ev.tfinger.windowID, ev.tfinger.x, ev.tfinger.y, true);
+            } else {
+                ringPush(INPUT_KEY_MENU_POINTER);
+            }
             break;
         case SDL_EVENT_MOUSE_BUTTON_UP:
             /* SDL synthesizes a mouse event after a touch event. Ignore that
              * duplicate or one tap would activate the following menu too. */
-            if (g_mode == INPUT_MODE_MENU && ev.button.button == SDL_BUTTON_LEFT &&
-                ev.button.which != SDL_TOUCH_MOUSEID)
-                queueMenuPointer(ev.button.windowID, ev.button.x, ev.button.y, false);
+            if (ev.button.button == SDL_BUTTON_LEFT &&
+                ev.button.which != SDL_TOUCH_MOUSEID) {
+                if (g_mode == INPUT_MODE_MENU) {
+                    queueMenuPointer(ev.button.windowID, ev.button.x, ev.button.y, false);
+                } else {
+                    ringPush(INPUT_KEY_MENU_POINTER);
+                }
+            }
             break;
         default:
             break;

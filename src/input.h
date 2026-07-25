@@ -21,7 +21,9 @@ typedef enum {
 
 /* Pointer releases use a scan-only word outside the original keyboard range.
  * Menu owners consume the matching logical coordinate with
- * input_takeMenuPointer() and perform hit-testing against their own layout. */
+ * input_takeMenuPointer() and perform hit-testing against their own layout.
+ * Flight mode queues the same otherwise-unassigned word without coordinates,
+ * allowing "press any key" demo gates to accept touch without firing a command. */
 #define INPUT_KEY_MENU_POINTER 0x7e00
 
 /* Select how the pump translates keyboard/gamepad into the key ring. Set by the

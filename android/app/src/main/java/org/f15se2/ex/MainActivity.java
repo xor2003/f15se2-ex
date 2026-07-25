@@ -24,12 +24,17 @@ public final class MainActivity extends SDLActivity {
     private static final int CAMERA_PERMISSION_REQUEST = 15;
     private ArCameraView arCameraView;
 
-    /** Returns true only for an explicit AR launch extra such as F15_AR=1. */
+    /** Enables AR by default; an explicit F15_AR=0 keeps the normal GLES sky. */
     private boolean isArRequested() {
+        if (!getIntent().hasExtra("F15_AR")) {
+            return true;
+        }
         String value = getIntent().getStringExtra("F15_AR");
-        return getIntent().getBooleanExtra("F15_AR", false) ||
-               "1".equals(value) || "true".equalsIgnoreCase(value) ||
-               "yes".equalsIgnoreCase(value);
+        if (value != null) {
+            return "1".equals(value) || "true".equalsIgnoreCase(value) ||
+                   "yes".equalsIgnoreCase(value);
+        }
+        return getIntent().getBooleanExtra("F15_AR", true);
     }
 
     /** Layers the camera behind SDL and requests an alpha-capable native surface. */

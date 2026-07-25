@@ -270,6 +270,14 @@ int main() {
     require(!input_takeMenuPointer(nullptr, nullptr),
             "menu pointer coordinates are consumed once");
 
+    input_setMode(INPUT_MODE_FLIGHT);
+    input_ringReset();
+    pushFingerRelease(0.5f, 0.25f);
+    require(input_keyWaiting() && input_readKey() == INPUT_KEY_MENU_POINTER,
+            "flight touch release queues a neutral key for demo dismissal");
+    require(!input_takeMenuPointer(nullptr, nullptr),
+            "flight touch does not leave stale menu coordinates");
+
     resetInputState();
     std::thread delayedKey([] {
         std::this_thread::sleep_for(std::chrono::milliseconds(kBlockingPushDelayMs));
