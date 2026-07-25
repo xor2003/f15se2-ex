@@ -43,6 +43,8 @@ public final class MainActivity extends SDLActivity {
             return;
         }
         nativeSetenv("F15_AR", "1");
+        /* Sensor-diagnostic flights intentionally exercise extreme attitudes. */
+        nativeSetenv("F15_NO_CRASH", "1");
         FrameLayout layers = new FrameLayout(this);
         ViewGroup parent = (ViewGroup)mLayout.getParent();
         if (parent != null) {

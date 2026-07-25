@@ -70,6 +70,13 @@ int android_ar_active(void) {
     return android_ar_requested() && g_cameraReady.load(std::memory_order_acquire);
 }
 
+/* Diagnostic AR flights may deliberately command extreme attitudes while
+ * measuring sensor axes. Keep that opt-in behavior out of normal gameplay. */
+int android_ar_preventCrashes(void) {
+    const char *value = SDL_getenv("F15_NO_CRASH");
+    return value && value[0] != '0';
+}
+
 void android_ar_setGameAttitude(int pitchAngle, int rollAngle) {
     g_gamePitch.store(angleToRadians(pitchAngle), std::memory_order_relaxed);
     g_gameRoll.store(angleToRadians(rollAngle), std::memory_order_relaxed);

@@ -6,6 +6,7 @@
 #include "egdata.h"
 #include "egflight.h"
 #include "egframe.h"
+#include "android_ar.h"
 #include "worldxfer.h"
 #include "egkeys.h"
 #include "egmath.h"
@@ -355,7 +356,8 @@ skip_target_section:
 skip_autopilot:
     if (g_inLandingCorridor == 0) {
         if (g_viewZ == 0) {
-            if ((gameData->unk4 != 0 || g_gunHits > 4 || g_fuelRemaining == 0) &&
+            if (!android_ar_preventCrashes() &&
+                (gameData->unk4 != 0 || g_gunHits > 4 || g_fuelRemaining == 0) &&
                 g_ejectState == 0 && g_knots > 50) {
                 makeSound(0, 2);
                 setDrawColor(COLOR_BLACK);

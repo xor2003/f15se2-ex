@@ -8,6 +8,12 @@
  * depend on Android or JNI. */
 int android_ar_requested(void);
 int android_ar_active(void);
+#if defined(__ANDROID__)
+int android_ar_preventCrashes(void);
+#else
+/* Desktop behavior is unchanged; the diagnostic protection is Android-only. */
+static inline int android_ar_preventCrashes(void) { return 0; }
+#endif
 void android_ar_setGameAttitude(int pitchAngle, int rollAngle);
 void android_ar_adjustView(int *yawAngle, int *pitchAngle, int *rollAngle);
 void android_ar_getFlightAxes(uint8 *rollAxis, uint8 *pitchAxis);
