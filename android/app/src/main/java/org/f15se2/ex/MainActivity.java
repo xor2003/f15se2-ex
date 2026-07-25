@@ -66,6 +66,10 @@ public final class MainActivity extends SDLActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        /* Keep SDL, camera coordinates and flight controls in one of the two
+         * landscape rotations even when system autorotate is disabled. */
+        setRequestedOrientation(
+            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
         super.onCreate(savedInstanceState);
         configureAr();
     }
