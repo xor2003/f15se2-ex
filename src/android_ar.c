@@ -140,8 +140,8 @@ void android_ar_getFlightAxes(uint8 *rollAxis, uint8 *pitchAxis) {
     g_smoothFlightRoll += (roll - g_smoothFlightRoll) * 0.16f;
     g_smoothFlightPitch += (pitch - g_smoothFlightPitch) * 0.16f;
     rollValue = 0x80 + (int)(g_smoothFlightRoll * STICK_DEFLECTION);
-    /* Positive device pitch is stick-back: lower raw Y commands nose-up. */
-    pitchValue = 0x80 - (int)(g_smoothFlightPitch * STICK_DEFLECTION);
+    /* Tilting the handset's top away is stick-forward and commands nose-down. */
+    pitchValue = 0x80 + (int)(g_smoothFlightPitch * STICK_DEFLECTION);
     *rollAxis = (uint8)clampFloat((float)rollValue, 0x26, 0xda);
     *pitchAxis = (uint8)clampFloat((float)pitchValue, 0x26, 0xda);
 }

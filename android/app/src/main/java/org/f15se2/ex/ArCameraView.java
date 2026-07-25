@@ -4,6 +4,7 @@ import android.Manifest;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.graphics.Matrix;
 import android.graphics.SurfaceTexture;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
@@ -19,7 +20,6 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.util.Log;
 import android.util.Size;
-import android.util.SizeF;
 import android.view.Display;
 import android.view.Surface;
 import android.view.TextureView;
@@ -36,9 +36,6 @@ public final class ArCameraView extends TextureView
         implements TextureView.SurfaceTextureListener, SensorEventListener {
     private static final float ATTITUDE_FILTER = 0.18f;
     private static final long ATTITUDE_TRACE_INTERVAL_NS = 100_000_000L;
-    private static final float CAMERA_OVERSCAN = 1.42f;
-    private static final float MAX_PITCH_CORRECTION =
-        (float)Math.toRadians(70.0);
 
     private final CameraManager cameraManager;
     private final SensorManager sensorManager;
@@ -48,23 +45,22 @@ public final class ArCameraView extends TextureView
     private final float[] attitudeOriginMatrix = new float[9];
     private final float[] relativeMatrix = new float[9];
     private final float[] relativeQuaternion = new float[4];
-    private final float[] gameAttitude = new float[2];
+    private final float[] attitudeOriginGravity = new float[3];
 
     private HandlerThread cameraThread;
     private Handler cameraHandler;
     private CameraDevice cameraDevice;
     private CameraCaptureSession captureSession;
+    private Size previewSize;
     private boolean resumed;
     private boolean attitudeInitialized;
     private float deviceYawOffset;
     private float devicePitchOffset;
     private float deviceRollOffset;
     private long lastAttitudeTraceNs;
-    private float verticalFov = (float)Math.toRadians(50.0);
 
     private static native void nativeSetCameraReady(boolean ready);
     private static native void nativeSetDeviceAttitude(float yaw, float pitch, float roll);
-    private static native void nativeGetGameAttitude(float[] attitude);
 
     public ArCameraView(Context context) {
         super(context);
@@ -138,9 +134,10 @@ public final class ArCameraView extends TextureView
                 setCameraReady(false);
                 return;
             }
-            updateVerticalFov(selected);
-            Size preview = choosePreviewSize(selected);
-            texture.setDefaultBufferSize(preview.getWidth(), preview.getHeight());
+            previewSize = choosePreviewSize(selected);
+            texture.setDefaultBufferSize(
+                previewSize.getWidth(), previewSize.getHeight());
+            alignPreview();
             cameraManager.openCamera(selectedId, cameraStateCallback, cameraHandler);
         } catch (CameraAccessException | SecurityException error) {
             setCameraReady(false);
@@ -170,18 +167,6 @@ public final class ArCameraView extends TextureView
             }
         }
         return best;
-    }
-
-    /** Derives focal length in view pixels from physical camera calibration. */
-    private void updateVerticalFov(CameraCharacteristics characteristics) {
-        SizeF sensorSize =
-            characteristics.get(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE);
-        float[] focalLengths =
-            characteristics.get(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS);
-        if (sensorSize != null && focalLengths != null && focalLengths.length > 0) {
-            verticalFov = 2.0f * (float)Math.atan(
-                sensorSize.getHeight() / (2.0f * focalLengths[0]));
-        }
     }
 
     private final CameraDevice.StateCallback cameraStateCallback =
@@ -366,16 +351,43 @@ public final class ArCameraView extends TextureView
         deviceYawOffset = filteredAngle(
             deviceYawOffset, yawTarget, ATTITUDE_FILTER);
 
-        /* swing = relativeQuaternion * inverse(twistQuaternion) */
-        float swingW = w * twistW + z * twistZ;
-        float swingX = x * twistW - y * twistZ;
-        float swingY = x * twistZ + y * twistW;
-        float swingZ = -w * twistZ + z * twistW;
-        if (swingW < 0.0f) {
-            swingW = -swingW;
-            swingX = -swingX;
-            swingY = -swingY;
-            swingZ = -swingZ;
+        /*
+         * The compass can be disturbed by nearby magnets. Derive flight tilt
+         * only from gravity: rotating the handset around the real vertical
+         * leaves this vector unchanged and therefore cannot bank the aircraft.
+         */
+        float gravityX = adjustedMatrix[6];
+        float gravityY = adjustedMatrix[7];
+        float gravityZ = adjustedMatrix[8];
+        float gravityLength = (float)Math.sqrt(
+            gravityX * gravityX + gravityY * gravityY + gravityZ * gravityZ);
+        if (gravityLength <= 1.0e-6f) {
+            return;
+        }
+        gravityX /= gravityLength;
+        gravityY /= gravityLength;
+        gravityZ /= gravityLength;
+
+        float originX = attitudeOriginGravity[0];
+        float originY = attitudeOriginGravity[1];
+        float originZ = attitudeOriginGravity[2];
+        float dot = originX * gravityX + originY * gravityY +
+                    originZ * gravityZ;
+        dot = Math.max(-1.0f, Math.min(1.0f, dot));
+        float swingW = (float)Math.sqrt(Math.max(0.0f, (1.0f + dot) * 0.5f));
+        float swingX;
+        float swingY;
+        float swingZ;
+        if (swingW > 1.0e-6f) {
+            float scale = 0.5f / swingW;
+            swingX = (originY * gravityZ - originZ * gravityY) * scale;
+            swingY = (originZ * gravityX - originX * gravityZ) * scale;
+            swingZ = (originX * gravityY - originY * gravityX) * scale;
+        } else {
+            /* A flipped handset has no unique shortest tilt axis. */
+            swingX = 1.0f;
+            swingY = 0.0f;
+            swingZ = 0.0f;
         }
 
         float vectorLength = (float)Math.sqrt(
@@ -387,24 +399,40 @@ public final class ArCameraView extends TextureView
         }
 
         /*
-         * Android's remapped matrix uses negative X for pitch and positive Y
-         * for roll, matching the former small-angle Euler mapping.
+         * Gravity swing has the opposite vector direction from the device-to-
+         * world attitude quaternion. These signs preserve the established
+         * physical pitch/roll directions while rejecting compass rotation.
          */
-        float pitchTarget = -swingX * vectorScale;
-        float rollTarget = swingY * vectorScale;
+        float pitchTarget = swingX * vectorScale;
+        float rollTarget = -swingY * vectorScale;
         devicePitchOffset +=
             (pitchTarget - devicePitchOffset) * ATTITUDE_FILTER;
         deviceRollOffset +=
             (rollTarget - deviceRollOffset) * ATTITUDE_FILTER;
     }
 
-    /** Keeps Camera2 as a stable full-screen layer behind transparent game sky. */
+    /**
+     * Center-crops Camera2 without changing its aspect ratio.
+     *
+     * This transform depends only on view and preview dimensions. Device and
+     * game attitude must never rotate, translate or stretch the real image.
+     */
     private void alignPreview() {
-        setRotation(0.0f);
-        setTranslationX(0.0f);
-        setTranslationY(0.0f);
-        setScaleX(1.0f);
-        setScaleY(1.0f);
+        int viewWidth = getWidth();
+        int viewHeight = getHeight();
+        Matrix transform = new Matrix();
+        if (previewSize != null && viewWidth > 0 && viewHeight > 0) {
+            float fillScale = Math.max(
+                viewWidth / (float)previewSize.getWidth(),
+                viewHeight / (float)previewSize.getHeight());
+            float scaleX =
+                previewSize.getWidth() * fillScale / (float)viewWidth;
+            float scaleY =
+                previewSize.getHeight() * fillScale / (float)viewHeight;
+            transform.setScale(
+                scaleX, scaleY, viewWidth * 0.5f, viewHeight * 0.5f);
+        }
+        setTransform(transform);
     }
 
     @Override
@@ -429,6 +457,18 @@ public final class ArCameraView extends TextureView
         if (!attitudeInitialized) {
             System.arraycopy(adjustedMatrix, 0, attitudeOriginMatrix, 0,
                              adjustedMatrix.length);
+            attitudeOriginGravity[0] = adjustedMatrix[6];
+            attitudeOriginGravity[1] = adjustedMatrix[7];
+            attitudeOriginGravity[2] = adjustedMatrix[8];
+            float gravityLength = (float)Math.sqrt(
+                attitudeOriginGravity[0] * attitudeOriginGravity[0] +
+                attitudeOriginGravity[1] * attitudeOriginGravity[1] +
+                attitudeOriginGravity[2] * attitudeOriginGravity[2]);
+            if (gravityLength > 1.0e-6f) {
+                attitudeOriginGravity[0] /= gravityLength;
+                attitudeOriginGravity[1] /= gravityLength;
+                attitudeOriginGravity[2] /= gravityLength;
+            }
             deviceYawOffset = 0.0f;
             devicePitchOffset = 0.0f;
             deviceRollOffset = 0.0f;

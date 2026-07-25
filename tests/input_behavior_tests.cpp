@@ -273,10 +273,18 @@ int main() {
     input_setMode(INPUT_MODE_FLIGHT);
     input_ringReset();
     pushFingerRelease(0.5f, 0.25f);
-    require(input_keyWaiting() && input_readKey() == INPUT_KEY_MENU_POINTER,
-            "flight touch release queues a neutral key for demo dismissal");
+    require(input_keyWaiting() && input_readKey() == 0x1c0d,
+            "flight touch in the target area queues missile fire");
     require(!input_takeMenuPointer(nullptr, nullptr),
             "flight touch does not leave stale menu coordinates");
+    require(input_flightPointerKey(26, 190) == 0x326d &&
+                input_flightPointerKey(65, 190) == 0x1f73 &&
+                input_flightPointerKey(101, 190) == 0x2267,
+            "cockpit ammo-count taps select all three weapon groups");
+    require(input_flightPointerKey(200, 194) == 0x266c,
+            "cockpit landing-gear indicator tap queues the L command");
+    require(input_flightPointerKey(5, 150) == 0,
+            "flight taps outside cockpit controls remain neutral");
 
     resetInputState();
     std::thread delayedKey([] {

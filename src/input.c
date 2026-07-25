@@ -765,6 +765,46 @@ static void queueMenuPointer(Uint32 windowID, float x, float y, bool normalized)
     ringPush(INPUT_KEY_MENU_POINTER);
 }
 
+/* Cockpit controls remain in the original 320x200 overlay coordinates. Keep
+ * generous touch targets around the tiny legacy glyphs without changing their
+ * visual layout. */
+uint16 input_flightPointerKey(int x, int y) {
+    if (y >= 174 && y < LOGICAL_HEIGHT) {
+        if (x >= 12 && x < 51) return 0x326d;  /* left ammo count: M */
+        if (x >= 51 && x < 89) return 0x1f73;  /* middle ammo count: S */
+        if (x >= 89 && x < 131) return 0x2267; /* right ammo count: G */
+        if (x >= 183 && x < 218) return 0x266c; /* landing-gear G */
+    }
+    if (x >= 110 && x < 211 && y >= 8 && y < 113)
+        return 0x1c0d; /* target/seeker area: Enter fires selected missile */
+    return 0;
+}
+
+/* Map a flight pointer through the same square-pixel overlay transform used to
+ * draw the HUD, then queue the legacy command owned by the touched control. */
+static void queueFlightPointer(Uint32 windowID, float x, float y,
+                               bool normalized) {
+    SDL_Window *window = SDL_GetWindowFromID(windowID);
+    R2DMapping mapping;
+    int winW = LOGICAL_WIDTH;
+    int winH = LOGICAL_HEIGHT;
+    float pixelX = x;
+    float pixelY = y;
+    uint16 key;
+
+    if (window) SDL_GetWindowSizeInPixels(window, &winW, &winH);
+    if (normalized) {
+        pixelX *= winW;
+        pixelY *= winH;
+    }
+    r2d_computeMapping(LOGICAL_WIDTH, LOGICAL_HEIGHT, winW, winH, 1, &mapping);
+    key = input_flightPointerKey(
+        (int)((pixelX - mapping.offX) / mapping.scaleX),
+        (int)((pixelY - mapping.offY) / mapping.scaleY));
+    /* Preserve tap-to-dismiss for the original in-engine demo key waits. */
+    ringPush(key ? key : INPUT_KEY_MENU_POINTER);
+}
+
 /* --- the single event pump ------------------------------------------------- */
 
 void input_pumpEvents(void) {
@@ -848,13 +888,15 @@ void input_pumpEvents(void) {
                 if (g_flightLookActive) {
                     android_ar_setLookMode(0);
                 } else if (!g_flightSwipeActive) {
-                    ringPush(INPUT_KEY_MENU_POINTER);
+                    queueFlightPointer(
+                        ev.tfinger.windowID, ev.tfinger.x, ev.tfinger.y, true);
                 }
                 g_flightFingerDown = false;
                 g_flightLookActive = false;
                 g_flightSwipeActive = false;
 #else
-                ringPush(INPUT_KEY_MENU_POINTER);
+                queueFlightPointer(
+                    ev.tfinger.windowID, ev.tfinger.x, ev.tfinger.y, true);
 #endif
             }
             break;
@@ -894,7 +936,8 @@ void input_pumpEvents(void) {
                 if (g_mode == INPUT_MODE_MENU) {
                     queueMenuPointer(ev.button.windowID, ev.button.x, ev.button.y, false);
                 } else {
-                    ringPush(INPUT_KEY_MENU_POINTER);
+                    queueFlightPointer(
+                        ev.button.windowID, ev.button.x, ev.button.y, false);
                 }
             }
             break;

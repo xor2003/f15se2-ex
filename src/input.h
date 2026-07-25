@@ -52,6 +52,10 @@ uint16 input_readKey(void);  /* blocking pop: pump + wait, then return */
  * no unconsumed release is available. */
 bool input_takeMenuPointer(int *x, int *y);
 
+/* Translate a logical 320x200 cockpit tap into its BIOS-style flight command.
+ * Exposed for behavior tests; zero means the tap hit no interactive control. */
+uint16 input_flightPointerKey(int x, int y);
+
 /* --- window state, set by the pump, for callers that want to react --------- */
 bool input_quitRequested(void); /* SDL_EVENT_QUIT (window close) has been seen */
 bool input_hasFocus(void);      /* window currently has keyboard focus */
