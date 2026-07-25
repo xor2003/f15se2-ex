@@ -17,12 +17,14 @@ import android.hardware.camera2.CameraManager;
 import android.hardware.camera2.CaptureRequest;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.util.Log;
 import android.util.Size;
 import android.util.SizeF;
 import android.view.Display;
 import android.view.Surface;
 import android.view.TextureView;
 import java.util.Collections;
+import java.util.Locale;
 
 /**
  * Camera2 preview aligned to the game's pitch and roll.
@@ -33,6 +35,7 @@ import java.util.Collections;
 public final class ArCameraView extends TextureView
         implements TextureView.SurfaceTextureListener, SensorEventListener {
     private static final float ATTITUDE_FILTER = 0.18f;
+    private static final long ATTITUDE_TRACE_INTERVAL_NS = 100_000_000L;
     private static final float CAMERA_OVERSCAN = 1.42f;
     private static final float MAX_PITCH_CORRECTION =
         (float)Math.toRadians(70.0);
@@ -56,6 +59,7 @@ public final class ArCameraView extends TextureView
     private float deviceYawOffset;
     private float devicePitchOffset;
     private float deviceRollOffset;
+    private long lastAttitudeTraceNs;
     private float verticalFov = (float)Math.toRadians(50.0);
 
     private static native void nativeSetCameraReady(boolean ready);
@@ -340,6 +344,19 @@ public final class ArCameraView extends TextureView
                 deviceRollOffset, relativeOrientation[2], ATTITUDE_FILTER);
         }
         setDeviceAttitude(deviceYawOffset, devicePitchOffset, deviceRollOffset);
+        /*
+         * Opt-in sensor telemetry for diagnosing device-specific axis mapping.
+         * Enable with: adb shell setprop log.tag.F15AR DEBUG
+         */
+        if (Log.isLoggable("F15AR", Log.DEBUG) &&
+            event.timestamp - lastAttitudeTraceNs >= ATTITUDE_TRACE_INTERVAL_NS) {
+            lastAttitudeTraceNs = event.timestamp;
+            Log.d("F15AR", String.format(
+                Locale.US,
+                "sensor ns=%d display=%d yaw=%+.5f pitch=%+.5f roll=%+.5f",
+                event.timestamp, rotation, deviceYawOffset,
+                devicePitchOffset, deviceRollOffset));
+        }
         alignPreview();
     }
 
