@@ -103,7 +103,7 @@ public final class ArCameraView extends TextureView
             cameraHandler = null;
         }
         attitudeInitialized = false;
-        setDeviceYaw(0.0f);
+        setDeviceAttitude(0.0f, 0.0f, 0.0f);
     }
 
     /** Selects a back camera and starts a preview into this TextureView. */
