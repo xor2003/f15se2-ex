@@ -10,6 +10,12 @@
 
 #include <SDL3/SDL.h>
 
+/* The public compatibility header redirects renderer calls to these wrappers.
+ * Inside the implementation, enable/disable must reach the real GLES entry
+ * points rather than recursively expanding back to the wrappers. */
+#undef glEnable
+#undef glDisable
+
 #define GLES_BATCH_VERTICES 16384
 
 typedef struct {
