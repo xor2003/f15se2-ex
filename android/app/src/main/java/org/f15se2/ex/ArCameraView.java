@@ -47,7 +47,7 @@ public final class ArCameraView extends TextureView
     private final float[] adjustedMatrix = new float[9];
     private final float[] attitudeOriginMatrix = new float[9];
     private final float[] relativeMatrix = new float[9];
-    private final float[] relativeOrientation = new float[3];
+    private final float[] relativeQuaternion = new float[4];
     private final float[] gameAttitude = new float[2];
 
     private HandlerThread cameraThread;
@@ -284,6 +284,120 @@ public final class ArCameraView extends TextureView
         return current + delta * amount;
     }
 
+    /**
+     * Converts a row-major rotation matrix to a normalized w,x,y,z quaternion.
+     *
+     * Quaternion decomposition avoids the branch singularities produced by
+     * SensorManager.getOrientation() when the handset approaches vertical.
+     */
+    private static void matrixToQuaternion(float[] matrix, float[] quaternion) {
+        float trace = matrix[0] + matrix[4] + matrix[8];
+        float w;
+        float x;
+        float y;
+        float z;
+
+        if (trace > 0.0f) {
+            float scale = 2.0f * (float)Math.sqrt(trace + 1.0f);
+            w = 0.25f * scale;
+            x = (matrix[7] - matrix[5]) / scale;
+            y = (matrix[2] - matrix[6]) / scale;
+            z = (matrix[3] - matrix[1]) / scale;
+        } else if (matrix[0] > matrix[4] && matrix[0] > matrix[8]) {
+            float scale = 2.0f *
+                (float)Math.sqrt(1.0f + matrix[0] - matrix[4] - matrix[8]);
+            w = (matrix[7] - matrix[5]) / scale;
+            x = 0.25f * scale;
+            y = (matrix[1] + matrix[3]) / scale;
+            z = (matrix[2] + matrix[6]) / scale;
+        } else if (matrix[4] > matrix[8]) {
+            float scale = 2.0f *
+                (float)Math.sqrt(1.0f + matrix[4] - matrix[0] - matrix[8]);
+            w = (matrix[2] - matrix[6]) / scale;
+            x = (matrix[1] + matrix[3]) / scale;
+            y = 0.25f * scale;
+            z = (matrix[5] + matrix[7]) / scale;
+        } else {
+            float scale = 2.0f *
+                (float)Math.sqrt(1.0f + matrix[8] - matrix[0] - matrix[4]);
+            w = (matrix[3] - matrix[1]) / scale;
+            x = (matrix[2] + matrix[6]) / scale;
+            y = (matrix[5] + matrix[7]) / scale;
+            z = 0.25f * scale;
+        }
+
+        float length = (float)Math.sqrt(w * w + x * x + y * y + z * z);
+        if (length <= 1.0e-6f) {
+            quaternion[0] = 1.0f;
+            quaternion[1] = 0.0f;
+            quaternion[2] = 0.0f;
+            quaternion[3] = 0.0f;
+            return;
+        }
+        quaternion[0] = w / length;
+        quaternion[1] = x / length;
+        quaternion[2] = y / length;
+        quaternion[3] = z / length;
+    }
+
+    /**
+     * Separates look-around yaw from handset tilt and updates filtered controls.
+     *
+     * The twist is rotation around the screen normal. Removing it leaves a
+     * swing quaternion whose X/Y rotation vector controls pitch and roll
+     * without yaw leaking into either flight axis.
+     */
+    private void updateRelativeAttitude() {
+        matrixToQuaternion(relativeMatrix, relativeQuaternion);
+        float w = relativeQuaternion[0];
+        float x = relativeQuaternion[1];
+        float y = relativeQuaternion[2];
+        float z = relativeQuaternion[3];
+
+        float twistLength = (float)Math.sqrt(w * w + z * z);
+        float twistW = 1.0f;
+        float twistZ = 0.0f;
+        if (twistLength > 1.0e-6f) {
+            twistW = w / twistLength;
+            twistZ = z / twistLength;
+        }
+
+        float yawTarget = -2.0f * (float)Math.atan2(twistZ, twistW);
+        deviceYawOffset = filteredAngle(
+            deviceYawOffset, yawTarget, ATTITUDE_FILTER);
+
+        /* swing = relativeQuaternion * inverse(twistQuaternion) */
+        float swingW = w * twistW + z * twistZ;
+        float swingX = x * twistW - y * twistZ;
+        float swingY = x * twistZ + y * twistW;
+        float swingZ = -w * twistZ + z * twistW;
+        if (swingW < 0.0f) {
+            swingW = -swingW;
+            swingX = -swingX;
+            swingY = -swingY;
+            swingZ = -swingZ;
+        }
+
+        float vectorLength = (float)Math.sqrt(
+            swingX * swingX + swingY * swingY + swingZ * swingZ);
+        float vectorScale = 2.0f;
+        if (vectorLength > 1.0e-6f) {
+            vectorScale =
+                2.0f * (float)Math.atan2(vectorLength, swingW) / vectorLength;
+        }
+
+        /*
+         * Android's remapped matrix uses negative X for pitch and positive Y
+         * for roll, matching the former small-angle Euler mapping.
+         */
+        float pitchTarget = -swingX * vectorScale;
+        float rollTarget = swingY * vectorScale;
+        devicePitchOffset +=
+            (pitchTarget - devicePitchOffset) * ATTITUDE_FILTER;
+        deviceRollOffset +=
+            (rollTarget - deviceRollOffset) * ATTITUDE_FILTER;
+    }
+
     /** Keeps Camera2 as a stable full-screen layer behind transparent game sky. */
     private void alignPreview() {
         setRotation(0.0f);
@@ -335,13 +449,7 @@ public final class ArCameraView extends TextureView
                     relativeMatrix[row * 3 + column] = value;
                 }
             }
-            SensorManager.getOrientation(relativeMatrix, relativeOrientation);
-            deviceYawOffset = filteredAngle(
-                deviceYawOffset, relativeOrientation[0], ATTITUDE_FILTER);
-            devicePitchOffset = filteredAngle(
-                devicePitchOffset, relativeOrientation[1], ATTITUDE_FILTER);
-            deviceRollOffset = filteredAngle(
-                deviceRollOffset, relativeOrientation[2], ATTITUDE_FILTER);
+            updateRelativeAttitude();
         }
         setDeviceAttitude(deviceYawOffset, devicePitchOffset, deviceRollOffset);
         /*
