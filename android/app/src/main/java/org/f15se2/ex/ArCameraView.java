@@ -53,9 +53,12 @@ public final class ArCameraView extends TextureView
     private boolean attitudeInitialized;
     private float devicePitch;
     private float deviceRoll;
+    private float yawOrigin;
+    private float deviceYawOffset;
     private float verticalFov = (float)Math.toRadians(50.0);
 
     private static native void nativeSetCameraReady(boolean ready);
+    private static native void nativeSetDeviceYaw(float yaw);
     private static native void nativeGetGameAttitude(float[] attitude);
 
     public ArCameraView(Context context) {
@@ -96,6 +99,7 @@ public final class ArCameraView extends TextureView
             cameraHandler = null;
         }
         attitudeInitialized = false;
+        setDeviceYaw(0.0f);
     }
 
     /** Selects a back camera and starts a preview into this TextureView. */
@@ -260,6 +264,14 @@ public final class ArCameraView extends TextureView
         }
     }
 
+    private static void setDeviceYaw(float yaw) {
+        try {
+            nativeSetDeviceYaw(yaw);
+        } catch (UnsatisfiedLinkError ignored) {
+            // SDL has not loaded the application library yet.
+        }
+    }
+
     private static float filteredAngle(float current, float target, float amount) {
         float delta = target - current;
         while (delta > Math.PI) delta -= (float)(2.0 * Math.PI);
@@ -307,13 +319,18 @@ public final class ArCameraView extends TextureView
                                             adjustedMatrix);
         SensorManager.getOrientation(adjustedMatrix, orientation);
         if (!attitudeInitialized) {
+            yawOrigin = orientation[0];
+            deviceYawOffset = 0.0f;
             devicePitch = orientation[1];
             deviceRoll = orientation[2];
             attitudeInitialized = true;
         } else {
+            deviceYawOffset = filteredAngle(
+                deviceYawOffset, orientation[0] - yawOrigin, ATTITUDE_FILTER);
             devicePitch = filteredAngle(devicePitch, orientation[1], ATTITUDE_FILTER);
             deviceRoll = filteredAngle(deviceRoll, orientation[2], ATTITUDE_FILTER);
         }
+        setDeviceYaw(deviceYawOffset);
         alignPreview();
     }
 

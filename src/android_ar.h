@@ -7,5 +7,6 @@
 int android_ar_requested(void);
 int android_ar_active(void);
 void android_ar_setGameAttitude(int pitchAngle, int rollAngle);
+int android_ar_adjustYaw(int yawAngle);
 
 #endif

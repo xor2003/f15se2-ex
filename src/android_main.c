@@ -5,7 +5,7 @@
  */
 extern int main(int argc, char **argv);
 
-extern "C" __attribute__((visibility("default")))
+__attribute__((visibility("default")))
 int SDL_main(int argc, char **argv) {
     return main(argc, argv);
 }
