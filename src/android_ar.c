@@ -15,21 +15,35 @@ static std::atomic<float> g_gameRoll(0.0f);
 static std::atomic<float> g_deviceYawOffset(0.0f);
 static std::atomic<float> g_devicePitchOffset(0.0f);
 static std::atomic<float> g_deviceRollOffset(0.0f);
+static std::atomic<float> g_flightYawCenter(0.0f);
+static std::atomic<float> g_flightPitchCenter(0.0f);
+static std::atomic<float> g_flightRollCenter(0.0f);
 static std::atomic<float> g_lookPitchOrigin(0.0f);
 static std::atomic<float> g_lookRollOrigin(0.0f);
 static std::atomic<float> g_swipePitch(0.0f);
 static std::atomic<int> g_lookMode(0);
+static float g_smoothFlightRoll = 0.0f;
+static float g_smoothFlightPitch = 0.0f;
 
 static const float PI = 3.14159265358979323846f;
-static const float FLIGHT_DEAD_ZONE = 2.5f * PI / 180.0f;
+static const float FLIGHT_DEAD_ZONE = 4.0f * PI / 180.0f;
 static const float FLIGHT_MAX_TILT = 40.0f * PI / 180.0f;
 static const float LOOK_MAX_PITCH = 70.0f * PI / 180.0f;
-static const float STICK_DEFLECTION = 90.0f;
+static const float STICK_DEFLECTION = 56.0f;
 
 static float clampFloat(float value, float minimum, float maximum) {
     if (value < minimum) return minimum;
     if (value > maximum) return maximum;
     return value;
+}
+
+/* Return the shortest signed angular difference. Sensor-relative yaw and roll
+ * wrap at +/-pi; subtracting them directly would produce a full-turn spike. */
+static float angleDifference(float angle, float origin) {
+    float difference = angle - origin;
+    while (difference > PI) difference -= 2.0f * PI;
+    while (difference < -PI) difference += 2.0f * PI;
+    return difference;
 }
 
 static float removeDeadZone(float value) {
@@ -74,16 +88,18 @@ void android_ar_adjustView(int *yawAngle, int *pitchAngle, int *rollAngle) {
      * Turning the handset right must turn the virtual camera right. Screen
      * geometry consequently moves left, hence the subtraction from game yaw.
      */
-    *yawAngle -= (int)(g_deviceYawOffset.load(std::memory_order_relaxed) *
+    *yawAngle -= (int)(angleDifference(
+                           g_deviceYawOffset.load(std::memory_order_relaxed),
+                           g_flightYawCenter.load(std::memory_order_relaxed)) *
                        unitsPerRadian);
 
     if (g_lookMode.load(std::memory_order_acquire)) {
-        targetPitch +=
-            g_devicePitchOffset.load(std::memory_order_relaxed) -
-            g_lookPitchOrigin.load(std::memory_order_relaxed);
-        targetRoll =
-            g_deviceRollOffset.load(std::memory_order_relaxed) -
-            g_lookRollOrigin.load(std::memory_order_relaxed);
+        targetPitch += angleDifference(
+            g_devicePitchOffset.load(std::memory_order_relaxed),
+            g_lookPitchOrigin.load(std::memory_order_relaxed));
+        targetRoll = angleDifference(
+            g_deviceRollOffset.load(std::memory_order_relaxed),
+            g_lookRollOrigin.load(std::memory_order_relaxed));
     }
     targetPitch = clampFloat(targetPitch, -LOOK_MAX_PITCH, LOOK_MAX_PITCH);
 
@@ -106,15 +122,39 @@ void android_ar_getFlightAxes(uint8 *rollAxis, uint8 *pitchAxis) {
         return;
     }
 
-    roll = removeDeadZone(
-        g_deviceRollOffset.load(std::memory_order_relaxed));
-    pitch = removeDeadZone(
-        g_devicePitchOffset.load(std::memory_order_relaxed));
-    rollValue = 0x80 + (int)(roll * STICK_DEFLECTION);
+    roll = removeDeadZone(angleDifference(
+        g_deviceRollOffset.load(std::memory_order_relaxed),
+        g_flightRollCenter.load(std::memory_order_relaxed)));
+    pitch = removeDeadZone(angleDifference(
+        g_devicePitchOffset.load(std::memory_order_relaxed),
+        g_flightPitchCenter.load(std::memory_order_relaxed)));
+    /* Smooth the virtual stick rather than the aircraft/view itself. This
+     * rejects sensor noise while preserving deterministic game-side physics. */
+    g_smoothFlightRoll += (roll - g_smoothFlightRoll) * 0.16f;
+    g_smoothFlightPitch += (pitch - g_smoothFlightPitch) * 0.16f;
+    rollValue = 0x80 + (int)(g_smoothFlightRoll * STICK_DEFLECTION);
     /* Positive device pitch is stick-back: lower raw Y commands nose-up. */
-    pitchValue = 0x80 - (int)(pitch * STICK_DEFLECTION);
+    pitchValue = 0x80 - (int)(g_smoothFlightPitch * STICK_DEFLECTION);
     *rollAxis = (uint8)clampFloat((float)rollValue, 0x26, 0xda);
     *pitchAxis = (uint8)clampFloat((float)pitchValue, 0x26, 0xda);
+}
+
+/* Make the handset's current pose neutral when a flight begins. Menu handling
+ * can rotate the device substantially, so the process-start pose is not a
+ * useful flight-control centre. */
+void android_ar_recenterFlight(void) {
+    g_flightYawCenter.store(
+        g_deviceYawOffset.load(std::memory_order_relaxed),
+        std::memory_order_relaxed);
+    g_flightPitchCenter.store(
+        g_devicePitchOffset.load(std::memory_order_relaxed),
+        std::memory_order_relaxed);
+    g_flightRollCenter.store(
+        g_deviceRollOffset.load(std::memory_order_relaxed),
+        std::memory_order_relaxed);
+    g_swipePitch.store(0.0f, std::memory_order_relaxed);
+    g_smoothFlightRoll = 0.0f;
+    g_smoothFlightPitch = 0.0f;
 }
 
 void android_ar_setLookMode(int active) {
@@ -125,6 +165,8 @@ void android_ar_setLookMode(int active) {
         g_lookRollOrigin.store(
             g_deviceRollOffset.load(std::memory_order_relaxed),
             std::memory_order_relaxed);
+        g_smoothFlightRoll = 0.0f;
+        g_smoothFlightPitch = 0.0f;
         g_lookMode.store(1, std::memory_order_release);
     } else {
         g_lookMode.store(0, std::memory_order_release);

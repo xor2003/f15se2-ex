@@ -42,7 +42,9 @@ public final class ArCameraView extends TextureView
     private final Sensor rotationSensor;
     private final float[] rotationMatrix = new float[9];
     private final float[] adjustedMatrix = new float[9];
-    private final float[] orientation = new float[3];
+    private final float[] attitudeOriginMatrix = new float[9];
+    private final float[] relativeMatrix = new float[9];
+    private final float[] relativeOrientation = new float[3];
     private final float[] gameAttitude = new float[2];
 
     private HandlerThread cameraThread;
@@ -51,11 +53,6 @@ public final class ArCameraView extends TextureView
     private CameraCaptureSession captureSession;
     private boolean resumed;
     private boolean attitudeInitialized;
-    private float devicePitch;
-    private float deviceRoll;
-    private float yawOrigin;
-    private float pitchOrigin;
-    private float rollOrigin;
     private float deviceYawOffset;
     private float devicePitchOffset;
     private float deviceRollOffset;
@@ -311,26 +308,36 @@ public final class ArCameraView extends TextureView
         }
         SensorManager.remapCoordinateSystem(rotationMatrix, axisX, axisY,
                                             adjustedMatrix);
-        SensorManager.getOrientation(adjustedMatrix, orientation);
         if (!attitudeInitialized) {
-            yawOrigin = orientation[0];
-            pitchOrigin = orientation[1];
-            rollOrigin = orientation[2];
+            System.arraycopy(adjustedMatrix, 0, attitudeOriginMatrix, 0,
+                             adjustedMatrix.length);
             deviceYawOffset = 0.0f;
             devicePitchOffset = 0.0f;
             deviceRollOffset = 0.0f;
-            devicePitch = orientation[1];
-            deviceRoll = orientation[2];
             attitudeInitialized = true;
         } else {
+            /*
+             * Derive attitude from the rotation relative to the initial handset
+             * pose. Subtracting absolute Euler angles is singular when a phone
+             * is held upright and makes pitch/roll exchange or jump.
+             */
+            for (int row = 0; row < 3; row++) {
+                for (int column = 0; column < 3; column++) {
+                    float value = 0.0f;
+                    for (int k = 0; k < 3; k++) {
+                        value += attitudeOriginMatrix[k * 3 + row] *
+                                 adjustedMatrix[k * 3 + column];
+                    }
+                    relativeMatrix[row * 3 + column] = value;
+                }
+            }
+            SensorManager.getOrientation(relativeMatrix, relativeOrientation);
             deviceYawOffset = filteredAngle(
-                deviceYawOffset, orientation[0] - yawOrigin, ATTITUDE_FILTER);
-            devicePitch = filteredAngle(devicePitch, orientation[1], ATTITUDE_FILTER);
-            deviceRoll = filteredAngle(deviceRoll, orientation[2], ATTITUDE_FILTER);
+                deviceYawOffset, relativeOrientation[0], ATTITUDE_FILTER);
             devicePitchOffset = filteredAngle(
-                devicePitchOffset, devicePitch - pitchOrigin, ATTITUDE_FILTER);
+                devicePitchOffset, relativeOrientation[1], ATTITUDE_FILTER);
             deviceRollOffset = filteredAngle(
-                deviceRollOffset, deviceRoll - rollOrigin, ATTITUDE_FILTER);
+                deviceRollOffset, relativeOrientation[2], ATTITUDE_FILTER);
         }
         setDeviceAttitude(deviceYawOffset, devicePitchOffset, deviceRollOffset);
         alignPreview();
