@@ -177,6 +177,7 @@ if(ANDROID)
     # the renderer's decoded scene path through a small GLES2 compatibility
     # layer, so geometry ordering and palette semantics stay shared.
     list(APPEND EGAME_SOURCES
+        ${SRC_DIR}/android_ar.c
         ${SRC_DIR}/r3d_gles.c
         ${SRC_DIR}/r3d_gles_compat.c
     )

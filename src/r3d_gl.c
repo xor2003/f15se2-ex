@@ -26,6 +26,7 @@
 #include <SDL3/SDL.h>
 #if defined(R3D_GLES_BUILD)
 #include <SDL3/SDL_opengles2.h>
+#include "android_ar.h"
 #include "r3d_gles_compat.h"
 #else
 #include <SDL3/SDL_opengl.h>
@@ -86,6 +87,7 @@ void r3dgl_setGLAttributes(int msaaSamples) {
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+    SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, android_ar_requested() ? 8 : 0);
 #endif
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
     /* 8-bit stencil (D24S8, universal on GL 1.1) — the shadow pass masks each covered
@@ -654,6 +656,9 @@ static void gl_beginScene(const R3DScene *s) {
         gl_beginSubScene(s);
         return;
     }
+#if defined(R3D_GLES_BUILD)
+    android_ar_setGameAttitude(s->angleY, s->angleZ);
+#endif
     /* This is a flight 3D frame: its HUD/MFD line & point submissions draw
      * immediately at native resolution. The page backdrop is composited mid-frame
      * at the gl_endScene anchor (after the 3D, before the HUD), so don't compose it
@@ -706,7 +711,11 @@ static void gl_beginScene(const R3DScene *s) {
      * viewport region is re-cleared to the sky colour once scissored below. */
     glViewport(0, 0, win_w, win_h);
     glDisable(GL_SCISSOR_TEST);
+#if defined(R3D_GLES_BUILD)
+    glClearColor(0.0f, 0.0f, 0.0f, android_ar_active() ? 0.0f : 1.0f);
+#else
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+#endif
     glDepthMask(GL_TRUE);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
@@ -783,7 +792,12 @@ static void gl_beginScene(const R3DScene *s) {
     {
         uint8 r, g, b;
         gfx_paletteRGB((int)(uint8)skyIdx, &r, &g, &b);
-        glClearColor(r / 255.0f, g / 255.0f, b / 255.0f, 1.0f);
+#if defined(R3D_GLES_BUILD)
+        if (android_ar_active())
+            glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+        else
+#endif
+            glClearColor(r / 255.0f, g / 255.0f, b / 255.0f, 1.0f);
     }
     glDepthMask(GL_TRUE);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
@@ -791,7 +805,11 @@ static void gl_beginScene(const R3DScene *s) {
     /* Sky/ground background sphere (detail >= 3) drawn first (farthest) with the
      * depth test off so it stays behind everything; the 3D projection is then
      * restored for the objects. */
-    if ((char)g_detailLevel >= 3)
+    if ((char)g_detailLevel >= 3
+#if defined(R3D_GLES_BUILD)
+        && !android_ar_active()
+#endif
+    )
         glDrawSphere(sphOrtho[0], sphOrtho[1], sphOrtho[2], sphOrtho[3]);
     glMatrixMode(GL_PROJECTION);
     glLoadMatrixf(s_proj);
