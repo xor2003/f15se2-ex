@@ -32,6 +32,22 @@ android {
             version "3.22.1"
         }
     }
+
+    /*
+     * Optional local testing bundle. Original game data is copyrighted and must
+     * never be committed, but a developer who owns it can embed a temporary copy:
+     *
+     * F15_ANDROID_GAME_ASSETS=/path/to/game gradle -p android assembleDebug
+     */
+    def gameAssets = providers.environmentVariable("F15_ANDROID_GAME_ASSETS")
+    if (gameAssets.isPresent()) {
+        sourceSets.main.assets.srcDir(layout.buildDirectory.dir("generated/game-assets"))
+        tasks.register("stageGameAssets", Sync) {
+            from(gameAssets.get())
+            into(layout.buildDirectory.dir("generated/game-assets/game"))
+        }
+        preBuild.dependsOn("stageGameAssets")
+    }
 }
 
 dependencies {
