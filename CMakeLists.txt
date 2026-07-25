@@ -400,16 +400,18 @@ endif()
 # PNG re-copies it on the next build without a relink or `make clean`. CONFIGURE_DEPENDS
 # re-globs at build time, so new files are picked up too; the stamp makes it incremental
 # (the copy runs only when an asset actually changed).
-file(GLOB_RECURSE ASSET_FILES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/assets/*)
-add_custom_command(
-    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/assets.stamp
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-            ${CMAKE_CURRENT_SOURCE_DIR}/assets $<TARGET_FILE_DIR:f15se2>/assets
-    COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_BINARY_DIR}/assets.stamp
-    DEPENDS ${ASSET_FILES}
-    COMMENT "Mirroring assets to the build dir"
-)
-add_custom_target(mirror_assets ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/assets.stamp)
+if(NOT ANDROID)
+    file(GLOB_RECURSE ASSET_FILES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/assets/*)
+    add_custom_command(
+        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/assets.stamp
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                ${CMAKE_CURRENT_SOURCE_DIR}/assets $<TARGET_FILE_DIR:f15se2>/assets
+        COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_BINARY_DIR}/assets.stamp
+        DEPENDS ${ASSET_FILES}
+        COMMENT "Mirroring assets to the build dir"
+    )
+    add_custom_target(mirror_assets ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/assets.stamp)
+endif()
 
 #==============================================================================
 # Behavior tests
