@@ -289,7 +289,7 @@ if(ANDROID)
     target_compile_definitions(f15se2_core PUBLIC F15_ANDROID_DEFAULT_ASSIST=1)
     target_link_libraries(f15se2_core PUBLIC SDL3::SDL3 ${GLESV2_LIBRARY})
     # SDLActivity loads the application shared library by this conventional name.
-    add_library(main SHARED ${SRC_DIR}/f15.c)
+    add_library(main SHARED ${SRC_DIR}/f15.c ${SRC_DIR}/android_main.c)
     target_link_libraries(main PRIVATE f15se2_core)
     set(F15SE2_APP_TARGET main)
 else()
