@@ -371,40 +371,31 @@ public final class ArCameraView extends TextureView
         float originX = attitudeOriginGravity[0];
         float originY = attitudeOriginGravity[1];
         float originZ = attitudeOriginGravity[2];
-        float dot = originX * gravityX + originY * gravityY +
-                    originZ * gravityZ;
-        dot = Math.max(-1.0f, Math.min(1.0f, dot));
-        float swingW = (float)Math.sqrt(Math.max(0.0f, (1.0f + dot) * 0.5f));
-        float swingX;
-        float swingY;
-        float swingZ;
-        if (swingW > 1.0e-6f) {
-            float scale = 0.5f / swingW;
-            swingX = (originY * gravityZ - originZ * gravityY) * scale;
-            swingY = (originZ * gravityX - originX * gravityZ) * scale;
-            swingZ = (originX * gravityY - originY * gravityX) * scale;
-        } else {
-            /* A flipped handset has no unique shortest tilt axis. */
-            swingX = 1.0f;
-            swingY = 0.0f;
-            swingZ = 0.0f;
-        }
+        float originPlanar = (float)Math.hypot(originX, originY);
+        float gravityPlanar = (float)Math.hypot(gravityX, gravityY);
 
-        float vectorLength = (float)Math.sqrt(
-            swingX * swingX + swingY * swingY + swingZ * swingZ);
-        float vectorScale = 2.0f;
-        if (vectorLength > 1.0e-6f) {
-            vectorScale =
-                2.0f * (float)Math.atan2(vectorLength, swingW) / vectorLength;
+        /*
+         * Bank is the signed rotation of gravity within the screen plane.
+         * Using the quaternion's Y swing here made a steering-wheel gesture
+         * appear mostly as yaw, leaving roll close to the controller dead zone.
+         */
+        float rollTarget = deviceRollOffset;
+        if (originPlanar > 1.0e-3f && gravityPlanar > 1.0e-3f) {
+            float planarCross = originY * gravityX - originX * gravityY;
+            float planarDot = originX * gravityX + originY * gravityY;
+            rollTarget = (float)Math.atan2(planarCross, planarDot);
         }
 
         /*
-         * Gravity swing has the opposite vector direction from the device-to-
-         * world attitude quaternion. These signs preserve the established
-         * physical pitch/roll directions while rejecting compass rotation.
+         * Pitch is the change in screen inclination relative to gravity. This
+         * remains independent of compass heading and keeps the established
+         * forward/backward control direction.
          */
-        float pitchTarget = swingX * vectorScale;
-        float rollTarget = -swingY * vectorScale;
+        float pitchTarget =
+            (float)Math.atan2(gravityZ, gravityPlanar) -
+            (float)Math.atan2(originZ, originPlanar);
+        while (pitchTarget > Math.PI) pitchTarget -= 2.0f * (float)Math.PI;
+        while (pitchTarget < -Math.PI) pitchTarget += 2.0f * (float)Math.PI;
         devicePitchOffset +=
             (pitchTarget - devicePitchOffset) * ATTITUDE_FILTER;
         deviceRollOffset +=
