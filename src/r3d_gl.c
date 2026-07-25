@@ -466,7 +466,8 @@ static float fmulQ15(float a, float b) { return a * b * (1.0f / 32768.0f); }
  * a flat GL quad filled from that ramp, drawn in an ortho viewport with depth off
  * so the 3D objects always composite in front (matching the original's draw-first,
  * no-Z background). Runs only at detail >= 3; below that a flat clear stands in. */
-static void glDrawSphere(float oLeft, float oRight, float oBottom, float oTop) {
+static void glDrawSphere(float oLeft, float oRight, float oBottom, float oTop,
+                         int drawSky) {
     float rearX[17], rearY[17], foreX[17], foreY[17], facePts[8];
     int ringIx;
     float ringRad, radiusScale, i, j;
@@ -511,13 +512,16 @@ static void glDrawSphere(float oLeft, float oRight, float oBottom, float oTop) {
         rearY[ringIx] = -(-(((i + j) * vAspectK) - i) + j) + g_viewCenterY;
         foreY[ringIx] = (((i - j) * vAspectK) + g_viewCenterY) - i + j;
     }
-    for (ringIx = 0; ringIx < 16; ringIx++) {
-        facePts[0] = rearX[ringIx];     facePts[1] = rearY[ringIx];
-        facePts[2] = foreX[ringIx];     facePts[3] = foreY[ringIx];
-        facePts[4] = foreX[ringIx + 1]; facePts[5] = foreY[ringIx + 1];
-        facePts[6] = rearX[ringIx + 1]; facePts[7] = rearY[ringIx + 1];
-        /* sky ramp: blend this band's colour toward the next band's */
-        sphereQuadGrad(facePts, 0x60 + ringIx, 0x60 + (ringIx < 15 ? ringIx + 1 : 15));
+    if (drawSky) {
+        for (ringIx = 0; ringIx < 16; ringIx++) {
+            facePts[0] = rearX[ringIx];     facePts[1] = rearY[ringIx];
+            facePts[2] = foreX[ringIx];     facePts[3] = foreY[ringIx];
+            facePts[4] = foreX[ringIx + 1]; facePts[5] = foreY[ringIx + 1];
+            facePts[6] = rearX[ringIx + 1]; facePts[7] = rearY[ringIx + 1];
+            /* sky ramp: blend this band's colour toward the next band's */
+            sphereQuadGrad(facePts, 0x60 + ringIx,
+                           0x60 + (ringIx < 15 ? ringIx + 1 : 15));
+        }
     }
 
     g_sphereRingRadii[0] = g_viewPosZ / 0x200;
@@ -808,12 +812,14 @@ static void gl_beginScene(const R3DScene *s) {
     /* Sky/ground background sphere (detail >= 3) drawn first (farthest) with the
      * depth test off so it stays behind everything; the 3D projection is then
      * restored for the objects. */
-    if ((char)g_detailLevel >= 3
+    if ((char)g_detailLevel >= 3)
+        glDrawSphere(sphOrtho[0], sphOrtho[1], sphOrtho[2], sphOrtho[3],
 #if defined(R3D_GLES_BUILD)
-        && !android_ar_active()
+                     !android_ar_active()
+#else
+                     1
 #endif
-    )
-        glDrawSphere(sphOrtho[0], sphOrtho[1], sphOrtho[2], sphOrtho[3]);
+        );
     glMatrixMode(GL_PROJECTION);
     glLoadMatrixf(s_proj);
     glMatrixMode(GL_MODELVIEW);
