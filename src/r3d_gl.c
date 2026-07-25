@@ -661,7 +661,6 @@ static void gl_beginScene(const R3DScene *s) {
     }
 #if defined(R3D_GLES_BUILD)
     android_ar_adjustView(&viewYaw, &viewPitch, &viewRoll);
-    android_ar_setGameAttitude(viewPitch, viewRoll);
 #endif
     /* This is a flight 3D frame: its HUD/MFD line & point submissions draw
      * immediately at native resolution. The page backdrop is composited mid-frame

@@ -88,6 +88,12 @@ void stepFlightModel(void) {
         g_initPhase = 1;
     }
 
+#if defined(__ANDROID__)
+    /* Publish the aircraft attitude before input sampling. Android uses it as
+     * feedback for target-angle controls, never as an integrated turn rate. */
+    android_ar_setGameAttitude(g_ourPitch, g_ourRoll);
+#endif
+
     keyScancode = 0;
     if (kbhit()) {
         keyScancode = egReadKey();

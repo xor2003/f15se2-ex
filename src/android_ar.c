@@ -18,6 +18,8 @@ static std::atomic<float> g_deviceRollOffset(0.0f);
 static std::atomic<float> g_flightYawCenter(0.0f);
 static std::atomic<float> g_flightPitchCenter(0.0f);
 static std::atomic<float> g_flightRollCenter(0.0f);
+static std::atomic<float> g_flightGamePitchCenter(0.0f);
+static std::atomic<float> g_flightGameRollCenter(0.0f);
 static std::atomic<float> g_lookPitchOrigin(0.0f);
 static std::atomic<float> g_lookRollOrigin(0.0f);
 static std::atomic<float> g_swipePitch(0.0f);
@@ -26,8 +28,9 @@ static float g_smoothFlightRoll = 0.0f;
 static float g_smoothFlightPitch = 0.0f;
 
 static const float PI = 3.14159265358979323846f;
-static const float FLIGHT_DEAD_ZONE = 4.0f * PI / 180.0f;
 static const float FLIGHT_MAX_TILT = 40.0f * PI / 180.0f;
+static const float ATTITUDE_ERROR_DEAD_ZONE = 1.5f * PI / 180.0f;
+static const float ATTITUDE_FULL_STICK_ERROR = 20.0f * PI / 180.0f;
 static const float LOOK_MAX_PITCH = 70.0f * PI / 180.0f;
 static const float STICK_DEFLECTION = 56.0f;
 
@@ -46,11 +49,13 @@ static float angleDifference(float angle, float origin) {
     return difference;
 }
 
-static float removeDeadZone(float value) {
+/* Convert target-attitude error to proportional stick command. Once the
+ * aircraft reaches the handset's angle the command returns to centre. */
+static float attitudeErrorToStick(float value) {
     float magnitude = value < 0.0f ? -value : value;
-    if (magnitude <= FLIGHT_DEAD_ZONE) return 0.0f;
-    magnitude = (magnitude - FLIGHT_DEAD_ZONE) /
-                (FLIGHT_MAX_TILT - FLIGHT_DEAD_ZONE);
+    if (magnitude <= ATTITUDE_ERROR_DEAD_ZONE) return 0.0f;
+    magnitude = (magnitude - ATTITUDE_ERROR_DEAD_ZONE) /
+                (ATTITUDE_FULL_STICK_ERROR - ATTITUDE_ERROR_DEAD_ZONE);
     magnitude = clampFloat(magnitude, 0.0f, 1.0f);
     return value < 0.0f ? -magnitude : magnitude;
 }
@@ -118,8 +123,12 @@ void android_ar_adjustView(int *yawAngle, int *pitchAngle, int *rollAngle) {
 }
 
 void android_ar_getFlightAxes(uint8 *rollAxis, uint8 *pitchAxis) {
-    float roll;
-    float pitch;
+    float deviceRoll;
+    float devicePitch;
+    float targetRoll;
+    float targetPitch;
+    float rollCommand;
+    float pitchCommand;
     int rollValue;
     int pitchValue;
     if (!rollAxis || !pitchAxis || !android_ar_active() ||
@@ -129,18 +138,33 @@ void android_ar_getFlightAxes(uint8 *rollAxis, uint8 *pitchAxis) {
         return;
     }
 
-    roll = removeDeadZone(angleDifference(
+    deviceRoll = clampFloat(angleDifference(
         g_deviceRollOffset.load(std::memory_order_relaxed),
-        g_flightRollCenter.load(std::memory_order_relaxed)));
-    pitch = removeDeadZone(angleDifference(
+        g_flightRollCenter.load(std::memory_order_relaxed)),
+        -FLIGHT_MAX_TILT, FLIGHT_MAX_TILT);
+    devicePitch = clampFloat(angleDifference(
         g_devicePitchOffset.load(std::memory_order_relaxed),
-        g_flightPitchCenter.load(std::memory_order_relaxed)));
-    /* Smooth the virtual stick rather than the aircraft/view itself. This
-     * rejects sensor noise while preserving deterministic game-side physics. */
-    g_smoothFlightRoll += (roll - g_smoothFlightRoll) * 0.16f;
-    g_smoothFlightPitch += (pitch - g_smoothFlightPitch) * 0.16f;
+        g_flightPitchCenter.load(std::memory_order_relaxed)),
+        -FLIGHT_MAX_TILT, FLIGHT_MAX_TILT);
+
+    targetRoll = g_flightGameRollCenter.load(std::memory_order_relaxed) +
+                 deviceRoll;
+    /* The screen top moving away is a negative aircraft pitch target. */
+    targetPitch = g_flightGamePitchCenter.load(std::memory_order_relaxed) -
+                  devicePitch;
+    rollCommand = attitudeErrorToStick(angleDifference(
+        targetRoll, g_gameRoll.load(std::memory_order_relaxed)));
+    pitchCommand = attitudeErrorToStick(angleDifference(
+        targetPitch, g_gamePitch.load(std::memory_order_relaxed)));
+
+    /* Smooth only the controller output; the target remains the exact handset
+     * angle and is not integrated as a turn-rate command. */
+    g_smoothFlightRoll +=
+        (rollCommand - g_smoothFlightRoll) * 0.16f;
+    g_smoothFlightPitch +=
+        (pitchCommand - g_smoothFlightPitch) * 0.16f;
     rollValue = 0x80 + (int)(g_smoothFlightRoll * STICK_DEFLECTION);
-    /* Tilting the handset's top away is stick-forward and commands nose-down. */
+    /* Positive attitude error uses the same raw-axis direction as arrow down. */
     pitchValue = 0x80 + (int)(g_smoothFlightPitch * STICK_DEFLECTION);
     *rollAxis = (uint8)clampFloat((float)rollValue, 0x26, 0xda);
     *pitchAxis = (uint8)clampFloat((float)pitchValue, 0x26, 0xda);
@@ -158,6 +182,12 @@ void android_ar_recenterFlight(void) {
         std::memory_order_relaxed);
     g_flightRollCenter.store(
         g_deviceRollOffset.load(std::memory_order_relaxed),
+        std::memory_order_relaxed);
+    g_flightGamePitchCenter.store(
+        g_gamePitch.load(std::memory_order_relaxed),
+        std::memory_order_relaxed);
+    g_flightGameRollCenter.store(
+        g_gameRoll.load(std::memory_order_relaxed),
         std::memory_order_relaxed);
     g_swipePitch.store(0.0f, std::memory_order_relaxed);
     g_smoothFlightRoll = 0.0f;
