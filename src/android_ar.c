@@ -221,7 +221,12 @@ void android_ar_getFlightAxes(uint8 *rollAxis, uint8 *pitchAxis) {
         (rollCommand - g_smoothFlightRoll) * 0.16f;
     g_smoothFlightPitch +=
         (pitchCommand - g_smoothFlightPitch) * 0.16f;
-    rollValue = 0x80 + (int)(g_smoothFlightRoll * STICK_DEFLECTION);
+    /*
+     * The legacy joystick roll axis is opposite to the signed g_ourRoll angle:
+     * values below centre increase g_ourRoll. Keep the controller command in
+     * attitude-error coordinates and invert it only at the raw-axis boundary.
+     */
+    rollValue = 0x80 - (int)(g_smoothFlightRoll * STICK_DEFLECTION);
     /* Positive attitude error uses the same raw-axis direction as arrow down. */
     pitchValue = 0x80 + (int)(g_smoothFlightPitch * STICK_DEFLECTION);
     *rollAxis = (uint8)clampFloat((float)rollValue, 0x26, 0xda);
