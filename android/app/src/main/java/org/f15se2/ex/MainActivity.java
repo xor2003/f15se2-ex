@@ -68,10 +68,14 @@ public final class MainActivity extends SDLActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        /* Keep SDL, camera coordinates and flight controls in one of the two
-         * landscape rotations even when system autorotate is disabled. */
+        /*
+         * Keep SDL, Camera2 and sensor coordinates in one fixed landscape
+         * orientation. SENSOR_LANDSCAPE can briefly or permanently report a
+         * portrait display rotation after wake-up on some devices, rotating
+         * the camera preview and remapping the flight axes while playing.
+         */
         setRequestedOrientation(
-            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
         super.onCreate(savedInstanceState);
         configureAr();
     }
