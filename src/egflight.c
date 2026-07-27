@@ -216,6 +216,8 @@ switch_break:
         android_ar_overrideFlightInput(&g_rollInput, &g_pitchInput);
     if (androidFlightControl) {
         g_autopilotAltitude = 0;
+        g_autopilotEngaged = 0;
+        g_directorMode = 0;
     }
 
     if (g_groundAltitude == g_viewZ && g_pitchInput < 0 && g_ourPitch <= 0) {
