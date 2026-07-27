@@ -55,10 +55,6 @@ static const float ATTITUDE_FULL_STICK_ERROR = 32.0f * PI / 180.0f;
 static const float ATTITUDE_FULL_DAMPING_RATE = 4.0f * PI / 180.0f;
 static const float LOOK_MAX_PITCH = 70.0f * PI / 180.0f;
 static const float STICK_DEFLECTION = 56.0f;
-static const int LEGACY_ROLL_POSITIVE_MIN = 0x90;
-static const int LEGACY_ROLL_POSITIVE_MAX = 0xB8;
-static const int LEGACY_ROLL_NEGATIVE_MIN = 0x48;
-static const int LEGACY_ROLL_NEGATIVE_MAX = 0x6F;
 
 static float clampFloat(float value, float minimum, float maximum) {
     if (value < minimum) return minimum;
@@ -84,27 +80,6 @@ static float attitudeErrorToStick(float value) {
                 (ATTITUDE_FULL_STICK_ERROR - ATTITUDE_ERROR_DEAD_ZONE);
     magnitude = clampFloat(magnitude, 0.0f, 1.0f);
     return value < 0.0f ? -magnitude : magnitude;
-}
-
-/*
- * Map a normalized roll command onto bins that the legacy flight model can
- * actually observe. egflight.c discards raw X values 0x70..0x8f after its
- * nibble conversion and negative-side zero adjustment. Sending a smooth value
- * inside that range left the autopilot active while this controller believed
- * it was correcting the aircraft, producing a runaway feedback loop.
- */
-static uint8 rollCommandToLegacyAxis(float command) {
-    if (command > 0.0f) {
-        return (uint8)(LEGACY_ROLL_POSITIVE_MIN +
-            (int)(command *
-                  (LEGACY_ROLL_POSITIVE_MAX - LEGACY_ROLL_POSITIVE_MIN)));
-    }
-    if (command < 0.0f) {
-        return (uint8)(LEGACY_ROLL_NEGATIVE_MAX -
-            (int)(-command *
-                  (LEGACY_ROLL_NEGATIVE_MAX - LEGACY_ROLL_NEGATIVE_MIN)));
-    }
-    return 0x80;
 }
 
 static float angleToRadians(int angle) {
@@ -198,6 +173,7 @@ void android_ar_getFlightAxes(uint8 *rollAxis, uint8 *pitchAxis) {
     float pitchError;
     float rollCommand;
     float pitchCommand;
+    int rollValue;
     int pitchValue;
     if (!rollAxis || !pitchAxis || !android_ar_active() ||
         g_lookMode.load(std::memory_order_acquire)) {
@@ -245,9 +221,14 @@ void android_ar_getFlightAxes(uint8 *rollAxis, uint8 *pitchAxis) {
         (rollCommand - g_smoothFlightRoll) * 0.16f;
     g_smoothFlightPitch +=
         (pitchCommand - g_smoothFlightPitch) * 0.16f;
-    /* Positive attitude error uses the same raw-axis direction as arrow down. */
+    /*
+     * Keep the legacy stick indicator smooth. android_ar_overrideFlightInput()
+     * supplies the physics input directly because the original nibble-sized
+     * joystick conversion cannot represent the controller's small corrections.
+     */
+    rollValue = 0x80 + (int)(g_smoothFlightRoll * STICK_DEFLECTION);
     pitchValue = 0x80 + (int)(g_smoothFlightPitch * STICK_DEFLECTION);
-    *rollAxis = rollCommandToLegacyAxis(g_smoothFlightRoll);
+    *rollAxis = (uint8)clampFloat((float)rollValue, 0x26, 0xda);
     *pitchAxis = (uint8)clampFloat((float)pitchValue, 0x26, 0xda);
 
     /*
@@ -265,6 +246,30 @@ void android_ar_getFlightAxes(uint8 *rollAxis, uint8 *pitchAxis) {
     g_debugRollCommand.store(g_smoothFlightRoll, std::memory_order_relaxed);
     g_debugPitchAxis.store((float)*pitchAxis, std::memory_order_relaxed);
     g_debugRollAxis.store((float)*rollAxis, std::memory_order_relaxed);
+}
+
+/*
+ * Apply the attitude controller after the original joystick conversion. That
+ * conversion deliberately quantizes an eight-bit DOS stick into coarse bins:
+ * its smallest roll correction is already +/-6, which made a closed-loop phone
+ * controller oscillate around the requested bank. Direct integer flight input
+ * preserves the same maximum authority while allowing corrections down to one
+ * unit. Returning true also tells egflight.c to release the legacy autopilot.
+ */
+int android_ar_overrideFlightInput(int *rollInput, int16 *pitchInput) {
+    float roll;
+    float pitch;
+    if (!rollInput || !pitchInput || !android_ar_active() ||
+        g_lookMode.load(std::memory_order_acquire)) {
+        return 0;
+    }
+
+    roll = g_smoothFlightRoll * -30.0f;
+    pitch = g_smoothFlightPitch *
+        (g_smoothFlightPitch >= 0.0f ? 18.0f : 9.0f);
+    *rollInput = (int)(roll >= 0.0f ? roll + 0.5f : roll - 0.5f);
+    *pitchInput = (int16)(pitch >= 0.0f ? pitch + 0.5f : pitch - 0.5f);
+    return 1;
 }
 
 /* Make the handset's current pose neutral when a flight begins. Menu handling

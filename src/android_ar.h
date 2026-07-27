@@ -17,6 +17,12 @@ static inline int android_ar_preventCrashes(void) { return 0; }
 void android_ar_setGameAttitude(int pitchAngle, int rollAngle);
 void android_ar_adjustView(int *yawAngle, int *pitchAngle, int *rollAngle);
 void android_ar_getFlightAxes(uint8 *rollAxis, uint8 *pitchAxis);
+#if defined(__ANDROID__)
+int android_ar_overrideFlightInput(int *rollInput, int16 *pitchInput);
+#else
+/* Desktop builds do not link the Android controller implementation. */
+static inline int android_ar_overrideFlightInput(int *, int16 *) { return 0; }
+#endif
 void android_ar_recenterFlight(void);
 void android_ar_setLookMode(int active);
 void android_ar_addSwipePitch(float normalizedDelta);

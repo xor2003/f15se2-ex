@@ -206,6 +206,15 @@ switch_break:
         g_pitchInput /= 2;
     }
 
+    /*
+     * Android attitude control needs corrections smaller than the DOS
+     * joystick's nibble-sized bins. Keep the legacy path intact, then replace
+     * only its final flight inputs while the optional camera controller is on.
+     */
+    if (android_ar_overrideFlightInput(&g_rollInput, &g_pitchInput)) {
+        g_autopilotAltitude = 0;
+    }
+
     if (g_groundAltitude == g_viewZ && g_pitchInput < 0 && g_ourPitch <= 0) {
         g_pitchInput = 0;
     }
