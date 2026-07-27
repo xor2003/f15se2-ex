@@ -24,9 +24,11 @@ void android_ar_adjustView(int *yawAngle, int *pitchAngle, int *rollAngle);
 void android_ar_getFlightAxes(uint8 *rollAxis, uint8 *pitchAxis);
 #if defined(__ANDROID__)
 int android_ar_overrideFlightInput(int *rollInput, int16 *pitchInput);
+int android_ar_overrideFlightAttitude(int16 *rollAngle, int16 *pitchAngle);
 #else
 /* Desktop builds do not link the Android controller implementation. */
 static inline int android_ar_overrideFlightInput(int *, int16 *) { return 0; }
+static inline int android_ar_overrideFlightAttitude(int16 *, int16 *) { return 0; }
 #endif
 void android_ar_recenterFlight(void);
 void android_ar_setLookMode(int active);

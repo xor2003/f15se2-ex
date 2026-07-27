@@ -61,9 +61,6 @@ static const float FLIGHT_MAX_TILT = 40.0f * PI / 180.0f;
  * of the target. The wider proportional range also makes the final approach
  * less abrupt without changing the maximum requested pitch or bank.
  */
-static const float ATTITUDE_ERROR_DEAD_ZONE = 2.5f * PI / 180.0f;
-static const float ATTITUDE_FULL_STICK_ERROR = 32.0f * PI / 180.0f;
-static const float ATTITUDE_FULL_DAMPING_RATE = 4.0f * PI / 180.0f;
 static const float LOOK_MAX_PITCH = 70.0f * PI / 180.0f;
 static const float STICK_DEFLECTION = 56.0f;
 
@@ -82,20 +79,17 @@ static float angleDifference(float angle, float origin) {
     return difference;
 }
 
-/* Convert target-attitude error to proportional stick command. Once the
- * aircraft reaches the handset's angle the command returns to centre. */
-static float attitudeErrorToStick(float value) {
-    float magnitude = value < 0.0f ? -value : value;
-    if (magnitude <= ATTITUDE_ERROR_DEAD_ZONE) return 0.0f;
-    magnitude = (magnitude - ATTITUDE_ERROR_DEAD_ZONE) /
-                (ATTITUDE_FULL_STICK_ERROR - ATTITUDE_ERROR_DEAD_ZONE);
-    magnitude = clampFloat(magnitude, 0.0f, 1.0f);
-    return value < 0.0f ? -magnitude : magnitude;
-}
-
 static float angleToRadians(int angle) {
     const float radiansPerUnit = 6.2831853071795864769f / 65536.0f;
     return (float)(int16_t)angle * radiansPerUnit;
+}
+
+/* Convert a target attitude back to the game's wrapping 16-bit angle unit. */
+static int16 radiansToAngle(float radians) {
+    const float unitsPerRadian = 65536.0f / (2.0f * PI);
+    const float units = radians * unitsPerRadian;
+    const int rounded = (int)(units >= 0.0f ? units + 0.5f : units - 0.5f);
+    return (int16)rounded;
 }
 
 int android_ar_requested(void) {
@@ -238,23 +232,13 @@ void android_ar_getFlightAxes(uint8 *rollAxis, uint8 *pitchAxis) {
         targetRoll, g_gameRoll.load(std::memory_order_relaxed));
     pitchError = angleDifference(
         targetPitch, g_gamePitch.load(std::memory_order_relaxed));
-    rollCommand = attitudeErrorToStick(rollError);
-    pitchCommand = attitudeErrorToStick(pitchError);
-
     /*
-     * Brake the aircraft's angular motion before it crosses the requested
-     * attitude. A proportional-only virtual stick alternated between steering
-     * and centre because the legacy flight model retained roll/pitch momentum.
+     * The Android flight path applies target attitude directly. Drive the
+     * cockpit stick marker from handset displacement instead of feeding back
+     * decoded Euler-angle error, which can jump at a legacy matrix fold.
      */
-    rollCommand -= clampFloat(
-        g_gameRollRate / ATTITUDE_FULL_DAMPING_RATE, -0.65f, 0.65f);
-    pitchCommand -= clampFloat(
-        g_gamePitchRate / ATTITUDE_FULL_DAMPING_RATE, -0.65f, 0.65f);
-    rollCommand = clampFloat(rollCommand, -1.0f, 1.0f);
-    pitchCommand = clampFloat(pitchCommand, -1.0f, 1.0f);
-
-    /* Smooth only the controller output; the target remains the exact handset
-     * angle and is not integrated as a turn-rate command. */
+    rollCommand = deviceRoll / FLIGHT_MAX_TILT;
+    pitchCommand = -devicePitch / FLIGHT_MAX_TILT;
     g_smoothFlightRoll +=
         (rollCommand - g_smoothFlightRoll) * 0.16f;
     g_smoothFlightPitch +=
@@ -287,26 +271,36 @@ void android_ar_getFlightAxes(uint8 *rollAxis, uint8 *pitchAxis) {
 }
 
 /*
- * Apply the attitude controller after the original joystick conversion. That
- * conversion deliberately quantizes an eight-bit DOS stick into coarse bins:
- * its smallest roll correction is already +/-6, which made a closed-loop phone
- * controller oscillate around the requested bank. Direct integer flight input
- * preserves the same maximum authority while allowing corrections down to one
- * unit. Returning true also tells egflight.c to release the legacy autopilot.
+ * Suppress incremental stick rotation while direct handset attitude is active.
+ * The original nibble-sized joystick path cannot reliably converge on an exact
+ * target angle, especially when its Euler decoder crosses a matrix fold.
  */
 int android_ar_overrideFlightInput(int *rollInput, int16 *pitchInput) {
-    float roll;
-    float pitch;
     if (!rollInput || !pitchInput || !android_ar_active() ||
         g_lookMode.load(std::memory_order_acquire)) {
         return 0;
     }
 
-    roll = g_smoothFlightRoll * -30.0f;
-    pitch = g_smoothFlightPitch *
-        (g_smoothFlightPitch >= 0.0f ? 18.0f : 9.0f);
-    *rollInput = (int)(roll >= 0.0f ? roll + 0.5f : roll - 0.5f);
-    *pitchInput = (int16)(pitch >= 0.0f ? pitch + 0.5f : pitch - 0.5f);
+    *rollInput = 0;
+    *pitchInput = 0;
+    return 1;
+}
+
+/*
+ * Make handset attitude authoritative without replacing the rest of the
+ * original flight model. Heading/yaw, lift, speed, and position still use the
+ * legacy equations; only incremental roll/pitch integration is bypassed.
+ */
+int android_ar_overrideFlightAttitude(int16 *rollAngle, int16 *pitchAngle) {
+    if (!rollAngle || !pitchAngle || !android_ar_active() ||
+        g_lookMode.load(std::memory_order_acquire)) {
+        return 0;
+    }
+
+    *rollAngle =
+        radiansToAngle(g_debugTargetRoll.load(std::memory_order_relaxed));
+    *pitchAngle =
+        radiansToAngle(g_debugTargetPitch.load(std::memory_order_relaxed));
     return 1;
 }
 

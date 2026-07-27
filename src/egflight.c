@@ -218,6 +218,14 @@ switch_break:
         g_autopilotAltitude = 0;
         g_autopilotEngaged = 0;
         g_directorMode = 0;
+        /*
+         * Phone tilt is a requested attitude, not a virtual stick rate. Build
+         * the legacy matrix from that attitude so its yaw/lift calculations
+         * remain intact without a feedback loop chasing decoded Euler jumps.
+         */
+        if (android_ar_overrideFlightAttitude(&g_ourRoll, &g_ourPitch)) {
+            rebuildOrientation();
+        }
     }
 
     if (g_groundAltitude == g_viewZ && g_pitchInput < 0 && g_ourPitch <= 0) {
