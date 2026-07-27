@@ -25,6 +25,16 @@ static std::atomic<float> g_lookPitchOrigin(0.0f);
 static std::atomic<float> g_lookRollOrigin(0.0f);
 static std::atomic<float> g_swipePitch(0.0f);
 static std::atomic<int> g_lookMode(0);
+static std::atomic<float> g_debugTargetPitch(0.0f);
+static std::atomic<float> g_debugTargetRoll(0.0f);
+static std::atomic<float> g_debugPitchError(0.0f);
+static std::atomic<float> g_debugRollError(0.0f);
+static std::atomic<float> g_debugPitchRate(0.0f);
+static std::atomic<float> g_debugRollRate(0.0f);
+static std::atomic<float> g_debugPitchCommand(0.0f);
+static std::atomic<float> g_debugRollCommand(0.0f);
+static std::atomic<float> g_debugPitchAxis(0x80);
+static std::atomic<float> g_debugRollAxis(0x80);
 static float g_smoothFlightRoll = 0.0f;
 static float g_smoothFlightPitch = 0.0f;
 static float g_previousGameRoll = 0.0f;
@@ -159,6 +169,8 @@ void android_ar_getFlightAxes(uint8 *rollAxis, uint8 *pitchAxis) {
     float devicePitch;
     float targetRoll;
     float targetPitch;
+    float rollError;
+    float pitchError;
     float rollCommand;
     float pitchCommand;
     int rollValue;
@@ -184,10 +196,12 @@ void android_ar_getFlightAxes(uint8 *rollAxis, uint8 *pitchAxis) {
     /* The screen top moving away is a negative aircraft pitch target. */
     targetPitch = g_flightGamePitchCenter.load(std::memory_order_relaxed) -
                   devicePitch;
-    rollCommand = attitudeErrorToStick(angleDifference(
-        targetRoll, g_gameRoll.load(std::memory_order_relaxed)));
-    pitchCommand = attitudeErrorToStick(angleDifference(
-        targetPitch, g_gamePitch.load(std::memory_order_relaxed)));
+    rollError = angleDifference(
+        targetRoll, g_gameRoll.load(std::memory_order_relaxed));
+    pitchError = angleDifference(
+        targetPitch, g_gamePitch.load(std::memory_order_relaxed));
+    rollCommand = attitudeErrorToStick(rollError);
+    pitchCommand = attitudeErrorToStick(pitchError);
 
     /*
      * Brake the aircraft's angular motion before it crosses the requested
@@ -212,6 +226,22 @@ void android_ar_getFlightAxes(uint8 *rollAxis, uint8 *pitchAxis) {
     pitchValue = 0x80 + (int)(g_smoothFlightPitch * STICK_DEFLECTION);
     *rollAxis = (uint8)clampFloat((float)rollValue, 0x26, 0xda);
     *pitchAxis = (uint8)clampFloat((float)pitchValue, 0x26, 0xda);
+
+    /*
+     * Publish atomic diagnostic copies for Java's sensor thread. Keeping the
+     * instrumentation here captures one coherent control-loop result without
+     * making the controller's working state itself cross-thread.
+     */
+    g_debugTargetPitch.store(targetPitch, std::memory_order_relaxed);
+    g_debugTargetRoll.store(targetRoll, std::memory_order_relaxed);
+    g_debugPitchError.store(pitchError, std::memory_order_relaxed);
+    g_debugRollError.store(rollError, std::memory_order_relaxed);
+    g_debugPitchRate.store(g_gamePitchRate, std::memory_order_relaxed);
+    g_debugRollRate.store(g_gameRollRate, std::memory_order_relaxed);
+    g_debugPitchCommand.store(g_smoothFlightPitch, std::memory_order_relaxed);
+    g_debugRollCommand.store(g_smoothFlightRoll, std::memory_order_relaxed);
+    g_debugPitchAxis.store((float)*pitchAxis, std::memory_order_relaxed);
+    g_debugRollAxis.store((float)*rollAxis, std::memory_order_relaxed);
 }
 
 /* Make the handset's current pose neutral when a flight begins. Menu handling
@@ -282,4 +312,27 @@ Java_org_f15se2_ex_ArCameraView_nativeGetGameAttitude(JNIEnv *env, jclass,
     };
     if (attitude && env->GetArrayLength(attitude) >= 2)
         env->SetFloatArrayRegion(attitude, 0, 2, values);
+}
+
+/* Return the latest closed-loop controller values for opt-in Android logging. */
+extern "C" JNIEXPORT void JNICALL
+Java_org_f15se2_ex_ArCameraView_nativeGetFlightDebug(
+    JNIEnv *env, jclass, jfloatArray values) {
+    if (!values || env->GetArrayLength(values) < 12) return;
+
+    const jfloat snapshot[12] = {
+        g_gamePitch.load(std::memory_order_relaxed),
+        g_gameRoll.load(std::memory_order_relaxed),
+        g_debugTargetPitch.load(std::memory_order_relaxed),
+        g_debugTargetRoll.load(std::memory_order_relaxed),
+        g_debugPitchError.load(std::memory_order_relaxed),
+        g_debugRollError.load(std::memory_order_relaxed),
+        g_debugPitchRate.load(std::memory_order_relaxed),
+        g_debugRollRate.load(std::memory_order_relaxed),
+        g_debugPitchCommand.load(std::memory_order_relaxed),
+        g_debugRollCommand.load(std::memory_order_relaxed),
+        g_debugPitchAxis.load(std::memory_order_relaxed),
+        g_debugRollAxis.load(std::memory_order_relaxed),
+    };
+    env->SetFloatArrayRegion(values, 0, 12, snapshot);
 }

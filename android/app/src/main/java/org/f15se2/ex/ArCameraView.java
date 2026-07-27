@@ -52,15 +52,18 @@ public final class ArCameraView extends TextureView
     private CameraDevice cameraDevice;
     private CameraCaptureSession captureSession;
     private Size previewSize;
+    private int cameraSensorOrientation;
     private boolean resumed;
     private boolean attitudeInitialized;
     private float deviceYawOffset;
     private float devicePitchOffset;
     private float deviceRollOffset;
+    private final float[] flightDebug = new float[12];
     private long lastAttitudeTraceNs;
 
     private static native void nativeSetCameraReady(boolean ready);
     private static native void nativeSetDeviceAttitude(float yaw, float pitch, float roll);
+    private static native void nativeGetFlightDebug(float[] values);
 
     public ArCameraView(Context context) {
         super(context);
@@ -134,6 +137,10 @@ public final class ArCameraView extends TextureView
                 setCameraReady(false);
                 return;
             }
+            Integer sensorOrientation =
+                selected.get(CameraCharacteristics.SENSOR_ORIENTATION);
+            cameraSensorOrientation =
+                sensorOrientation != null ? sensorOrientation : 0;
             previewSize = choosePreviewSize(selected);
             texture.setDefaultBufferSize(
                 previewSize.getWidth(), previewSize.getHeight());
@@ -403,25 +410,59 @@ public final class ArCameraView extends TextureView
     }
 
     /**
-     * Center-crops Camera2 without changing its aspect ratio.
+     * Rotates Camera2 into display orientation and uniformly center-crops it.
      *
-     * This transform depends only on view and preview dimensions. Device and
-     * game attitude must never rotate, translate or stretch the real image.
+     * This is the standard TextureView preview transform. It depends only on
+     * camera/display geometry; neither device nor game attitude may alter it.
      */
     private void alignPreview() {
         int viewWidth = getWidth();
         int viewHeight = getHeight();
         Matrix transform = new Matrix();
         if (previewSize != null && viewWidth > 0 && viewHeight > 0) {
-            float fillScale = Math.max(
-                viewWidth / (float)previewSize.getWidth(),
-                viewHeight / (float)previewSize.getHeight());
-            float scaleX =
-                previewSize.getWidth() * fillScale / (float)viewWidth;
-            float scaleY =
-                previewSize.getHeight() * fillScale / (float)viewHeight;
-            transform.setScale(
-                scaleX, scaleY, viewWidth * 0.5f, viewHeight * 0.5f);
+            Display display = getDisplay();
+            int rotation =
+                display != null ? display.getRotation() : Surface.ROTATION_0;
+            float centerX = viewWidth * 0.5f;
+            float centerY = viewHeight * 0.5f;
+            android.graphics.RectF viewRect =
+                new android.graphics.RectF(0.0f, 0.0f, viewWidth, viewHeight);
+
+            if (rotation == Surface.ROTATION_90 ||
+                rotation == Surface.ROTATION_270) {
+                android.graphics.RectF bufferRect =
+                    new android.graphics.RectF(
+                        0.0f, 0.0f, previewSize.getHeight(),
+                        previewSize.getWidth());
+                bufferRect.offset(
+                    centerX - bufferRect.centerX(),
+                    centerY - bufferRect.centerY());
+                transform.setRectToRect(
+                    viewRect, bufferRect, Matrix.ScaleToFit.FILL);
+                float scale = Math.max(
+                    viewHeight / (float)previewSize.getHeight(),
+                    viewWidth / (float)previewSize.getWidth());
+                transform.postScale(scale, scale, centerX, centerY);
+                transform.postRotate(
+                    90.0f * (rotation - 2), centerX, centerY);
+            } else if (rotation == Surface.ROTATION_180) {
+                transform.postRotate(180.0f, centerX, centerY);
+            } else {
+                float fillScale = Math.max(
+                    viewWidth / (float)previewSize.getWidth(),
+                    viewHeight / (float)previewSize.getHeight());
+                float scaleX =
+                    previewSize.getWidth() * fillScale / (float)viewWidth;
+                float scaleY =
+                    previewSize.getHeight() * fillScale / (float)viewHeight;
+                transform.setScale(scaleX, scaleY, centerX, centerY);
+            }
+
+            Log.d("F15AR", String.format(
+                Locale.US,
+                "camera display=%d sensor=%d preview=%dx%d view=%dx%d",
+                rotation, cameraSensorOrientation, previewSize.getWidth(),
+                previewSize.getHeight(), viewWidth, viewHeight));
         }
         setTransform(transform);
     }
@@ -490,13 +531,21 @@ public final class ArCameraView extends TextureView
         if (Log.isLoggable("F15AR", Log.DEBUG) &&
             event.timestamp - lastAttitudeTraceNs >= ATTITUDE_TRACE_INTERVAL_NS) {
             lastAttitudeTraceNs = event.timestamp;
+            nativeGetFlightDebug(flightDebug);
             Log.d("F15AR", String.format(
                 Locale.US,
-                "sensor ns=%d display=%d yaw=%+.5f pitch=%+.5f roll=%+.5f",
-                event.timestamp, rotation, deviceYawOffset,
-                devicePitchOffset, deviceRollOffset));
+                "control ns=%d display=%d gravity=(%+.5f,%+.5f,%+.5f) " +
+                "phone=(%+.5f,%+.5f) game=(%+.5f,%+.5f) " +
+                "target=(%+.5f,%+.5f) error=(%+.5f,%+.5f) " +
+                "rate=(%+.5f,%+.5f) command=(%+.5f,%+.5f) axis=(%.0f,%.0f)",
+                event.timestamp, rotation, adjustedMatrix[6],
+                adjustedMatrix[7], adjustedMatrix[8], devicePitchOffset,
+                deviceRollOffset, flightDebug[0], flightDebug[1],
+                flightDebug[2], flightDebug[3], flightDebug[4],
+                flightDebug[5], flightDebug[6], flightDebug[7],
+                flightDebug[8], flightDebug[9], flightDebug[10],
+                flightDebug[11]));
         }
-        alignPreview();
     }
 
     @Override
