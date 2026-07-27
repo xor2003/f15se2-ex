@@ -589,6 +589,17 @@ switch_break:
 
     g_highGeeFlag[0] = ((abs(g_ourPitch)) - (abs((int16)g_ourRoll) / 2) > 0x1000) ? 1 : 0;
 
+    /*
+     * computeAttitudeAngles() above must run so yaw updates the heading, but
+     * its legacy Euler decomposition can fold roll to a distant equivalent
+     * angle. Reassert the handset target at the final orientation boundary so
+     * rendering and the next simulation step both observe the requested pose.
+     */
+    if (androidFlightControl &&
+        android_ar_overrideFlightAttitude(&g_ourRoll, &g_ourPitch)) {
+        g_orientationDirty = 1;
+    }
+
     if (g_orientationDirty) {
         rebuildOrientation();
     }
