@@ -55,6 +55,10 @@ static const float ATTITUDE_FULL_STICK_ERROR = 32.0f * PI / 180.0f;
 static const float ATTITUDE_FULL_DAMPING_RATE = 4.0f * PI / 180.0f;
 static const float LOOK_MAX_PITCH = 70.0f * PI / 180.0f;
 static const float STICK_DEFLECTION = 56.0f;
+static const int LEGACY_ROLL_POSITIVE_MIN = 0x90;
+static const int LEGACY_ROLL_POSITIVE_MAX = 0xB8;
+static const int LEGACY_ROLL_NEGATIVE_MIN = 0x48;
+static const int LEGACY_ROLL_NEGATIVE_MAX = 0x6F;
 
 static float clampFloat(float value, float minimum, float maximum) {
     if (value < minimum) return minimum;
@@ -80,6 +84,27 @@ static float attitudeErrorToStick(float value) {
                 (ATTITUDE_FULL_STICK_ERROR - ATTITUDE_ERROR_DEAD_ZONE);
     magnitude = clampFloat(magnitude, 0.0f, 1.0f);
     return value < 0.0f ? -magnitude : magnitude;
+}
+
+/*
+ * Map a normalized roll command onto bins that the legacy flight model can
+ * actually observe. egflight.c discards raw X values 0x70..0x8f after its
+ * nibble conversion and negative-side zero adjustment. Sending a smooth value
+ * inside that range left the autopilot active while this controller believed
+ * it was correcting the aircraft, producing a runaway feedback loop.
+ */
+static uint8 rollCommandToLegacyAxis(float command) {
+    if (command > 0.0f) {
+        return (uint8)(LEGACY_ROLL_POSITIVE_MIN +
+            (int)(command *
+                  (LEGACY_ROLL_POSITIVE_MAX - LEGACY_ROLL_POSITIVE_MIN)));
+    }
+    if (command < 0.0f) {
+        return (uint8)(LEGACY_ROLL_NEGATIVE_MAX -
+            (int)(-command *
+                  (LEGACY_ROLL_NEGATIVE_MAX - LEGACY_ROLL_NEGATIVE_MIN)));
+    }
+    return 0x80;
 }
 
 static float angleToRadians(int angle) {
@@ -173,7 +198,6 @@ void android_ar_getFlightAxes(uint8 *rollAxis, uint8 *pitchAxis) {
     float pitchError;
     float rollCommand;
     float pitchCommand;
-    int rollValue;
     int pitchValue;
     if (!rollAxis || !pitchAxis || !android_ar_active() ||
         g_lookMode.load(std::memory_order_acquire)) {
@@ -221,15 +245,9 @@ void android_ar_getFlightAxes(uint8 *rollAxis, uint8 *pitchAxis) {
         (rollCommand - g_smoothFlightRoll) * 0.16f;
     g_smoothFlightPitch +=
         (pitchCommand - g_smoothFlightPitch) * 0.16f;
-    /*
-     * The legacy joystick roll axis is opposite to the signed g_ourRoll angle:
-     * values below centre increase g_ourRoll. Keep the controller command in
-     * attitude-error coordinates and invert it only at the raw-axis boundary.
-     */
-    rollValue = 0x80 - (int)(g_smoothFlightRoll * STICK_DEFLECTION);
     /* Positive attitude error uses the same raw-axis direction as arrow down. */
     pitchValue = 0x80 + (int)(g_smoothFlightPitch * STICK_DEFLECTION);
-    *rollAxis = (uint8)clampFloat((float)rollValue, 0x26, 0xda);
+    *rollAxis = rollCommandToLegacyAxis(g_smoothFlightRoll);
     *pitchAxis = (uint8)clampFloat((float)pitchValue, 0x26, 0xda);
 
     /*
