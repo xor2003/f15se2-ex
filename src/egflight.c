@@ -521,6 +521,13 @@ switch_break:
             g_velocity = 0;
     }
 
+#if defined(__ANDROID__)
+    android_ar_setFlightDebug(g_ourHead, yaw, g_rollInput, g_pitchInput,
+                              g_knots, g_gees, turbulence,
+                              g_autopilotAltitude, g_autopilotEngaged,
+                              g_directorMode, g_frameRateScaling);
+#endif
+
     rollAngle = (((int32)g_rollInput) << 7) / ((int32)g_frameRateScaling);
     if (rollAngle != 0) {
         g_rollMatrix[4] = g_rollMatrix[0] = cosine(rollAngle);

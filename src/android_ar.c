@@ -35,6 +35,17 @@ static std::atomic<float> g_debugPitchCommand(0.0f);
 static std::atomic<float> g_debugRollCommand(0.0f);
 static std::atomic<float> g_debugPitchAxis(0x80);
 static std::atomic<float> g_debugRollAxis(0x80);
+static std::atomic<float> g_debugHeading(0.0f);
+static std::atomic<float> g_debugYaw(0.0f);
+static std::atomic<float> g_debugAppliedRoll(0.0f);
+static std::atomic<float> g_debugAppliedPitch(0.0f);
+static std::atomic<float> g_debugKnots(0.0f);
+static std::atomic<float> g_debugGees(0.0f);
+static std::atomic<float> g_debugTurbulence(0.0f);
+static std::atomic<float> g_debugAutopilotAltitude(0.0f);
+static std::atomic<float> g_debugAutopilotEngaged(0.0f);
+static std::atomic<float> g_debugDirectorMode(0.0f);
+static std::atomic<float> g_debugFrameRateScaling(0.0f);
 static float g_smoothFlightRoll = 0.0f;
 static float g_smoothFlightPitch = 0.0f;
 static float g_previousGameRoll = 0.0f;
@@ -127,6 +138,33 @@ void android_ar_setGameAttitude(int pitchAngle, int rollAngle) {
     }
     g_previousGamePitch = pitch;
     g_previousGameRoll = roll;
+}
+
+/*
+ * Capture the final values used by the flight model after its autopilot,
+ * turbulence, ground, and crash modifiers. This opt-in telemetry distinguishes
+ * unstable sensor control from a later legacy system replacing that control.
+ */
+void android_ar_setFlightDebug(int headingAngle, int yawAngle, int rollInput,
+                               int pitchInput, int knots, int gees,
+                               int turbulence, int autopilotAltitude,
+                               int autopilotEngaged, int directorMode,
+                               int frameRateScaling) {
+    g_debugHeading.store(angleToRadians(headingAngle),
+                         std::memory_order_relaxed);
+    g_debugYaw.store(angleToRadians(yawAngle), std::memory_order_relaxed);
+    g_debugAppliedRoll.store((float)rollInput, std::memory_order_relaxed);
+    g_debugAppliedPitch.store((float)pitchInput, std::memory_order_relaxed);
+    g_debugKnots.store((float)knots, std::memory_order_relaxed);
+    g_debugGees.store((float)gees, std::memory_order_relaxed);
+    g_debugTurbulence.store((float)turbulence, std::memory_order_relaxed);
+    g_debugAutopilotAltitude.store((float)autopilotAltitude,
+                                   std::memory_order_relaxed);
+    g_debugAutopilotEngaged.store((float)autopilotEngaged,
+                                  std::memory_order_relaxed);
+    g_debugDirectorMode.store((float)directorMode, std::memory_order_relaxed);
+    g_debugFrameRateScaling.store((float)frameRateScaling,
+                                  std::memory_order_relaxed);
 }
 
 void android_ar_adjustView(int *yawAngle, int *pitchAngle, int *rollAngle) {
@@ -346,9 +384,9 @@ Java_org_f15se2_ex_ArCameraView_nativeGetGameAttitude(JNIEnv *env, jclass,
 extern "C" JNIEXPORT void JNICALL
 Java_org_f15se2_ex_ArCameraView_nativeGetFlightDebug(
     JNIEnv *env, jclass, jfloatArray values) {
-    if (!values || env->GetArrayLength(values) < 12) return;
+    if (!values || env->GetArrayLength(values) < 23) return;
 
-    const jfloat snapshot[12] = {
+    const jfloat snapshot[23] = {
         g_gamePitch.load(std::memory_order_relaxed),
         g_gameRoll.load(std::memory_order_relaxed),
         g_debugTargetPitch.load(std::memory_order_relaxed),
@@ -361,6 +399,17 @@ Java_org_f15se2_ex_ArCameraView_nativeGetFlightDebug(
         g_debugRollCommand.load(std::memory_order_relaxed),
         g_debugPitchAxis.load(std::memory_order_relaxed),
         g_debugRollAxis.load(std::memory_order_relaxed),
+        g_debugHeading.load(std::memory_order_relaxed),
+        g_debugYaw.load(std::memory_order_relaxed),
+        g_debugAppliedRoll.load(std::memory_order_relaxed),
+        g_debugAppliedPitch.load(std::memory_order_relaxed),
+        g_debugKnots.load(std::memory_order_relaxed),
+        g_debugGees.load(std::memory_order_relaxed),
+        g_debugTurbulence.load(std::memory_order_relaxed),
+        g_debugAutopilotAltitude.load(std::memory_order_relaxed),
+        g_debugAutopilotEngaged.load(std::memory_order_relaxed),
+        g_debugDirectorMode.load(std::memory_order_relaxed),
+        g_debugFrameRateScaling.load(std::memory_order_relaxed),
     };
-    env->SetFloatArrayRegion(values, 0, 12, snapshot);
+    env->SetFloatArrayRegion(values, 0, 23, snapshot);
 }

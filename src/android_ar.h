@@ -15,6 +15,11 @@ int android_ar_preventCrashes(void);
 static inline int android_ar_preventCrashes(void) { return 0; }
 #endif
 void android_ar_setGameAttitude(int pitchAngle, int rollAngle);
+void android_ar_setFlightDebug(int headingAngle, int yawAngle, int rollInput,
+                               int pitchInput, int knots, int gees,
+                               int turbulence, int autopilotAltitude,
+                               int autopilotEngaged, int directorMode,
+                               int frameRateScaling);
 void android_ar_adjustView(int *yawAngle, int *pitchAngle, int *rollAngle);
 void android_ar_getFlightAxes(uint8 *rollAxis, uint8 *pitchAxis);
 #if defined(__ANDROID__)

@@ -58,7 +58,7 @@ public final class ArCameraView extends TextureView
     private float deviceYawOffset;
     private float devicePitchOffset;
     private float deviceRollOffset;
-    private final float[] flightDebug = new float[12];
+    private final float[] flightDebug = new float[23];
     private long lastAttitudeTraceNs;
 
     private static native void nativeSetCameraReady(boolean ready);
@@ -535,16 +535,23 @@ public final class ArCameraView extends TextureView
             Log.d("F15AR", String.format(
                 Locale.US,
                 "control ns=%d display=%d gravity=(%+.5f,%+.5f,%+.5f) " +
-                "phone=(%+.5f,%+.5f) game=(%+.5f,%+.5f) " +
+                "phone=(%+.5f,%+.5f,%+.5f) game=(%+.5f,%+.5f) " +
                 "target=(%+.5f,%+.5f) error=(%+.5f,%+.5f) " +
-                "rate=(%+.5f,%+.5f) command=(%+.5f,%+.5f) axis=(%.0f,%.0f)",
+                "rate=(%+.5f,%+.5f) command=(%+.5f,%+.5f) axis=(%.0f,%.0f) " +
+                "flight=(head=%+.5f yaw=%+.5f rollIn=%.0f pitchIn=%.0f " +
+                "knots=%.0f gees=%.0f turb=%.0f apAlt=%.0f ap=%.0f " +
+                "dir=%.0f scale=%.0f)",
                 event.timestamp, rotation, adjustedMatrix[6],
-                adjustedMatrix[7], adjustedMatrix[8], devicePitchOffset,
-                deviceRollOffset, flightDebug[0], flightDebug[1],
+                adjustedMatrix[7], adjustedMatrix[8], deviceYawOffset,
+                devicePitchOffset, deviceRollOffset, flightDebug[0],
+                flightDebug[1],
                 flightDebug[2], flightDebug[3], flightDebug[4],
                 flightDebug[5], flightDebug[6], flightDebug[7],
                 flightDebug[8], flightDebug[9], flightDebug[10],
-                flightDebug[11]));
+                flightDebug[11], flightDebug[12], flightDebug[13],
+                flightDebug[14], flightDebug[15], flightDebug[16],
+                flightDebug[17], flightDebug[18], flightDebug[19],
+                flightDebug[20], flightDebug[21], flightDebug[22]));
         }
     }
 
