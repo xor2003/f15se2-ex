@@ -58,6 +58,7 @@ void stepFlightModel(void) {
     int16 m;                                // dummy:  bp-0x3a (bucket 13)
     int16 knotsScale;                       // var_3C: bp-0x3c (bucket 14)
     int16 nsSign;                           // var_3E: bp-0x3e (bucket 15)
+    int androidFlightControl = 0;
 
     if (g_initPhase == 0) {
         // (MSC stores chained assignments right-to-left:
@@ -211,7 +212,9 @@ switch_break:
      * joystick's nibble-sized bins. Keep the legacy path intact, then replace
      * only its final flight inputs while the optional camera controller is on.
      */
-    if (android_ar_overrideFlightInput(&g_rollInput, &g_pitchInput)) {
+    androidFlightControl =
+        android_ar_overrideFlightInput(&g_rollInput, &g_pitchInput);
+    if (androidFlightControl) {
         g_autopilotAltitude = 0;
     }
 
@@ -491,6 +494,17 @@ switch_break:
     yaw = (((int32)sinMul(g_ourRoll, g_gees << 4)) << 7) / ((int32)((int16)((uint16)g_velocity >> 9) + 0x20));
 
     yaw = cosMul(g_ourPitch, yaw);
+
+    /*
+     * Turbulence and other legacy assists modify the stick earlier in this
+     * routine. Reapply the phone's target-attitude command at the final normal
+     * flight-control boundary so those later additions cannot shake the
+     * aircraft away from the handset pose. Ground steering and forced crash
+     * behavior below remain authoritative.
+     */
+    if (androidFlightControl) {
+        android_ar_overrideFlightInput(&g_rollInput, &g_pitchInput);
+    }
 
     if (g_groundAltitude == g_viewZ) {
         yaw = (g_rollInput * -1) << 6;
