@@ -538,31 +538,43 @@ switch_break:
                               g_directorMode, g_frameRateScaling);
 #endif
 
-    rollAngle = (((int32)g_rollInput) << 7) / ((int32)g_frameRateScaling);
-    if (rollAngle != 0) {
-        g_rollMatrix[4] = g_rollMatrix[0] = cosine(rollAngle);
-        g_rollMatrix[1] = sine(rollAngle);
-        g_rollMatrix[3] = -g_rollMatrix[1];
-        applyRotationDelta(g_orientMatrix, g_rollMatrix);
-    }
-
-    pitchAngle = (int16)((int32)g_pitchInput << 7) / g_frameRateScaling;
-    if (pitchAngle != 0) {
-        g_pitchMatrix[8] = g_pitchMatrix[4] = cosine(pitchAngle);
-        g_pitchMatrix[7] = sine(pitchAngle);
-        g_pitchMatrix[5] = -g_pitchMatrix[7];
-        applyRotationDelta(g_orientMatrix, g_pitchMatrix);
-    }
-
     yawAngle = yaw / g_frameRateScaling;
-    if (yawAngle != 0) {
-        g_yawMatrix[8] = g_yawMatrix[0] = cosine(yawAngle);
-        g_yawMatrix[2] = sine(yawAngle);
-        g_yawMatrix[6] = -g_yawMatrix[2];
-        applyRotationDelta(g_yawMatrix, g_orientMatrix);
-    }
+    if (androidFlightControl) {
+        /*
+         * Phone tilt specifies only bank and pitch. Advance heading from the
+         * original aerodynamic yaw directly; decomposing the fixed-point
+         * matrix back to Euler angles can alternate between equivalent
+         * azimuths and make a banked aircraft shake toward its old heading.
+         */
+        g_ourHead = (int16)(g_ourHead + yawAngle);
+        android_ar_overrideFlightAttitude(&g_ourRoll, &g_ourPitch);
+        g_orientationDirty = 1;
+    } else {
+        rollAngle = (((int32)g_rollInput) << 7) / ((int32)g_frameRateScaling);
+        if (rollAngle != 0) {
+            g_rollMatrix[4] = g_rollMatrix[0] = cosine(rollAngle);
+            g_rollMatrix[1] = sine(rollAngle);
+            g_rollMatrix[3] = -g_rollMatrix[1];
+            applyRotationDelta(g_orientMatrix, g_rollMatrix);
+        }
 
-    computeAttitudeAngles();
+        pitchAngle = (int16)((int32)g_pitchInput << 7) / g_frameRateScaling;
+        if (pitchAngle != 0) {
+            g_pitchMatrix[8] = g_pitchMatrix[4] = cosine(pitchAngle);
+            g_pitchMatrix[7] = sine(pitchAngle);
+            g_pitchMatrix[5] = -g_pitchMatrix[7];
+            applyRotationDelta(g_orientMatrix, g_pitchMatrix);
+        }
+
+        if (yawAngle != 0) {
+            g_yawMatrix[8] = g_yawMatrix[0] = cosine(yawAngle);
+            g_yawMatrix[2] = sine(yawAngle);
+            g_yawMatrix[6] = -g_yawMatrix[2];
+            applyRotationDelta(g_yawMatrix, g_orientMatrix);
+        }
+
+        computeAttitudeAngles();
+    }
 
     if ((uint16)g_stallSpeed > (uint16)g_velocity && (uint16)g_groundAltitude < (uint16)g_viewZ) {
         g_ourPitch -= ((uint16)g_stallSpeed - (uint16)g_velocity) >> ((gameData->unk4 == 2 || g_gunHits > 8) ? 1 : 2);
