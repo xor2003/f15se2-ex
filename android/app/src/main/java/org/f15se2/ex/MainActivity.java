@@ -74,15 +74,21 @@ public final class MainActivity extends SDLActivity {
          * portrait display rotation after wake-up on some devices, rotating
          * the camera preview and remapping the flight axes while playing.
          */
+        super.onCreate(savedInstanceState);
+        /* SDLActivity may apply its own manifest-derived orientation during
+         * super.onCreate(), so enforce the fixed orientation afterwards. */
         setRequestedOrientation(
             android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
-        super.onCreate(savedInstanceState);
         configureAr();
     }
 
     @Override
     protected void onResume() {
         super.onResume();
+        /* Some Android shells clear a requested orientation while the camera
+         * permission dialog or task switcher is in front. Reassert it here. */
+        setRequestedOrientation(
+            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
         if (arCameraView != null && (Build.VERSION.SDK_INT < Build.VERSION_CODES.M ||
             checkSelfPermission(Manifest.permission.CAMERA) ==
             PackageManager.PERMISSION_GRANTED)) {

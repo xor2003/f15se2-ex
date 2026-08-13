@@ -42,13 +42,14 @@ static void (*g_quitHandler)(void) = NULL;
 static bool g_menuPointerPending = false;
 static int g_menuPointerX = 0;
 static int g_menuPointerY = 0;
+static bool g_flightThrottlePointerActive = false;
+static bool g_flightThrottlePending = false;
+static int g_flightThrottlePercent = 0;
 #if defined(__ANDROID__)
 static bool g_flightFingerDown = false;
 static bool g_flightLookActive = false;
 static bool g_flightSwipeActive = false;
 static float g_flightFingerStartY = 0.0f;
-static Uint64 g_flightFingerDownNs = 0;
-static const Uint64 LOOK_HOLD_NS = 180000000;
 static const float LOOK_SWIPE_GATE = 0.025f;
 #endif
 
@@ -93,6 +94,8 @@ static void ringPush(uint16 word) {
 void input_ringReset(void) {
     ringHead = ringTail = 0;
     g_menuPointerPending = false;
+    g_flightThrottlePointerActive = false;
+    g_flightThrottlePending = false;
     g_joyRawX = 0x80;
     g_joyRawY = 0x80;
 #if defined(__ANDROID__)
@@ -108,6 +111,13 @@ bool input_takeMenuPointer(int *x, int *y) {
     if (x) *x = g_menuPointerX;
     if (y) *y = g_menuPointerY;
     g_menuPointerPending = false;
+    return true;
+}
+
+bool input_takeFlightThrottle(int *percent) {
+    if (!g_flightThrottlePending) return false;
+    if (percent) *percent = g_flightThrottlePercent;
+    g_flightThrottlePending = false;
     return true;
 }
 
@@ -769,13 +779,23 @@ static void queueMenuPointer(Uint32 windowID, float x, float y, bool normalized)
  * generous touch targets around the tiny legacy glyphs without changing their
  * visual layout. */
 uint16 input_flightPointerKey(int x, int y) {
-    if (y >= 174 && y < LOGICAL_HEIGHT) {
-        if (x >= 12 && x < 51) return 0x326d;  /* left ammo count: M */
-        if (x >= 51 && x < 89) return 0x1f73;  /* middle ammo count: S */
-        if (x >= 89 && x < 131) return 0x2267; /* right ammo count: G */
-        if (x >= 164 && x < 183)
-            return INPUT_KEY_BOTH_COUNTERMEASURES; /* painted R: flare + chaff */
-        if (x >= 183 && x < 218) return 0x266c; /* landing-gear G */
+    /* The two mechanical toggles painted above the right display would
+     * otherwise fall inside that display's broad target-designation region. */
+    if (y >= 101 && y < 126) {
+        if (x >= 240 && x < 262) return 0x1970; /* left toggle: P, autopilot */
+        if (x >= 262 && x < 284) return INPUT_KEY_TOGGLE_LOOK;
+    }
+    if (y >= 169 && y < LOGICAL_HEIGHT) {
+        /* Cover each complete weapon drawing, not only its small ammo number. */
+        if (x >= 16 && x < 55) return 0x326d;  /* left weapon: M */
+        if (x >= 55 && x < 94) return 0x1f73;  /* middle weapon: S */
+        if (x >= 94 && x < 134) return 0x2267; /* right weapon: G */
+        /* R/I are the radar/infrared warning lamps: touch the warning to
+         * release the countermeasure appropriate to that seeker type. */
+        if (x >= 163 && x < 180) return 0x2e63; /* R: chaff (C) */
+        if (x >= 180 && x < 197) return 0x2166; /* I: flare (F) */
+        if (x >= 197 && x < 214) return 0x266c; /* L: landing gear */
+        if (x >= 214 && x < 231) return 0x3062; /* P: wheel brake */
     }
     if (x >= 219 && x < LOGICAL_WIDTH && y >= 104 && y < 190)
         return 0x1474; /* right target display: T designates the next target */
@@ -784,17 +804,37 @@ uint16 input_flightPointerKey(int x, int y) {
     return 0;
 }
 
-/* Map a flight pointer through the same square-pixel overlay transform used to
- * draw the HUD, then queue the legacy command owned by the touched control. */
-static void queueFlightPointer(Uint32 windowID, float x, float y,
-                               bool normalized) {
+enum {
+    THROTTLE_DRAW_TOP = 127,
+    THROTTLE_DRAW_BOTTOM = 175,
+    THROTTLE_TOUCH_LEFT = 204,
+    THROTTLE_TOUCH_RIGHT = 225,
+    THROTTLE_TOUCH_TOP = 120,
+    THROTTLE_TOUCH_BOTTOM = 176,
+};
+
+int input_flightThrottleValue(int x, int y) {
+    int drawY = y;
+
+    if (x < THROTTLE_TOUCH_LEFT || x >= THROTTLE_TOUCH_RIGHT ||
+        y < THROTTLE_TOUCH_TOP || y >= THROTTLE_TOUCH_BOTTOM)
+        return -1;
+    if (drawY < THROTTLE_DRAW_TOP) drawY = THROTTLE_DRAW_TOP;
+    if (drawY > THROTTLE_DRAW_BOTTOM) drawY = THROTTLE_DRAW_BOTTOM;
+    return (THROTTLE_DRAW_BOTTOM - drawY) * 100 /
+           (THROTTLE_DRAW_BOTTOM - THROTTLE_DRAW_TOP);
+}
+
+/* Convert either SDL normalized touch coordinates or pixel mouse coordinates
+ * through the same square-pixel mapping used by the cockpit artwork. */
+static void mapFlightPointer(Uint32 windowID, float x, float y, bool normalized,
+                             int *logicalX, int *logicalY) {
     SDL_Window *window = SDL_GetWindowFromID(windowID);
     R2DMapping mapping;
     int winW = LOGICAL_WIDTH;
     int winH = LOGICAL_HEIGHT;
     float pixelX = x;
     float pixelY = y;
-    uint16 key;
 
     if (window) SDL_GetWindowSizeInPixels(window, &winW, &winH);
     if (normalized) {
@@ -802,13 +842,56 @@ static void queueFlightPointer(Uint32 windowID, float x, float y,
         pixelY *= winH;
     }
     r2d_computeMapping(LOGICAL_WIDTH, LOGICAL_HEIGHT, winW, winH, 1, &mapping);
-    key = input_flightPointerKey(
-        (int)((pixelX - mapping.offX) / mapping.scaleX),
-        (int)((pixelY - mapping.offY) / mapping.scaleY));
-    if (key == INPUT_KEY_BOTH_COUNTERMEASURES) {
-        /* Preserve the original stores, messages, sounds, and cooldown paths. */
-        ringPush(0x2166); /* F: flare */
-        ringPush(0x2e63); /* C: chaff */
+    *logicalX = (int)((pixelX - mapping.offX) / mapping.scaleX);
+    *logicalY = (int)((pixelY - mapping.offY) / mapping.scaleY);
+}
+
+static bool beginFlightThrottlePointer(Uint32 windowID, float x, float y,
+                                       bool normalized) {
+    int logicalX = 0;
+    int logicalY = 0;
+    int percent = 0;
+
+    mapFlightPointer(windowID, x, y, normalized, &logicalX, &logicalY);
+    percent = input_flightThrottleValue(logicalX, logicalY);
+    if (percent < 0) return false;
+    g_flightThrottlePointerActive = true;
+    g_flightThrottlePercent = percent;
+    g_flightThrottlePending = true;
+    return true;
+}
+
+static void updateFlightThrottlePointer(Uint32 windowID, float x, float y,
+                                        bool normalized) {
+    int logicalX = 0;
+    int logicalY = 0;
+
+    mapFlightPointer(windowID, x, y, normalized, &logicalX, &logicalY);
+    /* Once grabbed, the lever follows vertical motion even if the finger
+     * strays sideways from the narrow original 11-pixel artwork. */
+    if (logicalY < THROTTLE_DRAW_TOP) logicalY = THROTTLE_DRAW_TOP;
+    if (logicalY > THROTTLE_DRAW_BOTTOM) logicalY = THROTTLE_DRAW_BOTTOM;
+    g_flightThrottlePercent =
+        (THROTTLE_DRAW_BOTTOM - logicalY) * 100 /
+        (THROTTLE_DRAW_BOTTOM - THROTTLE_DRAW_TOP);
+    g_flightThrottlePending = true;
+}
+
+/* Map a flight pointer through the same square-pixel overlay transform used to
+ * draw the HUD, then queue the legacy command owned by the touched control. */
+static void queueFlightPointer(Uint32 windowID, float x, float y,
+                               bool normalized) {
+    int logicalX = 0;
+    int logicalY = 0;
+    uint16 key;
+
+    mapFlightPointer(windowID, x, y, normalized, &logicalX, &logicalY);
+    key = input_flightPointerKey(logicalX, logicalY);
+    if (key == INPUT_KEY_TOGGLE_LOOK) {
+#if defined(__ANDROID__)
+        g_flightLookActive = !g_flightLookActive;
+        android_ar_setLookMode(g_flightLookActive ? 1 : 0);
+#endif
     } else {
         /* Preserve tap-to-dismiss for the original in-engine demo key waits. */
         ringPush(key ? key : INPUT_KEY_MENU_POINTER);
@@ -823,14 +906,6 @@ void input_pumpEvents(void) {
      * clock too: this is what drives the tick counters those loops spin on, and
      * what keeps the window responsive on a poll-only frame. */
     timerPump();
-#if defined(__ANDROID__)
-    if (g_mode == INPUT_MODE_FLIGHT && g_flightFingerDown &&
-        !g_flightLookActive && !g_flightSwipeActive &&
-        SDL_GetTicksNS() - g_flightFingerDownNs >= LOOK_HOLD_NS) {
-        g_flightLookActive = true;
-        android_ar_setLookMode(1);
-    }
-#endif
     while (SDL_PollEvent(&ev)) {
         joy_handleEvent(&ev); /* device hotplug, every phase */
         /* Window / system events are handled here for every phase, before any
@@ -895,8 +970,10 @@ void input_pumpEvents(void) {
                 queueMenuPointer(ev.tfinger.windowID, ev.tfinger.x, ev.tfinger.y, true);
             } else {
 #if defined(__ANDROID__)
-                if (g_flightLookActive) {
-                    android_ar_setLookMode(0);
+                if (g_flightThrottlePointerActive) {
+                    updateFlightThrottlePointer(
+                        ev.tfinger.windowID, ev.tfinger.x, ev.tfinger.y, true);
+                    g_flightThrottlePointerActive = false;
                 } else if (!g_flightSwipeActive) {
                     queueFlightPointer(
                         ev.tfinger.windowID, ev.tfinger.x, ev.tfinger.y, true);
@@ -913,15 +990,19 @@ void input_pumpEvents(void) {
 #if defined(__ANDROID__)
         case SDL_EVENT_FINGER_DOWN:
             if (g_mode == INPUT_MODE_FLIGHT) {
-                g_flightFingerDown = true;
-                g_flightLookActive = false;
-                g_flightSwipeActive = false;
-                g_flightFingerStartY = ev.tfinger.y;
-                g_flightFingerDownNs = SDL_GetTicksNS();
+                if (!beginFlightThrottlePointer(
+                        ev.tfinger.windowID, ev.tfinger.x, ev.tfinger.y, true)) {
+                    g_flightFingerDown = true;
+                    g_flightSwipeActive = false;
+                    g_flightFingerStartY = ev.tfinger.y;
+                }
             }
             break;
         case SDL_EVENT_FINGER_MOTION:
-            if (g_mode == INPUT_MODE_FLIGHT && g_flightFingerDown &&
+            if (g_mode == INPUT_MODE_FLIGHT && g_flightThrottlePointerActive) {
+                updateFlightThrottlePointer(
+                    ev.tfinger.windowID, ev.tfinger.x, ev.tfinger.y, true);
+            } else if (g_mode == INPUT_MODE_FLIGHT && g_flightFingerDown &&
                 !g_flightLookActive) {
                 float displacement = ev.tfinger.y - g_flightFingerStartY;
                 if (displacement < 0.0f) displacement = -displacement;
@@ -932,12 +1013,26 @@ void input_pumpEvents(void) {
             }
             break;
         case SDL_EVENT_FINGER_CANCELED:
-            if (g_flightLookActive) android_ar_setLookMode(0);
+            g_flightThrottlePointerActive = false;
             g_flightFingerDown = false;
-            g_flightLookActive = false;
             g_flightSwipeActive = false;
             break;
 #endif
+        case SDL_EVENT_MOUSE_BUTTON_DOWN:
+            if (ev.button.button == SDL_BUTTON_LEFT &&
+                ev.button.which != SDL_TOUCH_MOUSEID &&
+                g_mode == INPUT_MODE_FLIGHT) {
+                beginFlightThrottlePointer(
+                    ev.button.windowID, ev.button.x, ev.button.y, false);
+            }
+            break;
+        case SDL_EVENT_MOUSE_MOTION:
+            if (ev.motion.which != SDL_TOUCH_MOUSEID &&
+                g_mode == INPUT_MODE_FLIGHT && g_flightThrottlePointerActive) {
+                updateFlightThrottlePointer(
+                    ev.motion.windowID, ev.motion.x, ev.motion.y, false);
+            }
+            break;
         case SDL_EVENT_MOUSE_BUTTON_UP:
             /* SDL synthesizes a mouse event after a touch event. Ignore that
              * duplicate or one tap would activate the following menu too. */
@@ -945,6 +1040,10 @@ void input_pumpEvents(void) {
                 ev.button.which != SDL_TOUCH_MOUSEID) {
                 if (g_mode == INPUT_MODE_MENU) {
                     queueMenuPointer(ev.button.windowID, ev.button.x, ev.button.y, false);
+                } else if (g_flightThrottlePointerActive) {
+                    updateFlightThrottlePointer(
+                        ev.button.windowID, ev.button.x, ev.button.y, false);
+                    g_flightThrottlePointerActive = false;
                 } else {
                     queueFlightPointer(
                         ev.button.windowID, ev.button.x, ev.button.y, false);

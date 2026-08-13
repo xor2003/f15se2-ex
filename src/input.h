@@ -25,8 +25,8 @@ typedef enum {
  * Flight mode queues the same otherwise-unassigned word without coordinates,
  * allowing "press any key" demo gates to accept touch without firing a command. */
 #define INPUT_KEY_MENU_POINTER 0x7e00
-/* Internal pointer action: queue both original countermeasure keys. */
-#define INPUT_KEY_BOTH_COUNTERMEASURES 0x7d00
+/* Internal pointer action: toggle Android sensor-driven free look. */
+#define INPUT_KEY_TOGGLE_LOOK 0x7c00
 
 /* Select how the pump translates keyboard/gamepad into the key ring. Set by the
  * phase's key readers (kbhit/egReadKey -> FLIGHT, misc_* -> MENU). */
@@ -57,6 +57,13 @@ bool input_takeMenuPointer(int *x, int *y);
 /* Translate a logical 320x200 cockpit tap into its BIOS-style flight command.
  * Exposed for behavior tests; zero means the tap hit no interactive control. */
 uint16 input_flightPointerKey(int x, int y);
+
+/* Translate a logical cockpit point over the painted throttle into 0..100
+ * percent. Returns -1 outside the throttle touch target. */
+int input_flightThrottleValue(int x, int y);
+
+/* Consume the latest absolute throttle value produced by a touch/mouse drag. */
+bool input_takeFlightThrottle(int *percent);
 
 /* --- window state, set by the pump, for callers that want to react --------- */
 bool input_quitRequested(void); /* SDL_EVENT_QUIT (window close) has been seen */

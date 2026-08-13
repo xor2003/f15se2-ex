@@ -59,6 +59,7 @@ void stepFlightModel(void) {
     int16 knotsScale;                       // var_3C: bp-0x3c (bucket 14)
     int16 nsSign;                           // var_3E: bp-0x3e (bucket 15)
     int androidFlightControl = 0;
+    int pointerThrottle = 0;
 
     if (g_initPhase == 0) {
         // (MSC stores chained assignments right-to-left:
@@ -107,6 +108,19 @@ void stepFlightModel(void) {
 
     while (kbhit()) {
         egReadKey(); // Flush keyboard buffer
+    }
+
+    if (input_takeFlightThrottle(&pointerThrottle)) {
+        /* Touch uses the same target-thrust state and gauge update as the
+         * original +/- keys; only the input device is modern. */
+        g_setThrust = clampRange(pointerThrottle, 0, 100);
+        UpdateThrottleState();
+        *((uint8 *)&g_playerPlaneFlags) &= 0xF7; /* release wheel brakes */
+        if (g_autopilotEngaged == 1) {
+            g_directorMode =
+                g_autopilotEngaged =
+                    g_viewMode = VIEW_COCKPIT;
+        }
     }
 
     // Main key dispatch logic
@@ -212,8 +226,12 @@ switch_break:
      * joystick's nibble-sized bins. Keep the legacy path intact, then replace
      * only its final flight inputs while the optional camera controller is on.
      */
-    androidFlightControl =
-        android_ar_overrideFlightInput(&g_rollInput, &g_pitchInput);
+    /* A deliberately enabled altitude autopilot owns the controls until the
+     * player toggles it off; otherwise handset attitude is authoritative. */
+    androidFlightControl = g_autopilotAltitude == 0
+                               ? android_ar_overrideFlightInput(
+                                     &g_rollInput, &g_pitchInput)
+                               : 0;
     if (androidFlightControl) {
         g_autopilotAltitude = 0;
         g_autopilotEngaged = 0;

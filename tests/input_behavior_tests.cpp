@@ -281,15 +281,30 @@ int main() {
                 input_flightPointerKey(65, 190) == 0x1f73 &&
                 input_flightPointerKey(101, 190) == 0x2267,
             "cockpit ammo-count taps select all three weapon groups");
-    require(input_flightPointerKey(200, 194) == 0x266c,
+    require(input_flightPointerKey(18, 177) == 0x326d &&
+                input_flightPointerKey(92, 177) == 0x1f73 &&
+                input_flightPointerKey(132, 177) == 0x2267,
+            "cockpit weapon-picture taps select all three weapon groups");
+    require(input_flightPointerKey(205, 190) == 0x266c,
             "cockpit landing-gear indicator tap queues the L command");
-    require(input_flightPointerKey(173, 190) ==
-                INPUT_KEY_BOTH_COUNTERMEASURES,
-            "cockpit R-image tap releases both countermeasures");
+    require(input_flightPointerKey(171, 190) == 0x2e63 &&
+                input_flightPointerKey(188, 190) == 0x2166,
+            "radar and infrared warning taps release chaff and flare");
+    require(input_flightPointerKey(222, 190) == 0x3062,
+            "cockpit P indicator tap toggles the wheel brake");
     require(input_flightPointerKey(270, 145) == 0x1474,
             "right target-display tap queues target designation");
+    require(input_flightPointerKey(250, 112) == 0x1970 &&
+                input_flightPointerKey(272, 112) == INPUT_KEY_TOGGLE_LOOK,
+            "painted right-panel toggles control autopilot and free look");
     require(input_flightPointerKey(5, 150) == 0,
             "flight taps outside cockpit controls remain neutral");
+    require(input_flightThrottleValue(214, 127) == 100 &&
+                input_flightThrottleValue(214, 151) == 50 &&
+                input_flightThrottleValue(214, 175) == 0,
+            "cockpit throttle maps its painted vertical range to 100..0 percent");
+    require(input_flightThrottleValue(190, 151) == -1,
+            "cockpit throttle ignores points outside its touch target");
 
     resetInputState();
     std::thread delayedKey([] {
