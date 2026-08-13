@@ -891,8 +891,7 @@ static void queueFlightPointer(Uint32 windowID, float x, float y,
     key = input_flightPointerKey(logicalX, logicalY);
     if (key == INPUT_KEY_TOGGLE_LOOK) {
 #if defined(__ANDROID__)
-        g_flightLookActive = !g_flightLookActive;
-        android_ar_setLookMode(g_flightLookActive ? 1 : 0);
+        g_flightLookActive = android_ar_toggleLookMode() != 0;
 #endif
     } else {
         /* Preserve tap-to-dismiss for the original in-engine demo key waits. */

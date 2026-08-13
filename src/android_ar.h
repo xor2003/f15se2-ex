@@ -32,6 +32,7 @@ static inline int android_ar_overrideFlightAttitude(int16 *, int16 *) { return 0
 #endif
 void android_ar_recenterFlight(void);
 void android_ar_setLookMode(int active);
+int android_ar_toggleLookMode(void);
 void android_ar_addSwipePitch(float normalizedDelta);
 
 #endif
