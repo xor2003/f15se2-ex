@@ -58,7 +58,8 @@ static float g_smoothLookPitch = 0.0f;
 static float g_smoothLookRoll = 0.0f;
 
 static const float PI = 3.14159265358979323846f;
-static const float FLIGHT_MAX_TILT = 40.0f * PI / 180.0f;
+static const float FLIGHT_MAX_PITCH = 40.0f * PI / 180.0f;
+static const float FLIGHT_STICK_TILT = 40.0f * PI / 180.0f;
 /*
  * Leave enough slack around the requested attitude to avoid alternating
  * corrections as the flight model and phone sensor settle on opposite sides
@@ -138,6 +139,20 @@ void android_ar_setGameAttitude(int pitchAngle, int rollAngle) {
     g_previousGameRoll = roll;
 }
 
+void android_ar_setAutopilotActive(int active) {
+    g_autopilotActive.store(active != 0, std::memory_order_release);
+    if (!active) return;
+
+    /* Autopilot exclusively owns aircraft and view controls. The camera feed
+     * remains visible, but no sensor or swipe may alter the scene. */
+    g_lookMode.store(0, std::memory_order_release);
+    g_swipePitch.store(0.0f, std::memory_order_relaxed);
+    g_smoothFlightRoll = 0.0f;
+    g_smoothFlightPitch = 0.0f;
+    g_smoothLookPitch = 0.0f;
+    g_smoothLookRoll = 0.0f;
+}
+
 /*
  * Capture the final values used by the flight model after its autopilot,
  * turbulence, ground, and crash modifiers. This opt-in telemetry distinguishes
@@ -151,17 +166,7 @@ void android_ar_setFlightDebug(int headingAngle, int yawAngle, int rollInput,
     const int autopilotActive =
         autopilotAltitude != 0 || autopilotEngaged != 0;
 
-    g_autopilotActive.store(autopilotActive, std::memory_order_release);
-    if (autopilotActive) {
-        /* Autopilot exclusively owns aircraft and view controls. The camera
-         * feed remains visible, but no sensor or swipe may alter the scene. */
-        g_lookMode.store(0, std::memory_order_release);
-        g_swipePitch.store(0.0f, std::memory_order_relaxed);
-        g_smoothFlightRoll = 0.0f;
-        g_smoothFlightPitch = 0.0f;
-        g_smoothLookPitch = 0.0f;
-        g_smoothLookRoll = 0.0f;
-    }
+    android_ar_setAutopilotActive(autopilotActive);
     g_debugHeading.store(angleToRadians(headingAngle),
                          std::memory_order_relaxed);
     g_debugYaw.store(angleToRadians(yawAngle), std::memory_order_relaxed);
@@ -229,14 +234,15 @@ void android_ar_getFlightAxes(uint8 *rollAxis, uint8 *pitchAxis) {
         return;
     }
 
-    deviceRoll = clampFloat(angleDifference(
+    /* Roll follows the complete sensor circle, allowing inverted flight and a
+     * continuous full roll. Only pitch retains the conservative flight cap. */
+    deviceRoll = angleDifference(
         g_deviceRollOffset.load(std::memory_order_relaxed),
-        g_flightRollCenter.load(std::memory_order_relaxed)),
-        -FLIGHT_MAX_TILT, FLIGHT_MAX_TILT);
+        g_flightRollCenter.load(std::memory_order_relaxed));
     devicePitch = clampFloat(angleDifference(
         g_devicePitchOffset.load(std::memory_order_relaxed),
         g_flightPitchCenter.load(std::memory_order_relaxed)),
-        -FLIGHT_MAX_TILT, FLIGHT_MAX_TILT);
+        -FLIGHT_MAX_PITCH, FLIGHT_MAX_PITCH);
 
     targetRoll = g_flightGameRollCenter.load(std::memory_order_relaxed) +
                  deviceRoll;
@@ -252,8 +258,8 @@ void android_ar_getFlightAxes(uint8 *rollAxis, uint8 *pitchAxis) {
      * cockpit stick marker from handset displacement instead of feeding back
      * decoded Euler-angle error, which can jump at a legacy matrix fold.
      */
-    rollCommand = deviceRoll / FLIGHT_MAX_TILT;
-    pitchCommand = -devicePitch / FLIGHT_MAX_TILT;
+    rollCommand = clampFloat(deviceRoll / FLIGHT_STICK_TILT, -1.0f, 1.0f);
+    pitchCommand = -devicePitch / FLIGHT_MAX_PITCH;
     g_smoothFlightRoll +=
         (rollCommand - g_smoothFlightRoll) * 0.16f;
     g_smoothFlightPitch +=

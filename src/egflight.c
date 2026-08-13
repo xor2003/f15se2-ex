@@ -93,6 +93,8 @@ void stepFlightModel(void) {
 #if defined(__ANDROID__)
     /* Publish the aircraft attitude before input sampling. Android uses it as
      * feedback for target-angle controls, never as an integrated turn rate. */
+    android_ar_setAutopilotActive(g_autopilotAltitude != 0 ||
+                                  g_autopilotEngaged != 0);
     android_ar_setGameAttitude(g_ourPitch, g_ourRoll);
 #endif
 
@@ -197,6 +199,13 @@ switch_break:
     if (g_inputDisabled != 0) {
         joyAxes[0] = 0;
         joyAxes[1] = 0;
+#if defined(__ANDROID__)
+    } else if (g_autopilotAltitude != 0 || g_autopilotEngaged != 0) {
+        /* A sensor sample may already be cached when autopilot is toggled.
+         * Neutralize it here so legacy stick input cannot cancel autopilot. */
+        joyAxes[0] = 0x80;
+        joyAxes[1] = 0x80;
+#endif
     } else {
         if (input_preferGamepad()) {
             readCalibratedJoystick();
