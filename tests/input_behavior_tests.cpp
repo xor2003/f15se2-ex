@@ -290,6 +290,12 @@ int main() {
     require(input_flightPointerKey(171, 190) == 0x2e63 &&
                 input_flightPointerKey(188, 190) == 0x2166,
             "radar and infrared warning taps release chaff and flare");
+    require(input_flightPointerKey(145, 150) == 0x2e63 &&
+                input_flightPointerKey(173, 168) == 0x2e63 &&
+                input_flightPointerKey(174, 150) == 0x2166 &&
+                input_flightPointerKey(196, 168) == 0x2166 &&
+                input_flightPointerKey(197, 168) == 0,
+            "enlarged countermeasure targets are disjoint from neighboring controls");
     require(input_flightPointerKey(222, 190) == 0x3062,
             "cockpit P indicator tap toggles the wheel brake");
     require(input_flightPointerKey(270, 145) == 0x1474,

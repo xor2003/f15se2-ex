@@ -787,15 +787,18 @@ uint16 input_flightPointerKey(int x, int y) {
         if (x >= 240 && x < 262) return 0x1970; /* left toggle: P, autopilot */
         if (x >= 262 && x < 284) return INPUT_KEY_TOGGLE_LOOK;
     }
+    /* R and I are only a few painted pixels wide. Their larger, disjoint
+     * finger targets use the empty panel above and to the left, stopping
+     * before the neighboring landing-gear zone. */
+    if (y >= 150 && y < LOGICAL_HEIGHT) {
+        if (x >= 145 && x < 174) return 0x2e63; /* R: chaff (C) */
+        if (x >= 174 && x < 197) return 0x2166; /* I: flare (F) */
+    }
     if (y >= 169 && y < LOGICAL_HEIGHT) {
         /* Cover each complete weapon drawing, not only its small ammo number. */
         if (x >= 16 && x < 55) return 0x326d;  /* left weapon: M */
         if (x >= 55 && x < 94) return 0x1f73;  /* middle weapon: S */
         if (x >= 94 && x < 134) return 0x2267; /* right weapon: G */
-        /* R/I are the radar/infrared warning lamps: touch the warning to
-         * release the countermeasure appropriate to that seeker type. */
-        if (x >= 163 && x < 180) return 0x2e63; /* R: chaff (C) */
-        if (x >= 180 && x < 197) return 0x2166; /* I: flare (F) */
         if (x >= 197 && x < 214) return 0x266c; /* L: landing gear */
         if (x >= 214 && x < 231) return 0x3062; /* P: wheel brake */
     }
