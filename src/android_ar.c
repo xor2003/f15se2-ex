@@ -55,7 +55,7 @@ static float g_gameRollRate = 0.0f;
 static float g_gamePitchRate = 0.0f;
 
 static const float PI = 3.14159265358979323846f;
-static const float FLIGHT_MAX_BANK = 40.0f * PI / 180.0f;
+static const float FLIGHT_MAX_TILT = 40.0f * PI / 180.0f;
 /*
  * Leave enough slack around the requested attitude to avoid alternating
  * corrections as the flight model and phone sensor settle on opposite sides
@@ -215,10 +215,11 @@ void android_ar_getFlightAxes(uint8 *rollAxis, uint8 *pitchAxis) {
     deviceRoll = clampFloat(angleDifference(
         g_deviceRollOffset.load(std::memory_order_relaxed),
         g_flightRollCenter.load(std::memory_order_relaxed)),
-        -FLIGHT_MAX_BANK, FLIGHT_MAX_BANK);
-    devicePitch = angleDifference(
+        -FLIGHT_MAX_TILT, FLIGHT_MAX_TILT);
+    devicePitch = clampFloat(angleDifference(
         g_devicePitchOffset.load(std::memory_order_relaxed),
-        g_flightPitchCenter.load(std::memory_order_relaxed));
+        g_flightPitchCenter.load(std::memory_order_relaxed)),
+        -FLIGHT_MAX_TILT, FLIGHT_MAX_TILT);
 
     targetRoll = g_flightGameRollCenter.load(std::memory_order_relaxed) +
                  deviceRoll;
@@ -234,10 +235,8 @@ void android_ar_getFlightAxes(uint8 *rollAxis, uint8 *pitchAxis) {
      * cockpit stick marker from handset displacement instead of feeding back
      * decoded Euler-angle error, which can jump at a legacy matrix fold.
      */
-    rollCommand = deviceRoll / FLIGHT_MAX_BANK;
-    /* Preserve a saturated stick display while the target attitude itself can
-     * continue through vertical and inverted flight. */
-    pitchCommand = clampFloat(-devicePitch / FLIGHT_MAX_BANK, -1.0f, 1.0f);
+    rollCommand = deviceRoll / FLIGHT_MAX_TILT;
+    pitchCommand = -devicePitch / FLIGHT_MAX_TILT;
     g_smoothFlightRoll +=
         (rollCommand - g_smoothFlightRoll) * 0.16f;
     g_smoothFlightPitch +=

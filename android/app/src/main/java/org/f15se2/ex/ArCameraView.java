@@ -398,29 +398,15 @@ public final class ArCameraView extends TextureView
          * remains independent of compass heading and keeps the established
          * forward/backward control direction.
          */
-        /*
-         * Measure pitch in the vertical plane established by the initial
-         * handset pose. The old atan2(z, hypot(x,y)) folded every attitude past
-         * 90 degrees back toward upright, making a loop impossible. This signed
-         * dot/cross form retains the full -180..180 degree rotation while the
-         * separate planar cross product continues to own bank.
-         */
-        float gravityAlongOrigin = 0.0f;
-        if (originPlanar > 1.0e-3f) {
-            gravityAlongOrigin =
-                (originX * gravityX + originY * gravityY) / originPlanar;
-        }
-        float pitchCross =
-            originPlanar * gravityZ - originZ * gravityAlongOrigin;
-        float pitchDot =
-            originPlanar * gravityAlongOrigin + originZ * gravityZ;
-        float pitchTarget = (float)Math.atan2(pitchCross, pitchDot);
+        float pitchTarget =
+            (float)Math.atan2(gravityZ, gravityPlanar) -
+            (float)Math.atan2(originZ, originPlanar);
         while (pitchTarget > Math.PI) pitchTarget -= 2.0f * (float)Math.PI;
         while (pitchTarget < -Math.PI) pitchTarget += 2.0f * (float)Math.PI;
-        devicePitchOffset =
-            filteredAngle(devicePitchOffset, pitchTarget, ATTITUDE_FILTER);
-        deviceRollOffset =
-            filteredAngle(deviceRollOffset, rollTarget, ATTITUDE_FILTER);
+        devicePitchOffset +=
+            (pitchTarget - devicePitchOffset) * ATTITUDE_FILTER;
+        deviceRollOffset +=
+            (rollTarget - deviceRollOffset) * ATTITUDE_FILTER;
     }
 
     /**
