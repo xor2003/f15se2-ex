@@ -49,6 +49,7 @@ static int g_flightThrottlePercent = 0;
 static bool g_flightFingerDown = false;
 static bool g_flightLookActive = false;
 static bool g_flightSwipeActive = false;
+static bool g_flightControlPointerActive = false;
 static float g_flightFingerStartY = 0.0f;
 static const float LOOK_SWIPE_GATE = 0.025f;
 #endif
@@ -102,6 +103,7 @@ void input_ringReset(void) {
     g_flightFingerDown = false;
     g_flightLookActive = false;
     g_flightSwipeActive = false;
+    g_flightControlPointerActive = false;
     android_ar_setLookMode(0);
 #endif
 }
@@ -974,12 +976,15 @@ void input_pumpEvents(void) {
                     updateFlightThrottlePointer(
                         ev.tfinger.windowID, ev.tfinger.x, ev.tfinger.y, true);
                     g_flightThrottlePointerActive = false;
+                } else if (g_flightControlPointerActive) {
+                    queueFlightPointer(
+                        ev.tfinger.windowID, ev.tfinger.x, ev.tfinger.y, true);
                 } else if (!g_flightSwipeActive) {
                     queueFlightPointer(
                         ev.tfinger.windowID, ev.tfinger.x, ev.tfinger.y, true);
                 }
                 g_flightFingerDown = false;
-                g_flightLookActive = false;
+                g_flightControlPointerActive = false;
                 g_flightSwipeActive = false;
 #else
                 queueFlightPointer(
@@ -992,7 +997,13 @@ void input_pumpEvents(void) {
             if (g_mode == INPUT_MODE_FLIGHT) {
                 if (!beginFlightThrottlePointer(
                         ev.tfinger.windowID, ev.tfinger.x, ev.tfinger.y, true)) {
-                    g_flightFingerDown = true;
+                    int logicalX = 0;
+                    int logicalY = 0;
+                    mapFlightPointer(ev.tfinger.windowID, ev.tfinger.x,
+                                     ev.tfinger.y, true, &logicalX, &logicalY);
+                    g_flightControlPointerActive =
+                        input_flightPointerKey(logicalX, logicalY) != 0;
+                    g_flightFingerDown = !g_flightControlPointerActive;
                     g_flightSwipeActive = false;
                     g_flightFingerStartY = ev.tfinger.y;
                 }
@@ -1014,6 +1025,7 @@ void input_pumpEvents(void) {
             break;
         case SDL_EVENT_FINGER_CANCELED:
             g_flightThrottlePointerActive = false;
+            g_flightControlPointerActive = false;
             g_flightFingerDown = false;
             g_flightSwipeActive = false;
             break;
