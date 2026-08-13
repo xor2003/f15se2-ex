@@ -21,6 +21,7 @@ static std::atomic<float> g_flightRollCenter(0.0f);
 static std::atomic<float> g_flightGamePitchCenter(0.0f);
 static std::atomic<float> g_flightGameRollCenter(0.0f);
 static std::atomic<int> g_flightGameCenterPending(0);
+static std::atomic<float> g_lookYawOrigin(0.0f);
 static std::atomic<float> g_lookPitchOrigin(0.0f);
 static std::atomic<float> g_lookRollOrigin(0.0f);
 static std::atomic<float> g_swipePitch(0.0f);
@@ -170,16 +171,13 @@ void android_ar_adjustView(int *yawAngle, int *pitchAngle, int *rollAngle) {
 
     if (!android_ar_active() || !yawAngle || !pitchAngle || !rollAngle) return;
 
-    /*
-     * Turning the handset right must turn the virtual camera right. Screen
-     * geometry consequently moves left, hence the subtraction from game yaw.
-     */
-    *yawAngle -= (int)(angleDifference(
-                           g_deviceYawOffset.load(std::memory_order_relaxed),
-                           g_flightYawCenter.load(std::memory_order_relaxed)) *
-                       unitsPerRadian);
-
     if (g_lookMode.load(std::memory_order_acquire)) {
+        /* Phone yaw controls only explicit free look. Normal flight heading is
+         * produced by the aircraft's bank and is independent of the compass. */
+        *yawAngle -= (int)(angleDifference(
+                               g_deviceYawOffset.load(std::memory_order_relaxed),
+                               g_lookYawOrigin.load(std::memory_order_relaxed)) *
+                           unitsPerRadian);
         targetPitch += angleDifference(
             g_devicePitchOffset.load(std::memory_order_relaxed),
             g_lookPitchOrigin.load(std::memory_order_relaxed));
@@ -327,6 +325,9 @@ void android_ar_recenterFlight(void) {
 
 void android_ar_setLookMode(int active) {
     if (active) {
+        g_lookYawOrigin.store(
+            g_deviceYawOffset.load(std::memory_order_relaxed),
+            std::memory_order_relaxed);
         g_lookPitchOrigin.store(
             g_devicePitchOffset.load(std::memory_order_relaxed),
             std::memory_order_relaxed);
