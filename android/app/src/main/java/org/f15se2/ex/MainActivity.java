@@ -24,6 +24,20 @@ public final class MainActivity extends SDLActivity {
     private static final int CAMERA_PERMISSION_REQUEST = 15;
     private ArCameraView arCameraView;
 
+    /**
+     * Keeps the Android flight controller in one coordinate system.
+     *
+     * SDLActivity requests FULL_USER after native startup, overriding both the
+     * manifest and onResume and allowing a portrait rotation while banking the
+     * handset. Intercept every request at the Activity boundary so SDL, Camera2,
+     * touch coordinates and the rotation-vector sensor remain landscape-only.
+     */
+    @Override
+    public void setRequestedOrientation(int requestedOrientation) {
+        super.setRequestedOrientation(
+            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+    }
+
     /** Enables AR by default; an explicit F15_AR=0 keeps the normal GLES sky. */
     private boolean isArRequested() {
         if (!getIntent().hasExtra("F15_AR")) {
