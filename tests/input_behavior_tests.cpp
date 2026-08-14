@@ -1,6 +1,7 @@
 #include "egcode.h"
 #include "egdata.h"
 #include "eginput.h"
+#include "egkeys.h"
 #include "headless.h"
 #include "input.h"
 
@@ -290,11 +291,11 @@ int main() {
     require(input_flightPointerKey(171, 190) == 0x2e63 &&
                 input_flightPointerKey(188, 190) == 0x2166,
             "radar and infrared warning taps release chaff and flare");
-    require(input_flightPointerKey(145, 150) == 0x2e63 &&
-                input_flightPointerKey(173, 168) == 0x2e63 &&
-                input_flightPointerKey(174, 150) == 0x2166 &&
-                input_flightPointerKey(196, 168) == 0x2166 &&
-                input_flightPointerKey(197, 168) == 0,
+    require(input_flightPointerKey(145, 169) == 0x2e63 &&
+                input_flightPointerKey(173, 199) == 0x2e63 &&
+                input_flightPointerKey(174, 169) == 0x2166 &&
+                input_flightPointerKey(196, 199) == 0x2166 &&
+                input_flightPointerKey(197, 169) == 0x266c,
             "enlarged countermeasure targets are disjoint from neighboring controls");
     require(input_flightPointerKey(222, 190) == 0x3062,
             "cockpit P indicator tap toggles the wheel brake");
@@ -303,6 +304,9 @@ int main() {
     require(input_flightPointerKey(250, 112) == 0x1970 &&
                 input_flightPointerKey(272, 112) == INPUT_KEY_TOGGLE_LOOK,
             "painted right-panel toggles control autopilot and free look");
+    require(input_flightPointerKey(60, 130) == SCAN_MAP_ZOOM_CYCLE &&
+                input_flightPointerKey(160, 130) == SCAN_R,
+            "left and middle MFD taps cycle their respective display scales");
     require(input_flightPointerKey(5, 150) == 0,
             "flight taps outside cockpit controls remain neutral");
     require(input_flightThrottleValue(214, 127) == 100 &&

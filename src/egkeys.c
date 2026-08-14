@@ -50,6 +50,13 @@ void keyDispatch(uint16 scanCode) {
         strcat(strBuf, " range radar");
         hudMessage(strBuf);
         break;
+    case SCAN_MAP_ZOOM_CYCLE:
+        /* A cockpit tap has no separate zoom-in/out buttons. Cycle through the
+         * original useful map levels while preserving Z/X keyboard behavior. */
+        g_mapZoomLevel++;
+        if (g_mapZoomLevel > 9) g_mapZoomLevel = 2;
+        redrawTacMap(g_viewX_, g_viewY_);
+        break;
     case SCAN_Z:
         zoomIn();
         break;

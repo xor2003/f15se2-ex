@@ -17,6 +17,7 @@
 #include "inttype.h"
 #include "const.h"
 #include "gfx.h"
+#include "egkeys.h"
 #include "joystick.h"
 #if defined(__ANDROID__)
 #include "android_ar.h"
@@ -790,7 +791,7 @@ uint16 input_flightPointerKey(int x, int y) {
     /* R and I are only a few painted pixels wide. Their larger, disjoint
      * finger targets use the empty panel above and to the left, stopping
      * before the neighboring landing-gear zone. */
-    if (y >= 150 && y < LOGICAL_HEIGHT) {
+    if (y >= 169 && y < LOGICAL_HEIGHT) {
         if (x >= 145 && x < 174) return 0x2e63; /* R: chaff (C) */
         if (x >= 174 && x < 197) return 0x2166; /* I: flare (F) */
     }
@@ -804,6 +805,10 @@ uint16 input_flightPointerKey(int x, int y) {
     }
     if (x >= 219 && x < LOGICAL_WIDTH && y >= 104 && y < 190)
         return 0x1474; /* right target display: T designates the next target */
+    if (x >= 24 && x < 97 && y >= 112 && y < 169)
+        return SCAN_MAP_ZOOM_CYCLE; /* left map MFD: cycle map scale */
+    if (x >= 120 && x < 200 && y >= 114 && y < 169)
+        return SCAN_R; /* middle radar MFD: cycle long/medium/short range */
     if (x >= 110 && x < 211 && y >= 8 && y < 113)
         return 0x1c0d; /* target/seeker area: Enter fires selected missile */
     return 0;
