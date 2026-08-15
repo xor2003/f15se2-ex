@@ -13,6 +13,9 @@
 #include "slot.h"
 #include "const.h"
 #include "comm.h"
+#if defined(__ANDROID__)
+#include "android_ar.h"
+#endif
 
 #include <dos.h>
 #include <stdio.h>
@@ -197,6 +200,12 @@ void keyDispatch(uint16 scanCode) {
             g_autopilotAltitude = g_viewZ < 1000 ? 1000 : g_viewZ;
             hudMessage("Autopilot on");
         }
+#if defined(__ANDROID__)
+        /* Stop motion input in this dispatch frame. Waiting for the next
+           flight step lets one stale sensor command fight the autopilot. */
+        android_ar_setAutopilotActive(g_autopilotAltitude != 0 ||
+                                      g_autopilotEngaged != 0);
+#endif
         break;
     case SCAN_T:
         /* T designates the next target: air targets when an A2A missile is
