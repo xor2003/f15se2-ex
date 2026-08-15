@@ -900,6 +900,7 @@ static void queueFlightPointer(Uint32 windowID, float x, float y,
     if (key == INPUT_KEY_TOGGLE_LOOK) {
 #if defined(__ANDROID__)
         g_flightLookActive = android_ar_toggleLookMode() != 0;
+        ringPush(g_flightLookActive ? INPUT_KEY_LOOK_ON : INPUT_KEY_LOOK_OFF);
 #endif
     } else {
         /* Preserve tap-to-dismiss for the original in-engine demo key waits. */

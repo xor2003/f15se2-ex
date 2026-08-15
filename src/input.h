@@ -27,6 +27,9 @@ typedef enum {
 #define INPUT_KEY_MENU_POINTER 0x7e00
 /* Internal pointer action: toggle Android sensor-driven free look. */
 #define INPUT_KEY_TOGGLE_LOOK 0x7c00
+/* Queued after the internal toggle so the flight HUD can confirm its state. */
+#define INPUT_KEY_LOOK_ON 0x7b00
+#define INPUT_KEY_LOOK_OFF 0x7a00
 
 /* Select how the pump translates keyboard/gamepad into the key ring. Set by the
  * phase's key readers (kbhit/egReadKey -> FLIGHT, misc_* -> MENU). */

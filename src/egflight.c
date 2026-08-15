@@ -127,6 +127,15 @@ void stepFlightModel(void) {
 
     // Main key dispatch logic
     switch ((uint16)keyScancode) {
+    case INPUT_KEY_LOOK_ON:
+        hudMessage("Look on");
+        goto switch_break;
+    case INPUT_KEY_LOOK_OFF:
+        if (g_autopilotAltitude != 0 || g_autopilotEngaged != 0)
+            hudMessage("Look blocked: autopilot on");
+        else
+            hudMessage("Look off");
+        goto switch_break;
     case SCAN_MINUS:
         g_setThrust = clampRange(g_setThrust - 10, 0, 100);
         UpdateThrottleState();
