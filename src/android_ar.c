@@ -58,13 +58,13 @@ static float g_smoothLookPitch = 0.0f;
 static float g_smoothLookRoll = 0.0f;
 
 static const float PI = 3.14159265358979323846f;
-static const float FLIGHT_MAX_PITCH = 40.0f * PI / 180.0f;
+static const float FLIGHT_MAX_PITCH = 90.0f * PI / 180.0f;
 static const float FLIGHT_STICK_TILT = 40.0f * PI / 180.0f;
 /*
  * Leave enough slack around the requested attitude to avoid alternating
  * corrections as the flight model and phone sensor settle on opposite sides
  * of the target. The wider proportional range also makes the final approach
- * less abrupt without changing the maximum requested pitch or bank.
+ * less abrupt without changing the requested attitude limits.
  */
 static const float LOOK_MAX_PITCH = 70.0f * PI / 180.0f;
 static const float STICK_DEFLECTION = 56.0f;
