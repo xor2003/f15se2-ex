@@ -62,6 +62,13 @@ jobs:
             build/Release/f15se2-ex.exe
             build/_deps/sdl3-build/Release/SDL3.dll
 
+      - name: Check unoptimized MSVC font rasterizer
+        if: runner.os == 'Windows'
+        continue-on-error: true
+        run: |
+          cmake --build build --config Debug --parallel
+          ctest --test-dir build -C Debug -R gfx_render_behavior_tests --output-on-failure
+
       - name: Test
         run: ${{ matrix.test }}
 
