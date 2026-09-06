@@ -53,6 +53,15 @@ jobs:
       - name: Build
         run: ${{ matrix.build }}
 
+      - name: Upload Windows font reproducer
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr40-msvc-font-reproducer
+          path: |
+            build/Release/f15se2-ex.exe
+            build/_deps/sdl3-build/Release/SDL3.dll
+
       - name: Test
         run: ${{ matrix.test }}
 
