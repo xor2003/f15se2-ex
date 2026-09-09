@@ -49,7 +49,9 @@ enum ScanCode : uint16 {
     SCAN_F7 = 0x4100,
     SCAN_F8 = 0x4200,
     SCAN_F9 = 0x4300,
-    SCAN_F10 = 0x4400
+    SCAN_F10 = 0x4400,
+    /* Pointer-only action; original keyboard scan codes remain unchanged. */
+    SCAN_MAP_ZOOM_CYCLE = 0x7b00
 };
 
 void keyDispatch(uint16 scanCode);

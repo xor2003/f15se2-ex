@@ -19,6 +19,18 @@ typedef enum {
     INPUT_MODE_FLIGHT, /* egame in-flight loop */
 } InputMode;
 
+/* Pointer releases use a scan-only word outside the original keyboard range.
+ * Menu owners consume the matching logical coordinate with
+ * input_takeMenuPointer() and perform hit-testing against their own layout.
+ * Flight mode queues the same otherwise-unassigned word without coordinates,
+ * allowing "press any key" demo gates to accept touch without firing a command. */
+#define INPUT_KEY_MENU_POINTER 0x7e00
+/* Internal pointer action: toggle Android sensor-driven free look. */
+#define INPUT_KEY_TOGGLE_LOOK 0x7c00
+/* Queued after the internal toggle so the flight HUD can confirm its state. */
+#define INPUT_KEY_LOOK_ON 0x7b00
+#define INPUT_KEY_LOOK_OFF 0x7a00
+
 /* Select how the pump translates keyboard/gamepad into the key ring. Set by the
  * phase's key readers (kbhit/egReadKey -> FLIGHT, misc_* -> MENU). */
 void input_setMode(InputMode mode);
@@ -39,6 +51,22 @@ void input_pumpEvents(void);
 void input_ringReset(void);  /* drop any queued keys, recentre stick */
 bool input_keyWaiting(void); /* true when a key word is queued */
 uint16 input_readKey(void);  /* blocking pop: pump + wait, then return */
+
+/* Consume the latest touch/mouse release in the game's logical 320x200 space.
+ * The pointer key and coordinate are queued together; this returns false when
+ * no unconsumed release is available. */
+bool input_takeMenuPointer(int *x, int *y);
+
+/* Translate a logical 320x200 cockpit tap into its BIOS-style flight command.
+ * Exposed for behavior tests; zero means the tap hit no interactive control. */
+uint16 input_flightPointerKey(int x, int y);
+
+/* Translate a logical cockpit point over the painted throttle into 0..100
+ * percent. Returns -1 outside the throttle touch target. */
+int input_flightThrottleValue(int x, int y);
+
+/* Consume the latest absolute throttle value produced by a touch/mouse drag. */
+bool input_takeFlightThrottle(int *percent);
 
 /* --- window state, set by the pump, for callers that want to react --------- */
 bool input_quitRequested(void); /* SDL_EVENT_QUIT (window close) has been seen */

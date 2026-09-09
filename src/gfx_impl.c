@@ -120,7 +120,9 @@ void gfx_videoInit(void) {
 
     /* Enable SDL_EVENT_TEXT_INPUT so the keyboard slots (ovlimpl.c) receive
      * shifted/localised ASCII for pilot-name entry. */
+#if !defined(__ANDROID__)
     SDL_StartTextInput(sdlWindow);
+#endif
 
     if (s_useGL) return;
 

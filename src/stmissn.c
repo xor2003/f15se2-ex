@@ -16,6 +16,7 @@
 #include "stsprit.h"
 #include "sttypes.h"
 #include "hdsprite.h"
+#include "input.h"
 #include "r2d.h"
 
 #include <stdio.h>
@@ -241,7 +242,8 @@ selectTheater:
 }
 
 int missionMenuSelect(const char **names, const char **desc, const char *title, int selection) {
-    int yPos, row, action;
+    int yPos, row, action, pointerX, pointerY;
+    int pointerSelection = -1;
     enableHighlight = 1;
     page1Desc.color = COLOR_BLUE;
     drawStringCentered(page1NumPtr, title, 113, 14, 185);
@@ -266,7 +268,33 @@ int missionMenuSelect(const char **names, const char **desc, const char *title, 
     }
     do {
     again:
-        if ((action = pollMenuInput()) != KEYCODE_ENTER) {
+        action = pollMenuInput();
+        if (action == INPUT_KEY_MENU_POINTER) {
+            if (!input_takeMenuPointer(&pointerX, &pointerY) ||
+                pointerX < 105 || pointerX >= SCREEN_WIDTH ||
+                pointerY < 24 || pointerY >= 24 + 5 * 21)
+                goto again;
+            row = (pointerY - 24) / 21;
+            if (scenarioFoundArr[row] != 0) goto again;
+            if (row != selection) {
+                timerCounter3 = 6;
+                animateArm(selection, row);
+                selection = row;
+            }
+            /*
+             * Touch has no hover state. The first tap therefore moves the
+             * visible arm to show the pending choice; only a second tap on the
+             * same row acts like Enter.
+             */
+            if (pointerSelection != row) {
+                pointerSelection = row;
+                goto again;
+            }
+            action = KEYCODE_ENTER;
+        } else {
+            pointerSelection = -1;
+        }
+        if (action != KEYCODE_ENTER) {
             if (action == KEYCODE_UPARROW) {
                 if (selection > 0) {
                     timerCounter3 = 6;

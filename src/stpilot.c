@@ -13,6 +13,7 @@
 #include "offsets.h"
 #include "shared/common.h"
 #include "log.h"
+#include "input.h"
 
 #include <stdio.h>
 #include <dos.h>
@@ -134,13 +135,67 @@ void printPilot(int pilotIdx) {
 
 /* ---- merged from stpinp.c ---- */
 void processPilotInput() {
+    int action;
     int prevIdx;
+    int pointerX;
+    int pointerY;
+    int pointerSelection = -1;
     int xPos;
     int shiftIdx;
     int yPos;
     pilotSelectFlag = 1;
     setTimerIrqHandler();
-    while (prevIdx = selectedPilotIdx, true) switch (pollMenuInput()) {
+    while (true) {
+        prevIdx = selectedPilotIdx;
+        action = pollMenuInput();
+        if (action == INPUT_KEY_MENU_POINTER) {
+            int column;
+            int row;
+            if (!input_takeMenuPointer(&pointerX, &pointerY)) continue;
+            if (pointerX >= PILOT_COL_LEFT &&
+                pointerX < PILOT_COL_LEFT + PILOT_ENTRY_WIDTH) {
+                column = 0;
+            } else if (pointerX >= PILOT_COL_RIGHT &&
+                       pointerX < PILOT_COL_RIGHT + PILOT_ENTRY_WIDTH) {
+                column = 1;
+            } else {
+                continue;
+            }
+            if (pointerY < PILOT_TOP_MARGIN - 4 ||
+                pointerY >= PILOT_TOP_MARGIN - 4 +
+                            PILOTS_PER_COLUMN * PILOT_ROW_HEIGHT)
+                continue;
+            row = (pointerY - (PILOT_TOP_MARGIN - 4)) / PILOT_ROW_HEIGHT;
+            selectedPilotIdx = column * PILOTS_PER_COLUMN + row;
+            if (selectedPilotIdx != prevIdx) {
+                xPos = (prevIdx < PILOTS_PER_COLUMN) ? PILOT_COL_LEFT : PILOT_COL_RIGHT;
+                yPos = ((prevIdx & (PILOTS_PER_COLUMN - 1)) * PILOT_ROW_HEIGHT) +
+                       PILOT_TOP_MARGIN;
+                gfx_switchColor(screenBuf, xPos, yPos,
+                                xPos + PILOT_ENTRY_WIDTH, yPos + PILOT_NAME_HEIGHT,
+                                COLOR_WHITE, COLOR_LIGHTGRAY);
+                xPos = (selectedPilotIdx < PILOTS_PER_COLUMN) ?
+                       PILOT_COL_LEFT : PILOT_COL_RIGHT;
+                yPos = ((selectedPilotIdx & (PILOTS_PER_COLUMN - 1)) *
+                        PILOT_ROW_HEIGHT) + PILOT_TOP_MARGIN;
+                gfx_switchColor(screenBuf, xPos, yPos,
+                                xPos + PILOT_ENTRY_WIDTH, yPos + PILOT_NAME_HEIGHT,
+                                COLOR_LIGHTGRAY, COLOR_WHITE);
+            }
+            /*
+             * A first tap only exposes the selected pilot visually. Requiring
+             * the same slot a second time prevents an imprecise mobile tap
+             * from immediately entering or editing the wrong pilot.
+             */
+            if (pointerSelection != selectedPilotIdx) {
+                pointerSelection = selectedPilotIdx;
+                continue;
+            }
+            action = KEYCODE_ENTER;
+        } else {
+            pointerSelection = -1;
+        }
+        switch (action) {
         case KEYCODE_ENTER:
             if ((hallfameBuf[selectedPilotIdx].medals & 0x60) == 0) {
                 restoreTimerIrqHandler();
@@ -186,6 +241,7 @@ void processPilotInput() {
             yPos = ((selectedPilotIdx & (PILOTS_PER_COLUMN - 1)) * PILOT_ROW_HEIGHT) + PILOT_TOP_MARGIN;
             gfx_switchColor(screenBuf, xPos, yPos, xPos + PILOT_ENTRY_WIDTH, yPos + PILOT_NAME_HEIGHT, COLOR_LIGHTGRAY, COLOR_WHITE);
         }
+    }
 }
 
 void blinkPilot() {
@@ -230,6 +286,9 @@ void pilotToGameData(const uint8 *pilotData) {
 }
 
 void pilotNameInput(int16 *page, int a, int b, int c, struct Pilot *pilot) {
+#if defined(__ANDROID__)
+    gfx_setTextInputEnabled(true);
+#endif
     int blinkToggle;
     int xPos, yPos;
     int nameLen;
@@ -291,6 +350,9 @@ void pilotNameInput(int16 *page, int a, int b, int c, struct Pilot *pilot) {
             keyCode &= 0xff;
         }
         if (keyCode == KEYCODE_ENTER) {
+#if defined(__ANDROID__)
+            gfx_setTextInputEnabled(false);
+#endif
             screenBuf[3] = 0;
             clearRect(page, 15, 192, 303, 197);
             return;

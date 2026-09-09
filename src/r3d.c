@@ -36,7 +36,13 @@ const char *r3d_requestedBackend(void) {
      * CRT environment there would miss it and mis-select the backend. */
     const char *e = SDL_getenv("F15_RENDER");
     if (!e || !*e || ieq(e, "auto")) return 0;
-    if (ieq(e, "gl") || ieq(e, "opengl") || ieq(e, "opengl1")) return "opengl1";
+    if (ieq(e, "gl") || ieq(e, "opengl") || ieq(e, "opengl1"))
+#if defined(__ANDROID__)
+        return "opengles2";
+#else
+        return "opengl1";
+#endif
+    if (ieq(e, "gles") || ieq(e, "gles2") || ieq(e, "opengles2")) return "opengles2";
     if (ieq(e, "sw") || ieq(e, "soft") || ieq(e, "software")) return "software";
     return e; /* unknown name: probe loop will warn and fall back */
 }

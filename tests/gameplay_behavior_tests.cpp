@@ -521,6 +521,17 @@ int main() {
     require((g_playerPlaneFlags & 0x1000) == 0 && comm.trainingFlag == 0,
             "ALT+T clears the player training flag and shared debrief flag");
 
+    // --- pointer-only map zoom cycle (egkeys) ------------------------------
+    resetGameplayState();
+    g_hudVisible = 0; /* The state transition does not require map rendering. */
+    g_mapZoomLevel = 9;
+    keyDispatch(SCAN_MAP_ZOOM_CYCLE);
+    require(g_mapZoomLevel == 2,
+            "map MFD tap wraps the maximum zoom to the widest useful level");
+    keyDispatch(SCAN_MAP_ZOOM_CYCLE);
+    require(g_mapZoomLevel == 3,
+            "map MFD tap advances cyclic map zoom levels");
+
     // --- setupLodDistances thresholds (egkeys) ------------------------------
     resetGameplayState();
     g_detailLevel = 1;
