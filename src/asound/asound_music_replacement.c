@@ -10,6 +10,7 @@
 #include <SDL3/SDL.h>
 
 #include <ctype.h>
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -76,7 +77,7 @@ static const char *findStreamObject(const char *json, const char *symbol,
         do {
             ++value;
         } while (*value && isspace((unsigned char)*value));
-        if (*value++ == '"' && !memcmp(value, symbol, symbol_length)
+        if (*value++ == '"' && !strncmp(value, symbol, symbol_length)
             && value[symbol_length] == '"') {
             const char *object = key;
             int reverse_depth = 0;
@@ -113,6 +114,23 @@ static const char *findStreamObject(const char *json, const char *symbol,
         ++key;
     }
     return NULL;
+}
+
+/* The legacy sequencer has a 16-bit cursor and no buffer length. Validate
+ * instruction boundaries and termination before giving it editable bytes.
+ * Loop targets are either zero or the boundary following a 0xfe opcode. */
+static int validStream(const AsoundU8 *bytes, size_t size) {
+    if (!size || size > USHRT_MAX) return 0;
+    for (size_t offset = 0; offset < size;) {
+        const AsoundU8 op = bytes[offset++];
+        if (op == 0xfd) return 1;
+        if (op == 0xfe) continue;
+        const size_t operands = op == 0xf8 ? 2 : 1;
+        if (operands > size - offset) return 0;
+        if (op == 0 && bytes[offset] == 0) return 1;
+        offset += operands;
+    }
+    return 0;
 }
 
 /* Parse one timed AdLib register stream from converter-generated JSON. */
@@ -153,7 +171,7 @@ static AsoundU8 *parseStream(const char *json, const char *symbol,
         bytes[count++] = (AsoundU8)value;
         position = end;
     }
-    if (position >= object_end || *position != ']' || !count) {
+    if (position >= object_end || *position != ']' || !validStream(bytes, count)) {
         SDL_free(bytes);
         return NULL;
     }

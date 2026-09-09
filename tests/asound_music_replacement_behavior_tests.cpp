@@ -24,7 +24,8 @@ void setReplacementRoot(const std::string &value) {
 #endif
 }
 
-void writeMusic(const std::filesystem::path &path, bool complete) {
+void writeMusic(const std::filesystem::path &path, bool complete,
+                const char *firstStream = nullptr) {
     std::ofstream out(path);
     out << "{\"streams\":[";
     bool first = true;
@@ -35,8 +36,10 @@ void writeMusic(const std::filesystem::path &path, bool complete) {
             first = false;
             out << "{\"source_symbol\":\"asound_"
                 << (phase ? "release" : "intro") << "_voice" << voice
-                << "\",\"stream_bytes\":[" << (phase ? 200 : 100) + voice
-                << ",0]}";
+                << "\",\"stream_bytes\":[";
+            if (!phase && !voice && firstStream) out << firstStream;
+            else out << (phase ? 200 : 100) + voice << ",1,0,0";
+            out << "]}";
         }
     }
     out << "]}";
@@ -71,6 +74,23 @@ int main() {
                 "release voice points at its replacement byte stream");
     }
 
+    // Exercise the real sequencer, not just the returned stream pointers.
+    asound_driver_tick(&driver, nullptr);
+    asound_driver_tick(&driver, nullptr);
+    for (const auto &stream : driver.streams) {
+        require(!stream.stream_ptr, "valid replacement streams terminate");
+    }
+
+    for (const char *invalid : {"100", "100,1", "248,1", "249", "255"}) {
+        writeMusic(musicPath, true, invalid);
+        require(!asound_reload_replacement_music(),
+                "truncated or unterminated bytecode is rejected before playback");
+    }
+    writeMusic(musicPath, true, "253");
+    require(asound_reload_replacement_music(), "stream-end opcode is accepted");
+    writeMusic(musicPath, true, "254,100,1,255,2,0,0");
+    require(asound_reload_replacement_music(), "bounded loop bytecode is accepted");
+
     writeMusic(musicPath, false);
     require(!asound_reload_replacement_music(),
             "incomplete music JSON is rejected as a unit");
@@ -86,6 +106,13 @@ int main() {
     }
     require(!asound_reload_replacement_music(),
             "a missing stream cannot borrow bytes from the next object");
+
+    {
+        std::ofstream out(musicPath);
+        out << "{\"source_symbol\":\"a";
+    }
+    require(!asound_reload_replacement_music(),
+            "truncated symbol string is rejected without an out-of-bounds read");
 
     setReplacementRoot("");
     std::filesystem::remove_all(root);
