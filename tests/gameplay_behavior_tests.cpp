@@ -5,6 +5,7 @@
 // state (threat scoring, SAM acquisition, target/mission bookkeeping, replay
 // log, director scheduling, wreck physics, timing/LOD math).
 #include "egdata.h"
+#include "egflight.h"
 #include "egkeys.h"
 #include "egmath.h"
 #include "inttype.h"
@@ -35,6 +36,7 @@ extern void recalcTimeScale(void);
 extern void exitSlowMotion(void);
 extern void setupLodDistances(void);
 extern int rangeApprox(int deltaX, int deltaY);
+extern void resetMissionRuntimeState(void);
 
 namespace {
 
@@ -103,6 +105,102 @@ void resetGameplayState() {
 
 int main() {
     test_headless_init();
+
+    // --- Tracking-camera fine-coordinate conversion ------------------------
+    // These values are from a blackbox frame that formerly flipped vertically:
+    // target Y is world-space, while g_ViewY is renderer-inverted. Mixing them
+    // also overflowed computeBearing's int16 input and produced a near-180 pitch.
+    int16 cameraHeading = 0;
+    int16 cameraPitch = 0;
+    computeTrackingCameraAngles(612536, 311380, 2111,
+                                614019, 737929, 1513,
+                                &cameraHeading, &cameraPitch);
+    require(cameraHeading == computeBearing(-1483, -733),
+            "tracking camera converts inverted view Y before computing heading");
+    require(cameraPitch == -computeBearing(598, 1849),
+            "tracking camera preserves the fine altitude/range ratio");
+    require(cameraPitch > -0x4000 && cameraPitch < 0x4000,
+            "tracking camera pitch does not trigger a false 180-degree flip");
+    require(computeBearing32(0x20000, 0x10000) ==
+                computeBearing(0x2000, 0x1000),
+            "computeBearing32 equally scales vectors that exceed int16");
+    require(rangeApprox32(-0x20000, -0x10000) == 0x28000,
+            "rangeApprox32 preserves full-width negative deltas");
+    require(rangeApprox32(-0x10000, -0x20000) == 0x28000,
+            "rangeApprox32 covers either component as the major axis");
+    // --- Native process mission boundary (egmain) ---------------------------
+    // A crashed sortie can leave landingTimer armed because normal airborne
+    // flight sets it to one. The original loaded a fresh EGAME executable for
+    // the next sortie; the merged native process must reproduce those globals.
+    struct GameComm *previousCommData = commData;
+    struct Game *previousGameData = gameData;
+    struct GameComm handoffComm = {};
+    struct Game handoffGame = {};
+    std::strcpy(handoffGame.pilotName, "Selected pilot");
+    handoffGame.pilotIdx = 3;
+    handoffGame.difficulty = 2;
+    handoffGame.theater = 4;
+    handoffGame.missionReady = 1;
+    handoffGame.isCampaignMission = 1;
+    handoffGame.rand = 12345;
+    handoffComm.trainingFlag = 1;
+    handoffComm.weaponType[0] = 7;
+    handoffComm.weaponCount[0] = 4;
+    commData = &handoffComm;
+    gameData = &handoffGame;
+    const struct GameComm expectedComm = handoffComm;
+    const struct Game expectedGame = handoffGame;
+
+    g_initPhase = 2;
+    g_missionEndedFlag[0] = g_missionEndedFlag[1] = 1;
+    g_eventLogCount = 9;
+    g_ejectState = 1;
+    g_ejectPending = 1;
+    g_slowMotionMode = 2;
+    g_playerPlaneFlags = 0x1000;
+    g_autopilotEngaged = 1;
+    g_autopilotAltitude = 1200;
+    g_inLandingCorridor = 0;
+    g_landingDoneFlag = 0;
+    g_landingTimer = 1;
+    g_autoLandingActive = 1;
+    g_resupplyCount = 4;
+    g_hudMsgTimer = 30;
+    g_dirMsgTimer = 30;
+    std::strcpy(tempString, "Weapons replenished");
+    g_viewMode = VIEW_EXT_FOLLOW;
+    g_directorMode = 2;
+    g_directorEventDeadline = 3000;
+    g_tacmapIndicators[7] = g_tacmapIndicators[12] =
+        g_tacmapIndicators[17] = g_tacmapIndicators[22] = 10;
+
+    resetMissionRuntimeState();
+
+    require(g_initPhase == 0,
+            "mission reset re-arms EGAME initialization");
+    require(g_landingTimer == 0 && g_landingDoneFlag == 1 &&
+                g_inLandingCorridor == 1 && g_autoLandingActive == 0,
+            "mission reset disarms the previous sortie's landing sequence");
+    require(g_resupplyCount == 1 && g_hudMsgTimer == 0 &&
+                g_dirMsgTimer == 0 && tempString[0] == '\0',
+            "mission reset clears stale resupply counters and HUD messages");
+    require(g_ejectState == 0 && g_ejectPending == 0 && g_eventLogCount == 0,
+            "mission reset clears previous outcome state");
+    require(g_slowMotionMode == 1 && g_playerPlaneFlags == 0 &&
+                g_autopilotEngaged == 0 && g_autopilotAltitude == 0,
+            "mission reset clears acceleration, training, and autopilot state");
+    require(g_missionEndedFlag[0] == 0 && g_missionEndedFlag[1] == 0 &&
+                g_viewMode == VIEW_COCKPIT && g_directorMode == 0 &&
+                g_directorEventDeadline == -1,
+            "mission reset starts the next sortie in the cockpit");
+    require(g_tacmapIndicators[7] == 3 && g_tacmapIndicators[12] == 3 &&
+                g_tacmapIndicators[17] == 3 && g_tacmapIndicators[22] == 3,
+            "mission reset restores cockpit indicator base colors");
+    require(std::memcmp(&handoffComm, &expectedComm, sizeof(handoffComm)) == 0 &&
+                std::memcmp(&handoffGame, &expectedGame, sizeof(handoffGame)) == 0,
+            "mission reset preserves selected pilot and mission metadata");
+    commData = previousCommData;
+    gameData = previousGameData;
 
     // --- Threat range/bearing/score (egthreat) ------------------------------
     // Score is altitude-weighted; range is rangeApprox in km units (>>6);
