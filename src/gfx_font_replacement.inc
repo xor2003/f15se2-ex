@@ -432,7 +432,6 @@ static int recordTtfTextOverlayAndAdvance(int16 *params, const char *string,
         if (candidate->fontIdx == fontIdx &&
             candidate->clipL == clipL && candidate->clipR == clipR &&
             candidate->clipT == clipT && candidate->clipB == clipB &&
-/* Recognize changing numeric HUD text that should replace an older row record. */
             ttfTextOverlaySameDynamicRow(candidate, newX, newY, newWidth, newHeight)) {
             removeTtfTextOverlayRecord(i);
             if (recordIndex > i) recordIndex--;
@@ -617,7 +616,7 @@ static void renderTtfTextOverlayRecord(const TtfTextOverlayRecord *record, R2DMa
             continue;
         }
         glyphIndex = FT_Get_Char_Index(face, (FT_ULong)codepoint);
-        if (previousGlyphIndex && glyphIndex && FT_HAS_KERNING(face)) {
+        if (record->fontIdx != 0 && previousGlyphIndex && glyphIndex && FT_HAS_KERNING(face)) {
             if (FT_Get_Kerning(face, previousGlyphIndex, glyphIndex, FT_KERNING_DEFAULT, &kerning) == 0) {
                 x += (float)(kerning.x >> 6) * layoutScaleX;
             }

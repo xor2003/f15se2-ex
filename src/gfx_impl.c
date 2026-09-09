@@ -743,7 +743,7 @@ static void drawStringCore(int16 *params, const char *string,
     y = (int)params[5];
     color = (int)params[2];
     fontIdx = (uint16)params[6] & 7;
-    tryLoadBitmapFontReplacement(fontIdx);
+    tryLoadReplacementFont(fontIdx);
     height = g_fontHeightsArr[fontIdx];
     rowSize = g_fontBitmapRowSize[fontIdx];
     bitmaps = g_fontBitmapPtrs[fontIdx];
@@ -1340,13 +1340,11 @@ int gfx_getGlyphAdvance(uint32 codepoint, uint16 fontIdx) {
     tryLoadReplacementFont(fontIdx);
 #ifdef F15_HAVE_FREETYPE
     if (fontIdx < 8 && g_fontReplacementTtfFaces[fontIdx]) {
-        if (codepoint <= 0xff && codepoint >= 0x80) return 0;
         return replacementTtfAdvance(fontIdx, codepoint);
     }
 #endif
     if (codepoint >= 0x80) {
-        /* Legacy single-byte chars >= 0x80 are inline color escapes. */
-        if (codepoint <= 0xff) return 0;
+        /* Decoded Unicode is a glyph, not a legacy single-byte color escape. */
         return 8;
     }
     wt = g_fontWidthTables[fontIdx];
@@ -1387,6 +1385,8 @@ int gfx_getStringAdvanceUtf8(const char *text, uint16 fontIdx) {
 }
 
 int FAR CDECL gfx_setFont(uint16 ch, uint16 fontIdx) {
+    /* Only this legacy byte API interprets the high bit as a color command. */
+    if (ch >= 0x80) return 0;
     return gfx_getGlyphAdvance((uint32)ch, fontIdx);
 }
 void FAR CDECL gfx_setFadeSteps(int steps) {

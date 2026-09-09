@@ -5,6 +5,7 @@
 #include <SDL3/SDL.h>
 
 #include <cstdlib>
+#include <cstring>
 #include <filesystem>
 #include <iostream>
 
@@ -40,6 +41,17 @@ int main() {
     gfx_videoInit();
     gfx_setMode13();
 
+    // A first draw must activate the override without a preceding measurement.
+    SDL_Surface *page = gfx_getCurPageSurface();
+    const size_t pageSize = (size_t)page->pitch * page->h;
+    std::memset(page->pixels, 0, pageSize);
+    int16 firstDraw[7] = {0, 0, 15, 0, 20, 20, 4};
+    gfx_drawString(firstDraw, "A");
+    const auto *pixels = static_cast<const unsigned char *>(page->pixels);
+    for (size_t i = 0; i < pageSize; ++i) {
+        require(pixels[i] == 0, "first TTF draw is an overlay, not bitmap text");
+    }
+
     const int asciiAdvance = gfx_getGlyphAdvance('n', 4);
     const int cyrillicAdvance = gfx_getGlyphAdvance(0x041f, 4);
     const int lineAdvance =
@@ -49,6 +61,8 @@ int main() {
             "TTF replacement supplies compatible Cyrillic and ASCII metrics");
     require(lineAdvance > cyrillicAdvance,
             "TTF replacement measures a complete UTF-8 Cyrillic line");
+    require(gfx_getGlyphAdvance(0xe9, 4) > 0 && gfx_setFont(0xe9, 4) == 0,
+            "Unicode Latin-1 glyphs and legacy color bytes remain distinct");
 
     int16 params[7] = {};
     params[0] = 0;
