@@ -1,16 +1,23 @@
 from __future__ import annotations
 
 import base64
+import os
 import unittest
 from pathlib import Path
 
 from f15assets import decode_pic_asset, encode_pic_asset, parse_3d3, parse_3dg, parse_3dt, parse_wld
 
-ASSET_ROOT = Path("/home/xor/games/f15")
-HAS_ASSETS = ASSET_ROOT.exists()
+ASSET_PATH = os.environ.get("F15SE2_ORIGINAL_ASSETS")
+ASSET_ROOT = Path(ASSET_PATH) if ASSET_PATH else None
+HAS_ASSETS = ASSET_ROOT is not None and ASSET_ROOT.is_dir()
 
 
-@unittest.skipIf(not HAS_ASSETS, f"missing asset tree: {ASSET_ROOT}")
+def asset_paths(*extensions):
+    return sorted(path for path in ASSET_ROOT.rglob("*")
+                  if path.is_file() and path.suffix.upper() in extensions)
+
+
+@unittest.skipIf(not HAS_ASSETS, "set F15SE2_ORIGINAL_ASSETS to an installed game folder")
 class FullAssetRoundTripTest(unittest.TestCase):
     @staticmethod
     def _roundtrip_pic(path: Path) -> None:
@@ -30,7 +37,7 @@ class FullAssetRoundTripTest(unittest.TestCase):
             raise AssertionError(f"bad parsed format for {path.name}: {payload.get('format')}")
 
     def test_full_pic_and_spr_roundtrip(self) -> None:
-        paths = sorted(ASSET_ROOT.glob("*.PIC")) + sorted(ASSET_ROOT.glob("*.pic")) + sorted(ASSET_ROOT.glob("*.SPR")) + sorted(ASSET_ROOT.glob("*.spr"))
+        paths = asset_paths(".PIC", ".SPR")
         if not paths:
             self.skipTest("no .PIC/.SPR files found")
         for path in paths:
@@ -38,7 +45,7 @@ class FullAssetRoundTripTest(unittest.TestCase):
                 self._roundtrip_pic(path)
 
     def test_full_pic_and_spr_decode(self) -> None:
-        paths = sorted(ASSET_ROOT.glob("*.PIC")) + sorted(ASSET_ROOT.glob("*.pic")) + sorted(ASSET_ROOT.glob("*.SPR")) + sorted(ASSET_ROOT.glob("*.spr"))
+        paths = asset_paths(".PIC", ".SPR")
         if not paths:
             self.skipTest("no .PIC/.SPR files found")
         for path in paths:
@@ -46,7 +53,7 @@ class FullAssetRoundTripTest(unittest.TestCase):
                 self._parse_only(path, decode_pic_asset, "PIC")
 
     def test_full_3d3_decode(self) -> None:
-        paths = sorted(ASSET_ROOT.glob("*.3D3")) + sorted(ASSET_ROOT.glob("*.3d3"))
+        paths = asset_paths(".3D3")
         if not paths:
             self.skipTest("no .3D3 files found")
         for path in paths:
@@ -54,7 +61,7 @@ class FullAssetRoundTripTest(unittest.TestCase):
                 self._parse_only(path, parse_3d3, "3D3")
 
     def test_full_3dt_decode(self) -> None:
-        paths = sorted(ASSET_ROOT.glob("*.3DT")) + sorted(ASSET_ROOT.glob("*.3dt"))
+        paths = asset_paths(".3DT")
         if not paths:
             self.skipTest("no .3DT files found")
         for path in paths:
@@ -62,7 +69,7 @@ class FullAssetRoundTripTest(unittest.TestCase):
                 self._parse_only(path, parse_3dt, "3DT")
 
     def test_full_3dg_decode(self) -> None:
-        paths = sorted(ASSET_ROOT.glob("*.3DG")) + sorted(ASSET_ROOT.glob("*.3dg"))
+        paths = asset_paths(".3DG")
         if not paths:
             self.skipTest("no .3DG files found")
         for path in paths:
@@ -70,7 +77,7 @@ class FullAssetRoundTripTest(unittest.TestCase):
                 self._parse_only(path, parse_3dg, "3DG")
 
     def test_full_wld_decode(self) -> None:
-        paths = sorted(ASSET_ROOT.glob("*.WLD")) + sorted(ASSET_ROOT.glob("*.wld"))
+        paths = asset_paths(".WLD")
         if not paths:
             self.skipTest("no .WLD files found")
         for path in paths:

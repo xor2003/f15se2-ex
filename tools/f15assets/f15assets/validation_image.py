@@ -26,6 +26,9 @@ def _validate_png_loadable_like_runtime(path: Path) -> None:
     """Validate png loadable like runtime against runtime requirements."""
     image = _open_png_for_validation(path)
     try:
+        # Image.open is lazy: a valid header alone does not prove the pixel
+        # stream can be decoded by a replacement loader.
+        image.load()
         if image.size[0] <= 0 or image.size[1] <= 0:
             raise ValueError(f"PNG has invalid dimensions: {path}")
         if image.mode == "P" and not image.getpalette():
@@ -46,16 +49,16 @@ def validate_png_replacement_loadability(path: Path) -> list[str]:
 
 def _read_indexed_png_pixels_and_palette(path: Path, width: int, height: int) -> tuple[bytes, bytes]:
     """Read indexed png pixels and palette."""
-    image = _open_png_for_validation(path)
-    if image.mode != "P":
-        raise ValueError(f"expected indexed PNG replacement for byte-for-byte comparison: {path}")
-    if image.size != (width, height):
-        raise ValueError(f"expected {width}x{height} PNG replacement: {path} is {image.size[0]}x{image.size[1]}")
-    palette = image.getpalette() or []
-    if not palette:
-        raise ValueError(f"expected embedded palette in indexed PNG replacement: {path}")
-    palette_bytes = bytes((palette[:768] + [0] * max(0, 768 - len(palette[:768])))[:768])
-    return bytes(image.tobytes()), palette_bytes
+    with _open_png_for_validation(path) as image:
+        if image.mode != "P":
+            raise ValueError(f"expected indexed PNG replacement for byte-for-byte comparison: {path}")
+        if image.size != (width, height):
+            raise ValueError(f"expected {width}x{height} PNG replacement: {path} is {image.size[0]}x{image.size[1]}")
+        palette = image.getpalette() or []
+        if not palette:
+            raise ValueError(f"expected embedded palette in indexed PNG replacement: {path}")
+        palette_bytes = bytes((palette[:768] + [0] * max(0, 768 - len(palette[:768])))[:768])
+        return bytes(image.tobytes()), palette_bytes
 
 
 def validate_pic_png_replacement(
@@ -66,6 +69,9 @@ def validate_pic_png_replacement(
 ) -> list[str]:
     """Validate pic png replacement against runtime requirements."""
     errors: list[str] = []
+    if loadability_only:
+        _validate_png_loadable_like_runtime(png_path)
+        return errors
     is_title640 = src.name.upper() == "TITLE640.PIC"
     data = read_binary(src)
     payload = (
@@ -75,9 +81,6 @@ def validate_pic_png_replacement(
     )
     width = int(payload.get("decoded_width", 320))
     height = int(payload.get("decoded_height", 200))
-    if loadability_only:
-        _validate_png_loadable_like_runtime(png_path)
-        return errors
     legacy_pixels = from_base64(payload["pixels_base64"])[: width * height]
     modern_pixels, modern_palette = _read_indexed_png_pixels_and_palette(png_path, width, height)
     pixel_error = compare_png_pixels(str(src), legacy_pixels, modern_pixels)
