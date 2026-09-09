@@ -8,6 +8,7 @@
  * depend on Android or JNI. */
 int android_ar_requested(void);
 int android_ar_active(void);
+int android_ar_controlsActive(void);
 #if defined(__ANDROID__)
 int android_ar_preventCrashes(void);
 #else

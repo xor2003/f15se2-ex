@@ -4,6 +4,7 @@ import java.io.*;
 import java.nio.file.Files;
 import java.util.*;
 import java.util.zip.*;
+import java.util.concurrent.*;
 
 /** Runs without an Android emulator or copyrighted game data. */
 public final class GameAssetInstallerTest {
@@ -67,6 +68,50 @@ public final class GameAssetInstallerTest {
         if (!game.renameTo(parked)) throw new AssertionError("Fixture rename failed");
         GameAssetInstaller.recover(root);
         GameAssetInstaller.validate(game, MANIFEST);
+        // A recreated launcher must wait while the previous installer owns
+        // staging, even if recovery is requested by a different worker.
+        ExecutorService workers = Executors.newFixedThreadPool(2);
+        CountDownLatch reading = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        CountDownLatch recovering = new CountDownLatch(1);
+        byte[] archive = zip("test.pic", "abc");
+        InputStream blocked = new FilterInputStream(new ByteArrayInputStream(archive)) {
+            @Override
+            public int read(byte[] bytes, int offset, int length) throws IOException {
+                reading.countDown();
+                try {
+                    if (!release.await(5, TimeUnit.SECONDS)) throw new IOException("Test timeout");
+                } catch (InterruptedException error) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException(error);
+                }
+                return super.read(bytes, offset, length);
+            }
+        };
+        try {
+            Future<?> importing = workers.submit(() -> {
+                GameAssetInstaller.install(blocked, root, MANIFEST);
+                return null;
+            });
+            if (!reading.await(5, TimeUnit.SECONDS)) throw new AssertionError("Import did not start");
+            Future<?> recovery = workers.submit(() -> {
+                recovering.countDown();
+                GameAssetInstaller.recover(root);
+                return null;
+            });
+            if (!recovering.await(5, TimeUnit.SECONDS)) throw new AssertionError("Recovery did not start");
+            try {
+                recovery.get(100, TimeUnit.MILLISECONDS);
+                throw new AssertionError("Recovery overlapped an active import");
+            } catch (TimeoutException expected) { /* Waiting for the install lock. */ }
+            release.countDown();
+            importing.get(5, TimeUnit.SECONDS);
+            recovery.get(5, TimeUnit.SECONDS);
+            GameAssetInstaller.validate(game, MANIFEST);
+        } finally {
+            release.countDown();
+            workers.shutdownNow();
+        }
         System.out.println("Asset importer tests passed");
     }
 }

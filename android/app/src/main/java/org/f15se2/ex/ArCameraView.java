@@ -17,7 +17,8 @@ import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
 import android.hardware.camera2.CaptureRequest;
 import android.os.Handler;
-import android.os.HandlerThread;
+import android.os.Looper;
+import android.os.Build;
 import android.util.Log;
 import android.util.Size;
 import android.view.Display;
@@ -47,8 +48,11 @@ public final class ArCameraView extends TextureView
     private final float[] relativeQuaternion = new float[4];
     private final float[] attitudeOriginGravity = new float[3];
 
-    private HandlerThread cameraThread;
-    private Handler cameraHandler;
+    /* Camera callbacks and activity lifecycle share the main looper. A
+     * generation rejects callbacks from opens/sessions closed during pause. */
+    private final Handler cameraHandler = new Handler(Looper.getMainLooper());
+    private int cameraGeneration = 0;
+    private boolean cameraOpening = false;
     private CameraDevice cameraDevice;
     private CameraCaptureSession captureSession;
     private Size previewSize;
@@ -62,6 +66,7 @@ public final class ArCameraView extends TextureView
     private long lastAttitudeTraceNs;
 
     private static native void nativeSetCameraReady(boolean ready);
+    private static native void nativeSetSensorReady(boolean ready);
     private static native void nativeSetDeviceAttitude(float yaw, float pitch, float roll);
     private static native void nativeGetFlightDebug(float[] values);
 
@@ -77,12 +82,10 @@ public final class ArCameraView extends TextureView
     /** Starts camera and attitude updates while the activity is visible. */
     public void resume() {
         if (resumed) {
+            if (isAvailable()) openCamera(getSurfaceTexture());
             return;
         }
         resumed = true;
-        cameraThread = new HandlerThread("f15-ar-camera");
-        cameraThread.start();
-        cameraHandler = new Handler(cameraThread.getLooper());
         if (rotationSensor != null) {
             sensorManager.registerListener(this, rotationSensor,
                                            SensorManager.SENSOR_DELAY_GAME);
@@ -97,11 +100,7 @@ public final class ArCameraView extends TextureView
         resumed = false;
         sensorManager.unregisterListener(this);
         closeCamera();
-        if (cameraThread != null) {
-            cameraThread.quitSafely();
-            cameraThread = null;
-            cameraHandler = null;
-        }
+        setSensorReady(false);
         attitudeInitialized = false;
         setDeviceAttitude(0.0f, 0.0f, 0.0f);
     }
@@ -110,11 +109,13 @@ public final class ArCameraView extends TextureView
     @SuppressLint("MissingPermission")
     private void openCamera(SurfaceTexture texture) {
         if (!resumed || texture == null ||
-            getContext().checkSelfPermission(Manifest.permission.CAMERA) !=
-            PackageManager.PERMISSION_GRANTED) {
+            (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
+             getContext().checkSelfPermission(Manifest.permission.CAMERA) !=
+             PackageManager.PERMISSION_GRANTED)) {
             setCameraReady(false);
             return;
         }
+        if (cameraOpening || cameraDevice != null) return;
         try {
             String selectedId = null;
             CameraCharacteristics selected = null;
@@ -145,8 +146,10 @@ public final class ArCameraView extends TextureView
             texture.setDefaultBufferSize(
                 previewSize.getWidth(), previewSize.getHeight());
             alignPreview();
-            cameraManager.openCamera(selectedId, cameraStateCallback, cameraHandler);
+            cameraOpening = true;
+            cameraManager.openCamera(selectedId, cameraStateCallback(cameraGeneration), cameraHandler);
         } catch (CameraAccessException | SecurityException error) {
+            cameraOpening = false;
             setCameraReady(false);
         }
     }
@@ -176,10 +179,15 @@ public final class ArCameraView extends TextureView
         return best;
     }
 
-    private final CameraDevice.StateCallback cameraStateCallback =
-        new CameraDevice.StateCallback() {
+    private CameraDevice.StateCallback cameraStateCallback(final int generation) {
+        return new CameraDevice.StateCallback() {
             @Override
             public void onOpened(CameraDevice camera) {
+                if (!resumed || generation != cameraGeneration) {
+                    camera.close();
+                    return;
+                }
+                cameraOpening = false;
                 cameraDevice = camera;
                 createPreviewSession();
             }
@@ -187,17 +195,16 @@ public final class ArCameraView extends TextureView
             @Override
             public void onDisconnected(CameraDevice camera) {
                 camera.close();
-                cameraDevice = null;
-                setCameraReady(false);
+                if (generation == cameraGeneration) closeCamera();
             }
 
             @Override
             public void onError(CameraDevice camera, int error) {
                 camera.close();
-                cameraDevice = null;
-                setCameraReady(false);
+                if (generation == cameraGeneration) closeCamera();
             }
         };
+    }
 
     /** Connects the Camera2 repeating preview request to the TextureView surface. */
     private void createPreviewSession() {
@@ -207,6 +214,7 @@ public final class ArCameraView extends TextureView
             return;
         }
         Surface surface = new Surface(texture);
+        final int generation = cameraGeneration;
         try {
             CaptureRequest.Builder request =
                 cameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW);
@@ -215,7 +223,7 @@ public final class ArCameraView extends TextureView
                 new CameraCaptureSession.StateCallback() {
                     @Override
                     public void onConfigured(CameraCaptureSession session) {
-                        if (!resumed || cameraDevice == null) {
+                        if (!resumed || generation != cameraGeneration || cameraDevice == null) {
                             session.close();
                             return;
                         }
@@ -231,7 +239,13 @@ public final class ArCameraView extends TextureView
 
                     @Override
                     public void onConfigureFailed(CameraCaptureSession session) {
-                        setCameraReady(false);
+                        session.close();
+                        if (generation == cameraGeneration) setCameraReady(false);
+                    }
+
+                    @Override
+                    public void onClosed(CameraCaptureSession session) {
+                        surface.release();
                     }
                 }, cameraHandler);
         } catch (CameraAccessException error) {
@@ -242,6 +256,8 @@ public final class ArCameraView extends TextureView
 
     /** Closes Camera2 objects in dependency order and restores the normal sky. */
     private void closeCamera() {
+        cameraGeneration++;
+        cameraOpening = false;
         setCameraReady(false);
         if (captureSession != null) {
             captureSession.close();
@@ -258,6 +274,14 @@ public final class ArCameraView extends TextureView
             nativeSetCameraReady(ready);
         } catch (UnsatisfiedLinkError ignored) {
             // SDL has not loaded the application library yet; normal sky remains.
+        }
+    }
+
+    private static void setSensorReady(boolean ready) {
+        try {
+            nativeSetSensorReady(ready);
+        } catch (UnsatisfiedLinkError ignored) {
+            // SDL has not loaded the application library yet.
         }
     }
 
@@ -469,6 +493,7 @@ public final class ArCameraView extends TextureView
 
     @Override
     public void onSensorChanged(SensorEvent event) {
+        if (!resumed) return;
         SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values);
         Display display = getDisplay();
         int rotation = display != null ? display.getRotation() : Surface.ROTATION_0;
@@ -524,6 +549,7 @@ public final class ArCameraView extends TextureView
             updateRelativeAttitude();
         }
         setDeviceAttitude(deviceYawOffset, devicePitchOffset, deviceRollOffset);
+        setSensorReady(true);
         /*
          * Opt-in sensor telemetry for diagnosing device-specific axis mapping.
          * Enable with: adb shell setprop log.tag.F15AR DEBUG

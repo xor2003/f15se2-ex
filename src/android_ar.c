@@ -10,6 +10,7 @@
 #include <jni.h>
 
 static std::atomic<int> g_cameraReady(0);
+static std::atomic<int> g_sensorReady(0);
 static std::atomic<float> g_gamePitch(0.0f);
 static std::atomic<float> g_gameRoll(0.0f);
 static std::atomic<float> g_deviceYawOffset(0.0f);
@@ -107,6 +108,11 @@ int android_ar_active(void) {
     return android_ar_requested() && g_cameraReady.load(std::memory_order_acquire);
 }
 
+/* Losing camera permission must not take away the player's flight controls. */
+int android_ar_controlsActive(void) {
+    return g_sensorReady.load(std::memory_order_acquire);
+}
+
 /* Diagnostic AR flights may deliberately command extreme attitudes while
  * measuring sensor axes. Keep that opt-in behavior out of normal gameplay. */
 int android_ar_preventCrashes(void) {
@@ -189,7 +195,7 @@ void android_ar_adjustView(int *yawAngle, int *pitchAngle, int *rollAngle) {
     float targetPitch = g_swipePitch.load(std::memory_order_relaxed);
     float targetRoll = 0.0f;
 
-    if (!android_ar_active() || !yawAngle || !pitchAngle || !rollAngle) return;
+    if (!android_ar_controlsActive() || !yawAngle || !pitchAngle || !rollAngle) return;
     if (g_autopilotActive.load(std::memory_order_acquire)) return;
 
     if (g_lookMode.load(std::memory_order_acquire)) {
@@ -226,7 +232,7 @@ void android_ar_getFlightAxes(uint8 *rollAxis, uint8 *pitchAxis) {
     float pitchCommand;
     int rollValue;
     int pitchValue;
-    if (!rollAxis || !pitchAxis || !android_ar_active() ||
+    if (!rollAxis || !pitchAxis || !android_ar_controlsActive() ||
         g_autopilotActive.load(std::memory_order_acquire) ||
         g_lookMode.load(std::memory_order_acquire)) {
         if (rollAxis) *rollAxis = 0x80;
@@ -297,7 +303,7 @@ void android_ar_getFlightAxes(uint8 *rollAxis, uint8 *pitchAxis) {
  * target angle, especially when its Euler decoder crosses a matrix fold.
  */
 int android_ar_overrideFlightInput(int *rollInput, int16 *pitchInput) {
-    if (!rollInput || !pitchInput || !android_ar_active() ||
+    if (!rollInput || !pitchInput || !android_ar_controlsActive() ||
         g_autopilotActive.load(std::memory_order_acquire) ||
         g_lookMode.load(std::memory_order_acquire)) {
         return 0;
@@ -314,7 +320,7 @@ int android_ar_overrideFlightInput(int *rollInput, int16 *pitchInput) {
  * legacy equations; only incremental roll/pitch integration is bypassed.
  */
 int android_ar_overrideFlightAttitude(int16 *rollAngle, int16 *pitchAngle) {
-    if (!rollAngle || !pitchAngle || !android_ar_active() ||
+    if (!rollAngle || !pitchAngle || !android_ar_controlsActive() ||
         g_autopilotActive.load(std::memory_order_acquire) ||
         g_lookMode.load(std::memory_order_acquire)) {
         return 0;
@@ -392,6 +398,11 @@ void android_ar_addSwipePitch(float normalizedDelta) {
 extern "C" JNIEXPORT void JNICALL
 Java_org_f15se2_ex_ArCameraView_nativeSetCameraReady(JNIEnv *, jclass, jboolean ready) {
     g_cameraReady.store(ready == JNI_TRUE, std::memory_order_release);
+}
+
+extern "C" JNIEXPORT void JNICALL
+Java_org_f15se2_ex_ArCameraView_nativeSetSensorReady(JNIEnv *, jclass, jboolean ready) {
+    g_sensorReady.store(ready == JNI_TRUE, std::memory_order_release);
 }
 
 extern "C" JNIEXPORT void JNICALL

@@ -98,9 +98,8 @@ public final class MainActivity extends SDLActivity {
          * permission dialog or task switcher is in front. Reassert it here. */
         setRequestedOrientation(
             android.content.pm.ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
-        if (arCameraView != null && (Build.VERSION.SDK_INT < Build.VERSION_CODES.M ||
-            checkSelfPermission(Manifest.permission.CAMERA) ==
-            PackageManager.PERMISSION_GRANTED)) {
+        /* Sensor input works even when camera access was denied. */
+        if (arCameraView != null) {
             arCameraView.resume();
         }
     }

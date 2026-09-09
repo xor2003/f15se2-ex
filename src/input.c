@@ -564,7 +564,7 @@ static void updateStick(void) {
     }
 
 #if defined(__ANDROID__)
-    if (android_ar_active()) {
+    if (android_ar_controlsActive()) {
         android_ar_getFlightAxes(&x, &y);
     }
 #endif

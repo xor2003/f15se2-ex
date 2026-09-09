@@ -58,7 +58,7 @@ final class GameAssetInstaller {
     }
 
     /** Validates an installation before allowing the native game to start. */
-    static void validate(File directory, Map<String, String> manifest) throws IOException {
+    static synchronized void validate(File directory, Map<String, String> manifest) throws IOException {
         for (Map.Entry<String, String> entry : manifest.entrySet()) {
             File file = find(directory, entry.getKey());
             if (file == null || !file.isFile()) throw new IOException("Missing file: " + entry.getKey());
@@ -78,7 +78,7 @@ final class GameAssetInstaller {
     }
 
     /** Restores the previous installation if a process died during the swap. */
-    static void recover(File root) throws IOException {
+    static synchronized void recover(File root) throws IOException {
         File game = new File(root, "game");
         File backup = new File(root, "game-import-backup");
         if (!game.exists() && backup.exists() && !backup.renameTo(game))
@@ -91,7 +91,10 @@ final class GameAssetInstaller {
     }
 
     /** The size-budget overload lets unit tests exercise decompression limits. */
-    static void install(InputStream source, File root, Map<String, String> manifest,
+    // One process-wide lock covers staging, recovery, validation and activation.
+    // Activity destruction only requests cancellation; another activity must
+    // wait for the previous worker to release its filesystem ownership.
+    static synchronized void install(InputStream source, File root, Map<String, String> manifest,
                         long budget) throws IOException {
         recover(root);
         File staging = new File(root, "game-import-staging");

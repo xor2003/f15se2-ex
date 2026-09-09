@@ -26,7 +26,10 @@ typedef struct {
 } GlesVertex;
 
 static GlesVertex s_vertices[GLES_BATCH_VERTICES];
-static GlesVertex s_triangles[GLES_BATCH_VERTICES * 3 / 2];
+/* Quad strips emit six vertices per pair after the first pair, almost 3x
+ * their input size. Independent quads need only 1.5x. */
+static GlesVertex s_triangles[GLES_BATCH_VERTICES * 3];
+static bool s_batchOverflow = false;
 static int s_vertexCount;
 static GLenum s_mode;
 static GLfloat s_color[4] = {1, 1, 1, 1};
@@ -180,11 +183,19 @@ int r3dgles_compatInit(void) {
 void r3dgles_begin(GLenum mode) {
     s_mode = mode;
     s_vertexCount = 0;
+    s_batchOverflow = false;
 }
 
 void r3dgles_vertex3f(GLfloat x, GLfloat y, GLfloat z) {
     GlesVertex *vertex;
-    if (s_vertexCount >= GLES_BATCH_VERTICES) return;
+    if (s_vertexCount >= GLES_BATCH_VERTICES) {
+        if (!s_batchOverflow)
+            SDL_LogError(SDL_LOG_CATEGORY_RENDER,
+                         "GLES batch exceeds %d vertices; discarding batch (mode %u)",
+                         GLES_BATCH_VERTICES, (unsigned)s_mode);
+        s_batchOverflow = true;
+        return;
+    }
     vertex = &s_vertices[s_vertexCount++];
     vertex->x = x; vertex->y = y; vertex->z = z;
     vertex->r = s_color[0]; vertex->g = s_color[1];
@@ -250,6 +261,8 @@ static int expandTriangles(GlesVertex **vertices, GLenum *mode) {
 }
 
 void r3dgles_end(void) {
+    /* Never draw an incomplete primitive stream after exceeding capacity. */
+    if (s_batchOverflow) return;
     GlesVertex *vertices = s_vertices;
     GLenum mode = s_mode;
     GLfloat mvp[16];
