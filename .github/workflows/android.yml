@@ -1,0 +1,51 @@
+name: Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [android-gles, android-upstream]
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+
+      - name: Install Android NDK
+        run: sdkmanager "ndk;28.2.13676358" "cmake;3.22.1"
+
+      - name: Fetch SDL3 Android archive
+        run: |
+          curl -fL --retry 3 -o /tmp/sdl-android.zip \
+            https://github.com/libsdl-org/SDL/releases/download/release-3.4.10/SDL3-devel-3.4.10-android.zip
+          echo "f676e29b1b4eb990e24862b6af5f327379dc496c9f5f3e3f48ab75837f95844e  /tmp/sdl-android.zip" \
+            | sha256sum --check
+          mkdir -p android/app/libs
+          unzip -j /tmp/sdl-android.zip SDL3-3.4.10.aar -d android/app/libs
+
+      - name: Build debug APK
+        run: |
+          sh android/test-assets.sh
+          gradle -p android --no-daemon assembleDebug
+
+      - name: Verify Android native entry point
+        run: |
+          unzip -p android/app/build/outputs/apk/debug/app-debug.apk \
+            lib/arm64-v8a/libmain.so > /tmp/libmain.so
+          nm -D /tmp/libmain.so | grep -q ' T SDL_main$'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: f15se2-ex-android-debug
+          path: android/app/build/outputs/apk/debug/app-debug.apk

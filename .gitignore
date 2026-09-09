@@ -24,3 +24,10 @@ coverage.txt
 *.gcda
 *.gcno
 *.actual.bmp
+/android/.gradle/
+/android/app/.cxx/
+/android/app/build/
+/android/app/libs/*.aar
+/android/local.properties
+/build-*/
+/_blackbox.rec
