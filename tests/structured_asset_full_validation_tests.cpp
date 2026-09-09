@@ -67,10 +67,20 @@ std::vector<unsigned char> readAsset(const std::string &logicalName) {
 } // namespace
 
 int main() {
-    const std::filesystem::path originalRoot = F15_ORIGINAL_ASSETS;
-    const std::filesystem::path convertedRoot = F15_CONVERTED_ASSETS;
+    const std::filesystem::path originalRoot = std::filesystem::absolute(F15_ORIGINAL_ASSETS);
+    const std::filesystem::path convertedRoot = std::filesystem::absolute(F15_CONVERTED_ASSETS);
     const std::string toolCommand = F15_ASSET_TOOL_COMMAND;
-    require(setGamePath(originalRoot.string().c_str()), "setGamePath failed");
+    const auto previousDirectory = std::filesystem::current_path();
+    const auto isolatedRoot = std::filesystem::temp_directory_path() /
+                              "f15se2-structured-full-validation";
+    const auto legacyRoot = isolatedRoot / "legacy";
+    const auto modernRoot = isolatedRoot / "modern";
+    std::filesystem::remove_all(isolatedRoot);
+    std::filesystem::create_directories(legacyRoot);
+    std::filesystem::create_directories(modernRoot);
+    // Neither read may discover the other format through fallback locations.
+    // In particular, a missing replacement must fail, not compare legacy to itself.
+    std::filesystem::current_path(isolatedRoot);
     setEnvironment("F15_ASSET_TOOL", &toolCommand);
 
     int compared = 0;
@@ -79,9 +89,14 @@ int main() {
         if (!entry.is_regular_file() || !isStructured(entry.path())) continue;
         const std::string logicalName =
             std::filesystem::relative(entry.path(), originalRoot).generic_string();
+        const auto isolatedOriginal = legacyRoot / logicalName;
+        std::filesystem::create_directories(isolatedOriginal.parent_path());
+        std::filesystem::copy_file(entry.path(), isolatedOriginal);
+        require(setGamePath(legacyRoot.string().c_str()), "legacy setGamePath failed");
         setEnvironment("F15_REPLACEMENT_ROOT", nullptr);
         const std::vector<unsigned char> legacy = readAsset(logicalName);
         const std::string replacementRoot = convertedRoot.string();
+        require(setGamePath(modernRoot.string().c_str()), "modern setGamePath failed");
         setEnvironment("F15_REPLACEMENT_ROOT", &replacementRoot);
         const std::vector<unsigned char> replacement = readAsset(logicalName);
         require(replacement == legacy,
@@ -91,6 +106,8 @@ int main() {
 
     setEnvironment("F15_REPLACEMENT_ROOT", nullptr);
     setEnvironment("F15_ASSET_TOOL", nullptr);
+    std::filesystem::current_path(previousDirectory);
+    std::filesystem::remove_all(isolatedRoot);
     require(compared > 0, "no WLD/3DT/3DG assets were compared");
     std::cout << "structured_asset_full_validation_tests compared "
               << compared << " assets\n";

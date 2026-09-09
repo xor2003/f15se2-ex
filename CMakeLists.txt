@@ -465,6 +465,10 @@ add_behavior_test(geometry_behavior_tests LINK_CORE)
 add_behavior_test(file_io_behavior_tests LINK_CORE)
 add_behavior_test(asset_path_behavior_tests LINK_CORE)
 add_behavior_test(structured_asset_replacement_behavior_tests LINK_CORE)
+set(F15SE2_ASSET_TOOL_COMMAND
+    "python3 ${CMAKE_CURRENT_SOURCE_DIR}/tools/f15assets/cli.py"
+    CACHE STRING "Asset converter command for structured full validation")
+
 if(F15SE2_ORIGINAL_ASSETS AND F15SE2_CONVERTED_ASSETS
    AND IS_DIRECTORY "${F15SE2_ORIGINAL_ASSETS}"
    AND IS_DIRECTORY "${F15SE2_CONVERTED_ASSETS}")
@@ -472,7 +476,7 @@ if(F15SE2_ORIGINAL_ASSETS AND F15SE2_CONVERTED_ASSETS
         DEFS
             F15_ORIGINAL_ASSETS="${F15SE2_ORIGINAL_ASSETS}"
             F15_CONVERTED_ASSETS="${F15SE2_CONVERTED_ASSETS}"
-            F15_ASSET_TOOL_COMMAND="python3 ${CMAKE_CURRENT_SOURCE_DIR}/tools/f15assets/cli.py")
+            F15_ASSET_TOOL_COMMAND="${F15SE2_ASSET_TOOL_COMMAND}")
     set_tests_properties(structured_asset_full_validation_tests PROPERTIES
         LABELS "assets;integration"
         TIMEOUT 120)
