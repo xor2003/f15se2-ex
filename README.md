@@ -21,13 +21,6 @@ Development journal: https://neuviemeporte.github.io/category/f15-se2
 
 The entire game is playable, rendering and input handling is ported to SDL, sound works using Adlib emulation through [Nuked-OPL3](https://github.com/nukeykt/Nuked-OPL3) and joystick/gamepad input is supported (though not configurable right now). Multiple improvements have been implemented including high resolution and widescreen support with some bugs from the original having been fixed too. Work is ongoing to add more features and eliminate bugs.
 
-## Mouse menu controls
-
-In pilot and mission selection, click an entry to highlight it, then click it
-again to confirm. In debriefing, click a different button to select it or click
-the selected button to confirm. Existing keyboard and gamepad controls remain
-available. Pilot-name entry still uses the keyboard; flight controls are unchanged.
-
 ## Screenshots
 
 <div align="center">
@@ -156,6 +149,13 @@ To build on Windows using [llvm-mingw](https://github.com/mstorsjo/llvm-mingw), 
 With this, I run `cmake --preset windows-clang` followed by `cmake --build build` to obtain `build/f15se2.exe`. 
 
 Building with MSVC should also work.
+
+## Mouse menu controls
+
+In pilot and mission selection, click an entry to highlight it, then click it
+again to confirm. In debriefing, click a different button to select it or click
+the selected button to confirm. Existing keyboard and gamepad controls remain
+available. Pilot-name entry still uses the keyboard; flight controls are unchanged.
 
 ## Running
 
