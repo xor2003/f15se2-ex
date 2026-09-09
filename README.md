@@ -52,8 +52,6 @@ The entire game is playable, rendering and input handling is ported to SDL, soun
 
 ## Completed improvements
 
-These include new features, fixes to original-game bugs, and fixes to regressions introduced during porting.
-
 1. The original was limited to 15 FPS with a convoluted time scale implementation to make sure the game engine kept up with rendering. This has been eliminated, with the game engine being decoupled from rendering, so now it plays much smoother. 
 1. Input loop has been upgraded to an SDL event pump which should make it deal with simultaneous inputs much bettern and improve general responsiveness.
 1. The game originally supported 4 levels of detail (`0-3`, switchable with `Alt-D`), with the highest one still suffering from limited draw distance. An additional level of detail (`4`) has been implemented with unlimited draw distance, and enabled by default.
@@ -65,8 +63,6 @@ These include new features, fixes to original-game bugs, and fixes to regression
 1. Gun spread and target hitboxes are improved, it is actually possible to aim the gun now.
 1. Missiles follow the actually selected targets instead of the closest one.
 1. Asset converters allow loading original 3D models into modeling software, could lead to better/more models in the future. Fonts and sprites are also exported.
-1. Fixed a port regression that made the tracking camera flip external views upside down ([#41](https://github.com/neuviemeporte/f15se2-ex/pull/41)).
-1. Restored the original game's fresh flight state between missions, fixing a port regression that caused stale "Nice landing" and "Weapons replenished" events after a previous sortie ([#42](https://github.com/neuviemeporte/f15se2-ex/pull/42)).
 
 ## Planned improvements
 
@@ -90,8 +86,6 @@ These include new features, fixes to original-game bugs, and fixes to regression
 1. VR support. 😈
 
 ## Known bugs
-
-Problems with the game that were introduces by the port, and to the best of our knowledge are not present in the original.
 
 1. There seem to be some kind of gimbal lock problems with the input; pointing the plane straight up or straight down, then rolling 90 degrees to either side and pulling on the stick seems to have little to no effect.
 1. The bearing (`BRG`) value on the airborne target screen is broken, mostly stuck on one value even though target is visibly turning.
