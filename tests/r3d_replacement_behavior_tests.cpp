@@ -92,6 +92,37 @@ int main() {
     require(!r3dReplacementMesh("TEST.3D3", 6),
             "invalid primitive cardinality falls back atomically");
 
+    writeMesh(models / "shape_008.glmesh", true);
+    if (!std::filesystem::exists(models / "SHAPE_008.GLMESH")) {
+        writeMesh(models / "SHAPE_008.GLMESH", true);
+        require(!r3dReplacementMesh("TEST.3D3", 8),
+                "duplicate case-insensitive slot names are ambiguous");
+    }
+
+    writeMesh(models / "shape_009_First.glmesh", true);
+    writeMesh(models / "shape_009_Second.glmesh", true);
+    require(!r3dReplacementMesh("TEST.3D3", 9),
+            "two descriptive names for one slot are ambiguous");
+
+    writeMesh(models / "shape_010.glmesh", true);
+    {
+        std::ofstream out(models / "shape_010.glmesh", std::ios::binary | std::ios::app);
+        out.put('x');
+    }
+    require(!r3dReplacementMesh("TEST.3D3", 10),
+            "trailing bytes invalidate the entire cache");
+
+    writeMesh(models / "shape_011.glmesh", true);
+    {
+        std::fstream out(models / "shape_011.glmesh", std::ios::binary | std::ios::in | std::ios::out);
+        // First vertex starts after the 44-byte header and 40-byte primitive.
+        const unsigned char infinity[] = {0, 0, 0x80, 0x7f};
+        out.seekp(84);
+        out.write(reinterpret_cast<const char *>(infinity), sizeof(infinity));
+    }
+    require(!r3dReplacementMesh("TEST.3D3", 11),
+            "non-finite coordinates invalidate the entire cache");
+
 #if !defined(_WIN32)
     const auto oversized = root / "oversized.glmesh";
     {

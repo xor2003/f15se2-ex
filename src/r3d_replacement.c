@@ -88,6 +88,7 @@ static fs::path findShapeFile(const fs::path &directory, int shape_id,
                               const char *extension) {
     char exact[64]{};
     char prefix[64]{};
+    fs::path exact_match{};
     std::vector<fs::path> matches{};
     std::error_code error{};
     std::snprintf(exact, sizeof(exact), "shape_%03d%s", shape_id, extension);
@@ -101,14 +102,18 @@ static fs::path findShapeFile(const fs::path &directory, int shape_id,
          fs::directory_iterator(directory, error)) {
         if (error || !entry.is_regular_file()) continue;
         const std::string filename = lower(entry.path().filename().string());
-        if (filename == exact_lower) return entry.path();
+        if (filename == exact_lower) {
+            /* Case-sensitive hosts can contain two spellings of the same
+             * DOS filename. Neither is a portable choice. */
+            if (!exact_match.empty()) return {};
+            exact_match = entry.path();
+        }
         if (filename.rfind(prefix_lower, 0) == 0
-/* Fold one ASCII byte for DOS-compatible case-insensitive filename comparison. */
             && lower(entry.path().extension().string()) == extension_lower) {
             matches.push_back(entry.path());
         }
     }
-    std::sort(matches.begin(), matches.end());
+    if (!exact_match.empty()) return exact_match;
     if (matches.size() > 1) {
         LogWarn(("asset replacement: ambiguous shape %d (%zu matching %s files)",
                  shape_id, matches.size(), extension));
@@ -130,8 +135,10 @@ static int32 readS32(const uint8 *bytes) {
 
 /* Read a little-endian IEEE-754 cache value. */
 static float readF32(const uint8 *bytes) {
+    const uint32 bits = readU32(bytes);
     float value{};
-    std::memcpy(&value, bytes, sizeof(value));
+    /* The cache is little-endian even when the host is not. */
+    std::memcpy(&value, &bits, sizeof(value));
     return value;
 }
 
