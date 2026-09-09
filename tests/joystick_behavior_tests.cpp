@@ -4,6 +4,7 @@
 #include "shared/common.h"
 #include "input.h"
 #include "egkeys.h"
+#include "egtypes.h"
 #include "gfx.h"
 #include "gfx_impl.h"
 #include "headless.h"
@@ -128,38 +129,62 @@ void defaultsAndRemapping() {
 void flightCommands() {
     Stick stick(2, 6);
     stick.button(2, true);
-    require(joy_flightCommand(0) == SCAN_C, "countermeasure starts with chaff");
-    require(joy_flightCommand(0) == 0, "held countermeasure is not repeated");
+    require(joy_flightCommand(0, VIEW_COCKPIT) == SCAN_C, "countermeasure starts with chaff");
+    require(joy_flightCommand(0, VIEW_COCKPIT) == 0, "held countermeasure is not repeated");
     stick.button(2, false);
     stick.button(2, true);
-    require(joy_flightCommand(0) == SCAN_F, "next countermeasure is flare");
+    require(joy_flightCommand(0, VIEW_COCKPIT) == SCAN_F, "next countermeasure is flare");
     stick.button(2, false);
     for (int weapon = 0; weapon < 3; ++weapon) {
         stick.button(3, true);
         const int expected[] = {SCAN_M, SCAN_G, SCAN_S};
-        require(joy_flightCommand(weapon) == expected[weapon], "cycle follows actual selected weapon");
+        require(joy_flightCommand(weapon, VIEW_COCKPIT) == expected[weapon], "cycle follows actual selected weapon");
         stick.button(3, false);
     }
     stick.button(4, true);
-    require(joy_flightCommand(0) == SCAN_EQUAL, "button five raises thrust without lever");
-    require(joy_flightCommand(0) == 0, "thrust repeat waits initially");
+    require(joy_flightCommand(0, VIEW_COCKPIT) == SCAN_EQUAL, "button five raises thrust without lever");
+    require(joy_flightCommand(0, VIEW_COCKPIT) == 0, "thrust repeat waits initially");
     SDL_Delay(260);
-    require(joy_flightCommand(0) == SCAN_EQUAL, "held thrust button repeats");
+    require(joy_flightCommand(0, VIEW_COCKPIT) == SCAN_EQUAL, "held thrust button repeats");
     stick.button(4, false);
-    require(joy_flightCommand(0) == 0, "release stops thrust repeat");
+    require(joy_flightCommand(0, VIEW_COCKPIT) == 0, "release stops thrust repeat");
     stick.button(5, true);
-    require(joy_flightCommand(0) == SCAN_MINUS, "button six lowers thrust");
+    require(joy_flightCommand(0, VIEW_COCKPIT) == SCAN_MINUS, "button six lowers thrust");
     stick.button(5, false);
 
     // The game flushes keyboard events; raw commands must survive that flush.
     stick.button(2, true);
     stick.button(3, true);
     input_ringReset();
-    require(joy_flightCommand(0) == SCAN_C, "first pending command survives BIOS-ring reset");
-    require(joy_flightCommand(0) == SCAN_M, "second simultaneous action survives next step");
+    require(joy_flightCommand(0, VIEW_COCKPIT) == SCAN_C, "first pending command survives BIOS-ring reset");
+    require(joy_flightCommand(0, VIEW_COCKPIT) == SCAN_M, "second simultaneous action survives next step");
     focus(false);
-    require(joy_flightCommand(0) == 0 && !joy_rawActive(), "unfocused stick does not control flight");
+    require(joy_flightCommand(0, VIEW_COCKPIT) == 0 && !joy_rawActive(), "unfocused stick does not control flight");
     focus(true);
+}
+
+void autopilotAndViews() {
+    Stick stick(2, 10);
+    stick.button(6, true);
+    require(joy_flightCommand(0, VIEW_COCKPIT) == SCAN_L, "gear uses existing keyboard command");
+    require(joy_flightCommand(0, VIEW_COCKPIT) == 0, "held gear button does not toggle repeatedly");
+    stick.button(6, false);
+    stick.button(7, true);
+    require(joy_flightCommand(0, VIEW_COCKPIT) == SCAN_P, "autopilot uses existing keyboard command");
+    require(joy_flightCommand(0, VIEW_COCKPIT) == 0, "held autopilot button does not toggle repeatedly");
+    stick.button(7, false);
+    stick.button(8, true);
+    require(joy_flightCommand(0, VIEW_COCKPIT) == SCAN_T, "next target uses existing keyboard command");
+    require(joy_flightCommand(0, VIEW_COCKPIT) == 0, "held target button does not cycle repeatedly");
+    stick.button(8, false);
+    const int views[] = {VIEW_COCKPIT, VIEW_EXT_FOLLOW, VIEW_EXT_DYNAMIC, VIEW_EXT_SIDE, VIEW_TARGET};
+    const int commands[] = {SCAN_F5, SCAN_F6, SCAN_F7, SCAN_SPACEBAR, SCAN_SPACEBAR};
+    for (int i = 0; i < 5; ++i) {
+        stick.button(9, true);
+        require(joy_flightCommand(0, views[i]) == commands[i], "view cycle follows current camera");
+        require(joy_flightCommand(0, views[i]) == 0, "view switch is edge-triggered");
+        stick.button(9, false);
+    }
 }
 
 void throttle() {
@@ -268,8 +293,8 @@ void menuAndSetup() {
 
 void persistence(const std::filesystem::path &directory) {
     const std::string path = (directory / "roundtrip.txt").string();
-    int original[RAW_ACTION_COUNT] = {2, 0, 1, 3, -1, -1};
-    int loaded[RAW_ACTION_COUNT] = {-1, -1, -1, -1, -1, -1};
+    int original[RAW_ACTION_COUNT] = {2, 0, 1, 3, -1, -1, -1, -1, -1, -1};
+    int loaded[RAW_ACTION_COUNT] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
     require(joy_saveMapping(path, 4, original), "save complete mapping");
     require(joy_loadMapping(path, 4, loaded), "load complete mapping");
     for (int i = 0; i < RAW_ACTION_COUNT; ++i)
@@ -359,6 +384,7 @@ int main() {
     gfx_setMode13();
     defaultsAndRemapping();
     flightCommands();
+    autopilotAndViews();
     throttle();
     menuAndSetup();
     overridesAndGamepad();

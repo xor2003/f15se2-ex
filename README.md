@@ -35,6 +35,10 @@ limited to the buttons actually available:
 | 4 | Cycle Sidewinder, medium-range missile, Maverick |
 | 5 | Increase thrust, when no throttle axis is configured |
 | 6 | Decrease thrust, when no throttle axis is configured |
+| 7 | Toggle landing gear |
+| 8 | Toggle autopilot |
+| 9 | Next target |
+| 10 | Cycle cockpit / external follow / dynamic / side views |
 
 On Linux, an axis reported by the driver as throttle is assigned automatically,
 regardless of joystick model. If this metadata is unavailable (including on
@@ -46,7 +50,9 @@ default lever direction. Keyboard controls remain available on smaller sticks.
 
 Button overrides are `F15_JOY_MISSILE`, `F15_JOY_COUNTERMEASURE`,
 `F15_JOY_CANNON`, `F15_JOY_WEAPON`, `F15_JOY_THRUST_UP`, and
-`F15_JOY_THRUST_DOWN`. Values are one-based physical button numbers; `0`
+`F15_JOY_THRUST_DOWN`, `F15_JOY_GEAR`, `F15_JOY_AUTOPILOT`,
+`F15_JOY_TARGET`, and `F15_JOY_VIEW`.
+Values are one-based physical button numbers; `0`
 disables a binding. Assign distinct buttons to avoid overlapping actions.
 For example, `F15_JOY_CANNON=2 F15_JOY_MISSILE=1 ./build/f15se2-ex --game /path/to/game`
 exchanges missile and cannon buttons. These settings apply to the active raw

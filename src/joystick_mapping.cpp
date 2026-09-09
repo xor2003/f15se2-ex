@@ -4,7 +4,8 @@
 #include <fstream>
 
 static const char *actionNames[RAW_ACTION_COUNT] = {
-    "cannon", "missile", "countermeasure", "weapon", "thrust_up", "thrust_down"
+    "cannon", "missile", "countermeasure", "weapon", "thrust_up", "thrust_down",
+    "gear", "autopilot", "target", "view"
 };
 
 /* Reject out-of-range and duplicate assignments as a unit, not partially. */
@@ -39,8 +40,12 @@ bool joy_loadMapping(const std::string &path, int count, int *buttons) {
     std::string name;
     int version = 0;
     int candidate[RAW_ACTION_COUNT] = {};
-    if (!(file >> name >> version) || name != "F15_JOYSTICK" || version != 1) return false;
-    for (int i = 0; i < RAW_ACTION_COUNT; ++i) {
+    if (!(file >> name >> version) || name != "F15_JOYSTICK" || (version != 1 && version != 2)) return false;
+    /* Version 1 had six actions. Preserve them and leave new actions unassigned
+     * so they cannot collide with buttons already chosen by the user. */
+    const int savedActions = version == 1 ? RAW_THRUST_DOWN + 1 : RAW_ACTION_COUNT;
+    for (int i = 0; i < RAW_ACTION_COUNT; ++i) candidate[i] = -1;
+    for (int i = 0; i < savedActions; ++i) {
         int button = 0;
         if (!(file >> name >> button) || name != actionNames[i] || button < 0 || button > count) return false;
         candidate[i] = button - 1;
@@ -54,7 +59,7 @@ bool joy_loadMapping(const std::string &path, int count, int *buttons) {
  * write fails. Unique temporary names avoid clobbering another running game. */
 bool joy_saveMapping(const std::string &path, int count, const int *buttons) {
     if (path.empty() || !validMapping(count, buttons)) return false;
-    std::string data = "F15_JOYSTICK 1\n";
+    std::string data = "F15_JOYSTICK 2\n";
     for (int i = 0; i < RAW_ACTION_COUNT; ++i)
         data += std::string(actionNames[i]) + " " + std::to_string(buttons[i] + 1) + "\n";
     const std::string temporary = path + "." + std::to_string(SDL_GetPerformanceCounter()) + ".tmp";

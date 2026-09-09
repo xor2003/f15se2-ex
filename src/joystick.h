@@ -32,7 +32,8 @@ Sint16 joy_axisRaw(SDL_GamepadAxis a);
 
 /* Raw-stick priority bindings; command polling is once per flight step. */
 enum RawAction { RAW_CANNON, RAW_MISSILE, RAW_COUNTERMEASURE, RAW_WEAPON,
-                 RAW_THRUST_UP, RAW_THRUST_DOWN, RAW_ACTION_COUNT };
+                 RAW_THRUST_UP, RAW_THRUST_DOWN, RAW_GEAR, RAW_AUTOPILOT,
+                 RAW_TARGET, RAW_VIEW, RAW_ACTION_COUNT };
 /* Setup accesses only the active raw device, never a mapped gamepad. */
 int joy_rawButtonCount(void);
 int joy_rawPressedButton(void);
@@ -46,7 +47,7 @@ bool joy_saveRawMapping(void);
 SDL_JoystickID joy_rawDeviceId(void);
 bool joy_rawActive(void);
 void joy_resetFlightInput(void);
-Uint16 joy_flightCommand(int selectedWeapon);
+Uint16 joy_flightCommand(int selectedWeapon, int viewMode);
 /* Changed thrust percentage (0..100), or -1 when no lever update is pending. */
 int joy_throttleChange(void);
 

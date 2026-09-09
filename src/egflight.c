@@ -105,7 +105,7 @@ void stepFlightModel(void) {
     /* Raw-stick commands bypass the keyboard flush above. Reuse the existing
      * dispatch so keyboard and joystick actions have identical game effects. */
     if (keyScancode == 0) {
-        keyScancode = joy_flightCommand(missileSpecIndex);
+        keyScancode = joy_flightCommand(missileSpecIndex, g_viewMode);
         if (keyScancode != 0 && g_autopilotEngaged == 1) {
             g_directorMode = g_autopilotEngaged = g_viewMode = VIEW_COCKPIT;
         }

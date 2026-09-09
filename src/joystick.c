@@ -35,6 +35,7 @@
 #include "comm.h"
 #include "log.h"
 #include "egkeys.h"
+#include "egtypes.h"
 #include <dos.h>
 #include <stdlib.h>
 
@@ -48,7 +49,7 @@ static SDL_Gamepad *g_pad = NULL;
 static SDL_Joystick *g_joy = NULL;
 static SDL_JoystickID g_devId = 0;
 
-static int g_rawButtons[RAW_ACTION_COUNT] = {0, 1, 2, 3, 4, 5};
+static int g_rawButtons[RAW_ACTION_COUNT] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
 static unsigned g_rawPending = 0;
 static bool g_nextFlare = false;
 static int g_throttleAxis = -1;
@@ -82,11 +83,12 @@ static void configureRawJoystick(void) {
     g_throttleInvert = !invert || SDL_strcmp(invert, "0") != 0;
     static const char *names[RAW_ACTION_COUNT] = {
         "F15_JOY_CANNON", "F15_JOY_MISSILE", "F15_JOY_COUNTERMEASURE",
-        "F15_JOY_WEAPON", "F15_JOY_THRUST_UP", "F15_JOY_THRUST_DOWN"
+        "F15_JOY_WEAPON", "F15_JOY_THRUST_UP", "F15_JOY_THRUST_DOWN",
+        "F15_JOY_GEAR", "F15_JOY_AUTOPILOT", "F15_JOY_TARGET", "F15_JOY_VIEW"
     };
     for (int action = 0; action < RAW_ACTION_COUNT; ++action) {
         int fallback = action < buttons ? action : -1;
-        if (action >= RAW_THRUST_UP && g_throttleAxis >= 0) fallback = -1;
+        if ((action == RAW_THRUST_UP || action == RAW_THRUST_DOWN) && g_throttleAxis >= 0) fallback = -1;
         g_rawButtons[action] = fallback;
     }
     /* Precedence: defaults, saved device mapping, explicit launch overrides. */
@@ -205,8 +207,9 @@ void joy_handleEvent(const SDL_Event *ev) {
     switch (ev->type) {
     case SDL_EVENT_JOYSTICK_BUTTON_DOWN:
         if (g_joy && ev->jbutton.which == g_devId && input_getMode() == INPUT_MODE_FLIGHT) {
-            for (int action = RAW_COUNTERMEASURE; action < RAW_THRUST_UP; ++action)
-                if (ev->jbutton.button == g_rawButtons[action])
+            for (int action = RAW_COUNTERMEASURE; action < RAW_ACTION_COUNT; ++action)
+                if (action != RAW_THRUST_UP && action != RAW_THRUST_DOWN &&
+                    ev->jbutton.button == g_rawButtons[action])
                     g_rawPending |= 1u << action;
         }
         break;
@@ -327,7 +330,7 @@ void joy_resetFlightInput(void) {
 
 /* Consume one command per simulation step, outside the BIOS ring: the legacy
  * flight loop deliberately flushes that ring after reading its first key. */
-Uint16 joy_flightCommand(int selectedWeapon) {
+Uint16 joy_flightCommand(int selectedWeapon, int viewMode) {
     if (!g_joy || !input_hasFocus()) return 0;
     if (g_rawPending & (1u << RAW_COUNTERMEASURE)) {
         g_rawPending &= ~(1u << RAW_COUNTERMEASURE);
@@ -338,6 +341,29 @@ Uint16 joy_flightCommand(int selectedWeapon) {
     if (g_rawPending & (1u << RAW_WEAPON)) {
         g_rawPending &= ~(1u << RAW_WEAPON);
         return selectedWeapon == 0 ? SCAN_M : selectedWeapon == 1 ? SCAN_G : SCAN_S;
+    }
+    if (g_rawPending & (1u << RAW_GEAR)) {
+        g_rawPending &= ~(1u << RAW_GEAR);
+        return SCAN_L;
+    }
+    if (g_rawPending & (1u << RAW_AUTOPILOT)) {
+        g_rawPending &= ~(1u << RAW_AUTOPILOT);
+        return SCAN_P;
+    }
+    if (g_rawPending & (1u << RAW_TARGET)) {
+        g_rawPending &= ~(1u << RAW_TARGET);
+        return SCAN_T;
+    }
+    if (g_rawPending & (1u << RAW_VIEW)) {
+        g_rawPending &= ~(1u << RAW_VIEW);
+        /* Follow actual camera state, including changes made with the keyboard.
+         * Target/missile views return to the cockpit rather than losing sync. */
+        switch (viewMode) {
+        case VIEW_COCKPIT: return SCAN_F5;
+        case VIEW_EXT_FOLLOW: return SCAN_F6;
+        case VIEW_EXT_DYNAMIC: return SCAN_F7;
+        default: return SCAN_SPACEBAR;
+        }
     }
     const Uint64 now = SDL_GetTicks();
     for (int direction = 0; direction < 2; ++direction) {

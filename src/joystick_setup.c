@@ -28,10 +28,11 @@ static void drawJoystickSetup(int selected, bool saveFailed) {
 
     static const char *labels[RAW_ACTION_COUNT] = {
         "Fire cannon", "Fire missile", "Chaff / flare", "Cycle weapon",
-        "Increase thrust", "Decrease thrust"
+        "Increase thrust", "Decrease thrust", "Landing gear", "Autopilot",
+        "Next target", "Switch 3D view"
     };
     for (int action = 0; action < RAW_ACTION_COUNT; ++action) {
-        const int y = 56 + action * 13;
+        const int y = 48 + action * 9;
         page[2] = action == selected ? COLOR_WHITE : COLOR_LIGHTGRAY;
         drawStringAt(page, action == selected ? ">" : " ", 19, y);
         drawStringAt(page, labels[action], 32, y);
