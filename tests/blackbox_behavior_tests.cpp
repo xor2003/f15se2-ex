@@ -248,7 +248,9 @@ int main() {
     blackbox_noteInputPump();
     blackbox_recordKey(kBiosWord);
     blackbox_noteInputPump();
+    blackbox_recordAxes(kRawX, kRawY, kJoyX, kJoyY);
     blackbox_noteInputPump();
+    blackbox_recordAxes(kJoyX, kJoyY, kRawX, kRawY);
     blackbox_recordKey(kOtherSeed);
     blackbox_shutdown();
     require(blackbox_startReplay(badPath.c_str()) != 0,
@@ -259,7 +261,13 @@ int main() {
     blackbox_noteInputPump();
     require(blackbox_replayNextKey(&word) == 0,
             "later same-tick key is not prefetched across a buffer clear");
+    blackbox_applyReplayAxes(&rawX, &rawY, &joyX, &joyY);
+    require(rawX == kRawX && rawY == kRawY && joyX == kJoyX && joyY == kJoyY,
+            "same-tick axes are not prefetched from a later input poll");
     blackbox_noteInputPump();
+    blackbox_applyReplayAxes(&rawX, &rawY, &joyX, &joyY);
+    require(rawX == kJoyX && rawY == kJoyY && joyX == kRawX && joyY == kRawY,
+            "later axes become visible at their own input poll");
     require(blackbox_replayNextKey(&word) != 0 && word == kOtherSeed,
             "later same-tick key becomes visible only at its own input poll");
     blackbox_shutdown();
@@ -279,7 +287,7 @@ int main() {
     {
         FILE *tickMismatchLog = std::fopen(badPath.c_str(), "w");
         require(tickMismatchLog != nullptr, "test can create an RNG replay log");
-        std::fputs("F15SE2_BLACKBOX 7\nseed 7\nbuild_version unknown\nmutable_file HallFame 4 48414c4c\nrng_seed 9 4321\nrng 9 2468\n", tickMismatchLog);
+        std::fputs("F15SE2_BLACKBOX 8\nseed 7\nbuild_version unknown\nmutable_file HallFame 4 48414c4c\nrng_seed 9 4321\nrng 9 2468\n", tickMismatchLog);
         std::fclose(tickMismatchLog);
         require(blackbox_startReplay(badPath.c_str()) != 0,
                 "replay accepts a log with captured RNG events");
@@ -401,7 +409,7 @@ int main() {
     {
         FILE *badLog = std::fopen(badPath.c_str(), "w");
         require(badLog != nullptr, "test can create a malformed replay log");
-        std::fputs("F15SE2_BLACKBOX 7\nseed 7\nbuild_version unknown\nmutable_file HallFame 4 48414c4c\nkey 1 1 10000\n", badLog);
+        std::fputs("F15SE2_BLACKBOX 8\nseed 7\nbuild_version unknown\nmutable_file HallFame 4 48414c4c\nkey 1 1 10000\n", badLog);
         std::fclose(badLog);
         require(blackbox_startReplay(badPath.c_str()) == 0,
                 "replay rejects out-of-range BIOS key words instead of truncating them");
@@ -410,7 +418,7 @@ int main() {
     {
         FILE *badLog = std::fopen(badPath.c_str(), "w");
         require(badLog != nullptr, "test can create a malformed snapshot log");
-        std::fputs("F15SE2_BLACKBOX 7\nseed 7\nbuild_version unknown\nmutable_file HallFame 1 00ff\n", badLog);
+        std::fputs("F15SE2_BLACKBOX 8\nseed 7\nbuild_version unknown\nmutable_file HallFame 1 00ff\n", badLog);
         std::fclose(badLog);
         require(blackbox_startReplay(badPath.c_str()) == 0,
                 "replay rejects mutable snapshots with trailing data");
@@ -419,7 +427,7 @@ int main() {
     {
         FILE *largeLog = std::fopen(badPath.c_str(), "w");
         require(largeLog != nullptr, "test can create a multi-capacity replay log");
-        std::fputs("F15SE2_BLACKBOX 7\nseed 7\nbuild_version unknown\nmutable_file HallFame 0 -\n", largeLog);
+        std::fputs("F15SE2_BLACKBOX 8\nseed 7\nbuild_version unknown\nmutable_file HallFame 0 -\n", largeLog);
         for (int i = 0; i < 130; i++)
             std::fprintf(largeLog, "key 0 0 %04x\n", i + 1);
         std::fclose(largeLog);

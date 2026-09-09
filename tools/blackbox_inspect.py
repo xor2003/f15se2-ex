@@ -35,7 +35,7 @@ def parse_log(path: Path) -> tuple[int | None, list[Event]]:
     events: list[Event] = []
     with path.open("r", encoding="utf-8") as f:
         header = f.readline().strip()
-        if header != "F15SE2_BLACKBOX 7":
+        if header != "F15SE2_BLACKBOX 8":
             raise SystemExit(f"unsupported blackbox header: {header!r}")
         for lineno, line in enumerate(f, start=2):
             parts = line.strip().split()
@@ -67,8 +67,9 @@ def format_event(event: Event) -> str:
         detail = f"pump={event.fields[0]} word=0x{int(event.fields[1], 16):04x}"
     elif event.kind == "timer_pump" and len(event.fields) == 1:
         detail = f"ticks={event.fields[0]}"
-    elif event.kind == "axes" and len(event.fields) == 4:
-        detail = f"raw=({event.fields[0]},{event.fields[1]}) joy=({event.fields[2]},{event.fields[3]})"
+    elif event.kind == "axes" and len(event.fields) == 5:
+        detail = (f"pump={event.fields[0]} raw=({event.fields[1]},{event.fields[2]}) "
+                  f"joy=({event.fields[3]},{event.fields[4]})")
     elif event.kind == "rng" and event.fields:
         detail = f"value={event.fields[0]}"
     elif event.kind == "rng_seed" and event.fields:

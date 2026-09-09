@@ -37,7 +37,7 @@ void writeFile(const std::filesystem::path &path, const std::string &contents) {
 }
 
 std::string validLog(const std::string &events = {}) {
-    return "F15SE2_BLACKBOX 7\nseed 7\nbuild_version test-build\n"
+    return "F15SE2_BLACKBOX 8\nseed 7\nbuild_version test-build\n"
            "mutable_file HallFame 0 -\n" + events;
 }
 
@@ -219,7 +219,7 @@ void testCoreFailures(const std::filesystem::path &path) {
     writeFile(path, "not a blackbox\n");
     require(!blackbox_startReplay(path.string().c_str()),
             "replay rejects a bad format header");
-    writeFile(path, validLog("axes 0 0 0 0 256\n"));
+    writeFile(path, validLog("axes 0 0 0 0 0 256\n"));
     require(!blackbox_startReplay(path.string().c_str()),
             "replay rejects out-of-range axes");
     writeFile(path, validLog("timer_pump 0 17\n"));
@@ -228,14 +228,14 @@ void testCoreFailures(const std::filesystem::path &path) {
     writeFile(path, validLog("unknown 1 2 3\n"));
     require(!blackbox_startReplay(path.string().c_str()),
             "replay rejects unknown event lines");
-    writeFile(path, "F15SE2_BLACKBOX 7\nseed 7\nmutable_file HallFame 0 -\n");
+    writeFile(path, "F15SE2_BLACKBOX 8\nseed 7\nmutable_file HallFame 0 -\n");
     require(!blackbox_startReplay(path.string().c_str()),
             "replay requires build metadata");
-    writeFile(path, "F15SE2_BLACKBOX 7\nseed 7\nbuild_version test-build\n");
+    writeFile(path, "F15SE2_BLACKBOX 8\nseed 7\nbuild_version test-build\n");
     require(!blackbox_startReplay(path.string().c_str()),
             "replay requires captured mutable state");
 
-    writeFile(path, validLog("phase 0 start\naxes 0 1 2 3 4\n"));
+    writeFile(path, validLog("phase 0 start\naxes 0 0 1 2 3 4\n"));
     require(blackbox_startReplay(path.string().c_str()),
             "replay accepts navigation markers and valid axes");
     blackbox_getDebugState(nullptr);

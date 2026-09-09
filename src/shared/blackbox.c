@@ -35,7 +35,7 @@ void blackbox_diagOnTick(void) __attribute__((weak));
 #endif
 
 enum {
-    BLACKBOX_FILE_VERSION = 7,
+    BLACKBOX_FILE_VERSION = 8,
     BLACKBOX_TIMER_HZ = 60,
     BLACKBOX_RAND_MASK = 0x7fff,
     BLACKBOX_MAX_KEY_WORD = 0xffff,
@@ -55,6 +55,7 @@ typedef struct BlackboxKeyEvent {
 
 typedef struct BlackboxAxesEvent {
     uint32 tick;
+    uint32 inputPump;
     uint8 rawX;
     uint8 rawY;
     uint8 joyX;
@@ -125,9 +126,9 @@ static SDL_Surface *s_overlayPage = NULL;
 static uint8 s_overlayBackup[7][52];
 static int s_overlayWidth = 0;
 static int s_overlayHeight = 0;
-static BlackboxAxesEvent s_currentAxes = {0, 0x80, 0x80, 0x80, 0x80};
+static BlackboxAxesEvent s_currentAxes = {0, 0, 0x80, 0x80, 0x80, 0x80};
 static int s_haveRecordedAxes = 0;
-static BlackboxAxesEvent s_lastRecordedAxes = {0, 0x80, 0x80, 0x80, 0x80};
+static BlackboxAxesEvent s_lastRecordedAxes = {0, 0, 0x80, 0x80, 0x80, 0x80};
 
 static int reserveEvents(void **events, size_t *capacity, size_t count,
                          size_t eventSize) {
@@ -220,10 +221,12 @@ static int blackbox_appendKey(uint32 tick, uint32 inputPump, uint16 word) {
     return 1;
 }
 
-static int blackbox_appendAxes(uint32 tick, uint8 rawX, uint8 rawY, uint8 joyX, uint8 joyY) {
+static int blackbox_appendAxes(uint32 tick, uint32 inputPump,
+                                uint8 rawX, uint8 rawY, uint8 joyX, uint8 joyY) {
     if (!reserveEvents((void **)&s_axes, &s_axesCapacity,
                        s_axesCount, sizeof(*s_axes))) return 0;
     s_axes[s_axesCount].tick = tick;
+    s_axes[s_axesCount].inputPump = inputPump;
     s_axes[s_axesCount].rawX = rawX;
     s_axes[s_axesCount].rawY = rawY;
     s_axes[s_axesCount].joyX = joyX;
@@ -368,14 +371,15 @@ int blackbox_startReplay(const char *path) {
                 blackbox_resetState(BLACKBOX_OFF, BLACKBOX_DEFAULT_SEED);
                 return 0;
             }
-        } else if (sscanf(line, "axes %u %u %u %u %u", &tick, &rawX, &rawY, &joyX, &joyY) == 5) {
+        } else if (sscanf(line, "axes %u %u %u %u %u %u", &tick, &inputPump, &rawX, &rawY, &joyX, &joyY) == 6) {
             if (!blackbox_validAxes(rawX, rawY, joyX, joyY)) {
                 log_error("blackbox: invalid axes values in replay log: %s", line);
                 fclose(f);
                 blackbox_resetState(BLACKBOX_OFF, BLACKBOX_DEFAULT_SEED);
                 return 0;
             }
-            if (!blackbox_appendAxes((uint32)tick, (uint8)rawX, (uint8)rawY, (uint8)joyX, (uint8)joyY)) {
+            if (!blackbox_appendAxes((uint32)tick, (uint32)inputPump,
+                                     (uint8)rawX, (uint8)rawY, (uint8)joyX, (uint8)joyY)) {
                 fclose(f);
                 blackbox_resetState(BLACKBOX_OFF, BLACKBOX_DEFAULT_SEED);
                 return 0;
@@ -671,14 +675,18 @@ void blackbox_recordAxes(uint8 rawX, uint8 rawY, uint8 joyX, uint8 joyY) {
     s_lastRecordedAxes.rawY = rawY;
     s_lastRecordedAxes.joyX = joyX;
     s_lastRecordedAxes.joyY = joyY;
-    fprintf(s_file, "axes %u %u %u %u %u\n",
-            (unsigned)s_tick, (unsigned)rawX, (unsigned)rawY, (unsigned)joyX, (unsigned)joyY);
+    fprintf(s_file, "axes %u %u %u %u %u %u\n",
+            (unsigned)s_tick, (unsigned)s_inputPump,
+            (unsigned)rawX, (unsigned)rawY, (unsigned)joyX, (unsigned)joyY);
     fflush(s_file);
 }
 
 void blackbox_applyReplayAxes(uint8 *rawX, uint8 *rawY, uint8 *joyX, uint8 *joyY) {
     if (!blackbox_replaying()) return;
-    while (s_axesPos < s_axesCount && s_axes[s_axesPos].tick <= s_tick) {
+    /* Several input polls can share a tick. Do not prefetch a later stick
+     * position before the poll that exposed it during recording. */
+    while (s_axesPos < s_axesCount && s_axes[s_axesPos].tick <= s_tick &&
+           s_axes[s_axesPos].inputPump <= s_inputPump) {
         s_currentAxes = s_axes[s_axesPos];
         s_axesPos++;
     }

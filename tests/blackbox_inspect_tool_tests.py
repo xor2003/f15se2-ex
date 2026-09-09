@@ -16,14 +16,14 @@ def require(condition: bool, message: str) -> None:
 def main() -> int:
     tool = Path(sys.argv[1])
     with tempfile.NamedTemporaryFile("w", delete=False, encoding="utf-8") as f:
-        f.write("F15SE2_BLACKBOX 7\n")
+        f.write("F15SE2_BLACKBOX 8\n")
         f.write("seed 7\n")
         f.write("build_version test\n")
         f.write("mutable_file HallFame 0 -\n")
         f.write("phase 1 start\n")
         f.write("timer_pump 2 0\n")
         f.write("key 2 17 1f73\n")
-        f.write("axes 3 64 128 128 192\n")
+        f.write("axes 3 4 64 128 128 192\n")
         f.write("rng_seed 4 7\n")
         f.write("rng 5 123\n")
         f.write("frame 6 0 1a2b3c4d\n")
