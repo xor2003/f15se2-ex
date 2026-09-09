@@ -155,6 +155,9 @@ def glb_to_glmesh_bytes(path: Path) -> bytes:
     source = path.read_bytes()
     source_md5 = hashlib.md5(source).hexdigest().encode("ascii")
     doc, blob = _read_glb_doc_and_bin(path)
+    from .gltf_scene import flatten_scene
+
+    doc, blob = flatten_scene(doc, blob, _gltf_accessor_values)
     primitives: list[tuple[int, int, int, int, int, tuple[float, float, float, float], list[tuple[float, float, float]]]] = []
     for mesh in doc.get("meshes", []):
         if not isinstance(mesh, dict):

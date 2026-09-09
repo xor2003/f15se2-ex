@@ -153,6 +153,16 @@ Normal Blender workflow:
 The filename label after `shape_###` is only for humans. Runtime lookup is
 case-tolerant and uses the stable slot number prefix.
 
+The importer bakes the selected static GLB scene's node translations, rotations,
+scales, and matrices into the model geometry. Multiple nodes using one mesh remain
+separate instances; meshes outside that scene are ignored. Export a static mesh
+for animated, skinned, or morph-target models: those features are rejected rather
+than silently dropped.
+
+After upgrading the converter, delete the affected group's generated `cache/`
+directory once. Cache freshness currently tracks the GLB file, not the converter
+version, so an unchanged GLB otherwise retains a cache produced by an older tool.
+
 Current limitation: GLB model replacement is implemented in the OpenGL backend.
 The software 3D backend still renders the original `.3D3` stream, and the
 current loader still reads original `.3D3` bytes for shape-slot tables, PHOTO
