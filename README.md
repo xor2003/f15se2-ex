@@ -52,7 +52,7 @@ The entire game is playable, rendering and input handling is ported to SDL, soun
 
 ## Completed improvements
 
-These are bugfixes and new features that were not part of the original game, and implemented by this project.
+These include new features, fixes to original-game bugs, and fixes to regressions introduced during porting.
 
 1. The original was limited to 15 FPS with a convoluted time scale implementation to make sure the game engine kept up with rendering. This has been eliminated, with the game engine being decoupled from rendering, so now it plays much smoother. 
 1. Input loop has been upgraded to an SDL event pump which should make it deal with simultaneous inputs much bettern and improve general responsiveness.
@@ -65,8 +65,8 @@ These are bugfixes and new features that were not part of the original game, and
 1. Gun spread and target hitboxes are improved, it is actually possible to aim the gun now.
 1. Missiles follow the actually selected targets instead of the closest one.
 1. Asset converters allow loading original 3D models into modeling software, could lead to better/more models in the future. Fonts and sprites are also exported.
-1. Fixed the tracking camera flipping external views upside down ([#41](https://github.com/neuviemeporte/f15se2-ex/pull/41)).
-1. Flight state is reset between missions, preventing stale "Nice landing" and "Weapons replenished" events after a previous sortie ([#42](https://github.com/neuviemeporte/f15se2-ex/pull/42)).
+1. Fixed a port regression that made the tracking camera flip external views upside down ([#41](https://github.com/neuviemeporte/f15se2-ex/pull/41)).
+1. Restored the original game's fresh flight state between missions, fixing a port regression that caused stale "Nice landing" and "Weapons replenished" events after a previous sortie ([#42](https://github.com/neuviemeporte/f15se2-ex/pull/42)).
 
 ## Planned improvements
 
