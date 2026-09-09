@@ -80,31 +80,10 @@ def _read_glb_doc_and_bin(path: Path) -> tuple[Dict[str, Any], bytes]:
     return json.loads(data[20:json_end].decode("utf-8")), data[bin_start : bin_start + bin_length]
 
 
-def _gltf_accessor_values(doc: Dict[str, Any], blob: bytes, accessor_index: int) -> list[Any]:
-    """Perform the gltf accessor values asset-processing operation."""
-    accessor = doc["accessors"][accessor_index]
-    view = doc["bufferViews"][int(accessor["bufferView"])]
-    offset = int(view.get("byteOffset", 0)) + int(accessor.get("byteOffset", 0))
-    count = int(accessor["count"])
-    component = int(accessor["componentType"])
-    type_name = str(accessor["type"])
-    dims = {"SCALAR": 1, "VEC2": 2, "VEC3": 3, "VEC4": 4}[type_name]
-    fmt_map = {
-        5121: ("B", 1),
-        5123: ("H", 2),
-        5125: ("I", 4),
-        5126: ("f", 4),
-    }
-    if component not in fmt_map:
-        raise ValueError(f"unsupported GLB component type {component}")
-    fmt, size = fmt_map[component]
-    stride = int(view.get("byteStride", dims * size))
-    values: list[Any] = []
-    for i in range(count):
-        base = offset + i * stride
-        item = struct.unpack_from("<" + fmt * dims, blob, base)
-        values.append(item[0] if dims == 1 else item)
-    return values
+def _gltf_accessor_values(doc, blob, idx):
+    """Read geometry through the shared bounds-checked GLB accessor reader."""
+    from .gltf_accessor import accessor_values
+    return accessor_values(doc, blob, idx)
 
 
 def _material_rgba(doc: Dict[str, Any], material_index: int | None) -> tuple[float, float, float, float]:
