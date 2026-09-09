@@ -28,6 +28,7 @@
  * routes the game through the joystick paths above.
  */
 #include "joystick.h"
+#include "joystick_axes.h"
 #include "input.h"
 #include "inttype.h"
 #include "comm.h"
@@ -68,14 +69,12 @@ static int rawAssignment(const char *name, int fallback, int count) {
     return (int)index - 1;
 }
 
-/* Only the ST200's known X/Y/throttle layout is inferred. Axis count alone
- * cannot distinguish a throttle from a twist rudder on other devices. */
+/* Prefer a throttle identified by OS metadata. Axis count alone cannot
+ * distinguish a throttle from a twist rudder on other devices. */
 static void configureRawJoystick(void) {
     const int axes = SDL_GetNumJoystickAxes(g_joy);
     const int buttons = SDL_GetNumJoystickButtons(g_joy);
-    const bool st200 = SDL_GetJoystickVendor(g_joy) == 0x06a3 &&
-                       SDL_GetJoystickProduct(g_joy) == 0x0502;
-    g_throttleAxis = rawAssignment("F15_JOY_THROTTLE_AXIS", st200 && axes == 3 ? 2 : -1, axes);
+    g_throttleAxis = rawAssignment("F15_JOY_THROTTLE_AXIS", joy_detectThrottleAxis(g_joy), axes);
     /* Never accidentally replace the primary flight stick with thrust. */
     if (g_throttleAxis >= 0 && g_throttleAxis < 2) g_throttleAxis = -1;
     const char *invert = SDL_getenv("F15_JOY_THROTTLE_INVERT");

@@ -29,15 +29,17 @@ limited to the buttons actually available:
 
 | Button | Action |
 | --- | --- |
-| 1 | Fire cannon (unchanged from upstream) |
-| 2 | Fire missile (unchanged from upstream) |
+| 1 | Fire cannon |
+| 2 | Fire missile |
 | 3 | Countermeasures: alternate chaff, flare, one per press |
 | 4 | Cycle Sidewinder, medium-range missile, Maverick |
 | 5 | Increase thrust, when no throttle axis is configured |
 | 6 | Decrease thrust, when no throttle axis is configured |
 
-The Saitek ST200's third axis is recognized as throttle. Other extra axes are
-not guessed: set `F15_JOY_THROTTLE_AXIS=3` to use the third axis, or `0` to
+On Linux, an axis reported by the driver as throttle is assigned automatically,
+regardless of joystick model. If this metadata is unavailable (including on
+other platforms), extra axes are not guessed: set `F15_JOY_THROTTLE_AXIS=3`
+to use the third axis, or `0` to
 disable it. Axes 1/2 remain roll/pitch. Throttle covers 0-100%; keyboard
 afterburner remains available. Set `F15_JOY_THROTTLE_INVERT=0` to reverse the
 default lever direction. Keyboard controls remain available on smaller sticks.

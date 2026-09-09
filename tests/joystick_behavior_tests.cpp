@@ -1,4 +1,5 @@
 #include "joystick.h"
+#include "joystick_axes.h"
 #include "input.h"
 #include "egkeys.h"
 #include "gfx.h"
@@ -38,14 +39,14 @@ struct Stick {
     SDL_JoystickID id = 0;
     SDL_Joystick *handle = nullptr;
 
-    Stick(int axes, int buttons, bool st200 = false, bool gamepad = false) {
+    Stick(int axes, int buttons, bool gamepad = false) {
         SDL_VirtualJoystickDesc desc = {};
         SDL_INIT_INTERFACE(&desc);
         desc.type = gamepad ? SDL_JOYSTICK_TYPE_GAMEPAD : SDL_JOYSTICK_TYPE_FLIGHT_STICK;
         desc.naxes = axes;
         desc.nbuttons = buttons;
-        desc.vendor_id = st200 ? 0x06a3 : 0x1234;
-        desc.product_id = st200 ? 0x0502 : 0xabcd;
+        desc.vendor_id = 0x1234;
+        desc.product_id = 0xabcd;
         desc.name = "F15 joystick test";
         id = SDL_AttachVirtualJoystick(&desc);
         require(id != 0, "attach virtual joystick");
@@ -149,16 +150,30 @@ void flightCommands() {
 }
 
 void throttle() {
+#ifdef __linux__
+    const unsigned char simple[] = {ABS_X, ABS_Y, ABS_THROTTLE};
+    const unsigned char extended[] = {ABS_X, ABS_Y, ABS_RX, ABS_RY, ABS_THROTTLE};
+    const unsigned char twist[] = {ABS_X, ABS_Y, ABS_RZ};
+    const unsigned char hats[] = {ABS_X, ABS_Y, ABS_HAT0X, ABS_HAT0Y, ABS_THROTTLE};
+    require(joy_linuxThrottleIndex(simple, 3) == 2, "generic three-axis throttle metadata");
+    require(joy_linuxThrottleIndex(extended, 5) == 4, "throttle need not be third axis");
+    require(joy_linuxThrottleIndex(twist, 3) == -1, "rudder metadata does not mean throttle");
+    require(joy_linuxThrottleIndex(hats, 5) == 2, "joydev hats do not shift SDL analog indices");
+    require(joy_linuxThrottleIndex(simple, 0) == -1, "missing metadata has no throttle");
+#endif
     {
         Stick stick(3, 6);
         stick.axis(2, -32768);
         require(joy_throttleChange() == -1, "unknown third axis is not guessed as throttle");
         require(joy_rawBinding(RAW_THRUST_UP) == 4, "unknown extra axis retains thrust buttons");
     }
+    // SDL virtual devices have no kernel metadata; use the explicit assignment
+    // to exercise the identical runtime throttle path on every CI platform.
+    SDL_setenv_unsafe("F15_JOY_THROTTLE_AXIS", "3", 1);
     {
-        Stick stick(3, 6, true);
+        Stick stick(3, 6);
         require(joy_rawBinding(RAW_THRUST_UP) == -1 && joy_rawBinding(RAW_THRUST_DOWN) == -1,
-                "recognized lever leaves thrust buttons unassigned");
+                "configured lever leaves thrust buttons unassigned");
         stick.axis(2, 32767);
         require(joy_throttleChange() == 0, "lever idle endpoint");
         require(joy_throttleChange() == -1, "stationary lever does not overwrite keyboard thrust");
@@ -180,9 +195,9 @@ void throttle() {
     }
     SDL_setenv_unsafe("F15_JOY_THROTTLE_AXIS", "0", 1);
     {
-        Stick stick(3, 6, true);
+        Stick stick(3, 6);
         require(joy_throttleChange() == -1 && joy_rawBinding(RAW_THRUST_UP) == 4,
-                "explicitly disabling recognized throttle restores button fallback");
+                "explicitly disabling throttle restores button fallback");
     }
     SDL_unsetenv_unsafe("F15_JOY_THROTTLE_AXIS");
     SDL_unsetenv_unsafe("F15_JOY_THROTTLE_INVERT");
@@ -250,7 +265,7 @@ void overridesAndGamepad() {
     SDL_unsetenv_unsafe("F15_JOY_COUNTERMEASURE");
     SDL_unsetenv_unsafe("F15_JOY_WEAPON");
     {
-        Stick pad(SDL_GAMEPAD_AXIS_COUNT, SDL_GAMEPAD_BUTTON_COUNT, false, true);
+        Stick pad(SDL_GAMEPAD_AXIS_COUNT, SDL_GAMEPAD_BUTTON_COUNT, true);
         pad.axis(SDL_GAMEPAD_AXIS_RIGHT_TRIGGER, 32767);
         require(misc_readJoystick(0) != 0, "gamepad right trigger still fires cannon");
         pad.axis(SDL_GAMEPAD_AXIS_LEFT_TRIGGER, 32767);
