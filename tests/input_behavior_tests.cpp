@@ -297,40 +297,71 @@ int main() {
     input_ringReset();
     pushText("\xd0\xba"); /* U+043A CYRILLIC SMALL LETTER KA */
     char utf8[8] = {};
+    require(input_readKey() == 0, "Unicode text occupies one ordered key entry");
+    require(input_readMenuTextUtf8(utf8, 2) == 0 && utf8[0] == '\0',
+            "a short buffer cannot split a UTF-8 character");
     require(input_readMenuTextUtf8(utf8, sizeof(utf8)) == 2,
             "menu text input preserves a two-byte UTF-8 character");
     require(SDL_strcmp(utf8, "\xd0\xba") == 0,
             "menu text ring returns the original UTF-8 bytes");
-    require(!input_menuTextWaiting(),
-            "reading a menu text character consumes exactly one ring entry");
+    require(input_readMenuTextUtf8(utf8, sizeof(utf8)) == 0,
+            "text from a popped entry is returned only once");
 
     input_ringReset();
     pushText("a");
+    require(input_readKey() == 'a', "ASCII text keeps its legacy key word");
     require(input_readMenuTextUtf8(utf8, sizeof(utf8)) == 1 &&
                 SDL_strcmp(utf8, "a") == 0,
             "ASCII text is available through the UTF-8 menu ring");
-    input_discardNextAsciiKey((uint8)'a');
     require(!input_keyWaiting(),
-            "pilot-name handling can discard the duplicate BIOS ASCII event");
+            "ASCII text does not leave a duplicate key event");
+
+    input_ringReset();
+    pushText("a");
+    SDL_Event backspace = {};
+    backspace.type = SDL_EVENT_KEY_DOWN;
+    backspace.key.scancode = SDL_SCANCODE_BACKSPACE;
+    backspace.key.key = SDLK_BACKSPACE;
+    backspace.key.down = true;
+    SDL_PushEvent(&backspace);
+    pushText("\xd0\xba");
+    require(input_readKey() == 'a' &&
+                input_readMenuTextUtf8(utf8, sizeof(utf8)) == 1,
+            "typing before Backspace is delivered first");
+    require((input_readKey() & 0xff) == 8 &&
+                input_readMenuTextUtf8(utf8, sizeof(utf8)) == 0,
+            "Backspace is not overtaken by later text");
+    require(input_readKey() == 0 &&
+                input_readMenuTextUtf8(utf8, sizeof(utf8)) == 2,
+            "Unicode after Backspace stays after it");
+
+    input_ringReset();
+    pushText("a");
+    SDL_Event escape = backspace;
+    escape.key.scancode = SDL_SCANCODE_ESCAPE;
+    escape.key.key = SDLK_ESCAPE;
+    SDL_PushEvent(&escape);
+    require(input_readKey() == 'a' && (input_readKey() & 0xff) == 27,
+            "menus can ignore text without blocking a subsequent Escape");
 
     input_setMode(INPUT_MODE_FLIGHT);
     input_ringReset();
     pushText("\xd0\xba");
     input_pumpEvents();
-    require(!input_menuTextWaiting(),
+    require(!input_keyWaiting(),
             "flight mode ignores composed text events");
 
     input_setMode(INPUT_MODE_MENU);
     input_ringReset();
     pushText("\xd0"); /* truncated two-byte sequence */
     input_pumpEvents();
-    require(!input_menuTextWaiting(),
+    require(!input_keyWaiting(),
             "menu text input rejects a truncated UTF-8 sequence");
 
     input_ringReset();
     pushText("\xc0\x80"); /* overlong encoding of NUL */
     input_pumpEvents();
-    require(!input_menuTextWaiting(),
+    require(!input_keyWaiting(),
             "menu text input rejects an overlong UTF-8 sequence");
 
     restoreInt9Handler();

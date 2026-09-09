@@ -310,9 +310,6 @@ void pilotNameInput(int16 *page, int a, int b, int c, struct Pilot *pilot) {
             {
                 char utf8[8];
                 int utf8Len = input_readMenuTextUtf8(utf8, sizeof(utf8));
-                if (utf8Len == 1 && (uint8)utf8[0] >= 0x20 && (uint8)utf8[0] < 0x80) {
-                    input_discardNextAsciiKey((uint8)utf8[0]);
-                }
                 if (utf8Len == 0 && keyCode >= 0x20 && keyCode <= 0x7f) {
                     utf8[0] = (char)keyCode;
                     utf8[1] = '\0';
@@ -389,7 +386,7 @@ int getJoyKey() {
         restoreCbreakHandler();
         exit(0);
     }
-    return misc_checkKeyBuf() == 0 || input_menuTextWaiting();
+    return misc_checkKeyBuf() == 0;
 }
 
 /* ---- merged from stinkey.c ---- */
@@ -404,7 +401,7 @@ int readInputKey() {
             goto checkKey;
         }
     }
-    key = input_menuTextWaiting() ? 0 : misc_getKey();
+    key = misc_getKey();
 checkKey:
     if (key == KEYCODE_ALTQ || cbreakHit != 0) {
         cleanup();

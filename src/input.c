@@ -63,30 +63,31 @@ bool input_preferGamepad(void) { return g_lastWasGamepad && joy_connected(); }
 static uint16 keyRing[KEY_RING];
 static int ringHead = 0, ringTail = 0;
 
-#define TEXT_RING 32
-static char textRing[TEXT_RING][8];
-static int textRingHead = 0, textRingTail = 0;
+/* Text and navigation share the BIOS ring's order. A non-ASCII text event has
+ * key word zero and its UTF-8 payload is retrieved after popping that entry. */
+static char keyText[KEY_RING][5]{};
+static char lastMenuText[5]{};
 
 static void ringPush(uint16 word) {
     int next = (ringTail + 1) % KEY_RING;
     if (next == ringHead) return; /* full: drop, as the BIOS buffer would */
     keyRing[ringTail] = word;
+    keyText[ringTail][0] = '\0';
     ringTail = next;
 }
 
-static void textRingPushUtf8(const char *text, int len) {
-    int next;
-    if (!text || len <= 0 || len >= (int)sizeof(textRing[0])) return;
-    next = (textRingTail + 1) % TEXT_RING;
-    if (next == textRingHead) return;
-    SDL_memcpy(textRing[textRingTail], text, (size_t)len);
-    textRing[textRingTail][len] = '\0';
-    textRingTail = next;
+static void ringPushTextUtf8(const char *text, int len) {
+    if (!text || len <= 0 || len >= (int)sizeof(keyText[0])) return;
+    if ((ringTail + 1) % KEY_RING == ringHead) return;
+    const int slot = ringTail;
+    ringPush(len == 1 ? (uint8)text[0] : 0);
+    SDL_memcpy(keyText[slot], text, (size_t)len);
+    keyText[slot][len] = '\0';
 }
 
 void input_ringReset(void) {
     ringHead = ringTail = 0;
-    textRingHead = textRingTail = 0;
+    lastMenuText[0] = '\0';
     g_joyRawX = 0x80;
     g_joyRawY = 0x80;
 }
@@ -104,30 +105,20 @@ uint16 input_readKey(void) {
         input_pumpEvents();
     }
     word = keyRing[ringHead];
+    SDL_memcpy(lastMenuText, keyText[ringHead], sizeof(lastMenuText));
     ringHead = (ringHead + 1) % KEY_RING;
     return word;
 }
 
 int input_readMenuTextUtf8(char *out, int outSize) {
-    int len;
-    input_pumpEvents();
-    if (!out || outSize <= 0 || textRingHead == textRingTail) return 0;
-    len = (int)SDL_strlen(textRing[textRingHead]);
-    if (len >= outSize) len = outSize - 1;
-    SDL_memcpy(out, textRing[textRingHead], (size_t)len);
-    out[len] = '\0';
-    textRingHead = (textRingHead + 1) % TEXT_RING;
+    if (!out || outSize <= 0) return 0;
+    out[0] = '\0';
+    const int len = (int)SDL_strlen(lastMenuText);
+    /* Never return half a codepoint. A caller can retry with a larger buffer. */
+    if (len >= outSize) return 0;
+    SDL_memcpy(out, lastMenuText, (size_t)len + 1);
+    lastMenuText[0] = '\0';
     return len;
-}
-
-bool input_menuTextWaiting(void) {
-    return textRingHead != textRingTail;
-}
-
-void input_discardNextAsciiKey(uint8 ascii) {
-    if (ringHead != ringTail && (keyRing[ringHead] & 0xff) == ascii) {
-        ringHead = (ringHead + 1) % KEY_RING;
-    }
 }
 
 /* --- keyboard translation --------------------------------------------------
@@ -789,9 +780,8 @@ void input_pumpEvents(void) {
             break;
         case SDL_EVENT_TEXT_INPUT:
             /* Printable characters for menu text entry arrive here already
-             * shifted/localized. The BIOS key ring remains byte-oriented for
-             * legacy menu code; the text ring preserves full UTF-8 characters
-             * for modern text entry such as pilot names. */
+             * shifted/localized. Preserve their order relative to navigation
+             * keys while retaining UTF-8 for pilot-name editing. */
             if (g_mode == INPUT_MODE_MENU) {
                 const unsigned char *p =
                     (const unsigned char *)ev.text.text;
@@ -807,8 +797,7 @@ void input_pumpEvents(void) {
                         p += length;
                         continue;
                     }
-                    if (length == 1) ringPush((uint16)codepoint);
-                    textRingPushUtf8((const char *)p, (int)length);
+                    ringPushTextUtf8((const char *)p, (int)length);
                     p += length;
                 }
             }

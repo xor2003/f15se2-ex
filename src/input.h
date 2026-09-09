@@ -40,12 +40,10 @@ void input_ringReset(void);  /* drop any queued keys, recentre stick */
 bool input_keyWaiting(void); /* true when a key word is queued */
 uint16 input_readKey(void);  /* blocking pop: pump + wait, then return */
 
-/* Menu text input queue. Unlike the BIOS-style key ring, this preserves the
- * UTF-8 bytes SDL_TEXT_INPUT delivers, so text editors can accept Unicode while
- * old menu navigation keeps using input_readKey(). Returns byte count. */
+/* Retrieve UTF-8 text from the last input_readKey() entry, once. Non-ASCII
+ * text entries return key word zero. Returns byte count, or zero for command
+ * keys / insufficient output space; codepoints are never split. */
 int input_readMenuTextUtf8(char *out, int outSize);
-bool input_menuTextWaiting(void);
-void input_discardNextAsciiKey(uint8 ascii);
 
 /* --- window state, set by the pump, for callers that want to react --------- */
 bool input_quitRequested(void); /* SDL_EVENT_QUIT (window close) has been seen */
