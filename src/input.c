@@ -14,6 +14,7 @@
  * the menus, so that part is gated on the mode set by the phase's key readers.
  */
 #include "input.h"
+#include "egdata.h"
 #include "inttype.h"
 #include "const.h"
 #include "gfx.h"
@@ -65,7 +66,13 @@ void input_setMode(InputMode mode) {
      * keys it treats specially (Backspace fires the gun here) and intermittently
      * swallow or delay their auto-repeat. Only the menus need composed text. */
     if (mode != g_mode) {
+#if defined(__ANDROID__)
+        /* Menu navigation needs no soft keyboard. Pilot-name entry owns its
+         * lifetime; entering flight still closes any active editor keyboard. */
+        if (mode == INPUT_MODE_FLIGHT) gfx_setTextInputEnabled(false);
+#else
         gfx_setTextInputEnabled(mode == INPUT_MODE_MENU);
+#endif
 #if defined(__ANDROID__)
         if (mode == INPUT_MODE_FLIGHT) android_ar_recenterFlight();
 #endif
@@ -781,7 +788,23 @@ static void queueMenuPointer(Uint32 windowID, float x, float y, bool normalized)
 /* Cockpit controls remain in the original 320x200 overlay coordinates. Keep
  * generous touch targets around the tiny legacy glyphs without changing their
  * visual layout. */
+static uint16 autopilotViewKey(void) {
+    /* Only unconditional aircraft views: missile/target views need a target. */
+    switch (g_viewMode) {
+    case VIEW_COCKPIT: return SCAN_F5;
+    case VIEW_EXT_FOLLOW: return SCAN_F6;
+    case VIEW_EXT_DYNAMIC: return SCAN_F7;
+    default: return SCAN_SPACEBAR;
+    }
+}
+
 uint16 input_flightPointerKey(int x, int y) {
+    /* No invisible cockpit hit targets in external views. Keep demo's normal
+     * tap-to-dismiss behavior, and leave manual flight controls unchanged. */
+    if (g_autopilotAltitude != 0 && g_autopilotEngaged == 0 &&
+        (g_viewMode != VIEW_COCKPIT || y < 101 ||
+         x < 0 || x >= LOGICAL_WIDTH))
+        return autopilotViewKey();
     /* The two mechanical toggles painted above the right display would
      * otherwise fall inside that display's broad target-designation region. */
     if (y >= 101 && y < 126) {
@@ -825,6 +848,10 @@ enum {
 
 int input_flightThrottleValue(int x, int y) {
     int drawY = y;
+
+    if (g_autopilotAltitude != 0 && g_autopilotEngaged == 0 &&
+        g_viewMode != VIEW_COCKPIT)
+        return -1;
 
     if (x < THROTTLE_TOUCH_LEFT || x >= THROTTLE_TOUCH_RIGHT ||
         y < THROTTLE_TOUCH_TOP || y >= THROTTLE_TOUCH_BOTTOM)

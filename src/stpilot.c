@@ -286,6 +286,9 @@ void pilotToGameData(const uint8 *pilotData) {
 }
 
 void pilotNameInput(int16 *page, int a, int b, int c, struct Pilot *pilot) {
+#if defined(__ANDROID__)
+    gfx_setTextInputEnabled(true);
+#endif
     int blinkToggle;
     int xPos, yPos;
     int nameLen;
@@ -347,6 +350,9 @@ void pilotNameInput(int16 *page, int a, int b, int c, struct Pilot *pilot) {
             keyCode &= 0xff;
         }
         if (keyCode == KEYCODE_ENTER) {
+#if defined(__ANDROID__)
+            gfx_setTextInputEnabled(false);
+#endif
             screenBuf[3] = 0;
             clearRect(page, 15, 192, 303, 197);
             return;

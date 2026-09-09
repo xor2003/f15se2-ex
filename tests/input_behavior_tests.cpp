@@ -4,6 +4,7 @@
 #include "egkeys.h"
 #include "headless.h"
 #include "input.h"
+#include "egdata.h"
 
 #include <SDL3/SDL.h>
 
@@ -309,6 +310,39 @@ int main() {
             "left and middle MFD taps cycle their respective display scales");
     require(input_flightPointerKey(5, 150) == 0,
             "flight taps outside cockpit controls remain neutral");
+    {
+        const auto savedView = g_viewMode;
+        const auto savedAltitude = g_autopilotAltitude;
+        const auto savedAutopilot = g_autopilotEngaged;
+        g_autopilotAltitude = 1000;
+        g_autopilotEngaged = 0;
+        g_viewMode = VIEW_COCKPIT;
+        require(input_flightPointerKey(5, 30) == SCAN_F5 &&
+                    input_flightPointerKey(160, 30) == SCAN_F5 &&
+                    input_flightPointerKey(-10, 150) == SCAN_F5,
+                "autopilot sky and widescreen taps select chase view");
+        require(input_flightPointerKey(205, 190) == 0x266c &&
+                    input_flightThrottleValue(214, 127) == 100,
+                "visible cockpit controls retain their actions");
+        g_viewMode = VIEW_EXT_FOLLOW;
+        require(input_flightPointerKey(205, 190) == SCAN_F6 &&
+                    input_flightThrottleValue(214, 127) == -1,
+                "external view taps cannot activate hidden cockpit controls");
+        g_viewMode = VIEW_EXT_DYNAMIC;
+        require(input_flightPointerKey(5, 30) == SCAN_F7,
+                "trailing view advances to side view");
+        g_viewMode = VIEW_EXT_SIDE;
+        require(input_flightPointerKey(5, 30) == SCAN_SPACEBAR,
+                "last external view returns to cockpit");
+        require(g_autopilotAltitude == 1000,
+                "view selection leaves autopilot enabled");
+        g_autopilotAltitude = 0;
+        require(input_flightPointerKey(5, 30) == 0,
+                "manual flight sky taps do not change views");
+        g_viewMode = savedView;
+        g_autopilotAltitude = savedAltitude;
+        g_autopilotEngaged = savedAutopilot;
+    }
     require(input_flightThrottleValue(214, 127) == 100 &&
                 input_flightThrottleValue(214, 151) == 50 &&
                 input_flightThrottleValue(214, 175) == 0,
