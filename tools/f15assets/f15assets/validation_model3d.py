@@ -602,6 +602,8 @@ def _validate_3d3_json_loadability(json_path: Path) -> tuple[int, int]:
 
 def _validate_glb_loadability(path: Path) -> tuple[int, int]:
     """Validate glb loadability against runtime requirements."""
+    # Header counts alone do not establish that geometry can be imported.
+    glb_to_glmesh_bytes(path)
     try:
         doc = _read_glb_json(path)
         counts = _glb_primitive_counts(doc)
