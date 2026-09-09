@@ -158,6 +158,10 @@ scales, and matrices into the model geometry. Multiple nodes using one mesh rema
 separate instances; meshes outside that scene are ignored. Export a static mesh
 for animated, skinned, or morph-target models: those features are rejected rather
 than silently dropped.
+Use flat material colors and independent triangles, lines, or points. Vertex
+colors, base-color textures, and other primitive modes are rejected by the
+current importer; they previously could produce incomplete or incorrectly
+colored models without a diagnostic.
 
 After upgrading the converter, delete the affected group's generated `cache/`
 directory once. Cache freshness currently tracks the GLB file, not the converter

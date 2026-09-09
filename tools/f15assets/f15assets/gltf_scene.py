@@ -6,6 +6,8 @@ import math
 import struct
 from copy import deepcopy
 
+from .gltf_primitive import validate_primitive
+
 IDENTITY = (1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)
 
 
@@ -107,6 +109,7 @@ def flatten_scene(doc, blob, read_accessor):
             if "weights" in mesh:
                 raise ValueError("morph weights require a static export")
             for primitive in mesh.get("primitives", []):
+                validate_primitive(doc, primitive)
                 if "targets" in primitive:
                     raise ValueError("morph targets require a static export")
                 if matrix == IDENTITY:
