@@ -8,7 +8,6 @@
 #include <string.h>
 
 #include <algorithm>
-#include <cctype>
 #include <filesystem>
 #include <string>
 
@@ -18,7 +17,9 @@ static bool namesEqualIgnoringCase(const std::string &left, const std::string &r
     return left.size() == right.size()
         && std::equal(left.begin(), left.end(), right.begin(),
             [](unsigned char a, unsigned char b) {
-                return std::tolower(a) == std::tolower(b);
+                if (a >= 'A' && a <= 'Z') a += 'a' - 'A';
+                if (b >= 'A' && b <= 'Z') b += 'a' - 'A';
+                return a == b;
             });
 }
 
@@ -33,17 +34,20 @@ static bool isSafeRelativePath(const fs::path &path) {
 static bool resolveComponent(const fs::path &directory, const fs::path &component,
                              fs::path *resolved) {
     std::error_code error{};
+    bool found = false;
     /* Enumerate even when the requested spelling opens directly. On case-insensitive
      * filesystems, exists(directory / component) succeeds without revealing the
      * directory entry's actual spelling, which callers use in diagnostics. */
     for (fs::directory_iterator item(directory, error), end; !error && item != end;
          item.increment(error)) {
         if (namesEqualIgnoringCase(item->path().filename().string(), component.string())) {
+            /* Duplicate DOS spellings have no portable winner. */
+            if (found) return false;
             *resolved = item->path();
-            return true;
+            found = true;
         }
     }
-    return false;
+    return found && !error;
 }
 
 int findAssetReplacement(const char *relativePath, char *outPath, size_t outPathSize) {
@@ -59,6 +63,8 @@ int findAssetReplacement(const char *relativePath, char *outPath, size_t outPath
     fs::path resolved{rootValue};
     std::error_code error{};
     if (!fs::is_directory(resolved, error) || error) return 0;
+    const fs::path root = fs::canonical(resolved, error);
+    if (error) return 0;
 
     for (const fs::path &component : relative) {
         if (component == ".") continue;
@@ -69,6 +75,13 @@ int findAssetReplacement(const char *relativePath, char *outPath, size_t outPath
 
     error.clear();
     if (!fs::is_regular_file(resolved, error) || error) return 0;
+
+    /* Lexical checks alone do not catch symlinks into another directory.
+     * Compare complete canonical components, not a string prefix. */
+    const fs::path target = fs::canonical(resolved, error);
+    if (error) return 0;
+    const auto boundary = std::mismatch(root.begin(), root.end(), target.begin(), target.end());
+    if (boundary.first != root.end()) return 0;
 
     const std::string value = resolved.string();
     if (value.size() + 1 > outPathSize) return 0;
