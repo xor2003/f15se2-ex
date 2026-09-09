@@ -65,6 +65,8 @@ These are bugfixes and new features that were not part of the original game, and
 1. Gun spread and target hitboxes are improved, it is actually possible to aim the gun now.
 1. Missiles follow the actually selected targets instead of the closest one.
 1. Asset converters allow loading original 3D models into modeling software, could lead to better/more models in the future. Fonts and sprites are also exported.
+1. Fixed the tracking camera flipping external views upside down ([#41](https://github.com/neuviemeporte/f15se2-ex/pull/41)).
+1. Flight state is reset between missions, preventing stale "Nice landing" and "Weapons replenished" events after a previous sortie ([#42](https://github.com/neuviemeporte/f15se2-ex/pull/42)).
 
 ## Planned improvements
 
@@ -92,9 +94,7 @@ These are bugfixes and new features that were not part of the original game, and
 Problems with the game that were introduces by the port, and to the best of our knowledge are not present in the original.
 
 1. There seem to be some kind of gimbal lock problems with the input; pointing the plane straight up or straight down, then rolling 90 degrees to either side and pulling on the stick seems to have little to no effect.
-1. In external views sometimes the view is upside down (seems like it depends on the position relative to the horizon?).
 1. The bearing (`BRG`) value on the airborne target screen is broken, mostly stuck on one value even though target is visibly turning.
-1. When starting a new mission after a previous one has been completed, the sound for the previous flight's landing ("Nice landing") is played. Sometimes the message "Weapons replenished" also appears. It seems not all state from the previous mission is properly cleaned.
 1. There's sometimes flickering beneath and above the left display (map) in the cockpit.
 1. Shaking in the cockpit after getting hit is too long.
 1. When on the airfield/carrier, can see through to the ground on the sides of the view (exposed by widescreen support). Also, aircraft geometry sometimes flickers beneath the player.
