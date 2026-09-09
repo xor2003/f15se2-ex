@@ -639,7 +639,9 @@ int16 markTargetReached(int16 targetIdx) {
 }
 
 extern int16 randomRange(int16);
+#if defined(__ANDROID__)
 extern "C" void android_haptics_playerDamage(void);
+#endif
 void bombTarget(void) {
     int16 hit;
     if (!(g_playerPlaneFlags & 0x1000) && g_autopilotEngaged != -1) {
@@ -654,7 +656,9 @@ void bombTarget(void) {
         refreshActivePanel(0x16);
         g_damageTakenFlag = 1;
         makeSound(0, 2);
+#if defined(__ANDROID__)
         android_haptics_playerDamage();
+#endif
     }
 }
 

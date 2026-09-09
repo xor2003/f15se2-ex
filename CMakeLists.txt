@@ -170,7 +170,6 @@ set(EGAME_SOURCES
     ${SRC_DIR}/asound/asound_model.c
     ${SRC_DIR}/asound/asopl.c
     ${SRC_DIR}/asound/asound_sdl.c
-    ${SRC_DIR}/android_haptics.cpp
 )
 
 if(ANDROID)
@@ -178,7 +177,8 @@ if(ANDROID)
     # the renderer's decoded scene path through a small GLES2 compatibility
     # layer, so geometry ordering and palette semantics stay shared.
     list(APPEND EGAME_SOURCES
-        ${SRC_DIR}/android_ar.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/android/app/src/main/cpp/android_ar.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/android/app/src/main/cpp/android_haptics.cpp
         ${SRC_DIR}/r3d_gles.c
         ${SRC_DIR}/r3d_gles_compat.c
     )
@@ -290,7 +290,10 @@ if(ANDROID)
     target_compile_definitions(f15se2_core PUBLIC F15_ANDROID_DEFAULT_ASSIST=1)
     target_link_libraries(f15se2_core PUBLIC SDL3::SDL3 ${GLESV2_LIBRARY})
     # SDLActivity loads the application shared library by this conventional name.
-    add_library(main SHARED ${SRC_DIR}/f15.c ${SRC_DIR}/android_main.c)
+    add_library(main SHARED
+        ${SRC_DIR}/f15.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/android/app/src/main/cpp/android_main.cpp
+    )
     target_link_libraries(main PRIVATE f15se2_core)
     set(F15SE2_APP_TARGET main)
 else()
