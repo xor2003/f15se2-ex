@@ -113,6 +113,7 @@ set(F15SE2_SOURCES
     ${SRC_DIR}/gfx_impl.c
     ${SRC_DIR}/joystick.c
     ${SRC_DIR}/joystick_setup.c
+    ${SRC_DIR}/joystick_mapping.cpp
     ${SRC_DIR}/hdsprite.c
 
     # start

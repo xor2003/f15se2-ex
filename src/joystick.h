@@ -41,6 +41,9 @@ Sint16 joy_rawMenuAxis(int axis);
 int joy_rawBinding(RawAction action);
 void joy_bindRawButton(RawAction action, int button);
 void joy_showSetup(void);
+/* Persist the current raw device; false leaves the previous saved file intact. */
+bool joy_saveRawMapping(void);
+SDL_JoystickID joy_rawDeviceId(void);
 bool joy_rawActive(void);
 void joy_resetFlightInput(void);
 Uint16 joy_flightCommand(int selectedWeapon);

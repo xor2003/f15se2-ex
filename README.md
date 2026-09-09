@@ -53,13 +53,22 @@ exchanges missile and cannon buttons. These settings apply to the active raw
 joystick, not mapped gamepads.
 
 When a raw joystick is connected at startup, the game shows a button setup
-screen using its original bitmap fonts. Move the stick up/down or left/right
+screen using its original bitmap fonts. Continue is selected initially: press
+any joystick button to save and play. Move the stick up/down or left/right
 to select an action, then press the desired joystick button to assign it.
-Keyboard arrows also select actions. Delete unassigns an action;
-assigning an occupied button swaps the actions. Press Enter (or Escape)
-to continue to the game. Changes last for
-the current game session; use the environment overrides above for repeatable
-launch settings. Mapped gamepads retain their existing bindings and skip this screen.
+Keyboard arrows also select actions. Press the currently assigned button again
+(or Delete) to unassign it; assigning an occupied button swaps the actions.
+Select Continue and press any joystick button, or press Enter/Escape, to save
+and play. If saving fails, the screen reports it; Continue again plays without
+saving. Mapped gamepads retain their existing bindings and skip this screen.
+
+Button mappings are saved per SDL device GUID and control counts in SDL's user
+settings directory (`f15se2-ex/joystick`), not in the game-assets directory.
+Identical devices with the same GUID and counts share a profile. Set
+`F15_JOY_CONFIG_DIR` to choose another directory. The text format uses one-based
+button numbers (zero disables an action). Loading applies defaults, then saved
+bindings, then explicit environment overrides. Invalid files leave defaults
+unchanged. Throttle-axis selection remains automatic or environment-configured.
 
 In the other menus, move the stick to select, press physical button 1 to
 confirm, or button 2 to go back. These menu controls are independent of the

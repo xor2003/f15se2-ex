@@ -29,6 +29,7 @@
  */
 #include "joystick.h"
 #include "joystick_axes.h"
+#include "joystick_mapping.h"
 #include "input.h"
 #include "inttype.h"
 #include "comm.h"
@@ -86,11 +87,24 @@ static void configureRawJoystick(void) {
     for (int action = 0; action < RAW_ACTION_COUNT; ++action) {
         int fallback = action < buttons ? action : -1;
         if (action >= RAW_THRUST_UP && g_throttleAxis >= 0) fallback = -1;
-        g_rawButtons[action] = rawAssignment(names[action], fallback, buttons);
+        g_rawButtons[action] = fallback;
     }
+    /* Precedence: defaults, saved device mapping, explicit launch overrides. */
+    joy_loadMapping(joy_mappingPath(g_joy), buttons, g_rawButtons);
+    for (int action = 0; action < RAW_ACTION_COUNT; ++action)
+        g_rawButtons[action] = rawAssignment(names[action], g_rawButtons[action], buttons);
     LogInfo(("joystick: %d axes, %d buttons; throttle axis %d (0 = none)",
              axes, buttons, g_throttleAxis + 1));
 }
+
+/* Fire is level-triggered; discrete actions below are latched from SDL edges. */
+/* Only the setup's current raw device may be saved, never a mapped gamepad. */
+bool joy_saveRawMapping(void) {
+    return g_joy && joy_saveMapping(joy_mappingPath(g_joy), SDL_GetNumJoystickButtons(g_joy), g_rawButtons);
+}
+
+/* Setup uses the instance ID to stop safely if its device is replaced. */
+SDL_JoystickID joy_rawDeviceId(void) { return g_joy ? g_devId : 0; }
 
 /* Fire is level-triggered; discrete actions below are latched from SDL edges. */
 static bool rawButton(RawAction action) {

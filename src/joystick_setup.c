@@ -7,7 +7,7 @@
 #include "shared/common.h"
 
 /* Render one complete legacy page so normal expose/repaint also works. */
-static void drawJoystickSetup(int selected) {
+static void drawJoystickSetup(int selected, bool saveFailed) {
     int pitch = 0;
     uint8 *pixels = gfx_pagePixels(0, &pitch);
     if (!pixels) return;
@@ -43,16 +43,18 @@ static void drawJoystickSetup(int selected) {
             SDL_snprintf(binding, sizeof(binding), "Button %d", button + 1);
         drawStringAt(page, binding, 210, y);
     }
-    page[2] = COLOR_WHITE;
-    drawStringCentered(page, "ENTER: CONTINUE", 0, 141, LOGICAL_WIDTH);
+    page[2] = selected == RAW_ACTION_COUNT ? COLOR_WHITE : COLOR_LIGHTGRAY;
+    drawStringCentered(page, selected == RAW_ACTION_COUNT ? "> CONTINUE <" : "CONTINUE",
+                       0, 141, LOGICAL_WIDTH);
     page[2] = COLOR_LIGHTRED;
     page[6] = 0;
     drawStringCentered(page, "Move stick: select   Press button: assign", 0, 163, LOGICAL_WIDTH);
-    drawStringCentered(page, "DEL: unassign   ESC: continue", 0, 175, LOGICAL_WIDTH);
+    drawStringCentered(page, saveFailed ? "Save failed. Continue again to play unsaved." :
+                       "CONTINUE: any button   ENTER: save and play", 0, 175, LOGICAL_WIDTH);
     gfx_commitPage();
 }
 
-/* Show once at application startup. Bindings remain in memory for all missions.
+/* Show once at application startup. Continue saves bindings for this device.
  * A disconnected stick exits safely; menu button presses cannot fire weapons. */
 void joy_showSetup(void) {
     if (joy_rawButtonCount() <= 0) return;
@@ -62,15 +64,20 @@ void joy_showSetup(void) {
     gfx_setTextInputEnabled(false);
     input_ringReset();
     gfx_setDac(0);
-    int selected = 0;
+    const SDL_JoystickID device = joy_rawDeviceId();
+    const int rowCount = RAW_ACTION_COUNT + 1;
+    int selected = RAW_ACTION_COUNT;
     bool released = joy_rawPressedButton() < 0;
     bool deleteHeld = false;
     bool finished = false;
+    bool saveFailed = false;
     int stickZone = 0;
     Uint64 repeatAt = 0;
-    drawJoystickSetup(selected);
+    drawJoystickSetup(selected, saveFailed);
     while (!finished && joy_rawButtonCount() > 0 && !input_quitRequested()) {
         input_pumpEvents();
+        if (joy_rawDeviceId() != device) break;
+        bool continueRequested = false;
         if (!input_hasFocus()) {
             input_ringReset();
             released = false;
@@ -80,7 +87,7 @@ void joy_showSetup(void) {
         }
         const bool *keys = SDL_GetKeyboardState(NULL);
         const bool deleteNow = keys[SDL_SCANCODE_DELETE];
-        if (deleteNow && !deleteHeld) {
+        if (deleteNow && !deleteHeld && selected < RAW_ACTION_COUNT) {
             joy_bindRawButton((RawAction)selected, -1);
         }
         deleteHeld = deleteNow;
@@ -92,27 +99,38 @@ void joy_showSetup(void) {
         const int zone = axis < -16000 ? -1 : axis > 16000 ? 1 : 0;
         const Uint64 now = SDL_GetTicks();
         if (zone && (zone != stickZone || now >= repeatAt)) {
-            selected = (selected + zone + RAW_ACTION_COUNT) % RAW_ACTION_COUNT;
+            selected = (selected + zone + rowCount) % rowCount;
             repeatAt = now + (zone != stickZone ? 400 : 200);
         }
         stickZone = zone;
         while (input_keyWaiting()) {
             const uint16 key = input_readKey();
             if ((key & 255) == KEYCODE_ESC || (key & 255) == KEYCODE_ENTER) {
-                finished = true;
+                continueRequested = true;
             } else if (key == KEYCODE_UPARROW || key == KEYCODE_LEFTARROW) {
-                selected = (selected + RAW_ACTION_COUNT - 1) % RAW_ACTION_COUNT;
+                selected = (selected + rowCount - 1) % rowCount;
             } else if (key == KEYCODE_DNARROW || key == KEYCODE_RIGHTARROW) {
-                selected = (selected + 1) % RAW_ACTION_COUNT;
+                selected = (selected + 1) % rowCount;
             }
         }
         const int pressed = joy_rawPressedButton();
         if (pressed < 0) released = true;
-        else if (released && !finished) {
-            joy_bindRawButton((RawAction)selected, pressed);
+        else if (released && !continueRequested) {
+            if (selected == RAW_ACTION_COUNT) continueRequested = true;
+            else {
+                /* Pressing the same assignment again clears it without a
+                 * keyboard. Assigning another action's button still swaps. */
+                joy_bindRawButton((RawAction)selected,
+                                  joy_rawBinding((RawAction)selected) == pressed ? -1 : pressed);
+            }
             released = false;
         }
-        drawJoystickSetup(selected);
+        if (continueRequested) {
+            finished = saveFailed || joy_saveRawMapping();
+            saveFailed = !finished;
+            selected = RAW_ACTION_COUNT;
+        }
+        drawJoystickSetup(selected, saveFailed);
         SDL_Delay(20);
     }
     input_setJoystickSetup(false);

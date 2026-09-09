@@ -1,5 +1,7 @@
 #include "joystick.h"
 #include "joystick_axes.h"
+#include "joystick_mapping.h"
+#include "shared/common.h"
 #include "input.h"
 #include "egkeys.h"
 #include "gfx.h"
@@ -10,8 +12,19 @@
 
 #include <cstdlib>
 #include <iostream>
+#include <filesystem>
+#include <fstream>
 
 namespace {
+
+static SDL_Joystick *setupStick = nullptr;
+
+void pressContinueOnDraw(const char *text, int, int, int, int) {
+    if (setupStick && SDL_strcmp(text, "> CONTINUE <") == 0) {
+        SDL_SetJoystickVirtualButton(setupStick, 0, true);
+        setupStick = nullptr;
+    }
+}
 
 void require(bool condition, const char *message) {
     if (!condition) {
@@ -239,13 +252,68 @@ void menuAndSetup() {
             "menu input resumes after setup and release");
     stick.button(0, false);
 
-    pushKey(SDL_SCANCODE_RETURN, SDLK_RETURN);
+    // Real setup loop must default to Continue and exit with a joystick only.
+    setupStick = stick.handle;
+    g_textRecorder = pressContinueOnDraw;
     joy_showSetup();
+    g_textRecorder = nullptr;
+    require(setupStick == nullptr, "Continue is selected by default");
     int pitch = 0;
     const uint8 *pixels = gfx_pagePixels(0, &pitch);
     require(pixels && pixels[8 * pitch + 8] == COLOR_LIGHTRED,
             "actual setup screen renders legacy border headlessly");
     require(!input_keyWaiting(), "setup consumes its continue key");
+    stick.button(0, false);
+}
+
+void persistence(const std::filesystem::path &directory) {
+    const std::string path = (directory / "roundtrip.txt").string();
+    int original[RAW_ACTION_COUNT] = {2, 0, 1, 3, -1, -1};
+    int loaded[RAW_ACTION_COUNT] = {-1, -1, -1, -1, -1, -1};
+    require(joy_saveMapping(path, 4, original), "save complete mapping");
+    require(joy_loadMapping(path, 4, loaded), "load complete mapping");
+    for (int i = 0; i < RAW_ACTION_COUNT; ++i)
+        require(loaded[i] == original[i], "roundtrip preserves bindings and disabled actions");
+    original[0] = -1;
+    require(joy_saveMapping(path, 4, original) && joy_loadMapping(path, 4, loaded) && loaded[0] == -1,
+            "replacement save updates existing file");
+    original[0] = 0;
+    require(!joy_saveMapping(path, 4, original), "duplicate assignments are not saved");
+    require(joy_loadMapping(path, 4, loaded) && loaded[0] == -1,
+            "rejected save preserves previous profile");
+
+    const char *invalid[] = {
+        "F15_JOYSTICK 2\n", "F15_JOYSTICK 1\ncannon 1\n",
+        "F15_JOYSTICK 1\ncannon 999999999999999999999\n",
+        "F15_JOYSTICK 1\ncannon 1\nmissile 1\ncountermeasure 3\nweapon 4\nthrust_up 0\nthrust_down 0\n",
+        "F15_JOYSTICK 1\ncannon 5\nmissile 2\ncountermeasure 3\nweapon 4\nthrust_up 0\nthrust_down 0\n"
+    };
+    for (const char *contents : invalid) {
+        std::ofstream(path) << contents;
+        require(!joy_loadMapping(path, 4, loaded), "invalid profile rejected");
+        require(loaded[0] == -1 && loaded[1] == 0, "invalid load leaves caller mapping unchanged");
+    }
+    require(!joy_saveMapping((directory / "missing" / "mapping.txt").string(), 4, loaded),
+            "unwritable path reports save failure");
+    {
+        Stick stick(2, 7);
+        joy_bindRawButton(RAW_CANNON, 6);
+        require(joy_saveRawMapping(), "save active device mapping");
+    }
+    {
+        Stick stick(2, 7);
+        require(joy_rawBinding(RAW_CANNON) == 6, "reopening device restores mapping");
+    }
+    SDL_setenv_unsafe("F15_JOY_CANNON", "1", 1);
+    {
+        Stick stick(2, 7);
+        require(joy_rawBinding(RAW_CANNON) == 0, "explicit environment overrides saved mapping");
+    }
+    SDL_unsetenv_unsafe("F15_JOY_CANNON");
+    {
+        Stick stick(2, 8);
+        require(joy_rawBinding(RAW_CANNON) == 0, "different control count gets separate profile");
+    }
 }
 
 void overridesAndGamepad() {
@@ -280,6 +348,10 @@ void overridesAndGamepad() {
 
 int main() {
     test_headless_init();
+    const auto directory = std::filesystem::temp_directory_path() /
+        ("f15-joystick-tests-" + std::to_string(SDL_GetPerformanceCounter()));
+    std::filesystem::create_directories(directory);
+    SDL_setenv_unsafe("F15_JOY_CONFIG_DIR", directory.string().c_str(), 1);
     SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1");
     require(SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD), "initialize SDL");
     gfx_videoInit();
@@ -290,7 +362,10 @@ int main() {
     throttle();
     menuAndSetup();
     overridesAndGamepad();
+    persistence(directory);
     gfx_videoShutdown();
     SDL_Quit();
+    SDL_unsetenv_unsafe("F15_JOY_CONFIG_DIR");
+    std::filesystem::remove_all(directory);
     std::cout << "joystick_behavior_tests passed\n";
 }
