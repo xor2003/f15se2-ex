@@ -41,11 +41,27 @@ static void (*g_quitHandler)(void) = NULL;
  * activity flips it back (see input_preferGamepad / noteGamepadActivity). */
 static bool g_lastWasGamepad = true;
 
+/* Menu controls have fixed meanings, independent of flight assignments. */
+static int g_rawMenuButton = -1;
+static int g_rawMenuZoneX = 0, g_rawMenuZoneY = 0;
+static Uint64 g_rawMenuRepeatX = 0, g_rawMenuRepeatY = 0;
+static bool g_joystickSetup = false;
+
+/* Flush transitions and remember held buttons so leaving setup cannot confirm
+ * the first game menu with the button just used to assign an action. */
+void input_setJoystickSetup(bool active) {
+    g_joystickSetup = active;
+    input_ringReset();
+}
+
 void input_setMode(InputMode mode) {
     /* Leaving text input on during flight lets a desktop IME intercept editing
      * keys it treats specially (Backspace fires the gun here) and intermittently
      * swallow or delay their auto-repeat. Only the menus need composed text. */
-    if (mode != g_mode) gfx_setTextInputEnabled(mode == INPUT_MODE_MENU);
+    if (mode != g_mode) {
+        gfx_setTextInputEnabled(mode == INPUT_MODE_MENU);
+        joy_resetFlightInput();
+    }
     g_mode = mode;
 }
 InputMode input_getMode(void) { return g_mode; }
@@ -73,6 +89,10 @@ void input_ringReset(void) {
     ringHead = ringTail = 0;
     g_joyRawX = 0x80;
     g_joyRawY = 0x80;
+    /* A held setup/confirm button must be released before the next screen can
+     * accept it, rather than immediately skipping that screen. */
+    g_rawMenuButton = joy_rawPressedButton();
+    g_rawMenuZoneX = g_rawMenuZoneY = 0;
 }
 
 bool input_keyWaiting(void) {
@@ -694,6 +714,26 @@ static void pollGamepadMenu(void) {
     stickArrowRepeat(joy_axisRaw(SDL_GAMEPAD_AXIS_LEFTY), KEYCODE_UPARROW, KEYCODE_DNARROW, &zoneY, &repY);
 }
 
+/* Raw flight sticks have no SDL gamepad mapping. Feed their primary axes into
+ * the same menu arrow repeater, with physical buttons 1/2 as confirm/back. */
+static void pollRawJoystickMenu(void) {
+    if (!input_hasFocus() || joy_rawButtonCount() <= 0) {
+        g_rawMenuButton = joy_rawPressedButton();
+        g_rawMenuZoneX = g_rawMenuZoneY = 0;
+        return;
+    }
+    const int button = joy_rawPressedButton();
+    if (button >= 0 && g_rawMenuButton < 0) {
+        if (button == 0) ringPush(0x1c00 | KEYCODE_ENTER);
+        if (button == 1) ringPush(0x0100 | KEYCODE_ESC);
+    }
+    g_rawMenuButton = button;
+    stickArrowRepeat(joy_rawMenuAxis(0), KEYCODE_LEFTARROW, KEYCODE_RIGHTARROW,
+                     &g_rawMenuZoneX, &g_rawMenuRepeatX);
+    stickArrowRepeat(joy_rawMenuAxis(1), KEYCODE_UPARROW, KEYCODE_DNARROW,
+                     &g_rawMenuZoneY, &g_rawMenuRepeatY);
+}
+
 /* --- the single event pump ------------------------------------------------- */
 
 void input_pumpEvents(void) {
@@ -723,6 +763,7 @@ void input_pumpEvents(void) {
             break;
         case SDL_EVENT_WINDOW_FOCUS_LOST:
             g_hasFocus = false;
+            joy_resetFlightInput();
             break;
         case SDL_EVENT_WINDOW_RESIZED:
         case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
@@ -768,8 +809,12 @@ void input_pumpEvents(void) {
 
     if (g_mode == INPUT_MODE_FLIGHT) {
         updateStick();
+        if (joy_rawActive()) g_lastWasGamepad = true;
         pollGamepadFlight();
     } else {
-        pollGamepadMenu();
+        if (!g_joystickSetup) {
+            pollGamepadMenu();
+            pollRawJoystickMenu();
+        }
     }
 }

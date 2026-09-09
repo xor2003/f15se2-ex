@@ -21,6 +21,48 @@ Development journal: https://neuviemeporte.github.io/category/f15-se2
 
 The entire game is playable, rendering and input handling is ported to SDL, sound works using Adlib emulation through [Nuked-OPL3](https://github.com/nukeykt/Nuked-OPL3) and joystick/gamepad input is supported (though not configurable right now). Multiple improvements have been implemented including high resolution and widescreen support with some bugs from the original having been fixed too. Work is ongoing to add more features and eliminate bugs.
 
+## Raw joystick controls
+
+Linux/SDL supplies calibrated axis values; no in-game calibration is needed.
+Mapped gamepads retain their existing layout. Other joysticks get these defaults,
+limited to the buttons actually available:
+
+| Button | Action |
+| --- | --- |
+| 1 | Fire cannon (unchanged from upstream) |
+| 2 | Fire missile (unchanged from upstream) |
+| 3 | Countermeasures: alternate chaff, flare, one per press |
+| 4 | Cycle Sidewinder, medium-range missile, Maverick |
+| 5 | Increase thrust, when no throttle axis is configured |
+| 6 | Decrease thrust, when no throttle axis is configured |
+
+The Saitek ST200's third axis is recognized as throttle. Other extra axes are
+not guessed: set `F15_JOY_THROTTLE_AXIS=3` to use the third axis, or `0` to
+disable it. Axes 1/2 remain roll/pitch. Throttle covers 0-100%; keyboard
+afterburner remains available. Set `F15_JOY_THROTTLE_INVERT=0` to reverse the
+default lever direction. Keyboard controls remain available on smaller sticks.
+
+Button overrides are `F15_JOY_MISSILE`, `F15_JOY_COUNTERMEASURE`,
+`F15_JOY_CANNON`, `F15_JOY_WEAPON`, `F15_JOY_THRUST_UP`, and
+`F15_JOY_THRUST_DOWN`. Values are one-based physical button numbers; `0`
+disables a binding. Assign distinct buttons to avoid overlapping actions.
+For example, `F15_JOY_CANNON=2 F15_JOY_MISSILE=1 ./build/f15se2-ex --game /path/to/game`
+exchanges missile and cannon buttons. These settings apply to the active raw
+joystick, not mapped gamepads.
+
+When a raw joystick is connected at startup, the game shows a button setup
+screen using its original bitmap fonts. Move the stick up/down or left/right
+to select an action, then press the desired joystick button to assign it.
+Keyboard arrows also select actions. Delete unassigns an action;
+assigning an occupied button swaps the actions. Press Enter (or Escape)
+to continue to the game. Changes last for
+the current game session; use the environment overrides above for repeatable
+launch settings. Mapped gamepads retain their existing bindings and skip this screen.
+
+In the other menus, move the stick to select, press physical button 1 to
+confirm, or button 2 to go back. These menu controls are independent of the
+flight assignments. Pilot-name text entry still uses the keyboard.
+
 ## Screenshots
 
 <div align="center">

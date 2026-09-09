@@ -32,7 +32,9 @@
 #include "inttype.h"
 #include "comm.h"
 #include "log.h"
+#include "egkeys.h"
 #include <dos.h>
+#include <stdlib.h>
 
 /* joyAxes[0] = X (roll), joyAxes[1] = Y (pitch); 0x80 = centred. Defined in
  * stdata.c, shared by all three former programs. */
@@ -43,6 +45,59 @@ extern uint8 joyAxes[];
 static SDL_Gamepad *g_pad = NULL;
 static SDL_Joystick *g_joy = NULL;
 static SDL_JoystickID g_devId = 0;
+
+static int g_rawButtons[RAW_ACTION_COUNT] = {0, 1, 2, 3, 4, 5};
+static unsigned g_rawPending = 0;
+static bool g_nextFlare = false;
+static int g_throttleAxis = -1;
+static bool g_throttleInvert = true;
+static int g_lastThrottle = -1;
+static Uint64 g_rawRepeat[2] = {0, 0};
+
+/* Environment overrides use human-facing, one-based indices; zero disables
+ * an assignment. Reject malformed values rather than selecting another axis. */
+static int rawAssignment(const char *name, int fallback, int count) {
+    const char *value = SDL_getenv(name);
+    if (!value) return fallback;
+    char *end = NULL;
+    long index = strtol(value, &end, 10);
+    if (end == value || *end || index < 0 || index > count) {
+        LogInfo(("joystick: invalid %s='%s'; keeping default", name, value));
+        return fallback;
+    }
+    return (int)index - 1;
+}
+
+/* Only the ST200's known X/Y/throttle layout is inferred. Axis count alone
+ * cannot distinguish a throttle from a twist rudder on other devices. */
+static void configureRawJoystick(void) {
+    const int axes = SDL_GetNumJoystickAxes(g_joy);
+    const int buttons = SDL_GetNumJoystickButtons(g_joy);
+    const bool st200 = SDL_GetJoystickVendor(g_joy) == 0x06a3 &&
+                       SDL_GetJoystickProduct(g_joy) == 0x0502;
+    g_throttleAxis = rawAssignment("F15_JOY_THROTTLE_AXIS", st200 && axes == 3 ? 2 : -1, axes);
+    /* Never accidentally replace the primary flight stick with thrust. */
+    if (g_throttleAxis >= 0 && g_throttleAxis < 2) g_throttleAxis = -1;
+    const char *invert = SDL_getenv("F15_JOY_THROTTLE_INVERT");
+    g_throttleInvert = !invert || SDL_strcmp(invert, "0") != 0;
+    static const char *names[RAW_ACTION_COUNT] = {
+        "F15_JOY_CANNON", "F15_JOY_MISSILE", "F15_JOY_COUNTERMEASURE",
+        "F15_JOY_WEAPON", "F15_JOY_THRUST_UP", "F15_JOY_THRUST_DOWN"
+    };
+    for (int action = 0; action < RAW_ACTION_COUNT; ++action) {
+        int fallback = action < buttons ? action : -1;
+        if (action >= RAW_THRUST_UP && g_throttleAxis >= 0) fallback = -1;
+        g_rawButtons[action] = rawAssignment(names[action], fallback, buttons);
+    }
+    LogInfo(("joystick: %d axes, %d buttons; throttle axis %d (0 = none)",
+             axes, buttons, g_throttleAxis + 1));
+}
+
+/* Fire is level-triggered; discrete actions below are latched from SDL edges. */
+static bool rawButton(RawAction action) {
+    return g_joy && g_rawButtons[action] >= 0 &&
+           SDL_GetJoystickButton(g_joy, g_rawButtons[action]);
+}
 
 /* Idle slop on a raw stick can drift the menu cursor (the menus treat
  * joyAxes outside 78..178 as a held direction), so snap a small band around
@@ -66,6 +121,11 @@ static void joy_close(void) {
     g_pad = NULL;
     g_joy = NULL;
     g_devId = 0;
+    g_rawPending = 0;
+    g_nextFlare = false;
+    g_throttleAxis = -1;
+    g_lastThrottle = -1;
+    g_rawRepeat[0] = g_rawRepeat[1] = 0;
     if (commData) commData->setupUseJoy = 0;
 }
 
@@ -84,6 +144,7 @@ static void joy_open(SDL_JoystickID id) {
         if (g_joy) {
             g_devId = id;
             LogInfo(("joystick: using joystick '%s'", SDL_GetJoystickName(g_joy)));
+            configureRawJoystick();
         }
     }
     if (g_devId && commData) commData->setupUseJoy = 1;
@@ -129,6 +190,13 @@ void joy_shutdown(void) {
  * (SDL_IsGamepad), leaving the raw path for sticks with no mapping. */
 void joy_handleEvent(const SDL_Event *ev) {
     switch (ev->type) {
+    case SDL_EVENT_JOYSTICK_BUTTON_DOWN:
+        if (g_joy && ev->jbutton.which == g_devId && input_getMode() == INPUT_MODE_FLIGHT) {
+            for (int action = RAW_COUNTERMEASURE; action < RAW_THRUST_UP; ++action)
+                if (ev->jbutton.button == g_rawButtons[action])
+                    g_rawPending |= 1u << action;
+        }
+        break;
     case SDL_EVENT_GAMEPAD_ADDED:
         joy_open(ev->gdevice.which);
         break;
@@ -163,8 +231,8 @@ static void updateAxes(void) {
 /* True while fire button n is held. 0 = guns (right trigger, also the menus'
  * confirm button); 1 = missiles (left trigger). The face buttons A/B drive
  * other cockpit actions (brake / designate target) via eginput.c, so they are
- * deliberately not fire buttons. The raw fallback maps straight to physical
- * buttons 0 and 1. */
+ * deliberately not fire buttons. Raw sticks retain upstream's cannon-first,
+ * missile-second layout, with additional actions on the remaining buttons. */
 static int buttonDown(int n) {
     if (g_pad) {
         if (n == 0)
@@ -173,8 +241,9 @@ static int buttonDown(int n) {
             return SDL_GetGamepadAxis(g_pad, SDL_GAMEPAD_AXIS_LEFT_TRIGGER) > JOY_TRIGGER_THRESHOLD;
         return 0;
     }
-    if (g_joy && n < SDL_GetNumJoystickButtons(g_joy))
-        return SDL_GetJoystickButton(g_joy, n);
+    if (!input_hasFocus()) return 0;
+    if (n == 0) return rawButton(RAW_CANNON);
+    if (n == 1) return rawButton(RAW_MISSILE);
     return 0;
 }
 
@@ -186,6 +255,100 @@ bool joy_isGamepad(void) { return g_pad != NULL; }
 bool joy_connected(void) { return g_devId != 0; }
 bool joy_button(SDL_GamepadButton b) { return g_pad && SDL_GetGamepadButton(g_pad, b); }
 Sint16 joy_axisRaw(SDL_GamepadAxis a) { return g_pad ? SDL_GetGamepadAxis(g_pad, a) : 0; }
+
+/* A keyboard command must not permanently disconnect a raw flight stick.
+ * Ignore the throttle here: its off-centre resting value is not stick use. */
+bool joy_rawActive(void) {
+    if (!g_joy || !input_hasFocus()) return false;
+    for (int axis = 0; axis < 2 && axis < SDL_GetNumJoystickAxes(g_joy); ++axis)
+        if (SDL_abs((int)SDL_GetJoystickAxis(g_joy, axis)) > JOY_AXIS_DEADZONE) return true;
+    for (int action = 0; action < RAW_ACTION_COUNT; ++action)
+        if (rawButton((RawAction)action)) return true;
+    return false;
+}
+
+/* No raw device means no configurable buttons (mapped pads keep their layout). */
+int joy_rawButtonCount(void) {
+    return g_joy ? SDL_GetNumJoystickButtons(g_joy) : 0;
+}
+
+/* Setup waits for release before calling this to learn a fresh button press. */
+int joy_rawPressedButton(void) {
+    for (int button = 0; button < joy_rawButtonCount(); ++button)
+        if (SDL_GetJoystickButton(g_joy, button)) return button;
+    return -1;
+}
+
+/* Do not interpret optional throttle/rudder axes as menu directions. */
+Sint16 joy_rawMenuAxis(int axis) {
+    if (!g_joy || axis < 0 || axis > 1 || axis >= SDL_GetNumJoystickAxes(g_joy)) return 0;
+    return SDL_GetJoystickAxis(g_joy, axis);
+}
+
+/* Missing buttons are displayed as unassigned, including after unplugging. */
+int joy_rawBinding(RawAction action) {
+    if (action < 0 || action >= RAW_ACTION_COUNT) return -1;
+    const int button = g_rawButtons[action];
+    return button < joy_rawButtonCount() ? button : -1;
+}
+
+/* Swap conflicting assignments rather than firing two actions with one press. */
+void joy_bindRawButton(RawAction action, int button) {
+    if (action < 0 || action >= RAW_ACTION_COUNT || button < -1 || button >= joy_rawButtonCount()) return;
+    const int previous = g_rawButtons[action];
+    if (button >= 0) {
+        for (int other = 0; other < RAW_ACTION_COUNT; ++other)
+            if (other != action && g_rawButtons[other] == button)
+                g_rawButtons[other] = previous;
+    }
+    g_rawButtons[action] = button;
+    joy_resetFlightInput();
+}
+
+/* Discard menu/focus-transition edges so they cannot fire cockpit commands. */
+void joy_resetFlightInput(void) {
+    g_rawPending = 0;
+    g_lastThrottle = -1;
+    g_rawRepeat[0] = g_rawRepeat[1] = 0;
+}
+
+/* Consume one command per simulation step, outside the BIOS ring: the legacy
+ * flight loop deliberately flushes that ring after reading its first key. */
+Uint16 joy_flightCommand(int selectedWeapon) {
+    if (!g_joy || !input_hasFocus()) return 0;
+    if (g_rawPending & (1u << RAW_COUNTERMEASURE)) {
+        g_rawPending &= ~(1u << RAW_COUNTERMEASURE);
+        const Uint16 command = g_nextFlare ? SCAN_F : SCAN_C;
+        g_nextFlare = !g_nextFlare;
+        return command;
+    }
+    if (g_rawPending & (1u << RAW_WEAPON)) {
+        g_rawPending &= ~(1u << RAW_WEAPON);
+        return selectedWeapon == 0 ? SCAN_M : selectedWeapon == 1 ? SCAN_G : SCAN_S;
+    }
+    const Uint64 now = SDL_GetTicks();
+    for (int direction = 0; direction < 2; ++direction) {
+        if (!rawButton((RawAction)(RAW_THRUST_UP + direction))) {
+            g_rawRepeat[direction] = 0;
+        } else if (!g_rawRepeat[direction] || now >= g_rawRepeat[direction]) {
+            g_rawRepeat[direction] = now + (g_rawRepeat[direction] ? 100 : 250);
+            return direction == 0 ? SCAN_EQUAL : SCAN_MINUS;
+        }
+    }
+    return 0;
+}
+
+/* Only lever movement changes thrust, leaving keyboard afterburner/throttle
+ * usable. One-percent hysteresis suppresses resting axis noise. */
+int joy_throttleChange(void) {
+    if (!g_joy || g_throttleAxis < 0 || !input_hasFocus()) return -1;
+    const int raw = (int)SDL_GetJoystickAxis(g_joy, g_throttleAxis) + 32768;
+    const int percent = ((g_throttleInvert ? 65535 - raw : raw) * 100 + 32767) / 65535;
+    if (g_lastThrottle >= 0 && SDL_abs(percent - g_lastThrottle) < 2 &&
+        !(percent != g_lastThrottle && (percent == 0 || percent == 100))) return -1;
+    g_lastThrottle = percent;
+    return percent;
+}
 
 /* === game-facing joystick API (declared in egcode.h / stcode.h / slot.h) === */
 

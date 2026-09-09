@@ -112,6 +112,7 @@ set(F15SE2_SOURCES
     ${SRC_DIR}/log.c
     ${SRC_DIR}/gfx_impl.c
     ${SRC_DIR}/joystick.c
+    ${SRC_DIR}/joystick_setup.c
     ${SRC_DIR}/hdsprite.c
 
     # start
@@ -463,6 +464,8 @@ add_behavior_test(geometry_behavior_tests LINK_CORE)
 add_behavior_test(file_io_behavior_tests LINK_CORE)
 add_behavior_test(gameplay_behavior_tests LINK_CORE)
 add_behavior_test(input_behavior_tests LINK_CORE)
+add_behavior_test(joystick_behavior_tests LINK_CORE)
+set_tests_properties(joystick_behavior_tests PROPERTIES TIMEOUT 20)
 add_behavior_test(gfx_render_behavior_tests LINK_CORE)
 add_behavior_test(view_behavior_tests LINK_CORE)
 add_behavior_test(egsys_internal_behavior_tests LINK_CORE)
