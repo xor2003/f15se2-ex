@@ -381,6 +381,7 @@ void blackbox_diagRenderEndScene(void) {
 int blackbox_diagWriteDump(const char *path) {
     FILE *f;
     int i;
+    int writeFailed = 0;
     BlackboxDebugState debug;
     if (!path || !*path) return 0;
     f = fopen(path, "w");
@@ -443,7 +444,10 @@ int blackbox_diagWriteDump(const char *path) {
                 cmd->v[0], cmd->v[1], cmd->v[2], cmd->v[3], cmd->v[4], cmd->v[5],
                 cmd->v[6], cmd->v[7]);
     }
-    fclose(f);
+    /* Buffered output may fail before close or only during its final flush.
+     * Do not tell the caller a partial diagnostic file was written safely. */
+    writeFailed = ferror(f);
+    if (fclose(f) != 0 || writeFailed) return 0;
     log_info("blackbox: wrote diagnostic dump '%s'", path);
     return 1;
 }

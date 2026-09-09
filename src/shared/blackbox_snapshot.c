@@ -152,6 +152,7 @@ int blackbox_snapshotWriteJson(const char *path) {
     FILE *f;
     unsigned tick;
     int closeResult;
+    int writeFailed = 0;
     BlackboxDebugState debug;
     if (!path || !*path) return 0;
     f = fopen(path, "w");
@@ -234,6 +235,8 @@ int blackbox_snapshotWriteJson(const char *path) {
     writeBullets(f);
     fputs("}\n", f);
 
+    /* An earlier failed write need not make fclose fail too. */
+    writeFailed = ferror(f);
     closeResult = fclose(f);
-    return closeResult == 0;
+    return closeResult == 0 && !writeFailed;
 }

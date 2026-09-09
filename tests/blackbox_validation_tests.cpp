@@ -395,6 +395,13 @@ void testRngSnapshotsAndDivergence(const std::filesystem::path &dir) {
     blackbox_diagRenderLine(&line);
     require(blackbox_diagWriteDump(dumpPath.string().c_str()),
             "diagnostic dump includes retained and dropped render commands");
+#if defined(__linux__)
+    // Opening /dev/full succeeds; writes fail, including buffered flushes.
+    require(!blackbox_diagWriteDump("/dev/full"),
+            "text dump reports write failure instead of success");
+    require(!blackbox_snapshotWriteJson("/dev/full"),
+            "JSON snapshot reports write failure instead of success");
+#endif
     blackbox_shutdown();
 }
 
