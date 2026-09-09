@@ -2239,7 +2239,7 @@ static int replacementPrimitiveColor(const R3DReplacementPrim *prim) {
 }
 
 /* Transform one replacement vertex into legacy camera-space fixed-point coordinates. */
-static void transformReplacementVertex(const R3DReplacementPrim *prim, int srcVert,
+static int transformReplacementVertex(const R3DReplacementPrim *prim, int srcVert,
                                        const int16 *combined, long camBase, long camX, long camY,
                                        ReplacementCameraVertex *out) {
     int shift = 8 - 2 * g_curLod;
@@ -2247,14 +2247,21 @@ static void transformReplacementVertex(const R3DReplacementPrim *prim, int srcVe
     float x = prim->xyz[srcVert * 3];
     float y = prim->xyz[srcVert * 3 + 1];
     float z = prim->xyz[srcVert * 3 + 2];
-    out->x = (long)(2.0f * ((float)combined[0] * x + (float)combined[3] * z + (float)combined[6] * y) + (float)camBase);
-    out->y = (long)(2.0f * ((float)combined[1] * x + (float)combined[4] * z + (float)combined[7] * y) + (float)camX);
-    out->depth = (long)(2.0f * ((float)combined[2] * x + (float)combined[5] * z + (float)combined[8] * y) + (float)camY);
-    if (scaleDiv != 1) {
-        out->x /= scaleDiv;
-        out->y /= scaleDiv;
-        out->depth /= scaleDiv;
-    }
+    float cameraX = (2.0f * ((float)combined[0] * x + (float)combined[3] * z + (float)combined[6] * y) + (float)camBase) / scaleDiv;
+    float cameraY = (2.0f * ((float)combined[1] * x + (float)combined[4] * z + (float)combined[7] * y) + (float)camX) / scaleDiv;
+    float cameraDepth = (2.0f * ((float)combined[2] * x + (float)combined[5] * z + (float)combined[8] * y) + (float)camY) / scaleDiv;
+    /* Scratch/projection values have a signed 32-bit fixed-point range even
+     * on hosts with 64-bit long. Check before casting: out-of-range float to
+     * integer conversion is undefined. These comparisons also reject NaN/Inf.
+     * Division by the power-of-two LOD scale precedes conversion so a large
+     * intermediate that becomes representable after scaling remains usable. */
+    if (!(cameraX >= -2147483648.0f && cameraX < 2147483648.0f &&
+          cameraY >= -2147483648.0f && cameraY < 2147483648.0f &&
+          cameraDepth >= -2147483648.0f && cameraDepth < 2147483648.0f)) return 0;
+    out->x = (long)cameraX;
+    out->y = (long)cameraY;
+    out->depth = (long)cameraDepth;
+    return 1;
 }
 
 /* Project one camera-space replacement vertex into the legacy viewport. */
@@ -2389,9 +2396,9 @@ static void drawReplacementMesh(R3DReplacementMesh *mesh) {
                 ReplacementCameraVertex tri[3], clipped[5]{};
                 int points[8]{};
                 int n{};
-                transformReplacementVertex(prim, v, combined, camBase, camX, camY, &tri[0]);
-                transformReplacementVertex(prim, v + 1, combined, camBase, camX, camY, &tri[1]);
-                transformReplacementVertex(prim, v + 2, combined, camBase, camX, camY, &tri[2]);
+                if (!transformReplacementVertex(prim, v, combined, camBase, camX, camY, &tri[0]) ||
+                    !transformReplacementVertex(prim, v + 1, combined, camBase, camX, camY, &tri[1]) ||
+                    !transformReplacementVertex(prim, v + 2, combined, camBase, camX, camY, &tri[2])) continue;
                 n = clipReplacementPolygonNear(tri, 3, clipped);
                 if (!projectReplacementPolygon(clipped, n, points)) continue;
                 drawPolygonOutline(color, n, points, color);
@@ -2400,8 +2407,8 @@ static void drawReplacementMesh(R3DReplacementMesh *mesh) {
             gfx_setColor((unsigned char)color);
             for (v = 0; v + 1 < prim->nVerts; v += 2) {
                 ReplacementCameraVertex a, b;
-                transformReplacementVertex(prim, v, combined, camBase, camX, camY, &a);
-                transformReplacementVertex(prim, v + 1, combined, camBase, camX, camY, &b);
+                if (!transformReplacementVertex(prim, v, combined, camBase, camX, camY, &a) ||
+                    !transformReplacementVertex(prim, v + 1, combined, camBase, camX, camY, &b)) continue;
                 if (!clipReplacementLineNear(&a, &b)) continue;
                 if (!projectReplacementCameraVertex(&a, 0)) continue;
                 if (!projectReplacementCameraVertex(&b, 4)) continue;
@@ -2415,7 +2422,7 @@ static void drawReplacementMesh(R3DReplacementMesh *mesh) {
             gfx_setColor((unsigned char)color);
             for (v = 0; v < prim->nVerts; v++) {
                 ReplacementCameraVertex point{};
-                transformReplacementVertex(prim, v, combined, camBase, camX, camY, &point);
+                if (!transformReplacementVertex(prim, v, combined, camBase, camX, camY, &point)) continue;
                 if (!projectReplacementCameraVertex(&point, 0)) continue;
                 g_lineX1 = g_lineX2 = (int16)vtxScratch.vproj.x.v[0];
                 g_lineY1 = g_lineY2 = (int16)vtxScratch.vproj.y.v[0];
