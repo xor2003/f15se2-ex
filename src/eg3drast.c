@@ -2229,14 +2229,9 @@ static int replacementPrimitiveColor(const R3DReplacementPrim *prim) {
     int i{};
     int base = replacementNearestPaletteIndex(prim->rgba[0], prim->rgba[1], prim->rgba[2]);
 
-    /* Drawing is intentionally material-first: sourceColor is proof metadata for
-     * converter validation, not runtime rendering data. Converted legacy GLBs set
-     * source_order_sensitive in the generated GLMESH cache; that flag opts into
-     * the original distance-shade idea while the GLB material RGB still chooses
-     * the base palette color. Third-party GLBs without converter proof metadata
-     * render exactly from their material colour mapping, so palette-like custom
-     * colors are not accidentally hazed. */
-    if ((prim->sourceFlags & 1u) == 0u) return base;
+    /* Apply the engine's distance shading to material colors. Converter proof
+     * metadata must not affect drawing: stripping GLB extras in an editor must
+     * leave the same geometry and materials looking the same. */
     for (i = 0; i < 16; i++) {
         if (base == colorLut[i]) return colorLut[i] + g_objShade;
     }

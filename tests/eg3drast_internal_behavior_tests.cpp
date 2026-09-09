@@ -16,10 +16,11 @@
  * through gfx_impl.c in normal builds. This internal harness intentionally does
  * not link gfx_impl.c, so provide a deterministic palette stub; the tests here
  * exercise rasterizer math, not active DAC nearest-colour search. */
+static int replacementPaletteIndex = -1;
 int gfx_nearestPaletteIndexRgb8(uint8 r, uint8 g, uint8 b) {
     (void)g;
     (void)b;
-    return r & 0x0f;
+    return replacementPaletteIndex >= 0 ? replacementPaletteIndex : r & 0x0f;
 }
 
 /* Backs egdata.c's regnStr global (defined in stdata.c, not linked here). MSVC
@@ -290,6 +291,23 @@ void r2d_submitPoly(const short *, int, int, int, int, int, int) {}
 int FAR CDECL gfx_getBlitOffset() { return 0; }
 
 int main() {
+    {
+        // Editor-stripped proof metadata must not disable engine distance shading.
+        R3DReplacementPrim primitive{};
+        const auto savedShade = g_objShade;
+        replacementPaletteIndex = colorLut[0];
+        g_objShade = 16;
+        const int withoutProof = replacementPrimitiveColor(&primitive);
+        primitive.sourceFlags = 1;
+        primitive.sourceColor = 255;
+        const int withProof = replacementPrimitiveColor(&primitive);
+        if (withoutProof != withProof || withProof != colorLut[0] + 16) {
+            std::cerr << "replacement shading depends on proof metadata\n";
+            return 1;
+        }
+        g_objShade = savedShade;
+        replacementPaletteIndex = -1;
+    }
     int16 matrixA[9] = {};
     int16 matrixB[9] = {};
     int16 matrixR[9] = {};
