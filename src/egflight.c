@@ -801,8 +801,10 @@ void rebuildOrientation() {
 }
 
 uint16 signedRatio16(int16 numerator, int16 denominator) { /* Original: IntDiv(A,B). Divide two signed 15-bit fractions. */
-    char numeratorSign = 1;
-    char denominatorSign = 1;
+    /* Android ARM uses unsigned plain char: -1 must remain a signed factor,
+     * otherwise matrix-to-angle decoding multiplies by 255 and jumps. */
+    int numeratorSign = 1;
+    int denominatorSign = 1;
     int32 absNumerator;
     int32 absDenominator;
 
