@@ -60,6 +60,39 @@ int main() {
             "lookup rejects missing files");
     require(path[0] == '\0', "missing lookup clears the output buffer");
 
+    require(!findAssetReplacement("Fonts", path, sizeof(path)),
+            "a directory cannot replace a file");
+    require(!findAssetReplacement(nullptr, path, sizeof(path)),
+            "null input is rejected");
+    require(!findAssetReplacement("WALL.PNG", nullptr, sizeof(path)),
+            "null output is rejected");
+
+#if !defined(_WIN32)
+    /* Windows hosts need privileges for symlinks; exercise boundary behavior
+     * on POSIX, including a sibling whose name shares the root prefix. */
+    const auto outside = std::filesystem::path(testRoot.string() + "-outside");
+    std::filesystem::create_directories(outside);
+    std::ofstream(outside / "OUT.PNG", std::ios::binary) << "outside";
+    std::filesystem::create_symlink(outside / "OUT.PNG", testRoot / "ESCAPE.PNG");
+    std::filesystem::create_directory_symlink(outside, testRoot / "ESCAPE");
+    std::filesystem::create_symlink(testRoot / "WALL.PNG", testRoot / "ALIAS.PNG");
+    require(!findAssetReplacement("escape.png", path, sizeof(path)),
+            "a file symlink cannot escape the root");
+    require(!findAssetReplacement("escape/out.png", path, sizeof(path)),
+            "a directory symlink cannot escape the root");
+    require(findAssetReplacement("alias.png", path, sizeof(path)),
+            "symlinks within the root remain usable");
+    std::filesystem::remove_all(outside);
+#endif
+
+    /* Only case-sensitive filesystems can hold both spellings. */
+    if (!std::filesystem::exists(testRoot / "wall.png")) {
+        std::ofstream(testRoot / "wall.png", std::ios::binary) << "duplicate";
+        require(!findAssetReplacement("wall.png", path, sizeof(path)),
+                "ambiguous DOS spellings are rejected");
+        require(path[0] == '\0', "ambiguous lookup clears the output buffer");
+    }
+
     setReplacementRoot("");
     std::filesystem::remove_all(testRoot);
     std::cout << "asset_path_behavior_tests passed\n";
