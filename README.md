@@ -21,6 +21,13 @@ Development journal: https://neuviemeporte.github.io/category/f15-se2
 
 The entire game is playable, rendering and input handling is ported to SDL, sound works using Adlib emulation through [Nuked-OPL3](https://github.com/nukeykt/Nuked-OPL3) and joystick/gamepad input is supported (though not configurable right now). Multiple improvements have been implemented including high resolution and widescreen support with some bugs from the original having been fixed too. Work is ongoing to add more features and eliminate bugs.
 
+## Mouse menu controls
+
+In pilot and mission selection, click an entry to highlight it, then click it
+again to confirm. In debriefing, click a different button to select it or click
+the selected button to confirm. Existing keyboard and gamepad controls remain
+available. Pilot-name entry still uses the keyboard; flight controls are unchanged.
+
 ## Screenshots
 
 <div align="center">
