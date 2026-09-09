@@ -44,6 +44,9 @@ int main() {
     require(!gameOptionsEnabled((enum GameOption)-1) &&
                 !gameOptionsEnabled(GAME_OPTION_COUNT),
             "out-of-range option queries are safely disabled");
+    require(!gameOptionsToggle((enum GameOption)-1) &&
+                !gameOptionsToggle(GAME_OPTION_COUNT),
+            "invalid toggles cannot report an enabled option");
 
     std::cout << "game_options_behavior_tests passed\n";
     return 0;

@@ -19,6 +19,7 @@ void gameOptionsSet(enum GameOption option, bool enabled) {
 
 /* Toggle one optional gameplay assist and return its new state. */
 bool gameOptionsToggle(enum GameOption option) {
+    if (option < 0 || option >= GAME_OPTION_COUNT) return false;
     bool enabled = !gameOptionsEnabled(option);
     gameOptionsSet(option, enabled);
     return enabled;
