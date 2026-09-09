@@ -8,6 +8,11 @@ cannot store.
 Converted metadata should be portable. Sidecars should use original asset names
 or paths relative to the converted folder, not absolute developer-machine paths.
 
+The converter and editors are independent of the runtime replacement loaders.
+The runtime workflows below require a game build containing the corresponding
+replacement loader; installing these Python tools alone does not add replacement
+support to the game.
+
 ## 1. Convert the original game folder
 
 Run from the repository root:
@@ -47,8 +52,8 @@ generated GLMESH caches from editable modern files.
 
 ## 2. Check replacement equivalence before editing
 
-Run this once after conversion if you want proof that the unmodified converted
-files still load like the original assets:
+Run this after conversion to compare unmodified converted files with the Python
+decoders' interpretation of the original assets:
 
 ```bash
 python3 -m tools.f15assets.cli validate-replacements /path/to/F15_GAME converted_assets_all --allow-custom-glb-differences
@@ -79,8 +84,12 @@ Do not combine `--loadability-only` with `--strict-original-proof` or
 `--loadability-only` already permits custom GLB content differences, so do not
 combine it with `--allow-custom-glb-differences`.
 
-The validator compares original loader output with converted PNG, WAV, BDF/PNG,
-JSON, GLB, and GLMESH replacement data where implemented.
+This command uses Python decoders and builders to compare PNG, WAV, BDF/PNG,
+JSON, GLB, and GLMESH replacement data where implemented. It does not execute
+the game's C/C++ loaders. Runtime-loader equivalence requires the separate
+CTest asset-comparison tests in the relevant runtime-loader build, configured
+with the original and converted asset folders. Neither check establishes
+visual equivalence for every renderer or proves that an edited pack is complete.
 For sound-only custom packs without `F15DGTL.BIN`, validation still parses and
 checks the separate cue WAVs; it cannot prove byte-equivalence to the original
 blob because there is no original blob to compare.
@@ -341,7 +350,7 @@ When a modern replacement exists, the runtime should prefer it:
 | 3D shape | per-shape `.glb`; `cache/*.glmesh` is generated from it |
 | PIC/SPR image | `.png` |
 | WLD/3DT/3DG table | `.json` rebuilt through `build-binary` |
-| Font | `.bdf` for glyphs and metrics; `.png` atlas fallback for glyph pixels only |
+| Font | `.ttf`/`.otf` with FreeType support; then `.bdf`; then `.png` atlas |
 | Digitized sound cue | separate `.wav` |
 
 If a replacement is missing or invalid, the loader should fall back to the
@@ -375,7 +384,8 @@ Current state:
   full `.3D3.json` bridge dump can replace those bytes, but it duplicates
   original model data and is not the desired free/minimized asset path.
 - Some replacement paths still bridge through original-compatible binary layouts.
-- Runtime comparison uses original assets as the reference for equivalence.
+- Test-time runtime-loader comparison uses original assets as its reference;
+  no equivalence comparison is performed while playing.
 
 Future pack requirements:
 
