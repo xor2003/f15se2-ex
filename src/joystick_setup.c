@@ -15,6 +15,13 @@ static const int stickNavigationThreshold = 16000;
 static const Uint64 firstNavigationRepeatMs = 400;
 static const Uint64 navigationRepeatMs = 200;
 static const Uint32 setupPollMs = 20;
+/* Button bounds use the same 320x200 logical pixels as queued menu pointers. */
+static const int buttonLeftPx = 80;
+static const int buttonRightPx = 240;
+static const int continueTextY = 151;
+static const int resetTextY = 162;
+static const int buttonHeightPx = resetTextY - continueTextY;
+static const int buttonTopPaddingPx = 4;
 
 /* Scroll the action table, keeping Continue and Reset visible on every page. */
 static void drawJoystickSetup(int selected, int first, bool keyboard, bool saveFailed) {
@@ -58,9 +65,9 @@ static void drawJoystickSetup(int selected, int first, bool keyboard, bool saveF
         drawStringCentered(page, binding.c_str(), 0, 138, LOGICAL_WIDTH);
     }
     page[2] = selected == continueRow ? COLOR_WHITE : COLOR_LIGHTGRAY;
-    drawStringCentered(page, selected == continueRow ? "> CONTINUE <" : "CONTINUE", 0, 151, LOGICAL_WIDTH);
+    drawStringCentered(page, selected == continueRow ? "> CONTINUE <" : "CONTINUE", 0, continueTextY, LOGICAL_WIDTH);
     page[2] = selected == resetRow ? COLOR_WHITE : COLOR_LIGHTGRAY;
-    drawStringCentered(page, selected == resetRow ? "> RESET DEFAULTS <" : "RESET DEFAULTS", 0, 162, LOGICAL_WIDTH);
+    drawStringCentered(page, selected == resetRow ? "> RESET DEFAULTS <" : "RESET DEFAULTS", 0, resetTextY, LOGICAL_WIDTH);
     page[2] = COLOR_LIGHTRED;
     drawStringCentered(page, saveFailed ? "Save failed. Continue to play unsaved." :
                        controls_capturing() ? "Press key / chord to assign." :
@@ -80,12 +87,29 @@ struct SetupState {
     Uint64 repeatAt = 0;
 };
 
+/* Mapped pads keep their fixed flight bindings, but every button can confirm
+ * Continue/Reset just like an unassigned button on a raw joystick. */
+static int setupPressedButton(void) {
+    if (!joy_isGamepad()) return joy_rawPressedButton();
+    for (int button = 0; button < SDL_GAMEPAD_BUTTON_COUNT; ++button) {
+        if (joy_button((SDL_GamepadButton)button)) return button;
+    }
+    return -1;
+}
+
 /* Either stick axis navigates with the same dead zone and repeat timing. */
 static void navigateWithStick(SetupState &state) {
-    const int x = joy_rawMenuAxis(0), y = joy_rawMenuAxis(1);
+    const bool gamepad = joy_isGamepad();
+    const int x = gamepad ? joy_axisRaw(SDL_GAMEPAD_AXIS_LEFTX) : joy_rawMenuAxis(0);
+    const int y = gamepad ? joy_axisRaw(SDL_GAMEPAD_AXIS_LEFTY) : joy_rawMenuAxis(1);
     const int axis = SDL_abs(y) >= SDL_abs(x) ? y : x;
-    const int zone = axis < -stickNavigationThreshold ? -1 :
+    int zone = axis < -stickNavigationThreshold ? -1 :
                      axis > stickNavigationThreshold ? 1 : 0;
+    if (gamepad) {
+        const bool up = joy_button(SDL_GAMEPAD_BUTTON_DPAD_UP);
+        const bool down = joy_button(SDL_GAMEPAD_BUTTON_DPAD_DOWN);
+        if (up || down) zone = (int)down - (int)up;
+    }
     const Uint64 now = SDL_GetTicks();
     if (zone && (zone != state.stickZone || now >= state.repeatAt)) {
         state.selected = (state.selected + zone + rowCount) % rowCount;
@@ -99,7 +123,22 @@ static bool navigateWithKeyboard(SetupState &state, bool &activate) {
     bool finish = false;
     while (input_keyWaiting()) {
         const uint16 key = input_readKey();
-        if ((key & 255) == KEYCODE_ESC) finish = true;
+        if (key == INPUT_KEY_MENU_POINTER) {
+            int x = 0, y = 0;
+            if (!input_takeMenuPointer(&x, &y)) continue;
+            const bool insideButtonWidth = x >= buttonLeftPx && x < buttonRightPx;
+            const int continueTop = continueTextY - buttonTopPaddingPx;
+            const int resetTop = resetTextY - buttonTopPaddingPx;
+            const bool onContinue = insideButtonWidth && y >= continueTop && y < resetTop;
+            const bool onReset = insideButtonWidth && y >= resetTop && y < resetTop + buttonHeightPx;
+            if (onContinue || onReset) {
+                state.selected = onContinue ? continueRow : resetRow;
+                activate = true;
+                /* Apply this release before processing a later queued click. */
+                break;
+            }
+        }
+        else if ((key & 255) == KEYCODE_ESC) finish = true;
         else if ((key & 255) == KEYCODE_ENTER) activate = true;
         else if (key == KEYCODE_UPARROW) state.selected = (state.selected + rowCount - 1) % rowCount;
         else if (key == KEYCODE_DNARROW) state.selected = (state.selected + 1) % rowCount;
@@ -111,11 +150,15 @@ static bool navigateWithKeyboard(SetupState &state, bool &activate) {
 
 /* A fresh button assigns the row, or activates Continue/Reset. */
 static void assignJoystickButton(SetupState &state, bool &activate) {
-    const int pressed = joy_rawPressedButton();
+    const int pressed = setupPressedButton();
     if (pressed < 0) state.released = true;
     else if (state.released) {
-        if (state.selected >= RAW_ACTION_COUNT) activate = true;
-        else {
+        /* D-pad navigation must not also confirm the destination row. */
+        const bool navigationButton = joy_isGamepad() &&
+            (pressed == SDL_GAMEPAD_BUTTON_DPAD_UP ||
+             pressed == SDL_GAMEPAD_BUTTON_DPAD_DOWN);
+        if (state.selected >= RAW_ACTION_COUNT && !navigationButton) activate = true;
+        else if (!joy_isGamepad() && state.selected < RAW_ACTION_COUNT) {
             state.keyboard = false;
             const RawAction action = (RawAction)state.selected;
             joy_bindRawButton(action, joy_rawBinding(action) == pressed ? -1 : pressed);
@@ -164,7 +207,7 @@ void joy_showSetup(void) {
     gfx_setDac(1);
     SDL_JoystickID device = joy_rawDeviceId();
     SetupState state;
-    state.released = joy_rawPressedButton() < 0;
+    state.released = setupPressedButton() < 0;
     bool finished = false;
     drawJoystickSetup(state.selected, state.first, state.keyboard, state.saveFailed);
     while (!finished && !input_quitRequested()) {
@@ -197,7 +240,7 @@ void joy_showSetup(void) {
         } else {
             /* A captured Enter or arrow must not also activate or move a row. */
             input_ringReset();
-            state.released = joy_rawPressedButton() < 0;
+            state.released = setupPressedButton() < 0;
         }
         state.deleteHeld = deleteNow;
         if (continueRequested) finished = saveAndContinue(state, keyboardPath);
