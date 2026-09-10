@@ -15,6 +15,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+enum {
+    STREAM_VOLUME_FADE = 0xf8,
+    STREAM_END_OR_RESTART = 0xfd,
+    STREAM_LOOP_START = 0xfe
+};
+
 typedef struct ReplacementMusic {
     AsoundU8 *intro[ASOUND_STREAM_COUNT];
     AsoundU8 *release[ASOUND_STREAM_COUNT];
@@ -123,9 +129,9 @@ static int validStream(const AsoundU8 *bytes, size_t size) {
     if (!size || size > USHRT_MAX) return 0;
     for (size_t offset = 0; offset < size;) {
         const AsoundU8 op = bytes[offset++];
-        if (op == 0xfd) return 1;
-        if (op == 0xfe) continue;
-        const size_t operands = op == 0xf8 ? 2 : 1;
+        if (op == STREAM_END_OR_RESTART) return 1;
+        if (op == STREAM_LOOP_START) continue;
+        const size_t operands = op == STREAM_VOLUME_FADE ? 2 : 1;
         if (operands > size - offset) return 0;
         if (op == 0 && bytes[offset] == 0) return 1;
         offset += operands;
