@@ -63,6 +63,85 @@ static void drawJoystickSetup(int selected, int first, bool keyboard, bool saveF
     gfx_commitPage();
 }
 
+/* Only transient screen state lives here; saved bindings belong to controls. */
+struct SetupState {
+    int selected = continueRow;
+    int first = 0;
+    bool keyboard = true;
+    bool released = false;
+    bool deleteHeld = false;
+    bool saveFailed = false;
+    int stickZone = 0;
+    Uint64 repeatAt = 0;
+};
+
+/* Either stick axis navigates with the same dead zone and repeat timing. */
+static void navigateWithStick(SetupState &state) {
+    const int x = joy_rawMenuAxis(0), y = joy_rawMenuAxis(1);
+    const int axis = SDL_abs(y) >= SDL_abs(x) ? y : x;
+    const int zone = axis < -16000 ? -1 : axis > 16000 ? 1 : 0;
+    const Uint64 now = SDL_GetTicks();
+    if (zone && (zone != state.stickZone || now >= state.repeatAt)) {
+        state.selected = (state.selected + zone + RAW_ACTION_COUNT + 2) % (RAW_ACTION_COUNT + 2);
+        state.repeatAt = now + (zone != state.stickZone ? 400 : 200);
+    }
+    state.stickZone = zone;
+}
+
+/* Consume menu keys, never flight bindings. Escape requests save-and-play. */
+static bool navigateWithKeyboard(SetupState &state, bool &activate) {
+    bool finish = false;
+    while (input_keyWaiting()) {
+        const uint16 key = input_readKey();
+        if ((key & 255) == KEYCODE_ESC) finish = true;
+        else if ((key & 255) == KEYCODE_ENTER) activate = true;
+        else if (key == KEYCODE_UPARROW) state.selected = (state.selected + RAW_ACTION_COUNT + 1) % (RAW_ACTION_COUNT + 2);
+        else if (key == KEYCODE_DNARROW) state.selected = (state.selected + 1) % (RAW_ACTION_COUNT + 2);
+        else if (key == KEYCODE_LEFTARROW) state.keyboard = true;
+        else if (key == KEYCODE_RIGHTARROW) state.keyboard = false;
+    }
+    return finish;
+}
+
+/* A fresh button assigns the row, or activates Continue/Reset. */
+static void assignJoystickButton(SetupState &state, bool &activate) {
+    const int pressed = joy_rawPressedButton();
+    if (pressed < 0) state.released = true;
+    else if (state.released) {
+        if (state.selected >= RAW_ACTION_COUNT) activate = true;
+        else {
+            state.keyboard = false;
+            const RawAction action = (RawAction)state.selected;
+            joy_bindRawButton(action, joy_rawBinding(action) == pressed ? -1 : pressed);
+        }
+        state.released = false;
+    }
+}
+
+/* Start capture or restore defaults; only Continue asks the caller to finish. */
+static bool activateSelection(SetupState &state) {
+    if (state.selected == continueRow) return true;
+    if (state.selected == resetRow) {
+        controls_resetKeyboard();
+        joy_resetRawMapping();
+        state.saveFailed = false;
+    } else if (state.keyboard) {
+        controls_beginCapture((RawAction)state.selected);
+        input_ringReset();
+    }
+    return false;
+}
+
+/* A failed save leaves the screen open; a second Continue permits playing
+ * unsaved. Both independent profiles are attempted even if one fails. */
+static bool saveAndContinue(SetupState &state, const std::string &keyboardPath) {
+    const bool keysSaved = state.saveFailed || controls_saveKeyboard(keyboardPath);
+    const bool stickSaved = state.saveFailed || !joy_rawDeviceId() || joy_saveRawMapping();
+    state.saveFailed = !(keysSaved && stickSaved);
+    state.selected = continueRow;
+    return !state.saveFailed;
+}
+
 /* Keyboard setup is available without a joystick. A hotplugged device keeps
  * its own profile; losing a stick does not prevent continuing with keys. */
 void joy_showSetup(void) {
@@ -78,28 +157,22 @@ void joy_showSetup(void) {
      * same color indices different RGB values, unlike the surrounding menus. */
     gfx_setDac(1);
     SDL_JoystickID device = joy_rawDeviceId();
-    int selected = continueRow;
-    int first = 0;
-    bool keyboard = true;
-    bool released = joy_rawPressedButton() < 0;
-    bool deleteHeld = false;
+    SetupState state;
+    state.released = joy_rawPressedButton() < 0;
     bool finished = false;
-    bool saveFailed = false;
-    int stickZone = 0;
-    Uint64 repeatAt = 0;
-    drawJoystickSetup(selected, first, keyboard, saveFailed);
+    drawJoystickSetup(state.selected, state.first, state.keyboard, state.saveFailed);
     while (!finished && !input_quitRequested()) {
         const bool wasCapturing = controls_capturing();
         input_pumpEvents();
         if (joy_rawDeviceId() != device) {
             device = joy_rawDeviceId();
-            released = false;
+            state.released = false;
         }
         if (!input_hasFocus()) {
             controls_beginCapture((RawAction)-1);
             input_ringReset();
-            released = false;
-            stickZone = 0;
+            state.released = false;
+            state.stickZone = 0;
             SDL_Delay(20);
             continue;
         }
@@ -107,67 +180,26 @@ void joy_showSetup(void) {
         bool continueRequested = false;
         const bool deleteNow = SDL_GetKeyboardState(nullptr)[SDL_SCANCODE_DELETE];
         if (!wasCapturing && !controls_capturing()) {
-            if (deleteNow && !deleteHeld && selected < RAW_ACTION_COUNT) {
-                if (keyboard) controls_bindKey((RawAction)selected, SDL_SCANCODE_UNKNOWN, SDL_KMOD_NONE);
-                else joy_bindRawButton((RawAction)selected, -1);
+            if (deleteNow && !state.deleteHeld && state.selected < RAW_ACTION_COUNT) {
+                if (state.keyboard) controls_bindKey((RawAction)state.selected, SDL_SCANCODE_UNKNOWN, SDL_KMOD_NONE);
+                else joy_bindRawButton((RawAction)state.selected, -1);
             }
-            const int x = joy_rawMenuAxis(0), y = joy_rawMenuAxis(1);
-            const int axis = SDL_abs(y) >= SDL_abs(x) ? y : x;
-            const int zone = axis < -16000 ? -1 : axis > 16000 ? 1 : 0;
-            const Uint64 now = SDL_GetTicks();
-            if (zone && (zone != stickZone || now >= repeatAt)) {
-                selected = (selected + zone + RAW_ACTION_COUNT + 2) % (RAW_ACTION_COUNT + 2);
-                repeatAt = now + (zone != stickZone ? 400 : 200);
-            }
-            stickZone = zone;
-            while (input_keyWaiting()) {
-                const uint16 key = input_readKey();
-                if ((key & 255) == KEYCODE_ESC) continueRequested = true;
-                else if ((key & 255) == KEYCODE_ENTER) activate = true;
-                else if (key == KEYCODE_UPARROW) selected = (selected + RAW_ACTION_COUNT + 1) % (RAW_ACTION_COUNT + 2);
-                else if (key == KEYCODE_DNARROW) selected = (selected + 1) % (RAW_ACTION_COUNT + 2);
-                else if (key == KEYCODE_LEFTARROW) keyboard = true;
-                else if (key == KEYCODE_RIGHTARROW) keyboard = false;
-            }
-            const int pressed = joy_rawPressedButton();
-            if (pressed < 0) released = true;
-            else if (released) {
-                if (selected >= RAW_ACTION_COUNT) activate = true;
-                else {
-                    keyboard = false;
-                    joy_bindRawButton((RawAction)selected, joy_rawBinding((RawAction)selected) == pressed ? -1 : pressed);
-                }
-                released = false;
-            }
-            if (activate) {
-                if (selected == continueRow) continueRequested = true;
-                else if (selected == resetRow) {
-                    controls_resetKeyboard();
-                    joy_resetRawMapping();
-                    saveFailed = false;
-                } else if (keyboard) {
-                    controls_beginCapture((RawAction)selected);
-                    input_ringReset();
-                }
-            }
+            navigateWithStick(state);
+            continueRequested = navigateWithKeyboard(state, activate);
+            assignJoystickButton(state, activate);
+            if (activate && activateSelection(state)) continueRequested = true;
         } else {
             /* A captured Enter or arrow must not also activate or move a row. */
             input_ringReset();
-            released = joy_rawPressedButton() < 0;
+            state.released = joy_rawPressedButton() < 0;
         }
-        deleteHeld = deleteNow;
-        if (continueRequested) {
-            const bool keysSaved = saveFailed || controls_saveKeyboard(keyboardPath);
-            const bool stickSaved = saveFailed || !joy_rawDeviceId() || joy_saveRawMapping();
-            finished = keysSaved && stickSaved;
-            saveFailed = !finished;
-            selected = continueRow;
+        state.deleteHeld = deleteNow;
+        if (continueRequested) finished = saveAndContinue(state, keyboardPath);
+        if (state.selected < RAW_ACTION_COUNT) {
+            if (state.selected < state.first) state.first = state.selected;
+            if (state.selected >= state.first + visibleRows) state.first = state.selected - visibleRows + 1;
         }
-        if (selected < RAW_ACTION_COUNT) {
-            if (selected < first) first = selected;
-            if (selected >= first + visibleRows) first = selected - visibleRows + 1;
-        }
-        drawJoystickSetup(selected, first, keyboard, saveFailed);
+        drawJoystickSetup(state.selected, state.first, state.keyboard, state.saveFailed);
         SDL_Delay(20);
     }
     controls_beginCapture((RawAction)-1);
