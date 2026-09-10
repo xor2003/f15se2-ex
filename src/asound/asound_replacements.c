@@ -13,6 +13,15 @@
 #include <stdint.h>
 #include <string.h>
 
+enum {
+    RIFF_HEADER_BYTES = 12,
+    CHUNK_HEADER_BYTES = 8,
+    PCM_FORMAT_BYTES = 16,
+    WAVE_FORMAT_PCM = 1,
+    MONO_CHANNELS = 1,
+    PCM_SAMPLE_BITS = 8
+};
+
 typedef struct CueSlot {
     AsoundU16 start;
     AsoundU16 end_inclusive;
@@ -67,37 +76,39 @@ static AsoundU8 *readFile(const char *path, size_t *size) {
 static int decodePcm8MonoWav(const AsoundU8 *wav, size_t wav_size,
                              AsoundU8 **samples, int *sample_rate) {
     bool format_valid = false;
-    uint32_t rate = 0;
+    uint32_t rate_hz = 0;
     if (samples) *samples = NULL;
     if (sample_rate) *sample_rate = 0;
-    if (!wav || wav_size < 12 || memcmp(wav, "RIFF", 4)
-        || memcmp(wav + 8, "WAVE", 4)) {
-        return 0;
-    }
+    if (!wav || wav_size < RIFF_HEADER_BYTES) return 0;
+    const bool is_wave = !memcmp(wav, "RIFF", 4) && !memcmp(wav + 8, "WAVE", 4);
+    if (!is_wave) return 0;
 
-    for (size_t offset = 12; offset + 8 <= wav_size;) {
+    for (size_t offset = RIFF_HEADER_BYTES; offset + CHUNK_HEADER_BYTES <= wav_size;) {
         const AsoundU8 *chunk = wav + offset;
         const uint32_t chunk_size = read32le(chunk + 4);
-        const size_t data_offset = offset + 8;
+        const size_t data_offset = offset + CHUNK_HEADER_BYTES;
         if (chunk_size > wav_size - data_offset) return 0;
 
-        if (!memcmp(chunk, "fmt ", 4) && chunk_size >= 16) {
+        if (!memcmp(chunk, "fmt ", 4) && chunk_size >= PCM_FORMAT_BYTES) {
             const uint16_t format = read16le(wav + data_offset);
             const uint16_t channels = read16le(wav + data_offset + 2);
-            rate = read32le(wav + data_offset + 4);
+            rate_hz = read32le(wav + data_offset + 4);
             const uint16_t bits = read16le(wav + data_offset + 14);
-            format_valid = format == 1 && channels == 1 && bits == 8
-                && rate > 0 && rate <= INT_MAX;
+            const bool supported_layout = format == WAVE_FORMAT_PCM &&
+                channels == MONO_CHANNELS && bits == PCM_SAMPLE_BITS;
+            const bool valid_rate = rate_hz > 0 && rate_hz <= INT_MAX;
+            format_valid = supported_layout && valid_rate;
         } else if (!memcmp(chunk, "data", 4)) {
             if (!format_valid || !chunk_size || chunk_size > INT32_MAX) return 0;
             AsoundU8 *decoded = (AsoundU8 *)SDL_malloc(chunk_size);
             if (!decoded) return 0;
             memcpy(decoded, wav + data_offset, chunk_size);
             if (samples) *samples = decoded;
-            if (sample_rate) *sample_rate = (int)rate;
+            if (sample_rate) *sample_rate = (int)rate_hz;
             return (int)chunk_size;
         }
 
+        /* RIFF aligns chunks to two bytes; padding is not sample data. */
         const size_t padded_size = (size_t)chunk_size + (chunk_size & 1u);
         if (padded_size > wav_size - data_offset) return 0;
         offset = data_offset + padded_size;
@@ -173,7 +184,7 @@ int asound_find_replacement_cue(AsoundU16 start, AsoundU16 end_inclusive,
     return 0;
 }
 
-/* Return the number of currently loaded replacement sound cues. */
+/* Return the number of addressable cue slots, including unloaded slots. */
 int asound_replacement_cue_count(void) {
     return (int)(sizeof(g_cues) / sizeof(g_cues[0]));
 }
