@@ -26,6 +26,16 @@ public final class MainActivity extends SDLActivity {
         return AndroidJoystick.throttleAxis(vendor, product, name, axes);
     }
 
+    public static double joystickThrottleValue() {
+        return AndroidJoystick.throttleValue();
+    }
+
+    @Override
+    public boolean dispatchGenericMotionEvent(android.view.MotionEvent event) {
+        AndroidJoystick.captureThrottle(event);
+        return super.dispatchGenericMotionEvent(event);
+    }
+
     /**
      * Keeps the Android flight controller in one coordinate system.
      *

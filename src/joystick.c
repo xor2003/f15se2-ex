@@ -401,9 +401,12 @@ bool joy_hasThrottleAxis(void) {
 
 int joy_throttleChange(void) {
     if (!g_joy || g_throttleAxis < 0 || !input_hasFocus()) return -1;
-    const int raw = (int)SDL_GetJoystickAxis(g_joy, g_throttleAxis) + 32768;
+    double sample = 0;
+    if (!joy_readThrottle(g_joy, g_throttleAxis, &sample)) return -1;
+    // Before calibration, contain bad firmware values without wrapping them.
+    const int raw = (int)SDL_clamp(sample, -32768.0, 32767.0) + 32768;
     const int percent = g_calibration.enabled
-        ? joy_correctThrottle(g_calibration, raw - 32768)
+        ? joy_correctThrottle(g_calibration, sample)
         : ((g_throttleInvert ? 65535 - raw : raw) * 100 + 32767) / 65535;
     if (g_lastThrottle >= 0 && SDL_abs(percent - g_lastThrottle) < 2 &&
         !(percent != g_lastThrottle && (percent == 0 || percent == 100))) return -1;

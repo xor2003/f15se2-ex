@@ -1,4 +1,5 @@
 #include "joystick_calibration.h"
+#include "joystick_axes.h"
 #include "joystick.h"
 #include "joystick_mapping.h"
 #include "input.h"
@@ -6,6 +7,9 @@
 #include "const.h"
 #include "shared/common.h"
 #include <sstream>
+#include <cmath>
+#include <iomanip>
+#include <limits>
 
 namespace {
 constexpr int axisMinimum = -32768;
@@ -28,14 +32,15 @@ bool valid(const JoystickCalibration &c) {
             c.center[axis] - c.low[axis] < minimumTravel ||
             c.high[axis] - c.center[axis] < minimumTravel) return false;
     }
+    const double throttleTravel = c.full - c.idle;
     return c.throttleAxis == -1 ||
-        (c.throttleAxis >= 2 && c.idle >= axisMinimum && c.idle <= axisMaximum &&
-         c.full >= axisMinimum && c.full <= axisMaximum && SDL_abs(c.full - c.idle) >= minimumTravel);
+        (c.throttleAxis >= 2 && std::isfinite(c.idle) && std::isfinite(c.full) &&
+         std::isfinite(throttleTravel) && std::abs(throttleTravel) >= minimumTravel);
 }
 
 bool save(const std::string &path, const JoystickCalibration &c) {
     std::ostringstream text;
-    text << 1;
+    text << 2 << std::setprecision(std::numeric_limits<double>::max_digits10);
     for (int axis = 0; axis < 2; ++axis)
         text << ' ' << c.low[axis] << ' ' << c.center[axis] << ' ' << c.high[axis];
     text << ' ' << c.throttleAxis << ' ' << c.idle << ' ' << c.full << '\n';
@@ -47,7 +52,7 @@ bool save(const std::string &path, const JoystickCalibration &c) {
     return saved;
 }
 
-void draw(Step step, const char *error, int x, int y, int throttle) {
+void draw(Step step, const char *error, int x, int y, double throttle) {
     int pitch = 0;
     uint8 *pixels = gfx_pagePixels(0, &pitch);
     if (!pixels) return;
@@ -66,7 +71,10 @@ void draw(Step step, const char *error, int x, int y, int throttle) {
     page[2] = COLOR_WHITE;
     drawStringCentered(page, instructions[step], 0, 60, LOGICAL_WIDTH);
     char values[64] = {};
-    SDL_snprintf(values, sizeof(values), "X %d  Y %d  T %d", x, y, throttle);
+    if (std::isfinite(throttle))
+        SDL_snprintf(values, sizeof(values), "X %d  Y %d  T %.0f", x, y, throttle);
+    else
+        SDL_snprintf(values, sizeof(values), "X %d  Y %d  T --", x, y);
     drawStringCentered(page, values, 0, 85, LOGICAL_WIDTH);
     page[2] = COLOR_LIGHTRED;
     drawStringCentered(page, error, 0, 115, LOGICAL_WIDTH);
@@ -88,8 +96,11 @@ int joy_correctAxis(const JoystickCalibration &c, int axis, int value) {
     return (int)SDL_clamp(scaled, (Sint64)axisMinimum, (Sint64)axisMaximum);
 }
 
-int joy_correctThrottle(const JoystickCalibration &c, int value) {
-    return SDL_clamp((value - c.idle) * 100 / (c.full - c.idle), 0, 100);
+int joy_correctThrottle(const JoystickCalibration &c, double value) {
+    const double span = c.full - c.idle;
+    if (!std::isfinite(value) || !std::isfinite(span) || span == 0) return 0;
+    const double fraction = (value - c.idle) / span;
+    return (int)(SDL_clamp(fraction, 0.0, 1.0) * 100.0);
 }
 
 void joy_loadCalibration(const std::string &path, int throttleAxis, JoystickCalibration &calibration) {
@@ -105,7 +116,13 @@ void joy_loadCalibration(const std::string &path, int throttleAxis, JoystickCali
     for (int axis = 0; axis < 2; ++axis)
         text >> candidate.low[axis] >> candidate.center[axis] >> candidate.high[axis];
     text >> candidate.throttleAxis >> candidate.idle >> candidate.full;
-    if (!text || version != 1 || candidate.throttleAxis != throttleAxis || !valid(candidate)) return;
+    // Android v1 endpoints could contain already-wrapped Sint16 values.
+#ifdef __ANDROID__
+    const bool supportedVersion = version == 2;
+#else
+    const bool supportedVersion = version == 1 || version == 2;
+#endif
+    if (!text || !supportedVersion || candidate.throttleAxis != throttleAxis || !valid(candidate)) return;
     text >> std::ws;
     if (!text.eof()) return;
     candidate.enabled = true;
@@ -133,7 +150,8 @@ void joy_calibrationScreen(SDL_Joystick *joystick, int throttleAxis, JoystickCal
             continue;
         }
         int axes[2] = {SDL_GetJoystickAxis(joystick, 0), SDL_GetJoystickAxis(joystick, 1)};
-        const int throttle = throttleAxis >= 0 ? SDL_GetJoystickAxis(joystick, throttleAxis) : 0;
+        double throttle = NAN;
+        const bool throttleReady = throttleAxis < 0 || joy_readThrottle(joystick, throttleAxis, &throttle);
         if (step == Travel) {
             for (int axis = 0; axis < 2; ++axis) {
                 candidate.low[axis] = SDL_min(candidate.low[axis], axes[axis]);
@@ -167,6 +185,8 @@ void joy_calibrationScreen(SDL_Joystick *joystick, int throttleAxis, JoystickCal
                 error = "Move farther in every direction.";
             } else if (step == Travel && throttleAxis >= 0) {
                 step = Idle;
+            } else if ((step == Idle || step == Full) && !throttleReady) {
+                error = "Move throttle to get a reading.";
             } else if (step == Idle) {
                 candidate.idle = throttle;
                 step = Full;

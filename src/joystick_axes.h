@@ -30,7 +30,19 @@ static inline int joy_linuxThrottleIndex(const unsigned char *codes, int count) 
  * deliberately return "unknown", never guessing that a third axis is thrust. */
 #ifdef __ANDROID__
 int android_joystickThrottleAxis(SDL_Joystick *joystick);
+bool android_joystickThrottleValue(SDL_Joystick *joystick, int axis, double *value);
 #endif
+
+/* Calibration and flight must use the same units and the same sample source.
+ * A double keeps Android's unwrapped SDL-scale values until endpoint mapping. */
+static inline bool joy_readThrottle(SDL_Joystick *joystick, int axis, double *value) {
+#ifdef __ANDROID__
+    return android_joystickThrottleValue(joystick, axis, value);
+#else
+    *value = SDL_GetJoystickAxis(joystick, axis);
+    return true;
+#endif
+}
 
 static inline int joy_detectThrottleAxis(SDL_Joystick *joystick) {
 #if defined(__ANDROID__)
