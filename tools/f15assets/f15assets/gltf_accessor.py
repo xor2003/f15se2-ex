@@ -5,6 +5,21 @@ from __future__ import annotations
 import math
 import struct
 
+COMPONENT_UNSIGNED_BYTE = 5121
+COMPONENT_UNSIGNED_SHORT = 5123
+COMPONENT_UNSIGNED_INT = 5125
+COMPONENT_FLOAT = 5126
+UNSIGNED_COMPONENT_TYPES = (COMPONENT_UNSIGNED_BYTE, COMPONENT_UNSIGNED_SHORT, COMPONENT_UNSIGNED_INT)
+COMPONENT_FORMATS = {
+    COMPONENT_UNSIGNED_BYTE: "B",
+    COMPONENT_UNSIGNED_SHORT: "H",
+    COMPONENT_UNSIGNED_INT: "I",
+    COMPONENT_FLOAT: "f",
+}
+MIN_VERTEX_STRIDE_BYTES = 4
+MAX_VERTEX_STRIDE_BYTES = 252
+VERTEX_ALIGNMENT_BYTES = 4
+
 
 def _integer(value: object, label: str, minimum: int = 0) -> int:
     """Reject booleans, fractional values, and negative offsets or counts."""
@@ -46,16 +61,19 @@ def accessor_values(doc: dict, blob: bytes, index: int) -> list[int | float | tu
     offset = _integer(accessor.get("byteOffset", 0), "accessor byteOffset")
     count = _integer(accessor.get("count"), "accessor count", 1)
     component = _integer(accessor.get("componentType"), "componentType")
-    formats = {5121: "B", 5123: "H", 5125: "I", 5126: "f"}
     dimensions = {"SCALAR": 1, "VEC2": 2, "VEC3": 3, "VEC4": 4}
     kind = accessor.get("type")
-    if component not in formats or not isinstance(kind, str) or kind not in dimensions:
+    if component not in COMPONENT_FORMATS or not isinstance(kind, str) or kind not in dimensions:
         raise ValueError("unsupported geometry accessor type")
-    decoder = struct.Struct("<" + formats[component] * dimensions[kind])
-    component_size = struct.calcsize("<" + formats[component])
+    decoder = struct.Struct("<" + COMPONENT_FORMATS[component] * dimensions[kind])
+    component_size = struct.calcsize("<" + COMPONENT_FORMATS[component])
     stride = _integer(view.get("byteStride", decoder.size), "byteStride", 1)
-    if (stride < decoder.size or stride % component_size or
-            ("byteStride" in view and (stride < 4 or stride > 252 or stride % 4))):
+    invalid_component_stride = stride < decoder.size or stride % component_size != 0
+    invalid_vertex_stride = "byteStride" in view and (
+        not MIN_VERTEX_STRIDE_BYTES <= stride <= MAX_VERTEX_STRIDE_BYTES
+        or stride % VERTEX_ALIGNMENT_BYTES != 0
+    )
+    if invalid_component_stride or invalid_vertex_stride:
         raise ValueError("invalid geometry accessor stride")
     if offset % component_size or (view_offset + offset) % component_size:
         raise ValueError("unaligned geometry accessor")
@@ -67,7 +85,7 @@ def accessor_values(doc: dict, blob: bytes, index: int) -> list[int | float | tu
         raise ValueError("geometry accessor exceeds its buffer view")
     values = [decoder.unpack_from(blob, view_offset + offset + i * stride)
               for i in range(count)]
-    if component == 5126 and any(not math.isfinite(v) for row in values for v in row):
+    if component == COMPONENT_FLOAT and any(not math.isfinite(v) for row in values for v in row):
         raise ValueError("non-finite geometry coordinate")
     # Index consumers expect numbers; positions retain their vector tuples.
     return [row[0] for row in values] if kind == "SCALAR" else values

@@ -4,6 +4,13 @@ from __future__ import annotations
 
 import math
 
+from .gltf_accessor import COMPONENT_FLOAT, UNSIGNED_COMPONENT_TYPES
+
+POINTS = 0
+LINES = 1
+TRIANGLES = 4
+VERTICES_PER_PRIMITIVE = {POINTS: 1, LINES: 2, TRIANGLES: 3}
+
 
 def _entry(doc, table, index):
     """Resolve a required accessor or material reference with a useful error."""
@@ -23,8 +30,8 @@ def validate_primitive(doc, primitive):
     """
     if not isinstance(primitive, dict):
         raise ValueError("mesh primitive must be an object")
-    mode = primitive.get("mode", 4)
-    if type(mode) is not int or mode not in (0, 1, 4):
+    mode = primitive.get("mode", TRIANGLES)
+    if type(mode) is not int or mode not in VERTICES_PER_PRIMITIVE:
         raise ValueError(f"unsupported primitive mode {mode!r}; export points, lines or triangles")
     attributes = primitive.get("attributes")
     if not isinstance(attributes, dict) or "POSITION" not in attributes:
@@ -32,17 +39,17 @@ def validate_primitive(doc, primitive):
     if any(key.startswith("COLOR_") for key in attributes):
         raise ValueError("vertex colors are unsupported; use flat material colors")
     position = _entry(doc, "accessors", attributes["POSITION"])
-    if position.get("type") != "VEC3" or position.get("componentType") != 5126:
+    if position.get("type") != "VEC3" or position.get("componentType") != COMPONENT_FLOAT:
         raise ValueError("POSITION must be float VEC3")
     vertices = position.get("count")
     if type(vertices) is not int or vertices <= 0:
         raise ValueError("POSITION must contain vertices")
     if "indices" in primitive:
         indices = _entry(doc, "accessors", primitive["indices"])
-        if indices.get("type") != "SCALAR" or indices.get("componentType") not in (5121, 5123, 5125):
+        if indices.get("type") != "SCALAR" or indices.get("componentType") not in UNSIGNED_COMPONENT_TYPES:
             raise ValueError("indices must be unsigned integer SCALAR values")
         vertices = indices.get("count")
-    if type(vertices) is not int or vertices <= 0 or vertices % {0: 1, 1: 2, 4: 3}[mode]:
+    if type(vertices) is not int or vertices <= 0 or vertices % VERTICES_PER_PRIMITIVE[mode]:
         raise ValueError("primitive has an incomplete point, line or triangle")
     if "material" not in primitive:
         return

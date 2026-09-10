@@ -6,9 +6,12 @@ import math
 import struct
 from copy import deepcopy
 
+from .gltf_accessor import COMPONENT_FLOAT, VERTEX_ALIGNMENT_BYTES
 from .gltf_primitive import validate_primitive
 
 IDENTITY = (1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1)
+QUATERNION_NORM_TOLERANCE = 0.001
+FLOAT32_MAX = 3.4028234663852886e38
 
 
 def _entry(entries, index, label):
@@ -42,7 +45,7 @@ def _local_matrix(node):
     sx, sy, sz = _vector(node.get("scale", (1, 1, 1)), 3, "scale")
     x, y, z, w = _vector(node.get("rotation", (0, 0, 0, 1)), 4, "rotation")
     norm = math.sqrt(x*x + y*y + z*z + w*w)
-    if not math.isfinite(norm) or abs(norm - 1) > 0.001:
+    if not math.isfinite(norm) or abs(norm - 1) > QUATERNION_NORM_TOLERANCE:
         raise ValueError("node rotation must be a unit quaternion")
     x, y, z, w = x/norm, y/norm, z/norm, w/norm
     return (
@@ -117,7 +120,7 @@ def flatten_scene(doc, blob, read_accessor):
                 attributes = primitive.get("attributes", {})
                 accessor_index = attributes.get("POSITION")
                 accessor = _entry(doc.get("accessors", []), accessor_index, "POSITION")
-                if accessor.get("type") != "VEC3" or accessor.get("componentType") != 5126:
+                if accessor.get("type") != "VEC3" or accessor.get("componentType") != COMPONENT_FLOAT:
                     raise ValueError("POSITION must contain float VEC3 values")
                 key = (accessor_index, matrix)
                 if key not in transformed:
@@ -126,15 +129,16 @@ def flatten_scene(doc, blob, read_accessor):
                     for x, y, z in positions:
                         values = tuple(matrix[r]*x + matrix[4+r]*y +
                                        matrix[8+r]*z + matrix[12+r] for r in range(3))
-                        if any(not math.isfinite(v) or abs(v) > 3.4028234663852886e38 for v in values):
+                        outside_float32 = any(not math.isfinite(v) or abs(v) > FLOAT32_MAX for v in values)
+                        if outside_float32:
                             raise ValueError("transformed POSITION exceeds float32 range")
                         packed.extend(struct.pack("<3f", *values))
-                    data.extend(b"\0" * (-len(data) % 4))
+                    data.extend(b"\0" * (-len(data) % VERTEX_ALIGNMENT_BYTES))
                     view = len(result.setdefault("bufferViews", []))
                     result["bufferViews"].append({"buffer": 0, "byteOffset": len(data),
                                                    "byteLength": len(packed)})
                     transformed[key] = len(result.setdefault("accessors", []))
-                    result["accessors"].append({"bufferView": view, "componentType": 5126,
+                    result["accessors"].append({"bufferView": view, "componentType": COMPONENT_FLOAT,
                                                  "count": len(positions), "type": "VEC3"})
                     data.extend(packed)
                 attributes["POSITION"] = transformed[key]
