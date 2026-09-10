@@ -20,6 +20,7 @@
 #include "comm.h"
 #include "eginput.h"
 #include "input.h"
+#include "joystick.h"
 
 #include <dos.h>
 #include <stdio.h>
@@ -122,6 +123,23 @@ void stepFlightModel(void) {
             g_directorMode =
                 g_autopilotEngaged =
                     g_viewMode = VIEW_COCKPIT;
+        }
+    }
+
+    /* Raw-stick commands bypass the keyboard flush above. Reuse the existing
+     * dispatch so keyboard and joystick actions have identical game effects. */
+    if (keyScancode == 0) {
+        keyScancode = joy_flightCommand(missileSpecIndex, g_viewMode);
+        if (keyScancode != 0 && g_autopilotEngaged == 1) {
+            g_directorMode = g_autopilotEngaged = g_viewMode = VIEW_COCKPIT;
+        }
+    }
+    {
+        const int throttle = joy_throttleChange();
+        if (throttle >= 0 && g_inputDisabled == 0) {
+            g_setThrust = throttle;
+            UpdateThrottleState();
+            if (throttle > 0) g_playerPlaneFlags &= ~8;
         }
     }
 
@@ -801,8 +819,7 @@ void rebuildOrientation() {
 }
 
 uint16 signedRatio16(int16 numerator, int16 denominator) { /* Original: IntDiv(A,B). Divide two signed 15-bit fractions. */
-    /* Android ARM uses unsigned plain char: -1 must remain a signed factor,
-     * otherwise matrix-to-angle decoding multiplies by 255 and jumps. */
+    /* Plain char is unsigned on Android ARM; sign factors must preserve -1. */
     int numeratorSign = 1;
     int denominatorSign = 1;
     int32 absNumerator;
