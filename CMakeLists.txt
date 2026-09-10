@@ -75,6 +75,8 @@ else()
                 SDL3
                 URL "https://github.com/libsdl-org/SDL/archive/e442a9a5e1d6eb2621e9206f5176c53b0d034e09.tar.gz"
                 URL_HASH SHA256=8ebc84ff04c076c0e6249c885fc1efc6dc5f13a411b31de8621478646ff76bcf
+                PATCH_COMMAND ${CMAKE_COMMAND} -DSDL_SOURCE_DIR=<SOURCE_DIR>
+                    -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/patch_sdl_dos_audio.cmake
                 UPDATE_DISCONNECTED TRUE
             )
         else()
