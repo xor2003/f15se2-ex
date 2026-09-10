@@ -42,9 +42,6 @@ static InputMode g_mode = INPUT_MODE_MENU;
 static bool g_quitRequested = false;
 static bool g_hasFocus = true;
 static void (*g_quitHandler)(void) = NULL;
-static bool g_menuPointerPending = false;
-static int g_menuPointerX = 0;
-static int g_menuPointerY = 0;
 static bool g_flightThrottlePointerActive = false;
 static bool g_flightThrottlePending = false;
 static int g_flightThrottlePercent = 0;
@@ -106,6 +103,10 @@ bool input_preferGamepad(void) { return g_lastWasGamepad && joy_connected(); }
  * (function keys, arrows), so the layout has to match INT 16h. */
 #define KEY_RING 32
 static uint16 keyRing[KEY_RING];
+/* Coordinates travel with their key-ring slot, not with the latest SDL click. */
+static int pointerX[KEY_RING], pointerY[KEY_RING];
+static int currentPointerX = 0, currentPointerY = 0;
+static bool pointerPending = false;
 static int ringHead = 0, ringTail = 0;
 
 static void ringPush(uint16 word) {
@@ -117,7 +118,7 @@ static void ringPush(uint16 word) {
 
 void input_ringReset(void) {
     ringHead = ringTail = 0;
-    g_menuPointerPending = false;
+    pointerPending = false;
     g_flightThrottlePointerActive = false;
     g_flightThrottlePending = false;
     g_joyRawX = 0x80;
@@ -133,14 +134,6 @@ void input_ringReset(void) {
     g_flightControlPointerActive = false;
     android_ar_setLookMode(0);
 #endif
-}
-
-bool input_takeMenuPointer(int *x, int *y) {
-    if (!g_menuPointerPending) return false;
-    if (x) *x = g_menuPointerX;
-    if (y) *y = g_menuPointerY;
-    g_menuPointerPending = false;
-    return true;
 }
 
 bool input_takeFlightThrottle(int *percent) {
@@ -163,8 +156,21 @@ uint16 input_readKey(void) {
         input_pumpEvents();
     }
     word = keyRing[ringHead];
+    pointerPending = word == INPUT_KEY_MENU_POINTER;
+    if (pointerPending) {
+        currentPointerX = pointerX[ringHead];
+        currentPointerY = pointerY[ringHead];
+    }
     ringHead = (ringHead + 1) % KEY_RING;
     return word;
+}
+
+bool input_takeMenuPointer(int *x, int *y) {
+    if (!pointerPending) return false;
+    if (x) *x = currentPointerX;
+    if (y) *y = currentPointerY;
+    pointerPending = false;
+    return true;
 }
 
 /* --- keyboard translation --------------------------------------------------
@@ -754,31 +760,20 @@ static void pollGamepadMenu(void) {
  * coordinates arrive in window pixels. The shared R2D mapping removes any
  * letterbox/pillarbox offset so hit boxes stay aligned with the visible menu. */
 static void queueMenuPointer(Uint32 windowID, float x, float y, bool normalized) {
-    SDL_Window *window;
-    R2DMapping mapping;
-    int winW = LOGICAL_WIDTH;
-    int winH = LOGICAL_HEIGHT;
-    float pixelX = x;
-    float pixelY = y;
-
-    window = SDL_GetWindowFromID(windowID);
-    if (window) SDL_GetWindowSizeInPixels(window, &winW, &winH);
-    if (normalized) {
-        pixelX *= winW;
-        pixelY *= winH;
-    }
-    /*
-     * gfx_presentSurface() displays legacy menu pages with square pixels.
-     * Hit-testing must use that exact mapping; aspect-corrected mapping shifts
-     * rows vertically on wide Android displays.
-     */
-    r2d_computeMapping(LOGICAL_WIDTH, LOGICAL_HEIGHT, winW, winH, 1, &mapping);
-    g_menuPointerX = (int)((pixelX - mapping.offX) / mapping.scaleX);
-    g_menuPointerY = (int)((pixelY - mapping.offY) / mapping.scaleY);
-    g_menuPointerPending = true;
+    SDL_Window *window = SDL_GetWindowFromID(windowID);
+    int width = LOGICAL_WIDTH, height = LOGICAL_HEIGHT;
+    R2DMapping mapping = {};
+    if (window && !SDL_GetWindowSize(window, &width, &height)) return;
+    if (width <= 0 || height <= 0 || (ringTail + 1) % KEY_RING == ringHead) return;
+    if (normalized) { x *= width; y *= height; }
+    r2d_computeMapping(LOGICAL_WIDTH, LOGICAL_HEIGHT, width, height, 1, &mapping);
+    x = (x - mapping.offX) / mapping.scaleX;
+    y = (y - mapping.offY) / mapping.scaleY;
+    if (x < 0 || x >= LOGICAL_WIDTH || y < 0 || y >= LOGICAL_HEIGHT) return;
+    pointerX[ringTail] = (int)x;
+    pointerY[ringTail] = (int)y;
     ringPush(INPUT_KEY_MENU_POINTER);
 }
-
 /* Cockpit controls remain in the original 320x200 overlay coordinates. Keep
  * generous touch targets around the tiny legacy glyphs without changing their
  * visual layout. */
@@ -965,6 +960,11 @@ void input_pumpEvents(void) {
          * game as keystrokes. Only after this does the pump feed context input
          * (flight controls / menu navigation / skip-screen). */
         switch (ev.type) {
+        case SDL_EVENT_MOUSE_BUTTON_UP:
+            if (g_mode == INPUT_MODE_MENU && ev.button.button == SDL_BUTTON_LEFT &&
+                ev.button.which != SDL_TOUCH_MOUSEID)
+                queueMenuPointer(&ev.button);
+            break;
         case SDL_EVENT_QUIT:
             /* A window close is an app-level quit intent, not a keystroke (the
              * "press any key to advance" screens would otherwise eat it as

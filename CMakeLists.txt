@@ -116,6 +116,7 @@ set(F15SE2_SOURCES
     ${SRC_DIR}/joystick_mapping.cpp
     ${SRC_DIR}/controls.cpp
     ${SRC_DIR}/controls_mapping.cpp
+    ${SRC_DIR}/menu_pointer.c
     ${SRC_DIR}/hdsprite.c
 
     # start
@@ -507,6 +508,8 @@ add_behavior_test(joystick_behavior_tests LINK_CORE)
 add_behavior_test(controls_behavior_tests LINK_CORE)
 set_tests_properties(controls_behavior_tests PROPERTIES TIMEOUT 20)
 set_tests_properties(joystick_behavior_tests PROPERTIES TIMEOUT 20)
+add_behavior_test(menu_pointer_behavior_tests LINK_CORE)
+set_tests_properties(menu_pointer_behavior_tests PROPERTIES TIMEOUT 20)
 add_behavior_test(gfx_render_behavior_tests LINK_CORE)
 add_behavior_test(view_behavior_tests LINK_CORE)
 add_behavior_test(egsys_internal_behavior_tests LINK_CORE)

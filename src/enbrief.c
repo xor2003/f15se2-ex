@@ -216,9 +216,8 @@ int isPointInRect(const MenuItem *p) {
  * transition; a release on the current item is the pointer equivalent of
  * Enter. Releases outside both labels are ignored. */
 int applyDebriefPointer(int x, int y, const MenuItem *currentItem) {
-    int idx;
-
-    for (idx = 0; idx < 2; idx++) {
+    const int debriefButtonCount = 2; /* Repeat mission and continue. */
+    for (int idx = 0; idx < debriefButtonCount; idx++) {
         const MenuItem *item = &debriefMenuItems[idx];
         if (x >= item->hitX1 && x <= item->hitX2 &&
             y >= item->hitY1 && y <= item->hitY2) {
@@ -331,8 +330,8 @@ int applyDebriefPointer(int x, int y, const MenuItem *currentItem) {
     }
 
     if (keycode == INPUT_KEY_MENU_POINTER) {
-        int pointerX;
-        int pointerY;
+        int pointerX = 0;
+        int pointerY = 0;
         if (input_takeMenuPointer(&pointerX, &pointerY))
             applyDebriefPointer(pointerX, pointerY, menuItem);
     }
