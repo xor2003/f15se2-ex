@@ -164,6 +164,16 @@ static void joy_close(void) {
  * joystick. No-op when a device is already active. */
 static void joy_open(SDL_JoystickID id) {
     if (g_devId) return;
+#if defined(__ANDROID__)
+    /* TV remotes can advertise a generic joystick axis, and voice services
+     * can advertise button-only gamepads. Neither can steer an aircraft.
+     * Leave them unopened so SDL can deliver their buttons as keyboard input. */
+    SDL_Joystick *candidate = SDL_OpenJoystick(id);
+    if (!candidate) return;
+    const bool hasFlightAxes = SDL_GetNumJoystickAxes(candidate) >= 2;
+    SDL_CloseJoystick(candidate);
+    if (!hasFlightAxes) return;
+#endif
     if (SDL_IsGamepad(id)) {
         g_pad = SDL_OpenGamepad(id);
         if (g_pad) {
@@ -187,9 +197,21 @@ static void joy_rescan(void) {
     int count;
     if (g_devId) return;
 
+#if defined(__ANDROID__)
+    /* Prefer a flight stick over the gamepad interfaces exposed by TV shells.
+     * joy_open rejects devices without the two primary analog axes. */
+    SDL_JoystickID *analogSticks = SDL_GetJoysticks(&count);
+    if (analogSticks) {
+        for (int i = 0; i < count && !g_devId; ++i)
+            if (!SDL_IsGamepad(analogSticks[i])) joy_open(analogSticks[i]);
+        SDL_free(analogSticks);
+    }
+    if (g_devId) return;
+#endif
+
     SDL_JoystickID *pads = SDL_GetGamepads(&count);
     if (pads) {
-        if (count > 0) joy_open(pads[0]);
+        for (int i = 0; i < count && !g_devId; ++i) joy_open(pads[i]);
         SDL_free(pads);
     }
     if (g_devId) return;
