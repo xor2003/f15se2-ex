@@ -5,6 +5,8 @@ import android.content.pm.PackageManager;
 import android.graphics.PixelFormat;
 import android.os.Build;
 import android.os.Bundle;
+import android.view.InputDevice;
+import android.view.KeyEvent;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import java.io.File;
@@ -34,6 +36,35 @@ public final class MainActivity extends SDLActivity {
     public boolean dispatchGenericMotionEvent(android.view.MotionEvent event) {
         AndroidJoystick.captureThrottle(event);
         return super.dispatchGenericMotionEvent(event);
+    }
+
+    /**
+     * Deliver external keyboard and remote buttons directly to SDL.
+     *
+     * Android TV may route media and channel keys to system media handlers
+     * before the focused SDL surface receives them. Keeping the interception
+     * at the Activity boundary lets SDL expose its normal named scancodes to
+     * the controls screen. Device controls owned by Android remain untouched.
+     */
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        InputDevice device = event.getDevice();
+        int keyCode = event.getKeyCode();
+        boolean systemKey = keyCode == KeyEvent.KEYCODE_HOME ||
+            keyCode == KeyEvent.KEYCODE_POWER ||
+            keyCode == KeyEvent.KEYCODE_VOLUME_UP ||
+            keyCode == KeyEvent.KEYCODE_VOLUME_DOWN ||
+            keyCode == KeyEvent.KEYCODE_VOLUME_MUTE ||
+            keyCode == KeyEvent.KEYCODE_CAMERA ||
+            keyCode == KeyEvent.KEYCODE_ZOOM_IN ||
+            keyCode == KeyEvent.KEYCODE_ZOOM_OUT;
+        boolean externalKeyboard = device != null && !device.isVirtual() &&
+            (device.getSources() & InputDevice.SOURCE_KEYBOARD) ==
+                InputDevice.SOURCE_KEYBOARD;
+        if (externalKeyboard && !systemKey) {
+            return SDLActivity.handleKeyEvent(mSurface, keyCode, event, null);
+        }
+        return super.dispatchKeyEvent(event);
     }
 
     /**
