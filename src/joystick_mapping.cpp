@@ -4,6 +4,13 @@
 #include "controls.h"
 #include <fstream>
 
+/* Versions added action groups; old profiles leave later actions unassigned. */
+enum JoystickProfileVersion {
+    PROFILE_BASIC_ACTIONS = 1,
+    PROFILE_GEAR_AND_VIEWS = 2,
+    PROFILE_ALL_ACTIONS = 3
+};
+
 /* Reject out-of-range and duplicate assignments as a unit, not partially. */
 static bool validMapping(int count, const int *buttons) {
     for (int i = 0; i < RAW_ACTION_COUNT; ++i) {
@@ -36,10 +43,12 @@ bool joy_loadMapping(const std::string &path, int count, int *buttons) {
     std::string name;
     int version = 0;
     int candidate[RAW_ACTION_COUNT] = {};
-    if (!(file >> name >> version) || name != "F15_JOYSTICK" || version < 1 || version > 3) return false;
+    if (!(file >> name >> version) || name != "F15_JOYSTICK" ||
+        version < PROFILE_BASIC_ACTIONS || version > PROFILE_ALL_ACTIONS) return false;
     /* Version 1 had six actions. Preserve them and leave new actions unassigned
      * so they cannot collide with buttons already chosen by the user. */
-    const int savedActions = version == 1 ? RAW_THRUST_DOWN + 1 : version == 2 ? RAW_VIEW + 1 : RAW_ACTION_COUNT;
+    const int savedActions = version == PROFILE_BASIC_ACTIONS ? RAW_THRUST_DOWN + 1 :
+                             version == PROFILE_GEAR_AND_VIEWS ? RAW_VIEW + 1 : RAW_ACTION_COUNT;
     for (int i = 0; i < RAW_ACTION_COUNT; ++i) candidate[i] = -1;
     for (int i = 0; i < savedActions; ++i) {
         int button = 0;
@@ -55,7 +64,7 @@ bool joy_loadMapping(const std::string &path, int count, int *buttons) {
  * write fails. Unique temporary names avoid clobbering another running game. */
 bool joy_saveMapping(const std::string &path, int count, const int *buttons) {
     if (path.empty() || !validMapping(count, buttons)) return false;
-    std::string data = "F15_JOYSTICK 3\n";
+    std::string data = "F15_JOYSTICK " + std::to_string(PROFILE_ALL_ACTIONS) + "\n";
     for (int i = 0; i < RAW_ACTION_COUNT; ++i)
         data += std::string(controls_action((RawAction)i).name) + " " + std::to_string(buttons[i] + 1) + "\n";
     const std::string temporary = path + "." + std::to_string(SDL_GetPerformanceCounter()) + ".tmp";

@@ -1,4 +1,5 @@
 #include "controls.h"
+#include "controls_mapping.h"
 #include "input.h"
 #include "egkeys.h"
 #include "egtypes.h"
@@ -23,6 +24,110 @@ static void pressEnter(const char *text, int, int, int, int) {
     event.key.key = SDLK_RETURN;
     SDL_PushEvent(&event);
     g_textRecorder = nullptr;
+}
+
+static int setupStep = 0;
+
+static void setupKey(SDL_Scancode sc, SDL_Keycode key) {
+    SDL_Event event = {};
+    event.type = SDL_EVENT_KEY_DOWN;
+    event.key.scancode = sc;
+    event.key.key = key;
+    require(SDL_PushEvent(&event), "queue setup navigation");
+}
+
+static void editThenReset(const char *text, int, int, int, int) {
+    if (!SDL_strstr(text, "ENTER: edit") && !SDL_strstr(text, "Press key / chord")) return;
+    switch (setupStep++) {
+    case 0: setupKey(SDL_SCANCODE_UP, SDLK_UP); break;
+    case 1:
+        setupKey(SDL_SCANCODE_LEFT, SDLK_LEFT);
+        setupKey(SDL_SCANCODE_RETURN, SDLK_RETURN);
+        break;
+    case 2:
+        require(controls_capturing(), "Enter enters actual setup capture");
+        setupKey(SDL_SCANCODE_F12, SDLK_F12);
+        break;
+    case 3:
+        require(controls_keyboardBinding(RAW_KP_DOWN_RIGHT).key == SDL_SCANCODE_F12,
+                "setup assigns selected action");
+        setupKey(SDL_SCANCODE_DOWN, SDLK_DOWN);
+        setupKey(SDL_SCANCODE_DOWN, SDLK_DOWN);
+        setupKey(SDL_SCANCODE_RETURN, SDLK_RETURN);
+        break;
+    case 4:
+        require(controls_keyboardBinding(RAW_KP_DOWN_RIGHT).key == SDL_SCANCODE_KP_3,
+                "Reset defaults restores edited action");
+        setupKey(SDL_SCANCODE_ESCAPE, SDLK_ESCAPE);
+        g_textRecorder = nullptr;
+        break;
+    default: require(false, "unexpected setup loop");
+    }
+}
+
+static void profileValidation() {
+    ControlBinding profile[RAW_ACTION_COUNT] = {};
+    controls_resetKeyboard();
+    for (int i = 0; i < RAW_ACTION_COUNT; ++i) profile[i] = controls_keyboardBinding((RawAction)i);
+    const ControlBinding original = profile[RAW_GEAR];
+    for (const ControlBinding invalid : {
+            ControlBinding{SDL_SCANCODE_LSHIFT, SDL_KMOD_NONE},
+            ControlBinding{SDL_SCANCODE_RETURN, SDL_KMOD_ALT},
+            ControlBinding{SDL_SCANCODE_KP_ENTER, SDL_KMOD_NONE},
+            ControlBinding{SDL_SCANCODE_L, SDL_KMOD_LCTRL},
+            ControlBinding{SDL_SCANCODE_UNKNOWN, SDL_KMOD_CTRL},
+            profile[RAW_MISSILE]}) {
+        profile[RAW_GEAR] = invalid;
+        require(!controls_replaceKeyboard(profile), "reject invalid complete profile");
+        require(controls_keyboardBinding(RAW_GEAR).key == original.key, "atomic rejection");
+    }
+    profile[RAW_GEAR] = original;
+    require(controls_replaceKeyboard(profile), "valid profile accepted");
+    require(!controls_bindKey((RawAction)-1, SDL_SCANCODE_F12, SDL_KMOD_NONE), "invalid action rejected");
+    bool sequence = false;
+    require(controls_command(RAW_COUNTERMEASURE, 0, 0, &sequence) == SCAN_C &&
+            controls_command(RAW_COUNTERMEASURE, 0, 0, &sequence) == SCAN_F, "device-local sequence");
+    for (int weapon = 0; weapon < 3; ++weapon) {
+        const Uint16 commands[] = {SCAN_M, SCAN_G, SCAN_S};
+        require(controls_command(RAW_WEAPON, weapon, 0) == commands[weapon], "weapon cycle");
+    }
+    const int views[] = {VIEW_COCKPIT, VIEW_EXT_FOLLOW, VIEW_EXT_DYNAMIC, VIEW_TARGET};
+    const Uint16 commands[] = {SCAN_F5, SCAN_F6, SCAN_F7, SCAN_SPACEBAR};
+    for (int i = 0; i < 4; ++i)
+        require(controls_command(RAW_VIEW, 0, views[i]) == commands[i], "view cycle follows game state");
+}
+
+static void directionalButtons() {
+    SDL_VirtualJoystickDesc desc = {};
+    SDL_INIT_INTERFACE(&desc);
+    desc.type = SDL_JOYSTICK_TYPE_FLIGHT_STICK;
+    desc.naxes = 2;
+    desc.nbuttons = 2;
+    const SDL_JoystickID id = SDL_AttachVirtualJoystick(&desc);
+    require(id != 0, "attach directional fixture");
+    SDL_Joystick *stick = SDL_OpenJoystick(id);
+    require(stick != nullptr, "open directional fixture");
+    SDL_Event event = {};
+    event.type = SDL_EVENT_JOYSTICK_ADDED;
+    event.jdevice.which = id;
+    joy_handleEvent(&event);
+    joy_bindRawButton(RAW_ROLL_LEFT, 0);
+    joy_bindRawButton(RAW_KP_DOWN_RIGHT, 1);
+    require(SDL_SetJoystickVirtualButton(stick, 0, true), "hold left");
+    SDL_UpdateJoysticks();
+    Uint8 x = 128, y = 128;
+    controls_applyAxes(&x, &y, true);
+    require(x == 0x26 && y == 128, "directional button sets roll");
+    require(SDL_SetJoystickVirtualButton(stick, 1, true), "hold diagonal");
+    SDL_UpdateJoysticks();
+    controls_applyAxes(&x, &y, true);
+    require(x == 0xda && y == 0xda, "diagonal overrides single direction");
+    joy_resetRawMapping();
+    require(joy_rawBinding(RAW_CANNON) == 0 && joy_rawBinding(RAW_MISSILE) == 1,
+            "reset restores physical fire buttons");
+    SDL_CloseJoystick(stick);
+    require(SDL_DetachVirtualJoystick(id), "detach fixture");
+    joy_shutdown();
 }
 
 int main() {
@@ -86,6 +191,11 @@ int main() {
     joy_showSetup();
     require(g_textRecorder == nullptr, "keyboard-only setup defaults to Continue");
     require(controls_loadKeyboard(path), "setup saves valid defaults after invalid profile");
+    profileValidation();
+    directionalButtons();
+    g_textRecorder = editThenReset;
+    joy_showSetup();
+    require(setupStep == 5 && !controls_capturing(), "navigate, capture, reset and exit real setup");
     gfx_videoShutdown();
     SDL_Quit();
     SDL_unsetenv_unsafe("F15_JOY_CONFIG_DIR");

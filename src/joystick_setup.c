@@ -10,6 +10,11 @@
 static const int visibleRows = 8;
 static const int continueRow = RAW_ACTION_COUNT;
 static const int resetRow = RAW_ACTION_COUNT + 1;
+static const int rowCount = resetRow + 1;
+static const int stickNavigationThreshold = 16000;
+static const Uint64 firstNavigationRepeatMs = 400;
+static const Uint64 navigationRepeatMs = 200;
+static const Uint32 setupPollMs = 20;
 
 /* Scroll the action table, keeping Continue and Reset visible on every page. */
 static void drawJoystickSetup(int selected, int first, bool keyboard, bool saveFailed) {
@@ -79,11 +84,12 @@ struct SetupState {
 static void navigateWithStick(SetupState &state) {
     const int x = joy_rawMenuAxis(0), y = joy_rawMenuAxis(1);
     const int axis = SDL_abs(y) >= SDL_abs(x) ? y : x;
-    const int zone = axis < -16000 ? -1 : axis > 16000 ? 1 : 0;
+    const int zone = axis < -stickNavigationThreshold ? -1 :
+                     axis > stickNavigationThreshold ? 1 : 0;
     const Uint64 now = SDL_GetTicks();
     if (zone && (zone != state.stickZone || now >= state.repeatAt)) {
-        state.selected = (state.selected + zone + RAW_ACTION_COUNT + 2) % (RAW_ACTION_COUNT + 2);
-        state.repeatAt = now + (zone != state.stickZone ? 400 : 200);
+        state.selected = (state.selected + zone + rowCount) % rowCount;
+        state.repeatAt = now + (zone != state.stickZone ? firstNavigationRepeatMs : navigationRepeatMs);
     }
     state.stickZone = zone;
 }
@@ -95,8 +101,8 @@ static bool navigateWithKeyboard(SetupState &state, bool &activate) {
         const uint16 key = input_readKey();
         if ((key & 255) == KEYCODE_ESC) finish = true;
         else if ((key & 255) == KEYCODE_ENTER) activate = true;
-        else if (key == KEYCODE_UPARROW) state.selected = (state.selected + RAW_ACTION_COUNT + 1) % (RAW_ACTION_COUNT + 2);
-        else if (key == KEYCODE_DNARROW) state.selected = (state.selected + 1) % (RAW_ACTION_COUNT + 2);
+        else if (key == KEYCODE_UPARROW) state.selected = (state.selected + rowCount - 1) % rowCount;
+        else if (key == KEYCODE_DNARROW) state.selected = (state.selected + 1) % rowCount;
         else if (key == KEYCODE_LEFTARROW) state.keyboard = true;
         else if (key == KEYCODE_RIGHTARROW) state.keyboard = false;
     }
@@ -173,7 +179,7 @@ void joy_showSetup(void) {
             input_ringReset();
             state.released = false;
             state.stickZone = 0;
-            SDL_Delay(20);
+            SDL_Delay(setupPollMs);
             continue;
         }
         bool activate = false;
@@ -200,7 +206,7 @@ void joy_showSetup(void) {
             if (state.selected >= state.first + visibleRows) state.first = state.selected - visibleRows + 1;
         }
         drawJoystickSetup(state.selected, state.first, state.keyboard, state.saveFailed);
-        SDL_Delay(20);
+        SDL_Delay(setupPollMs);
     }
     controls_beginCapture((RawAction)-1);
     input_setJoystickSetup(false);
