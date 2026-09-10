@@ -3,6 +3,7 @@
 #include "struct.h"
 #include "stdata.h"
 #include "stterr.h"
+#include "stmath.h"
 #include "comm.h"
 #include "log.h"
 #include "const.h"
@@ -13,7 +14,6 @@
 #include <stdio.h>
 
 /* Private helpers for this translation unit. */
-uint32 scaleCoordByLevel(int16, uint32);
 int16 lookupGridCell(int16, int16, int16);
 
 struct NearestTerrain *findNearestTerrain(int32 worldX, int32 worldY) {
@@ -75,21 +75,6 @@ struct NearestTerrain *findNearestTerrain(int32 worldX, int32 worldY) {
         return &nearestTerrain;
     } else
         return NULL;
-}
-
-uint32 scaleCoordByLevel(int16 level, uint32 coord) {
-    switch (level) {
-    case 4:
-        return coord >> 6;
-    case 3:
-        return coord >> 4;
-    case 2:
-        return coord >> 2;
-    case 1:
-        return coord;
-    default: // case 0
-        return coord << 1;
-    }
 }
 
 int16 lookupGridCell(int16 level, int16 col, int16 row) {

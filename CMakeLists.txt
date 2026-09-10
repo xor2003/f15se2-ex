@@ -132,6 +132,7 @@ set(F15SE2_SOURCES
     ${SRC_DIR}/stterr.c
     ${SRC_DIR}/stparse.c
     ${SRC_DIR}/stgen.c
+    ${SRC_DIR}/stmath.c
     ${SRC_DIR}/stdata.c
 )
 
@@ -145,6 +146,7 @@ set(EGAME_SOURCES
     ${SRC_DIR}/eg3dproj.c
     ${SRC_DIR}/eg3dgrid.c
     ${SRC_DIR}/eg3dload.c
+    ${SRC_DIR}/eg3dutil.c
     ${SRC_DIR}/eg3dmap.c
     ${SRC_DIR}/eg3dvp.c
     ${SRC_DIR}/eg3dcam.c
@@ -484,7 +486,7 @@ add_behavior_test(sys_behavior_tests SOURCES
     ${SRC_DIR}/egsys.c ${SRC_DIR}/egdata.c)
 add_behavior_test(sphere_behavior_tests LINK_CORE)
 add_behavior_test(load_behavior_tests SOURCES
-    ${SRC_DIR}/eg3dload.c ${SRC_DIR}/egmath.c ${SRC_DIR}/egdata.c
+    ${SRC_DIR}/eg3dload.c ${SRC_DIR}/eg3dutil.c ${SRC_DIR}/egmath.c ${SRC_DIR}/egdata.c
     ${SRC_DIR}/egfarbuf.c)
 add_behavior_test(shared_timer_behavior_tests LINK_CORE)
 add_behavior_test(shared_runtime_behavior_tests SOURCES
