@@ -9,17 +9,19 @@
 #include <stdlib.h>
 #include <string.h>
 
+static const uint32 UNSCHEDULED_TICK = 0xffffffffu;
+enum { TICKS_PER_SECOND = 60, DISPLAYED_SECOND_UNITS = 100 };
+
 static int parseUint32Option(const char *option, const char *value,
                              uint32 *result) {
     char *end = NULL;
-    unsigned long parsed;
     if (!value || value[0] == '-') {
         fprintf(stderr, "Invalid value for %s: %s\n", option,
                 value ? value : "(null)");
         return 0;
     }
     errno = 0;
-    parsed = strtoul(value, &end, 0);
+    const unsigned long parsed = strtoul(value, &end, 0);
     if (errno || end == value || *end != '\0' || parsed > 0xfffffffful) {
         fprintf(stderr, "Invalid value for %s: %s\n", option, value);
         return 0;
@@ -30,18 +32,17 @@ static int parseUint32Option(const char *option, const char *value,
 
 static int parseDisplayedTimeOption(const char *option, const char *value,
                                     uint32 *result) {
-    uint32 displayed;
-    uint32 subtick;
+    uint32 displayed = 0;
     if (!parseUint32Option(option, value, &displayed)) return 0;
-    subtick = displayed % 100u;
-    if (subtick >= 60u) {
+    const uint32 subtick = displayed % DISPLAYED_SECOND_UNITS;
+    if (subtick >= TICKS_PER_SECOND) {
         fprintf(stderr, "Invalid value for %s: %s (last two digits must be 00..59)\n",
                 option, value);
         return 0;
     }
     /* The UI shows seconds*100 + 1/60-second remainder. Convert that compact
      * decimal notation back to the raw deterministic tick used internally. */
-    *result = (displayed / 100u) * 60u + subtick;
+    *result = (displayed / DISPLAYED_SECOND_UNITS) * TICKS_PER_SECOND + subtick;
     return 1;
 }
 
@@ -57,9 +58,9 @@ static const char *requiredArgument(const char *option, int argc, char **argv,
 void blackbox_cliInit(BlackboxCliOptions *options) {
     memset(options, 0, sizeof(*options));
     options->seed = BLACKBOX_DEFAULT_SEED;
-    options->pauseTick = 0xffffffffu;
-    options->fastForwardTick = 0xffffffffu;
-    options->dumpTick = 0xffffffffu;
+    options->pauseTick = UNSCHEDULED_TICK;
+    options->fastForwardTick = UNSCHEDULED_TICK;
+    options->dumpTick = UNSCHEDULED_TICK;
 }
 
 void blackbox_cliApplyDebugDefaults(BlackboxCliOptions *options) {
@@ -140,13 +141,17 @@ int blackbox_cliParseOption(BlackboxCliOptions *options, int argc,
 }
 
 int blackbox_cliStart(const BlackboxCliOptions *options) {
+    const bool hasFastForward = options->fastForwardTick != UNSCHEDULED_TICK;
+    const bool hasPause = options->pauseTick != UNSCHEDULED_TICK;
+    const bool hasDump = options->dumpTick != UNSCHEDULED_TICK;
+    const bool hasSession = options->debug || options->recordPath || options->replayPath;
     blackbox_setBuildVersion(F15_VERSION);
     blackbox_setAllowBuildMismatch(options->ignoreBuild);
     if (options->recordPath && options->replayPath) {
         fprintf(stderr, "Choose only one of --blackbox-record or --blackbox-replay\n");
         return 0;
     }
-    if (options->fastForwardTick != 0xffffffffu && !options->replayPath) {
+    if (hasFastForward && !options->replayPath) {
         fprintf(stderr, "--blackbox-fast-forward-tick requires --blackbox-replay\n");
         return 0;
     }
@@ -154,19 +159,16 @@ int blackbox_cliStart(const BlackboxCliOptions *options) {
         fprintf(stderr, "--blackbox-capture-render requires --blackbox-record\n");
         return 0;
     }
-    if (options->dumpTick != 0xffffffffu && !options->debug &&
-        !options->recordPath && !options->replayPath) {
+    if (hasDump && !hasSession) {
         fprintf(stderr, "--blackbox-dump-tick requires blackbox debug, record, or replay mode\n");
         return 0;
     }
-    if (options->fastForwardTick != 0xffffffffu &&
-        options->pauseTick != 0xffffffffu &&
+    if (hasFastForward && hasPause &&
         options->pauseTick < options->fastForwardTick) {
         fprintf(stderr, "--blackbox-pause-tick cannot precede --blackbox-fast-forward-tick\n");
         return 0;
     }
-    if (options->dumpTick != 0xffffffffu &&
-        options->pauseTick != 0xffffffffu &&
+    if (hasDump && hasPause &&
         options->pauseTick < options->dumpTick) {
         fprintf(stderr, "--blackbox-pause-tick cannot precede --blackbox-dump-tick\n");
         return 0;
@@ -178,11 +180,11 @@ int blackbox_cliStart(const BlackboxCliOptions *options) {
     } else if (options->debug) {
         if (!blackbox_startDebug(options->seed)) return 0;
     }
-    if (options->pauseTick != 0xffffffffu)
+    if (hasPause)
         blackbox_setPauseTick(options->pauseTick);
-    if (options->fastForwardTick != 0xffffffffu)
+    if (hasFastForward)
         blackbox_setFastForwardTick(options->fastForwardTick);
-    if (options->dumpTick != 0xffffffffu)
+    if (hasDump)
         blackbox_diagSetDumpTick(options->dumpTick);
     blackbox_diagSetRenderCapture(options->captureRender);
     return 1;
