@@ -28,8 +28,14 @@ static inline int joy_linuxThrottleIndex(const unsigned char *codes, int count) 
 
 /* Read the same device SDL opened. Failure, virtual devices, and unnamed axes
  * deliberately return "unknown", never guessing that a third axis is thrust. */
+#ifdef __ANDROID__
+int android_joystickThrottleAxis(SDL_Joystick *joystick);
+#endif
+
 static inline int joy_detectThrottleAxis(SDL_Joystick *joystick) {
-#ifdef __linux__
+#if defined(__ANDROID__)
+    return android_joystickThrottleAxis(joystick);
+#elif defined(__linux__)
     const char *path = SDL_GetJoystickPath(joystick);
     if (!path) return -1;
     const int fd = open(path, O_RDONLY | O_NONBLOCK | O_CLOEXEC);

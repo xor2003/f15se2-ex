@@ -21,6 +21,11 @@ public final class MainActivity extends SDLActivity {
     private static final int CAMERA_PERMISSION_REQUEST = 15;
     private ArCameraView arCameraView;
 
+    /** Native SDL input queries metadata through the activity's class loader. */
+    public static int joystickThrottleAxis(int vendor, int product, String name, int axes) {
+        return AndroidJoystick.throttleAxis(vendor, product, name, axes);
+    }
+
     /**
      * Keeps the Android flight controller in one coordinate system.
      *

@@ -188,6 +188,7 @@ if(ANDROID)
     list(APPEND EGAME_SOURCES
         ${CMAKE_CURRENT_SOURCE_DIR}/android/app/src/main/cpp/android_ar.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/android/app/src/main/cpp/android_haptics.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/android/app/src/main/cpp/android_joystick.cpp
         ${SRC_DIR}/r3d_gles.c
         ${SRC_DIR}/r3d_gles_compat.c
     )
