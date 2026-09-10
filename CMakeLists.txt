@@ -480,6 +480,11 @@ add_behavior_test(original_behavior_tests LINK_CORE)
 add_behavior_test(utility_behavior_tests LINK_CORE)
 add_behavior_test(end_runtime_behavior_tests LINK_CORE)
 add_behavior_test(geometry_behavior_tests LINK_CORE)
+add_behavior_test(signed_ratio_behavior_tests LINK_CORE SOURCES ${SRC_DIR}/egflight.c)
+# Compile the real attitude helper with ARM-like char signedness on desktop CI.
+target_compile_options(signed_ratio_behavior_tests PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-funsigned-char>
+    $<$<CXX_COMPILER_ID:MSVC>:/J>)
 add_behavior_test(file_io_behavior_tests LINK_CORE)
 add_behavior_test(gameplay_behavior_tests LINK_CORE)
 add_behavior_test(input_behavior_tests LINK_CORE)
