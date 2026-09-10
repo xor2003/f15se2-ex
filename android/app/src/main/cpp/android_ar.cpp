@@ -99,6 +99,8 @@ static int16 radiansToAngle(float radians) {
 }
 
 int android_ar_requested(void) {
+    const char *tv = SDL_getenv("F15_TV");
+    if (tv && tv[0] == '1') return 0;
     const char *value = SDL_getenv("F15_AR");
     return value && (value[0] == '1' || value[0] == 'y' || value[0] == 'Y' ||
                      value[0] == 't' || value[0] == 'T');
@@ -110,6 +112,8 @@ int android_ar_active(void) {
 
 /* Losing camera permission must not take away the player's flight controls. */
 int android_ar_controlsActive(void) {
+    const char *tv = SDL_getenv("F15_TV");
+    if (tv && tv[0] == '1') return 0;
     return g_sensorReady.load(std::memory_order_acquire);
 }
 

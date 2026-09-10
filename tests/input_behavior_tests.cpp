@@ -421,8 +421,11 @@ int main() {
     input_ringReset();
     require(!input_takeMenuPointer(&x, &y), "reset discards unconsumed coordinates");
     input_setMode(INPUT_MODE_FLIGHT);
-    pushMenuClick(30, 40);
-    require(!input_keyWaiting(), "mouse releases do not affect flight controls");
+    pushMenuClick(160, 50);
+    require(input_keyWaiting() && input_readKey() == SCAN_ENTER,
+            "integrated cockpit mouse release fires the selected missile");
+    require(!input_takeMenuPointer(nullptr, nullptr),
+            "flight mouse release leaves no menu coordinates");
 
     // The flight pause loop must ignore another Alt-P and block for a real
     // resume key without advancing simulation timing while paused.

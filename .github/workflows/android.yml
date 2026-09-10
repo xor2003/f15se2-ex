@@ -3,7 +3,7 @@ name: Android APK
 on:
   workflow_dispatch:
   push:
-    branches: [android-gles, android-upstream]
+    branches: [android-gles, android-upstream, android-tv-integration]
 
 jobs:
   apk:

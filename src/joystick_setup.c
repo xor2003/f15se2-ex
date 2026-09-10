@@ -211,6 +211,11 @@ void joy_showSetup(void) {
     controls_beginCapture((RawAction)-1);
     input_setJoystickSetup(false);
     input_setMode(previousMode);
+#if defined(__ANDROID__)
+    // Only pilot-name editing should open Android's on-screen keyboard.
+    gfx_setTextInputEnabled(false);
+#else
     gfx_setTextInputEnabled(previousMode == INPUT_MODE_MENU);
+#endif
     joy_resetFlightInput();
 }

@@ -37,6 +37,7 @@ public final class MainActivity extends SDLActivity {
 
     /** Enables AR by default; an explicit F15_AR=0 keeps the normal GLES sky. */
     private boolean isArRequested() {
+        if (AndroidDeviceMode.isTelevision(this)) return false;
         if (!getIntent().hasExtra("F15_AR")) {
             return true;
         }
@@ -125,6 +126,11 @@ public final class MainActivity extends SDLActivity {
 
     @Override
     protected String[] getArguments() {
+        // Set these before native main runs, even if SDL creates its surface early.
+        if (AndroidDeviceMode.isTelevision(this)) {
+            nativeSetenv("F15_TV", "1");
+            nativeSetenv("F15_AR", "0");
+        }
         File storage = getExternalFilesDir(null);
         if (storage == null) {
             storage = getFilesDir();

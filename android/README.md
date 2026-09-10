@@ -5,7 +5,7 @@ v451.03 files (the Desert Storm expansion version supported by the native game).
 
 ## Install and play
 
-1. Install the APK on an arm64 Android device.
+1. Install the APK on an ARM64 or 32-bit ARM Android device.
 2. Put a ZIP of your game directory on the phone, for example in Downloads.
 3. Open the app and choose **Import game ZIP** in the system file picker.
 4. After validation succeeds, tap **Play**.
@@ -24,6 +24,17 @@ App updates signed with the same key retain game files. Uninstalling the app
 removes its app-specific storage. Save export is not implemented yet.
 
 ## Controls
+
+Android TV is detected from the TV UI mode or Leanback/television system feature.
+On TV, camera preview, camera permission requests and phone sensors are disabled;
+the normal opaque game sky is rendered. Phone AR settings cannot override TV mode.
+Use Controls Setup to assign remote keyboard buttons and save with Continue.
+Buttons intercepted by Android itself cannot be assigned. A remote identified as
+an SDL gamepad retains the standard gamepad layout.
+
+The `android-tv-integration` branch combines Android, controls mapping, mouse
+menus, gameplay options and helper extraction. It excludes the asset-replacement
+and blackbox feature branches. Game data remains a separate user-supplied ZIP.
 
 - Menus: first tap selects, second tap confirms.
 - Phone tilt controls pitch and bank; the game controls aircraft heading.

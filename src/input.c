@@ -983,11 +983,6 @@ void input_pumpEvents(void) {
          * game as keystrokes. Only after this does the pump feed context input
          * (flight controls / menu navigation / skip-screen). */
         switch (ev.type) {
-        case SDL_EVENT_MOUSE_BUTTON_UP:
-            if (g_mode == INPUT_MODE_MENU && ev.button.button == SDL_BUTTON_LEFT &&
-                ev.button.which != SDL_TOUCH_MOUSEID)
-                queueMenuPointer(&ev.button);
-            break;
         case SDL_EVENT_QUIT:
             /* A window close is an app-level quit intent, not a keystroke (the
              * "press any key to advance" screens would otherwise eat it as
