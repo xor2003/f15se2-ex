@@ -13,7 +13,7 @@
 #include "offsets.h"
 #include "shared/common.h"
 #include "log.h"
-#include "input.h"
+#include "menu_pointer.h"
 
 #include <stdio.h>
 #include <dos.h>
@@ -137,8 +137,6 @@ void printPilot(int pilotIdx) {
 void processPilotInput() {
     int action = 0;
     int prevIdx;
-    int pointerX = 0;
-    int pointerY = 0;
     int pointerSelection = -1;
     int xPos;
     int shiftIdx;
@@ -147,53 +145,8 @@ void processPilotInput() {
     setTimerIrqHandler();
     while (true) {
         prevIdx = selectedPilotIdx;
-        action = pollMenuInput();
-        if (action == INPUT_KEY_MENU_POINTER) {
-            int column = 0;
-            int row = 0;
-            if (!input_takeMenuPointer(&pointerX, &pointerY)) continue;
-            if (pointerX >= PILOT_COL_LEFT &&
-                pointerX < PILOT_COL_LEFT + PILOT_ENTRY_WIDTH) {
-                column = 0;
-            } else if (pointerX >= PILOT_COL_RIGHT &&
-                       pointerX < PILOT_COL_RIGHT + PILOT_ENTRY_WIDTH) {
-                column = 1;
-            } else {
-                continue;
-            }
-            if (pointerY < PILOT_TOP_MARGIN - 4 ||
-                pointerY >= PILOT_TOP_MARGIN - 4 +
-                            PILOTS_PER_COLUMN * PILOT_ROW_HEIGHT)
-                continue;
-            row = (pointerY - (PILOT_TOP_MARGIN - 4)) / PILOT_ROW_HEIGHT;
-            selectedPilotIdx = column * PILOTS_PER_COLUMN + row;
-            if (selectedPilotIdx != prevIdx) {
-                xPos = (prevIdx < PILOTS_PER_COLUMN) ? PILOT_COL_LEFT : PILOT_COL_RIGHT;
-                yPos = ((prevIdx & (PILOTS_PER_COLUMN - 1)) * PILOT_ROW_HEIGHT) +
-                       PILOT_TOP_MARGIN;
-                gfx_switchColor(screenBuf, xPos, yPos,
-                                xPos + PILOT_ENTRY_WIDTH, yPos + PILOT_NAME_HEIGHT,
-                                COLOR_WHITE, COLOR_LIGHTGRAY);
-                xPos = (selectedPilotIdx < PILOTS_PER_COLUMN) ?
-                       PILOT_COL_LEFT : PILOT_COL_RIGHT;
-                yPos = ((selectedPilotIdx & (PILOTS_PER_COLUMN - 1)) *
-                        PILOT_ROW_HEIGHT) + PILOT_TOP_MARGIN;
-                gfx_switchColor(screenBuf, xPos, yPos,
-                                xPos + PILOT_ENTRY_WIDTH, yPos + PILOT_NAME_HEIGHT,
-                                COLOR_LIGHTGRAY, COLOR_WHITE);
-            }
-            /*
-             * First click highlights the pilot; clicking the same slot again
-             * confirms it without changing the existing keyboard behavior.
-             */
-            if (pointerSelection != selectedPilotIdx) {
-                pointerSelection = selectedPilotIdx;
-                continue;
-            }
-            action = KEYCODE_ENTER;
-        } else {
-            pointerSelection = -1;
-        }
+        action = menu_pilotPointerInput(pollMenuInput(), &pointerSelection);
+        if (!action) continue;
         switch (action) {
         case KEYCODE_ENTER:
             if ((hallfameBuf[selectedPilotIdx].medals & 0x60) == 0) {

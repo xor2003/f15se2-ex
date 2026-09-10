@@ -112,6 +112,7 @@ set(F15SE2_SOURCES
     ${SRC_DIR}/log.c
     ${SRC_DIR}/gfx_impl.c
     ${SRC_DIR}/joystick.c
+    ${SRC_DIR}/menu_pointer.c
     ${SRC_DIR}/hdsprite.c
 
     # start
@@ -460,9 +461,16 @@ add_behavior_test(original_behavior_tests LINK_CORE)
 add_behavior_test(utility_behavior_tests LINK_CORE)
 add_behavior_test(end_runtime_behavior_tests LINK_CORE)
 add_behavior_test(geometry_behavior_tests LINK_CORE)
+add_behavior_test(signed_ratio_behavior_tests LINK_CORE SOURCES ${SRC_DIR}/egflight.c)
+# Compile the real attitude helper with ARM-like char signedness on desktop CI.
+target_compile_options(signed_ratio_behavior_tests PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-funsigned-char>
+    $<$<CXX_COMPILER_ID:MSVC>:/J>)
 add_behavior_test(file_io_behavior_tests LINK_CORE)
 add_behavior_test(gameplay_behavior_tests LINK_CORE)
 add_behavior_test(input_behavior_tests LINK_CORE)
+add_behavior_test(menu_pointer_behavior_tests LINK_CORE)
+set_tests_properties(menu_pointer_behavior_tests PROPERTIES TIMEOUT 20)
 add_behavior_test(gfx_render_behavior_tests LINK_CORE)
 add_behavior_test(view_behavior_tests LINK_CORE)
 add_behavior_test(egsys_internal_behavior_tests LINK_CORE)

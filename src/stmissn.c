@@ -16,7 +16,7 @@
 #include "stsprit.h"
 #include "sttypes.h"
 #include "hdsprite.h"
-#include "input.h"
+#include "menu_pointer.h"
 #include "r2d.h"
 
 #include <stdio.h>
@@ -243,7 +243,6 @@ selectTheater:
 
 int missionMenuSelect(const char **names, const char **desc, const char *title, int selection) {
     int yPos, row, action;
-    int pointerX = 0, pointerY = 0;
     int pointerSelection = -1;
     enableHighlight = 1;
     page1Desc.color = COLOR_BLUE;
@@ -269,31 +268,8 @@ int missionMenuSelect(const char **names, const char **desc, const char *title, 
     }
     do {
     again:
-        action = pollMenuInput();
-        if (action == INPUT_KEY_MENU_POINTER) {
-            if (!input_takeMenuPointer(&pointerX, &pointerY) ||
-                pointerX < 105 || pointerX >= SCREEN_WIDTH ||
-                pointerY < 24 || pointerY >= 24 + 5 * 21)
-                goto again;
-            row = (pointerY - 24) / 21;
-            if (scenarioFoundArr[row] != 0) goto again;
-            if (row != selection) {
-                timerCounter3 = 6;
-                animateArm(selection, row);
-                selection = row;
-            }
-            /*
-             * First click shows the pending choice with the existing arm;
-             * a second click on the same row confirms it like Enter.
-             */
-            if (pointerSelection != row) {
-                pointerSelection = row;
-                goto again;
-            }
-            action = KEYCODE_ENTER;
-        } else {
-            pointerSelection = -1;
-        }
+        action = menu_missionPointerInput(pollMenuInput(), &selection, &pointerSelection);
+        if (!action) goto again;
         if (action != KEYCODE_ENTER) {
             if (action == KEYCODE_UPARROW) {
                 if (selection > 0) {
