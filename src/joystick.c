@@ -349,43 +349,10 @@ void joy_resetFlightInput(void) {
  * flight loop deliberately flushes that ring after reading its first key. */
 Uint16 joy_flightCommand(int selectedWeapon, int viewMode) {
     if (!g_joy || !input_hasFocus()) return 0;
-    if (g_rawPending[RAW_COUNTERMEASURE]) {
-        g_rawPending[RAW_COUNTERMEASURE] = false;
-        const Uint16 command = g_nextFlare ? SCAN_F : SCAN_C;
-        g_nextFlare = !g_nextFlare;
-        return command;
-    }
-    if (g_rawPending[RAW_WEAPON]) {
-        g_rawPending[RAW_WEAPON] = false;
-        return selectedWeapon == 0 ? SCAN_M : selectedWeapon == 1 ? SCAN_G : SCAN_S;
-    }
-    if (g_rawPending[RAW_GEAR]) {
-        g_rawPending[RAW_GEAR] = false;
-        return SCAN_L;
-    }
-    if (g_rawPending[RAW_AUTOPILOT]) {
-        g_rawPending[RAW_AUTOPILOT] = false;
-        return SCAN_P;
-    }
-    if (g_rawPending[RAW_TARGET]) {
-        g_rawPending[RAW_TARGET] = false;
-        return SCAN_T;
-    }
-    if (g_rawPending[RAW_VIEW]) {
-        g_rawPending[RAW_VIEW] = false;
-        /* Follow actual camera state, including changes made with the keyboard.
-         * Target/missile views return to the cockpit rather than losing sync. */
-        switch (viewMode) {
-        case VIEW_COCKPIT: return SCAN_F5;
-        case VIEW_EXT_FOLLOW: return SCAN_F6;
-        case VIEW_EXT_DYNAMIC: return SCAN_F7;
-        default: return SCAN_SPACEBAR;
-        }
-    }
-    for (int action = RAW_CHAFF; action < RAW_PITCH_DOWN; ++action) {
+    for (int action = RAW_COUNTERMEASURE; action < RAW_PITCH_DOWN; ++action) {
         if (g_rawPending[action]) {
             g_rawPending[action] = false;
-            return controls_command((RawAction)action, selectedWeapon, viewMode);
+            return controls_command((RawAction)action, selectedWeapon, viewMode, &g_nextFlare);
         }
     }
     const Uint64 now = SDL_GetTicks();

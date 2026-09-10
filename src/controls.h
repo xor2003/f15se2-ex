@@ -15,7 +15,8 @@ struct ControlAction {
     int x, y;
 };
 const ControlAction &controls_action(RawAction action);
-Uint16 controls_command(RawAction action, int weapon, int view);
+/* Supply device-local state to preserve independent countermeasure sequences. */
+Uint16 controls_command(RawAction action, int weapon, int view, bool *nextFlare = nullptr);
 void controls_resetKeyboard(void);
 bool controls_bindKey(RawAction action, SDL_Scancode key, SDL_Keymod modifiers);
 std::string controls_keyName(RawAction action);

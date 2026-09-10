@@ -3,8 +3,7 @@
 #include "egkeys.h"
 #include "egtypes.h"
 #include "egdata.h"
-#include "input.h"
-#include <fstream>
+#include "controls_mapping.h"
 
 static const ControlAction actions[RAW_ACTION_COUNT] = {
     {"cannon", "Fire cannon", SDL_SCANCODE_BACKSPACE, SDL_KMOD_NONE, SCAN_BACKSPACE, 0, 0},
@@ -74,8 +73,7 @@ static const ControlAction actions[RAW_ACTION_COUNT] = {
     {"kp_down_right", "Pitch up + right", SDL_SCANCODE_KP_3, SDL_KMOD_NONE, 0, 1, 1}
 };
 
-struct Binding { SDL_Scancode key; SDL_Keymod mod; };
-static Binding bindings[RAW_ACTION_COUNT] = {};
+static ControlBinding bindings[RAW_ACTION_COUNT] = {};
 static bool initialized = false;
 static int capture = -1;
 static bool nextFlare = false;
@@ -111,10 +109,12 @@ void controls_resetKeyboard(void) {
 const ControlAction &controls_action(RawAction action) { return actions[action]; }
 
 /* Only the two cycle actions depend on current game state. */
-Uint16 controls_command(RawAction action, int weapon, int view) {
+Uint16 controls_command(RawAction action, int weapon, int view, bool *countermeasureState) {
     if (action == RAW_COUNTERMEASURE) {
-        nextFlare = !nextFlare;
-        return nextFlare ? SCAN_C : SCAN_F;
+        bool &state = countermeasureState ? *countermeasureState : nextFlare;
+        const Uint16 command = state ? SCAN_F : SCAN_C;
+        state = !state;
+        return command;
     }
     if (action == RAW_WEAPON) return weapon == 0 ? SCAN_M : weapon == 1 ? SCAN_G : SCAN_S;
     if (action == RAW_VIEW) {
@@ -142,7 +142,7 @@ bool controls_bindKey(RawAction action, SDL_Scancode key, SDL_Keymod mod) {
 /* Render physical key names with normalized modifiers, independent of layout. */
 std::string controls_keyName(RawAction action) {
     if (!initialized) controls_resetKeyboard();
-    const Binding b = bindings[action];
+    const ControlBinding b = bindings[action];
     if (!b.key) return "-";
     return std::string(b.mod & SDL_KMOD_ALT ? "Alt+" : "") +
            (b.mod & SDL_KMOD_CTRL ? "Ctrl+" : "") +
@@ -178,51 +178,24 @@ void controls_applyAxes(Uint8 *x, Uint8 *y, bool joystick) {
     }
 }
 
-/* Keyboard mappings are global; raw joystick profiles remain per device. */
-std::string controls_keyboardPath(void) {
-    const char *overrideDir = SDL_getenv("F15_JOY_CONFIG_DIR");
-    char *pref = overrideDir ? nullptr : SDL_GetPrefPath("f15se2-ex", "joystick");
-    const std::string directory = overrideDir ? overrideDir : pref ? pref : "";
-    SDL_free(pref);
-    if (directory.empty() || !SDL_CreateDirectory(directory.c_str())) return {};
-    return directory + "/keyboard.txt";
+/* Export a value snapshot; persistence never accesses live arrays directly. */
+ControlBinding controls_keyboardBinding(RawAction action) {
+    if (!initialized) controls_resetKeyboard();
+    return bindings[action];
 }
 
-/* Parse atomically: invalid bindings never partially replace live controls. */
-bool controls_loadKeyboard(const std::string &path) {
-    std::ifstream file(path);
-    std::string name;
-    int version = 0;
-    Binding candidate[RAW_ACTION_COUNT] = {};
-    if (!(file >> name >> version) || name != "F15_KEYBOARD" || version != 1) return false;
+/* Reject a malformed profile as a unit, retaining current bindings on failure. */
+bool controls_replaceKeyboard(const ControlBinding *candidate) {
     for (int i = 0; i < RAW_ACTION_COUNT; ++i) {
-        int key = 0, mod = 0;
-        if (!(file >> name >> key >> mod) || name != actions[i].name ||
-            key < 0 || key >= SDL_SCANCODE_COUNT || mod < 0 || mod > 0xffff) return false;
-        const SDL_Scancode sc = (SDL_Scancode)key;
-        const SDL_Keymod km = (SDL_Keymod)mod;
-        if (!validKey(sc, km) || canonical(sc) != sc || modifiers(km) != km || (!key && mod)) return false;
-        candidate[i] = {sc, km};
+        const ControlBinding b = candidate[i];
+        if (!validKey(b.key, b.mod) || canonical(b.key) != b.key ||
+            modifiers(b.mod) != b.mod || (!b.key && b.mod)) return false;
         for (int j = 0; j < i; ++j)
-            if (key && candidate[j].key == sc && candidate[j].mod == km) return false;
+            if (b.key && candidate[j].key == b.key && candidate[j].mod == b.mod) return false;
     }
-    if (file >> name || !file.eof()) return false;
     for (int i = 0; i < RAW_ACTION_COUNT; ++i) bindings[i] = candidate[i];
     initialized = true;
     return true;
-}
-
-/* Replace the saved profile only after writing a complete temporary file. */
-bool controls_saveKeyboard(const std::string &path) {
-    if (!initialized) controls_resetKeyboard();
-    if (path.empty()) return false;
-    std::string data = "F15_KEYBOARD 1\n";
-    for (int i = 0; i < RAW_ACTION_COUNT; ++i)
-        data += std::string(actions[i].name) + " " + std::to_string(bindings[i].key) + " " + std::to_string(bindings[i].mod) + "\n";
-    const std::string temp = path + "." + std::to_string(SDL_GetPerformanceCounter()) + ".tmp";
-    const bool saved = SDL_SaveFile(temp.c_str(), data.data(), data.size()) && SDL_RenamePath(temp.c_str(), path.c_str());
-    if (!saved) SDL_RemovePath(temp.c_str());
-    return saved;
 }
 
 /* Capture uses the existing event pump, never a competing SDL event loop. */
