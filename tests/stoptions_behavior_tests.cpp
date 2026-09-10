@@ -109,12 +109,24 @@ int main() {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
         pushMouseClick(mouseWindow, 300.0f, 140.0f);
         std::this_thread::sleep_for(std::chrono::milliseconds(5));
-        pushKey(SDL_SCANCODE_ESCAPE);
+        pushMouseClick(mouseWindow, 320.0f, 248.0f);
     });
     stOptionsShow("MOUSE PILOT");
     mouseInput.join();
     require(gameOptionsEnabled(GAME_OPTION_INFINITE_WEAPONS),
             "clicking an option row toggles it");
+    input_ringReset();
+    std::thread touchInput([mouseWindow] {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        SDL_Event event = {};
+        event.type = SDL_EVENT_FINGER_DOWN;
+        event.tfinger.windowID = SDL_GetWindowID(mouseWindow);
+        event.tfinger.x = 0.5f;
+        event.tfinger.y = 124.0f / 200.0f;
+        SDL_PushEvent(&event);
+    });
+    stOptionsShow("TOUCH PILOT");
+    touchInput.join();
     SDL_DestroyWindow(mouseWindow);
 
     gfx_videoShutdown();

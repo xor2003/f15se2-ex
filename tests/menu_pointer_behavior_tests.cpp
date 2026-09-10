@@ -41,6 +41,8 @@ int main() {
             "first click selects without confirmation");
     require(selectedPilotIdx == PILOTS_PER_COLUMN && pending == selectedPilotIdx,
             "right column selects matching pilot");
+    require(menu_pilotPointerInput(INPUT_MENU_MOUSE_CLICK, &pending) == INPUT_MENU_MOUSE_CLICK &&
+            pending == selectedPilotIdx, "touch down preserves pilot confirmation before release");
     require(menu_pilotPointerInput(click(PILOT_COL_RIGHT, top), &pending) == KEYCODE_ENTER,
             "second click confirms pilot");
     require(menu_pilotPointerInput(KEYCODE_UPARROW, &pending) == KEYCODE_UPARROW && pending == -1,
@@ -62,6 +64,8 @@ int main() {
     scenarioFoundArr[1] = 1;
     require(menu_missionPointerInput(click(105, 24), &selection, &pending) == 0 && pending == 0,
             "mission first click selects");
+    require(menu_missionPointerInput(INPUT_MENU_MOUSE_CLICK, &selection, &pending) == INPUT_MENU_MOUSE_CLICK &&
+            pending == 0, "touch down preserves mission confirmation before release");
     require(menu_missionPointerInput(click(105, 24), &selection, &pending) == KEYCODE_ENTER,
             "mission second click confirms");
     require(menu_missionPointerInput(KEYCODE_DNARROW, &selection, &pending) == KEYCODE_DNARROW && pending == -1,

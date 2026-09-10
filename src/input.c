@@ -122,6 +122,10 @@ static int ringHead = 0, ringTail = 0;
 static void ringPush(uint16 word) {
     int next = (ringTail + 1) % KEY_RING;
     if (next == ringHead) return; /* full: drop, as the BIOS buffer would */
+    if (word == INPUT_MENU_MOUSE_CLICK) {
+        pointerX[ringTail] = g_menuClickX;
+        pointerY[ringTail] = g_menuClickY;
+    }
     keyRing[ringTail] = word;
     ringTail = next;
 }
@@ -189,6 +193,11 @@ uint16 input_readKey(void) {
         input_pumpEvents();
     }
     word = keyRing[ringHead];
+    g_menuClickPending = word == INPUT_MENU_MOUSE_CLICK;
+    if (g_menuClickPending) {
+        g_menuClickX = pointerX[ringHead];
+        g_menuClickY = pointerY[ringHead];
+    }
     pointerPending = word == INPUT_KEY_MENU_POINTER;
     if (pointerPending) {
         currentPointerX = pointerX[ringHead];

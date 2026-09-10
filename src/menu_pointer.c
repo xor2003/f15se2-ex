@@ -30,6 +30,9 @@ static void highlightPilot(int index, int from, int to) {
 /* First click selects; a second on that slot confirms. A keyboard action
  * cancels the pending click so mixed input cannot accidentally confirm. */
 int menu_pilotPointerInput(int action, int *pending) {
+    /* Options handle presses; roster confirmation handles releases. A press
+     * between two releases is not a keyboard change of selection. */
+    if (action == INPUT_MENU_MOUSE_CLICK) return action;
     if (action != INPUT_KEY_MENU_POINTER) { *pending = -1; return action; }
     int x = 0, y = 0;
     if (!input_takeMenuPointer(&x, &y)) return 0;
@@ -52,6 +55,7 @@ int menu_pilotPointerInput(int action, int *pending) {
 /* Ignore disabled rows. Selection moves the original arm; confirmation still
  * passes through missionMenuSelect's normal acceptance and exit animation. */
 int menu_missionPointerInput(int action, int *selection, int *pending) {
+    if (action == INPUT_MENU_MOUSE_CLICK) return action;
     if (action != INPUT_KEY_MENU_POINTER) { *pending = -1; return action; }
     int x = 0, y = 0;
     if (!input_takeMenuPointer(&x, &y) ||

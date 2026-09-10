@@ -38,7 +38,12 @@ enum {
     SELECTION_X = 55,
     LABEL_X = 67,
     VALUE_X = 238,
-    HELP_Y = 143
+    HELP_Y = 143,
+    CLOSE_LEFT = 120,
+    CLOSE_RIGHT = 200,
+    CLOSE_TOP = 118,
+    CLOSE_BOTTOM = 136,
+    CLOSE_TEXT_Y = 124
 };
 
 static const char *const g_optionLabels[GAME_OPTION_COUNT] = {
@@ -114,6 +119,12 @@ static void drawOptionsPanel(const char *pilotName, int selected) {
         drawStringAt(screenBuf, enabled ? "ON" : "OFF", VALUE_X, y);
     }
 
+    screenBuf[2] = COLOR_WHITE;
+    drawLine(screenBuf, CLOSE_LEFT, CLOSE_TOP, CLOSE_RIGHT, CLOSE_TOP, COLOR_LIGHTGRAY);
+    drawLine(screenBuf, CLOSE_RIGHT, CLOSE_TOP, CLOSE_RIGHT, CLOSE_BOTTOM, COLOR_LIGHTGRAY);
+    drawLine(screenBuf, CLOSE_RIGHT, CLOSE_BOTTOM, CLOSE_LEFT, CLOSE_BOTTOM, COLOR_LIGHTGRAY);
+    drawLine(screenBuf, CLOSE_LEFT, CLOSE_BOTTOM, CLOSE_LEFT, CLOSE_TOP, COLOR_LIGHTGRAY);
+    drawStringCentered(screenBuf, "CLOSE", CLOSE_LEFT, CLOSE_TEXT_Y, CLOSE_RIGHT);
     screenBuf[2] = COLOR_LIGHTGRAY;
     drawStringCentered(screenBuf, "ARROWS SELECT  SPACE/CLICK TOGGLE  ESC CLOSE",
                        PANEL_LEFT, HELP_Y, PANEL_RIGHT);
@@ -181,7 +192,9 @@ void stOptionsShow(const char *pilotName) {
             int x = 0;
             int y = 0;
             if (!input_takeMenuClick(&x, &y)) continue;
-            if (stOptionsGearHit(x, y)) {
+            const bool closeHit = x >= CLOSE_LEFT && x <= CLOSE_RIGHT &&
+                                  y >= CLOSE_TOP && y <= CLOSE_BOTTOM;
+            if (stOptionsGearHit(x, y) || closeHit) {
                 done = 1;
                 break;
             }
