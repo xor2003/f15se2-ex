@@ -8,6 +8,8 @@
 #include "egdata.h"
 #include "inttype.h"
 #include "gfx.h"
+#include "log.h"
+#include <SDL3/SDL.h> /* SDL_getenv for F15_FRAME_STATS */
 
 /* per-frame work reconstructed in their own TUs (egflight/egtacmap/egframe),
  * not surfaced in a header; declared here for the game loop below. */
@@ -339,6 +341,15 @@ void gameMainLoop(void) {
     uint64 prevNs = timerNowNs();
     int steps;
 
+    /* Opt-in per-frame timing (F15_FRAME_STATS=1; same flag as the present split
+     * in gfx_impl.c). Buckets the three per-frame stages — sim step(s), 3D+HUD
+     * render, and present (gfx_dacAnimate) — accumulated over a batch and logged
+     * once, so one hardware run shows where the fixed per-frame cost lives without
+     * per-frame file I/O skewing it. Deliberately verbose: correctness over speed. */
+    int frameStats = SDL_getenv("F15_FRAME_STATS") != NULL;
+    uint64 simSum = 0, renderSum = 0, presentSum = 0, batchStart = timerNowNs();
+    int statN = 0, stepSum = 0;
+
     camCapture(&camNext);
     camPrev = camNext; /* first frame renders the spawn state, no interpolation */
     objCapture(simNext, projNext);
@@ -350,6 +361,7 @@ void gameMainLoop(void) {
         prevNs = nowNs;
         timerPump(); /* advance the 60 Hz tick counters + per-tick / colour-cycle hook */
 
+        uint64 tSim0 = frameStats ? timerNowNs() : 0;
         steps = 0;
         while (accumNs >= simStepNs) {
             accumNs -= simStepNs;
@@ -381,15 +393,39 @@ void gameMainLoop(void) {
          * and the moving objects. The director/target/crash views track an
          * object, but that object (and the player coords they bear against) are
          * now interpolated too, so the whole view stays coherent and smooth. */
+        uint64 tRender0 = frameStats ? timerNowNs() : 0;
         camApplyInterp(&camPrev, &camNext, (int64)accumNs, (int64)simStepNs);
         objApplyInterp(simPrev, simNext, projPrev, projNext, (int64)accumNs, (int64)simStepNs);
         renderFrame();
         renderHudFrame(0);
         if (g_viewMode == VIEW_COCKPIT)
             drawInstrumentGaugesFar();
+        uint64 tPresent0 = frameStats ? timerNowNs() : 0;
         gfx_dacAnimate();
         camRestore(&camNext); /* restore authoritative sim state for the next step */
         objRestore(simNext, projNext);
+
+        if (frameStats) {
+            uint64 tEnd = timerNowNs();
+            simSum += tRender0 - tSim0;
+            renderSum += tPresent0 - tRender0;
+            presentSum += tEnd - tPresent0;
+            stepSum += steps;
+            if (++statN >= 60) {
+                uint64 span = tEnd - batchStart;
+                LogInfo(("frame-stats: %d frames %llu ms (%llu fps), sim avg %llu us "
+                         "(%d steps), render avg %llu us, present avg %llu us",
+                         statN, (unsigned long long)(span / 1000000ULL),
+                         (unsigned long long)(statN * 1000000000ULL / span),
+                         (unsigned long long)(simSum / statN / 1000),
+                         stepSum,
+                         (unsigned long long)(renderSum / statN / 1000),
+                         (unsigned long long)(presentSum / statN / 1000)));
+                simSum = renderSum = presentSum = 0;
+                statN = stepSum = 0;
+                batchStart = timerNowNs();
+            }
+        }
     } while (g_missionEndedFlag[0] == 0);
 }
 
