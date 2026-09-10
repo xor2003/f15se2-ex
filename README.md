@@ -136,8 +136,6 @@ flight assignments. Pilot-name text entry still uses the keyboard.
 
 ## Completed improvements
 
-These are bugfixes and new features that were not part of the original game, and have been implemented in this project.
-
 1. The original was limited to 15 FPS with a convoluted time scale implementation to make sure the game engine kept up with rendering. This has been eliminated, with the game engine being decoupled from rendering, so now it plays much smoother. 
 1. Input loop has been upgraded to an SDL event pump which should make it deal with simultaneous inputs much bettern and improve general responsiveness.
 1. The game originally supported 4 levels of detail (`0-3`, switchable with `Alt-D`), with the highest one still suffering from limited draw distance. An additional level of detail (`4`) has been implemented with unlimited draw distance, and enabled by default.
@@ -174,8 +172,6 @@ These are things that are broken or missing from the original, and which we plan
 1. VR support. 😈
 
 ## Known bugs
-
-Problems with the game that were introduces by the port, and to the best of our knowledge are *not* present in the original.
 
 1. There seem to be some kind of gimbal lock problems with the input; pointing the plane straight up or straight down, then rolling 90 degrees to either side and pulling on the stick seems to have little to no effect.
 1. The bearing (`BRG`) value on the airborne target screen is broken, mostly stuck on one value even though target is visibly turning.
