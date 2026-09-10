@@ -14,9 +14,15 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define FONT_SLOT_COUNT 8
-#define FONT_FIRST_CODEPOINT 0x20
-#define FONT_GLYPH_COUNT 96
+enum {
+    FONT_SLOT_COUNT = 8,
+    FONT_FIRST_CODEPOINT = 0x20,
+    FONT_GLYPH_COUNT = 96,
+    FONT_ROW_BITS = 8,
+    ATLAS_COLUMNS = 16,
+    ATLAS_ROWS = FONT_GLYPH_COUNT / ATLAS_COLUMNS,
+    ATLAS_GAP_PIXELS = 1
+};
 
 typedef struct CachedFont {
     uint8_t *bitmaps;
@@ -77,9 +83,10 @@ static int parseBdf(const char *path, unsigned height,
             in_bitmap = 1;
             row = 0;
         } else if (strncmp(text, "ENDCHAR", 7) == 0) {
-            if (encoding >= FONT_FIRST_CODEPOINT
-                && encoding < FONT_FIRST_CODEPOINT + FONT_GLYPH_COUNT
-                && advance > 0 && advance <= 255 && row == height) {
+            const bool supportedCodepoint = encoding >= FONT_FIRST_CODEPOINT &&
+                encoding < FONT_FIRST_CODEPOINT + FONT_GLYPH_COUNT;
+            const bool completeGlyph = advance > 0 && advance <= UINT8_MAX && row == height;
+            if (supportedCodepoint && completeGlyph) {
                 const unsigned index =
                     (unsigned)(encoding - FONT_FIRST_CODEPOINT);
                 widths[index] = (uint8_t)advance;
@@ -90,7 +97,7 @@ static int parseBdf(const char *path, unsigned height,
             char *end = NULL;
             if (row >= height) goto fail;
             const unsigned long value = strtoul(text, &end, 16);
-            if (end == text || value > 255) goto fail;
+            if (end == text || value > UINT8_MAX) goto fail;
             while (isspace((unsigned char)*end)) ++end;
             if (*end != '\0') goto fail;
             if (encoding >= FONT_FIRST_CODEPOINT
@@ -124,7 +131,7 @@ fail:
 
 /* Interpret one atlas pixel as foreground using alpha and luminance. */
 static int pixelIsLit(SDL_Surface *surface, int x, int y) {
-    Uint8 r, g, b, a;
+    Uint8 r = 0, g = 0, b = 0, a = 0;
     if (!SDL_ReadSurfacePixel(surface, x, y, &r, &g, &b, &a)) return 0;
     return a != 0 && (r != 0 || g != 0 || b != 0);
 }
@@ -136,11 +143,11 @@ static int parsePng(const char *path, unsigned cell_width, unsigned height,
     SDL_Surface *surface = SDL_LoadPNG(path);
     uint8_t *bitmaps = NULL;
     uint8_t *widths = NULL;
-    const unsigned expected_width = 16 * (cell_width + 1) - 1;
-    const unsigned expected_height = 6 * (height + 1) - 1;
+    const unsigned expected_width = ATLAS_COLUMNS * (cell_width + ATLAS_GAP_PIXELS) - ATLAS_GAP_PIXELS;
+    const unsigned expected_height = ATLAS_ROWS * (height + ATLAS_GAP_PIXELS) - ATLAS_GAP_PIXELS;
 
     if (!surface) return 0;
-    if (cell_width == 0 || cell_width > 8 || height == 0
+    if (cell_width == 0 || cell_width > FONT_ROW_BITS || height == 0
         || surface->w < (int)expected_width
         || surface->h < (int)expected_height) {
         SDL_DestroySurface(surface);
@@ -153,8 +160,8 @@ static int parsePng(const char *path, unsigned cell_width, unsigned height,
     memcpy(widths, original_widths, FONT_GLYPH_COUNT);
 
     for (unsigned index = 0; index < FONT_GLYPH_COUNT; ++index) {
-        const unsigned x0 = (index % 16) * (cell_width + 1);
-        const unsigned y0 = (index / 16) * (height + 1);
+        const unsigned x0 = (index % ATLAS_COLUMNS) * (cell_width + ATLAS_GAP_PIXELS);
+        const unsigned y0 = (index / ATLAS_COLUMNS) * (height + ATLAS_GAP_PIXELS);
         for (unsigned y = 0; y < height; ++y) {
             uint8_t bits = 0;
             for (unsigned x = 0; x < cell_width; ++x) {
@@ -185,7 +192,7 @@ int bitmapFontReplacementGet(unsigned font_id, unsigned cell_width,
     char path[1024]{};
 
     if (!result || !original_widths || font_id >= FONT_SLOT_COUNT
-        || cell_width == 0 || cell_width > 8 || height == 0) {
+        || cell_width == 0 || cell_width > FONT_ROW_BITS || height == 0) {
         return 0;
     }
     result->bitmaps = NULL;
