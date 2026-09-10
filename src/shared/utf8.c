@@ -3,7 +3,7 @@
  */
 #include "utf8.h"
 
-/* Decode one UTF-8 codepoint, replacing malformed input without reading past the terminator. */
+/* Decode one codepoint; reject malformed input without reading past the terminator. */
 int utf8DecodeCodepoint(const char *text, uint32_t *codepoint,
                         size_t *byte_count) {
     const unsigned char *bytes = (const unsigned char *)text;
@@ -34,11 +34,12 @@ int utf8DecodeCodepoint(const char *text, uint32_t *codepoint,
         if (bytes[index] == 0 || (bytes[index] & 0xc0) != 0x80) return 0;
         value = (value << 6) | (bytes[index] & 0x3f);
     }
-    if ((length == 2 && value < 0x80) ||
+    const bool overlongEncoding = (length == 2 && value < 0x80) ||
         (length == 3 && value < 0x800) ||
-        (length == 4 && value < 0x10000) ||
-        value > 0x10ffff ||
-        (value >= 0xd800 && value <= 0xdfff)) {
+        (length == 4 && value < 0x10000);
+    const bool surrogate = value >= 0xd800 && value <= 0xdfff;
+    const bool outsideUnicode = value > 0x10ffff;
+    if (overlongEncoding || surrogate || outsideUnicode) {
         return 0;
     }
 

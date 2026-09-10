@@ -1,14 +1,21 @@
+enum {
+    TTF_FONT_SLOT_COUNT = 8,
+    TTF_MAX_OVERLAY_RECORDS = 512,
+    TTF_MAX_LINE_GLYPHS = 256,
+    TTF_SCREEN_CHANGE_AREA_PIXELS = 12000
+};
+
 #ifdef F15_HAVE_FREETYPE
 static FT_Library g_freetypeLibrary = NULL;
-static FT_Face g_fontReplacementTtfFaces[8] = {NULL};
-static char *g_fontReplacementTtfPaths[8] = {NULL};
+static FT_Face g_fontReplacementTtfFaces[TTF_FONT_SLOT_COUNT] = {NULL};
+static char *g_fontReplacementTtfPaths[TTF_FONT_SLOT_COUNT] = {NULL};
 typedef struct TtfTextOverlayRecord {
     char *text;
     int x, y, color;
     uint16 fontIdx;
     int clipL, clipR, clipT, clipB;
 } TtfTextOverlayRecord;
-static TtfTextOverlayRecord g_ttfTextOverlayRecords[512]{};
+static TtfTextOverlayRecord g_ttfTextOverlayRecords[TTF_MAX_OVERLAY_RECORDS]{};
 static int g_ttfTextOverlayCount{};
 static void clearTtfTextOverlayRecords(void);
 #endif
@@ -16,7 +23,7 @@ static void clearTtfTextOverlayRecords(void);
 
 /* Release one FreeType face and clear its replacement-font cache entry. */
 static void freeReplacementFont(uint16 fontIdx) {
-    if (fontIdx >= 8) return;
+    if (fontIdx >= TTF_FONT_SLOT_COUNT) return;
 #ifdef F15_HAVE_FREETYPE
     if (g_fontReplacementTtfFaces[fontIdx]) {
         FT_Done_Face(g_fontReplacementTtfFaces[fontIdx]);
@@ -32,7 +39,7 @@ static void cleanupReplacementFonts(void) {
 #ifdef F15_HAVE_FREETYPE
     int i{};
     clearTtfTextOverlayRecords();
-    for (i = 0; i < 8; i++) freeReplacementFont((uint16)i);
+    for (i = 0; i < TTF_FONT_SLOT_COUNT; i++) freeReplacementFont((uint16)i);
     if (g_freetypeLibrary) {
         FT_Done_FreeType(g_freetypeLibrary);
         g_freetypeLibrary = NULL;
@@ -80,7 +87,7 @@ static int ttfOverlayRectIsScreenChange(int x1, int y1, int x2, int y2) {
     }
     w = x2 - x1 + 1;
     h = y2 - y1 + 1;
-    return w > 0 && h > 0 && w * h >= 12000;
+    return w > 0 && h > 0 && w * h >= TTF_SCREEN_CHANGE_AREA_PIXELS;
 }
 
 /* Return the logical width occupied by one retained vector-text record. */
@@ -179,8 +186,9 @@ static void switchTtfTextOverlayColorRect(int x1, int y1, int x2, int y2, int ol
         int ry1 = record->y;
         int rx2 = record->x + ttfTextOverlayRecordWidth(record) - 1;
         int ry2 = record->y + g_fontHeightsArr[record->fontIdx] - 1;
-        if ((record->color & 0xff) == (oldColor & 0xff) &&
-            rx2 >= x1 && rx1 <= x2 && ry2 >= y1 && ry1 <= y2) {
+        const bool matchesColor = (record->color & 0xff) == (oldColor & 0xff);
+        const bool overlapsUpdate = rx2 >= x1 && rx1 <= x2 && ry2 >= y1 && ry1 <= y2;
+        if (matchesColor && overlapsUpdate) {
             record->color = newColor;
         }
     }
@@ -218,7 +226,7 @@ static uint8 freetypeBitmapPixel(const FT_Bitmap *bitmap, int x, int y) {
 /* Choose a vector-font pixel size that matches the legacy font slot metrics. */
 static int replacementTtfPixelSize(uint16 fontIdx) {
     int h{};
-    if (fontIdx >= 8) return 8;
+    if (fontIdx >= TTF_FONT_SLOT_COUNT) return 8;
     h = g_fontHeightsArr[fontIdx];
     /* Replacement TTF text must occupy the same screen footprint as the original
      * bitmap fonts. FreeType still supplies shape/coverage, but layout remains
@@ -230,7 +238,7 @@ static int replacementTtfPixelSize(uint16 fontIdx) {
 static int replacementTtfUnicodeAdvance(uint16 fontIdx) {
     const uint8 *widths{};
     int idx{};
-    if (fontIdx >= 8) return 8;
+    if (fontIdx >= TTF_FONT_SLOT_COUNT) return 8;
     widths = g_fontWidthTables[fontIdx];
     if (widths) {
         idx = 'n' - 0x20;
@@ -243,7 +251,7 @@ static int replacementTtfUnicodeAdvance(uint16 fontIdx) {
 static int replacementTtfAdvance(uint16 fontIdx, uint32 codepoint) {
     FT_Face face{};
     int advance{};
-    if (fontIdx >= 8 || !g_fontReplacementTtfFaces[fontIdx]) return 8;
+    if (fontIdx >= TTF_FONT_SLOT_COUNT || !g_fontReplacementTtfFaces[fontIdx]) return 8;
     if (codepoint >= 0x20 && codepoint < 0x80 && g_fontWidthTables[fontIdx]) {
         return g_fontWidthTables[fontIdx][codepoint - 0x20];
     }
@@ -269,7 +277,7 @@ static void replacementTtfLayoutScale(uint16 fontIdx, int pixelSize,
 
     *layoutScaleX = 1.0f;
     *layoutScaleY = 1.0f;
-    if (fontIdx >= 8 || !g_fontReplacementTtfFaces[fontIdx]) return;
+    if (fontIdx >= TTF_FONT_SLOT_COUNT || !g_fontReplacementTtfFaces[fontIdx]) return;
     face = g_fontReplacementTtfFaces[fontIdx];
     legacyWidths = g_fontWidthTables[fontIdx];
     if (!legacyWidths) return;
@@ -305,10 +313,10 @@ static int replacementTtfStringAdvance(uint16 fontIdx, const char *text) {
     int charIdx{};
     int drawnChars{};
 
-    if (!text || fontIdx >= 8 || !g_fontReplacementTtfFaces[fontIdx]) return 0;
+    if (!text || fontIdx >= TTF_FONT_SLOT_COUNT || !g_fontReplacementTtfFaces[fontIdx]) return 0;
     if (fontIdx == 0) {
         int width = 0;
-        for (charIdx = 0, drawnChars = 0; text[charIdx] != 0 && drawnChars < 256;) {
+        for (charIdx = 0, drawnChars = 0; text[charIdx] != 0 && drawnChars < TTF_MAX_LINE_GLYPHS;) {
             uint32 codepoint{};
             uint8 ch = (uint8)text[charIdx];
             int byteCount = 1;
@@ -332,7 +340,7 @@ static int replacementTtfStringAdvance(uint16 fontIdx, const char *text) {
     (void)layoutScaleY;
     if (FT_Set_Pixel_Sizes(face, 0, (FT_UInt)replacementTtfPixelSize(fontIdx)) != 0) return 0;
 
-    for (charIdx = 0, drawnChars = 0; text[charIdx] != 0 && drawnChars < 256;) {
+    for (charIdx = 0, drawnChars = 0; text[charIdx] != 0 && drawnChars < TTF_MAX_LINE_GLYPHS;) {
         uint32 codepoint{};
         uint8 ch = (uint8)text[charIdx];
         int byteCount = 1;
@@ -369,7 +377,7 @@ static int loadReplacementFontTtf(uint16 fontIdx, const char *replacementPath) {
     int fontWidth{};
     int fontHeight{};
 
-    if (fontIdx >= 8 || !replacementPath) return 0;
+    if (fontIdx >= TTF_FONT_SLOT_COUNT || !replacementPath) return 0;
     fontWidth = g_fontMaxWidths[fontIdx];
     fontHeight = g_fontHeightsArr[fontIdx];
     if (fontWidth <= 0 || fontWidth > 8 || fontHeight <= 0 || fontHeight > 32) return 0;
@@ -408,7 +416,7 @@ static int recordTtfTextOverlayAndAdvance(int16 *params, const char *string,
 
     if (!params || !string) return 0;
     fontIdx = (uint16)params[6] & 7;
-    if (fontIdx >= 8 || !g_fontReplacementTtfFaces[fontIdx]) return 0;
+    if (fontIdx >= TTF_FONT_SLOT_COUNT || !g_fontReplacementTtfFaces[fontIdx]) return 0;
     newX = (int)params[4];
     newY = (int)params[5];
     newWidth = replacementTtfStringAdvance(fontIdx, string);
@@ -417,10 +425,11 @@ static int recordTtfTextOverlayAndAdvance(int16 *params, const char *string,
     recordIndex = -1;
     for (i = g_ttfTextOverlayCount - 1; i >= 0; i--) {
         TtfTextOverlayRecord *candidate = &g_ttfTextOverlayRecords[i];
-        if (candidate->fontIdx == fontIdx &&
+        const bool sameFontAndClip = candidate->fontIdx == fontIdx &&
             candidate->clipL == clipL && candidate->clipR == clipR &&
-            candidate->clipT == clipT && candidate->clipB == clipB &&
-            candidate->x == newX && candidate->y == newY) {
+            candidate->clipT == clipT && candidate->clipB == clipB;
+        if (!sameFontAndClip) continue;
+        if (candidate->x == newX && candidate->y == newY) {
             recordIndex = i;
             continue;
         }
@@ -429,10 +438,7 @@ static int recordTtfTextOverlayAndAdvance(int16 *params, const char *string,
          * overlay on screen, because it was never baked into the page being
          * cleared. Treat near/overlapping same-font text in the same clip window
          * as a replacement candidate. */
-        if (candidate->fontIdx == fontIdx &&
-            candidate->clipL == clipL && candidate->clipR == clipR &&
-            candidate->clipT == clipT && candidate->clipB == clipB &&
-            ttfTextOverlaySameDynamicRow(candidate, newX, newY, newWidth, newHeight)) {
+        if (ttfTextOverlaySameDynamicRow(candidate, newX, newY, newWidth, newHeight)) {
             removeTtfTextOverlayRecord(i);
             if (recordIndex > i) recordIndex--;
         }
@@ -475,7 +481,7 @@ static int recordTtfTextOverlayAndAdvance(int16 *params, const char *string,
     record->clipB = clipB;
 
     color = record->color;
-    for (charIdx = 0, drawnChars = 0; string[charIdx] != 0 && drawnChars < 256;) {
+    for (charIdx = 0, drawnChars = 0; string[charIdx] != 0 && drawnChars < TTF_MAX_LINE_GLYPHS;) {
         uint32 codepoint{};
         uint8 ch = (uint8)string[charIdx];
         int byteCount = 1;
@@ -564,7 +570,7 @@ static void renderTtfTextOverlayRecord(const TtfTextOverlayRecord *record, R2DMa
     float layoutScaleY{};
     SDL_FRect clip{};
 
-    if (!record || !record->text || record->fontIdx >= 8 || !g_fontReplacementTtfFaces[record->fontIdx]) return;
+    if (!record || !record->text || record->fontIdx >= TTF_FONT_SLOT_COUNT || !g_fontReplacementTtfFaces[record->fontIdx]) return;
     face = g_fontReplacementTtfFaces[record->fontIdx];
     pixelSize = SDL_max(1, (int)((float)g_fontHeightsArr[record->fontIdx] * m->scaleY + 0.5f));
     if (FT_Set_Pixel_Sizes(face, 0, (FT_UInt)pixelSize) != 0) return;
@@ -593,7 +599,7 @@ static void renderTtfTextOverlayRecord(const TtfTextOverlayRecord *record, R2DMa
         if (clip.y + clip.h > maxBottom) clip.h = maxBottom - clip.y;
     }
 
-    for (charIdx = 0, drawnChars = 0; record->text[charIdx] != 0 && drawnChars < 256;) {
+    for (charIdx = 0, drawnChars = 0; record->text[charIdx] != 0 && drawnChars < TTF_MAX_LINE_GLYPHS;) {
         uint32 codepoint{};
         uint8 ch = (uint8)record->text[charIdx];
         int byteCount = 1;
@@ -729,7 +735,7 @@ static void tryLoadReplacementFont(uint16 fontIdx) {
     char path[512]{};
     int vectorFontPresent = 0;
 
-    if (fontIdx >= 8 || g_fontReplacementTried[fontIdx]) return;
+    if (fontIdx >= TTF_FONT_SLOT_COUNT || g_fontReplacementTried[fontIdx]) return;
     g_fontReplacementTried[fontIdx] = 1;
 #ifdef F15_HAVE_FREETYPE
     if (findReplacementVectorFont(fontIdx, "ttf", path, sizeof(path))) {
