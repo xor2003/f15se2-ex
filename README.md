@@ -125,7 +125,7 @@ flight assignments. Pilot-name text entry still uses the keyboard.
 
 ## Completed improvements
 
-These are bugfixes and new features that were not part of the original game, and implemented by this project.
+These are bugfixes and new features that were not part of the original game, and have been implemented in this project.
 
 1. The original was limited to 15 FPS with a convoluted time scale implementation to make sure the game engine kept up with rendering. This has been eliminated, with the game engine being decoupled from rendering, so now it plays much smoother. 
 1. Input loop has been upgraded to an SDL event pump which should make it deal with simultaneous inputs much bettern and improve general responsiveness.
@@ -141,6 +141,8 @@ These are bugfixes and new features that were not part of the original game, and
 
 ## Planned improvements
 
+These are things that are broken or missing from the original, and which we plan to implement some day. Essentially a wishlist.
+
 1. Make the missiles more difficult to evade, as it's currently trivial (just beam them, i.e. put them on approx 90deg angle to the plane). Implement quasi-realistic missile energy management with self propelled/ballistic stages and gradual reduction in maneuverability. Denser air at lower altitudes should influence missile drag. Terrain masking should make missiles lose track.
 1. Countermeasures (chaff/flare) are too effective (100%) against missiles. Take missile aspect into account, e.g. chaff should not do much for a missile coming straight on, and flares should be less effective against a heat seeker missile coming from the rear.
 1. Make enemy plane AI more capable, right now planes are barely a nuisance, slow, barely maneuvering, will rarely shoot missiles, not sure getting hit by gunfire is even possible.
@@ -149,27 +151,26 @@ These are bugfixes and new features that were not part of the original game, and
 1. Make the target view in the right display show the actual view of the target from the player's perspective, right now it's just drawn on top of fake ground and sky.
 1. In-game menu for configuration (keyboard/joystick binds, video resolution, turn engine sounds on and off, ...)
 1. Better damage model for player aircraft, currently being hit by a missile only results in a small drop of maximum RPM. Simulate full/partial loss of stability, broken systems, weapons, hydraulics etc., up to instant destruction.
-1. Better clouds and smoke effects, right now these are solid polygons in mid air.
 1. More varied terrain and water, these are completely flat with occasional pyramids that are supposed to represent mountains. It can continue to be flat shaded/polygon based to not change the look of the game too much, but we definitely need more vertices and/or textures.
+1. Better clouds and smoke effects, right now these are solid polygons in mid air.
 1. Add more information (altitude/speed) to the target display MFD for airborne targets.
 1. Let player skip the ejection sequence and go straight to debriefing.
 1. It's sometimes impossible to lock some targets even when nearby, cycling targets just jumps over them.
 1. Implement a full 3D cockpit with 3DOF/6DOF head movement with the hat switch and/or TrackIR.
-1. Map and 3D model editors.
+1. Map and 3D model editors. (Some progress has been made but not complete)
 1. Multiplayer.
 1. Port the game back to 32bit DOS.
 1. VR support. 😈
 
 ## Known bugs
 
-Problems with the game that were introduces by the port, and to the best of our knowledge are not present in the original.
+Problems with the game that were introduces by the port, and to the best of our knowledge are *not* present in the original.
 
 1. There seem to be some kind of gimbal lock problems with the input; pointing the plane straight up or straight down, then rolling 90 degrees to either side and pulling on the stick seems to have little to no effect.
-1. In external views sometimes the view is upside down (seems like it depends on the position relative to the horizon?).
 1. The bearing (`BRG`) value on the airborne target screen is broken, mostly stuck on one value even though target is visibly turning.
-1. When starting a new mission after a previous one has been completed, the sound for the previous flight's landing ("Nice landing") is played. Sometimes the message "Weapons replenished" also appears. It seems not all state from the previous mission is properly cleaned.
 1. There's sometimes flickering beneath and above the left display (map) in the cockpit.
 1. Shaking in the cockpit after getting hit is too long.
+1. The font color at the bottom of the pilot select screen is sometimes wrong, should be red like the score text.
 1. When on the airfield/carrier, can see through to the ground on the sides of the view (exposed by widescreen support). Also, aircraft geometry sometimes flickers beneath the player.
 1. Some z-fighting still visible, e.g. on the underside of the player aircraft in external view.
 
@@ -219,9 +220,27 @@ To build on Windows using [llvm-mingw](https://github.com/mstorsjo/llvm-mingw), 
 }
 ```
 
-With this, I run `cmake --preset windows-clang` followed by `cmake --build build` to obtain `build/f15se2.exe`. 
+MSVC works too:
 
-Building with MSVC should also work.
+```
+    {
+      "name": "windows-msvc",
+      "inherits": "base-ninja",
+      "displayName": "Local Windows MSVC + SDL3",
+      "architecture": {
+        "value": "x64",
+        "strategy": "external"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_C_COMPILER": "cl",
+        "CMAKE_CXX_COMPILER": "cl",
+        "CMAKE_PREFIX_PATH": "D:/code/SDL3-3.4.16"
+      }
+    }
+```
+
+With this, I run e.g. `cmake --preset windows-clang` followed by `cmake --build build` to obtain `build/f15se2.exe`. 
 
 ## Running
 
@@ -237,10 +256,10 @@ Contributions to this project are very welcome. However, contributors are expect
 1. Even though this is already a different game than the reconstruction, we try to maintain some degree of compatibility. So, at least for the files which exist in both projects:
     1. Don't move routines around, keep the order as is.
     1. Don't refactor the code unless you are prepared to do it to the reconstruction also. This is actually encouraged, but make sure you plan for the extra work in such case.
-    1. If you have a good reason to break compatibility, do so in the possibly least intrusive way. For example, don't drop a huge change in the middle of a legacy routine, factor it out.
+    1. If you have a good reason to break compatibility, do so in the possibly least intrusive way. For example, don't add a huge block of code in the middle of a legacy routine, factor it out.
 1. We don't discourage the usage of LLMs. However, all PRs must be possible to be reviewed by a human and the resulting code needs to be maintainable. Some practical suggestions to that end:
     1. Take on one task at a time.
     1. Keep changes small-ish.
     1. Test every change.
-    1. Verify how the change was implemented.
+    1. Read the change and verify how it was implemented.
 1. Keep the game's spirit and style intact. This is subjective, and we can always discuss specific cases, but the game should remain identifiable as F15 SE2 despite the fresh coat of paint. Whenever a change is implemented that changes the look and feel significantly, try to have it behind a toggle which lets the user flip it on or off at will.
