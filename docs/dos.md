@@ -1,7 +1,6 @@
 # DOS preview
 
-This is a preview of the F-15 SE2 DOS port from upstream PR #27, with
-follow-up runtime fixes. It is not an official upstream release.
+32bit DOS port of F-15 SE2 Ex
 
 ## Run
 
@@ -31,10 +30,7 @@ c:
 F15SE2EX.EXE --game D:/
 ```
 
-Tested interactively in DOSBox 0.74-3 with Sound Blaster 16 and AdLib
-emulation. Physical DOS hardware has not been tested. This is a 32-bit DJGPP
-build; it needs a DPMI host and VGA/VESA graphics. Configure `BLASTER` for
-your Sound Blaster-compatible card on real hardware.
+This is a 32-bit DJGPP build; it needs a DPMI host and VGA/VESA graphics. Configure `BLASTER` for your Sound Blaster-compatible card on real hardware.
 
 ## Controls and audio
 
