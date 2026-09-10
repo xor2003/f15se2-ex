@@ -27,8 +27,10 @@ The manifest is under `android/app/src/main/`.
 
 Desktop retains the desktop GL implementation. Android builds `r3d_gles.c`,
 which reuses the renderer through `r3d_gles_compat` rather than duplicating scene
-decoding. Review the compatibility layer and the `R3D_GLES_BUILD` conditionals
-together: a successful compile does not establish rendering equivalence.
+decoding. Platform hooks in `r3d_gl_platform.h` and `r3d_gles_platform.h`
+isolate context setup, camera-view adjustment and sky transparency. Review them
+with the compatibility layer: a successful compile does not establish rendering
+equivalence.
 
 AR is enabled by default in this preview. It uses the camera behind the SDL
 surface and changes sky transparency. Making AR user-selectable is deferred;
@@ -50,6 +52,11 @@ flight. Do not treat the large `egflight.c` change as mechanical platform glue.
 
 Android also changes initial assist/time-compression state through
 `F15_ANDROID_DEFAULT_ASSIST`. Desktop builds do not define that switch.
+
+`phoneControlsFlight()` gates all sensor flight overrides: sensors must be
+ready, autopilot must be off, and look mode must be off. Camera readiness is
+independent. Native angle limits are in radians; filter weights apply per
+update, not per second. The cleanup preserves their existing values.
 
 ### Asset import
 
@@ -78,15 +85,12 @@ These are unresolved, not silently accepted limitations:
 1. Import work is owned by each activity instance, while staging/backup paths are
    shared. Cancellation alone does not serialize old and new activity workers.
    Installation and recovery need a single owner or explicit serialization.
-2. Sensor flight control currently depends on camera readiness through
-   `android_ar_active()`. Camera failure should not implicitly determine whether
-   motion input is available.
-3. Android CI currently runs for the named development branches/manual dispatch,
+2. Android CI currently runs for the named development branches/manual dispatch,
    not as a `pull_request` build gate.
-4. Some control-path comments describe earlier implementations. In particular,
+3. Some control-path comments describe earlier implementations. In particular,
    touch is no longer a future feature, and the phone-controlled rotation path
    does not always call `computeAttitudeAngles()`.
-5. The target-attitude controller and GLES compatibility layer need targeted
+4. The target-attitude controller and GLES compatibility layer need targeted
    tests beyond desktop command-mapping tests and a successful APK build.
 
 Keep fixes to these items separate from formatting-only cleanup so reviewers can

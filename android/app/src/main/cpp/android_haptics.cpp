@@ -8,6 +8,7 @@
 
 extern "C" void android_haptics_playerDamage(void) {
 #if defined(__ANDROID__)
+    const jlong damagePulseMs = 80;
     JNIEnv *env = static_cast<JNIEnv *>(SDL_GetAndroidJNIEnv());
     jobject activity = static_cast<jobject>(SDL_GetAndroidActivity());
     if (env == nullptr || activity == nullptr) {
@@ -38,7 +39,7 @@ extern "C" void android_haptics_playerDamage(void) {
         : env->GetMethodID(vibratorClass, "vibrate", "(J)V");
 
     if (vibrate != nullptr) {
-        env->CallVoidMethod(vibrator, vibrate, static_cast<jlong>(80));
+        env->CallVoidMethod(vibrator, vibrate, damagePulseMs);
     }
 
     /*

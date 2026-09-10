@@ -1,13 +1,16 @@
 /*
- * Thread-safe bridge between the GLES render thread and Android's camera/sensor
- * view. The renderer publishes the game's pitch/roll; Java reads those values
- * while applying the real device attitude to the TextureView.
+ * Thread-safe bridge between the game and Android's camera/sensor view.
+ * Java publishes device attitude; the flight model publishes aircraft attitude.
+ * Camera preview geometry is independent of both.
  */
 #include "android_ar.h"
 
 #include <SDL3/SDL.h>
 #include <atomic>
 #include <jni.h>
+
+/* Legacy joystick bytes, not angles or normalized sensor coordinates. */
+enum { AXIS_CENTER = 128, AXIS_MIN = 38, AXIS_MAX = 218 };
 
 static std::atomic<int> g_cameraReady(0);
 static std::atomic<int> g_sensorReady(0);
@@ -36,8 +39,8 @@ static std::atomic<float> g_debugPitchRate(0.0f);
 static std::atomic<float> g_debugRollRate(0.0f);
 static std::atomic<float> g_debugPitchCommand(0.0f);
 static std::atomic<float> g_debugRollCommand(0.0f);
-static std::atomic<float> g_debugPitchAxis(0x80);
-static std::atomic<float> g_debugRollAxis(0x80);
+static std::atomic<float> g_debugPitchAxis(AXIS_CENTER);
+static std::atomic<float> g_debugRollAxis(AXIS_CENTER);
 static std::atomic<float> g_debugHeading(0.0f);
 static std::atomic<float> g_debugYaw(0.0f);
 static std::atomic<float> g_debugAppliedRoll(0.0f);
@@ -53,22 +56,19 @@ static float g_smoothFlightRoll = 0.0f;
 static float g_smoothFlightPitch = 0.0f;
 static float g_previousGameRoll = 0.0f;
 static float g_previousGamePitch = 0.0f;
+/* Angular differences per flight update, in radians; not radians per second. */
 static float g_gameRollRate = 0.0f;
 static float g_gamePitchRate = 0.0f;
 static float g_smoothLookPitch = 0.0f;
 static float g_smoothLookRoll = 0.0f;
 
 static const float PI = 3.14159265358979323846f;
-static const float FLIGHT_MAX_PITCH = 90.0f * PI / 180.0f;
-static const float FLIGHT_STICK_TILT = 40.0f * PI / 180.0f;
-/*
- * Leave enough slack around the requested attitude to avoid alternating
- * corrections as the flight model and phone sensor settle on opposite sides
- * of the target. The wider proportional range also makes the final approach
- * less abrupt without changing the requested attitude limits.
- */
-static const float LOOK_MAX_PITCH = 70.0f * PI / 180.0f;
-static const float STICK_DEFLECTION = 56.0f;
+static const float FLIGHT_MAX_PITCH_RADIANS = 90.0f * PI / 180.0f;
+static const float FLIGHT_STICK_TILT_RADIANS = 40.0f * PI / 180.0f;
+static const float LOOK_MAX_PITCH_RADIANS = 70.0f * PI / 180.0f;
+static const float STICK_DEFLECTION_AXIS_UNITS = 56.0f;
+static const float LOOK_FILTER_PER_UPDATE = 0.22f;
+static const float STICK_FILTER_PER_UPDATE = 0.16f;
 
 static float clampFloat(float value, float minimum, float maximum) {
     if (value < minimum) return minimum;
@@ -111,6 +111,12 @@ int android_ar_active(void) {
 /* Losing camera permission must not take away the player's flight controls. */
 int android_ar_controlsActive(void) {
     return g_sensorReady.load(std::memory_order_acquire);
+}
+
+static bool phoneControlsFlight(void) {
+    return android_ar_controlsActive() &&
+        !g_autopilotActive.load(std::memory_order_acquire) &&
+        !g_lookMode.load(std::memory_order_acquire);
 }
 
 /* Diagnostic AR flights may deliberately command extreme attitudes while
@@ -212,73 +218,60 @@ void android_ar_adjustView(int *yawAngle, int *pitchAngle, int *rollAngle) {
             g_deviceRollOffset.load(std::memory_order_relaxed),
             g_lookRollOrigin.load(std::memory_order_relaxed));
     }
-    targetPitch = clampFloat(targetPitch, -LOOK_MAX_PITCH, LOOK_MAX_PITCH);
+    targetPitch = clampFloat(targetPitch, -LOOK_MAX_PITCH_RADIANS, LOOK_MAX_PITCH_RADIANS);
 
     /* Smooth both entering and leaving look mode so the cockpit view does not snap. */
-    g_smoothLookPitch += (targetPitch - g_smoothLookPitch) * 0.22f;
-    g_smoothLookRoll += (targetRoll - g_smoothLookRoll) * 0.22f;
+    g_smoothLookPitch += (targetPitch - g_smoothLookPitch) * LOOK_FILTER_PER_UPDATE;
+    g_smoothLookRoll += (targetRoll - g_smoothLookRoll) * LOOK_FILTER_PER_UPDATE;
     *pitchAngle += (int)(g_smoothLookPitch * unitsPerRadian);
     *rollAngle += (int)(g_smoothLookRoll * unitsPerRadian);
 }
 
 void android_ar_getFlightAxes(uint8 *rollAxis, uint8 *pitchAxis) {
-    float deviceRoll;
-    float devicePitch;
-    float targetRoll;
-    float targetPitch;
-    float rollError;
-    float pitchError;
-    float rollCommand;
-    float pitchCommand;
-    int rollValue;
-    int pitchValue;
-    if (!rollAxis || !pitchAxis || !android_ar_controlsActive() ||
-        g_autopilotActive.load(std::memory_order_acquire) ||
-        g_lookMode.load(std::memory_order_acquire)) {
-        if (rollAxis) *rollAxis = 0x80;
-        if (pitchAxis) *pitchAxis = 0x80;
+    if (!rollAxis || !pitchAxis || !phoneControlsFlight()) {
+        if (rollAxis) *rollAxis = AXIS_CENTER;
+        if (pitchAxis) *pitchAxis = AXIS_CENTER;
         return;
     }
 
     /* Roll follows the complete sensor circle, allowing inverted flight and a
      * continuous full roll. Only pitch retains the conservative flight cap. */
-    deviceRoll = angleDifference(
+    const float deviceRoll = angleDifference(
         g_deviceRollOffset.load(std::memory_order_relaxed),
         g_flightRollCenter.load(std::memory_order_relaxed));
-    devicePitch = clampFloat(angleDifference(
+    const float devicePitch = clampFloat(angleDifference(
         g_devicePitchOffset.load(std::memory_order_relaxed),
         g_flightPitchCenter.load(std::memory_order_relaxed)),
-        -FLIGHT_MAX_PITCH, FLIGHT_MAX_PITCH);
+        -FLIGHT_MAX_PITCH_RADIANS, FLIGHT_MAX_PITCH_RADIANS);
 
-    targetRoll = g_flightGameRollCenter.load(std::memory_order_relaxed) +
+    const float targetRoll = g_flightGameRollCenter.load(std::memory_order_relaxed) +
                  deviceRoll;
     /* The screen top moving away is a negative aircraft pitch target. */
-    targetPitch = g_flightGamePitchCenter.load(std::memory_order_relaxed) -
+    const float targetPitch = g_flightGamePitchCenter.load(std::memory_order_relaxed) -
                   devicePitch;
-    rollError = angleDifference(
+    const float rollError = angleDifference(
         targetRoll, g_gameRoll.load(std::memory_order_relaxed));
-    pitchError = angleDifference(
+    const float pitchError = angleDifference(
         targetPitch, g_gamePitch.load(std::memory_order_relaxed));
     /*
      * The Android flight path applies target attitude directly. Drive the
      * cockpit stick marker from handset displacement instead of feeding back
      * decoded Euler-angle error, which can jump at a legacy matrix fold.
      */
-    rollCommand = clampFloat(deviceRoll / FLIGHT_STICK_TILT, -1.0f, 1.0f);
-    pitchCommand = -devicePitch / FLIGHT_MAX_PITCH;
+    const float rollCommand = clampFloat(deviceRoll / FLIGHT_STICK_TILT_RADIANS, -1.0f, 1.0f);
+    const float pitchCommand = -devicePitch / FLIGHT_MAX_PITCH_RADIANS;
     g_smoothFlightRoll +=
-        (rollCommand - g_smoothFlightRoll) * 0.16f;
+        (rollCommand - g_smoothFlightRoll) * STICK_FILTER_PER_UPDATE;
     g_smoothFlightPitch +=
-        (pitchCommand - g_smoothFlightPitch) * 0.16f;
+        (pitchCommand - g_smoothFlightPitch) * STICK_FILTER_PER_UPDATE;
     /*
-     * Keep the legacy stick indicator smooth. android_ar_overrideFlightInput()
-     * supplies the physics input directly because the original nibble-sized
-     * joystick conversion cannot represent the controller's small corrections.
+     * This byte-scaled input drives the stick indicator. Flight attitude is
+     * applied separately, bypassing the original coarse joystick conversion.
      */
-    rollValue = 0x80 + (int)(g_smoothFlightRoll * STICK_DEFLECTION);
-    pitchValue = 0x80 + (int)(g_smoothFlightPitch * STICK_DEFLECTION);
-    *rollAxis = (uint8)clampFloat((float)rollValue, 0x26, 0xda);
-    *pitchAxis = (uint8)clampFloat((float)pitchValue, 0x26, 0xda);
+    const int rollValue = AXIS_CENTER + (int)(g_smoothFlightRoll * STICK_DEFLECTION_AXIS_UNITS);
+    const int pitchValue = AXIS_CENTER + (int)(g_smoothFlightPitch * STICK_DEFLECTION_AXIS_UNITS);
+    *rollAxis = (uint8)clampFloat((float)rollValue, AXIS_MIN, AXIS_MAX);
+    *pitchAxis = (uint8)clampFloat((float)pitchValue, AXIS_MIN, AXIS_MAX);
 
     /*
      * Publish atomic diagnostic copies for Java's sensor thread. Keeping the
@@ -303,9 +296,7 @@ void android_ar_getFlightAxes(uint8 *rollAxis, uint8 *pitchAxis) {
  * target angle, especially when its Euler decoder crosses a matrix fold.
  */
 int android_ar_overrideFlightInput(int *rollInput, int16 *pitchInput) {
-    if (!rollInput || !pitchInput || !android_ar_controlsActive() ||
-        g_autopilotActive.load(std::memory_order_acquire) ||
-        g_lookMode.load(std::memory_order_acquire)) {
+    if (!rollInput || !pitchInput || !phoneControlsFlight()) {
         return 0;
     }
 
@@ -320,9 +311,7 @@ int android_ar_overrideFlightInput(int *rollInput, int16 *pitchInput) {
  * legacy equations; only incremental roll/pitch integration is bypassed.
  */
 int android_ar_overrideFlightAttitude(int16 *rollAngle, int16 *pitchAngle) {
-    if (!rollAngle || !pitchAngle || !android_ar_controlsActive() ||
-        g_autopilotActive.load(std::memory_order_acquire) ||
-        g_lookMode.load(std::memory_order_acquire)) {
+    if (!rollAngle || !pitchAngle || !phoneControlsFlight()) {
         return 0;
     }
 
@@ -391,7 +380,7 @@ void android_ar_addSwipePitch(float normalizedDelta) {
     /* Dragging upward looks upward; one screen height spans roughly 120 degrees. */
     value -= normalizedDelta * (2.0f * PI / 3.0f);
     g_swipePitch.store(
-        clampFloat(value, -LOOK_MAX_PITCH, LOOK_MAX_PITCH),
+        clampFloat(value, -LOOK_MAX_PITCH_RADIANS, LOOK_MAX_PITCH_RADIANS),
         std::memory_order_relaxed);
 }
 

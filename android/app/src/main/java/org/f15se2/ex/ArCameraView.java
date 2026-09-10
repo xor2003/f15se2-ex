@@ -28,7 +28,7 @@ import java.util.Collections;
 import java.util.Locale;
 
 /**
- * Camera2 preview aligned to the game's pitch and roll.
+ * Camera2 background preview and independent phone-attitude input.
  *
  * This is intentionally not positional AR: the camera is only a replacement for
  * the GLES sky, and terrain remains the game's world.
@@ -37,6 +37,10 @@ public final class ArCameraView extends TextureView
         implements TextureView.SurfaceTextureListener, SensorEventListener {
     private static final float ATTITUDE_FILTER = 0.18f;
     private static final long ATTITUDE_TRACE_INTERVAL_NS = 100_000_000L;
+    private static final int PREVIEW_WIDTH_PIXELS = 1280;
+    private static final int PREVIEW_HEIGHT_PIXELS = 720;
+    private static final float MIN_VECTOR_NORM = 1.0e-6f;
+    private static final float MIN_PLANAR_GRAVITY = 1.0e-3f;
 
     private final CameraManager cameraManager;
     private final SensorManager sensorManager;
@@ -158,7 +162,7 @@ public final class ArCameraView extends TextureView
     private Size choosePreviewSize(CameraCharacteristics characteristics) {
         android.hardware.camera2.params.StreamConfigurationMap map =
             characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
-        Size fallback = new Size(1280, 720);
+        Size fallback = new Size(PREVIEW_WIDTH_PIXELS, PREVIEW_HEIGHT_PIXELS);
         if (map == null) {
             return fallback;
         }
@@ -170,7 +174,7 @@ public final class ArCameraView extends TextureView
         long bestScore = Long.MAX_VALUE;
         for (Size size : sizes) {
             long area = (long)size.getWidth() * size.getHeight();
-            long score = Math.abs(area - 1280L * 720L);
+            long score = Math.abs(area - (long)PREVIEW_WIDTH_PIXELS * PREVIEW_HEIGHT_PIXELS);
             if (score < bestScore) {
                 best = size;
                 bestScore = score;
@@ -343,7 +347,7 @@ public final class ArCameraView extends TextureView
         }
 
         float length = (float)Math.sqrt(w * w + x * x + y * y + z * z);
-        if (length <= 1.0e-6f) {
+        if (length <= MIN_VECTOR_NORM) {
             quaternion[0] = 1.0f;
             quaternion[1] = 0.0f;
             quaternion[2] = 0.0f;
@@ -359,9 +363,8 @@ public final class ArCameraView extends TextureView
     /**
      * Separates look-around yaw from handset tilt and updates filtered controls.
      *
-     * The twist is rotation around the screen normal. Removing it leaves a
-     * swing quaternion whose X/Y rotation vector controls pitch and roll
-     * without yaw leaking into either flight axis.
+     * Quaternion twist supplies look-around yaw. Gravity supplies pitch and
+     * roll independently, so compass changes cannot steer the aircraft.
      */
     private void updateRelativeAttitude() {
         matrixToQuaternion(relativeMatrix, relativeQuaternion);
@@ -373,7 +376,7 @@ public final class ArCameraView extends TextureView
         float twistLength = (float)Math.sqrt(w * w + z * z);
         float twistW = 1.0f;
         float twistZ = 0.0f;
-        if (twistLength > 1.0e-6f) {
+        if (twistLength > MIN_VECTOR_NORM) {
             twistW = w / twistLength;
             twistZ = z / twistLength;
         }
@@ -392,7 +395,7 @@ public final class ArCameraView extends TextureView
         float gravityZ = adjustedMatrix[8];
         float gravityLength = (float)Math.sqrt(
             gravityX * gravityX + gravityY * gravityY + gravityZ * gravityZ);
-        if (gravityLength <= 1.0e-6f) {
+        if (gravityLength <= MIN_VECTOR_NORM) {
             return;
         }
         gravityX /= gravityLength;
@@ -411,7 +414,9 @@ public final class ArCameraView extends TextureView
          * appear mostly as yaw, leaving roll close to the controller dead zone.
          */
         float rollTarget = deviceRollOffset;
-        if (originPlanar > 1.0e-3f && gravityPlanar > 1.0e-3f) {
+        final boolean reliableRoll = originPlanar > MIN_PLANAR_GRAVITY &&
+                                     gravityPlanar > MIN_PLANAR_GRAVITY;
+        if (reliableRoll) {
             float planarCross = originY * gravityX - originX * gravityY;
             float planarDot = originX * gravityX + originY * gravityY;
             rollTarget = -(float)Math.atan2(planarCross, planarDot);
@@ -521,7 +526,7 @@ public final class ArCameraView extends TextureView
                 attitudeOriginGravity[0] * attitudeOriginGravity[0] +
                 attitudeOriginGravity[1] * attitudeOriginGravity[1] +
                 attitudeOriginGravity[2] * attitudeOriginGravity[2]);
-            if (gravityLength > 1.0e-6f) {
+            if (gravityLength > MIN_VECTOR_NORM) {
                 attitudeOriginGravity[0] /= gravityLength;
                 attitudeOriginGravity[1] /= gravityLength;
                 attitudeOriginGravity[2] /= gravityLength;
