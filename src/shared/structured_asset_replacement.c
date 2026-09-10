@@ -138,7 +138,7 @@ bool fileContainsProperty(const char *path, const char *property) {
     return false;
 }
 
-/* Build the default converter command path relative to the running executable. */
+/* Search beside the asset pack, then relative to the working directory. */
 std::string defaultToolCommand(const fs::path &jsonPath) {
     const char *configured = std::getenv("F15_ASSET_TOOL");
     if (configured && configured[0]) return configured;
@@ -165,7 +165,7 @@ std::string defaultToolCommand(const fs::path &jsonPath) {
     return "python3 -m tools.f15assets.cli";
 }
 
-/* Expose rebuilt structured bytes as a rewindable temporary FILE stream. */
+/* Expose rebuilt bytes as a rewindable, owned SDL memory stream. */
 SDL_IOStream *streamFromBytes(const std::vector<unsigned char> &bytes) {
     SDL_IOStream *stream = SDL_IOFromDynamicMem();
     if (!stream) return nullptr;
@@ -181,23 +181,16 @@ SDL_IOStream *streamFromBytes(const std::vector<unsigned char> &bytes) {
 
 /* Open an editable structured replacement, rebuilding legacy bytes only for the existing loader. */
 SDL_IOStream *openStructuredAssetReplacement(const char *legacyFilename) {
-    fs::path legacy{};
-    const char *format{};
     char jsonPath[512]{};
-    std::string command{};
-    FILE *pipe{};
     std::vector<unsigned char> rebuilt{};
     unsigned char chunk[4096]{};
     size_t count{};
-    int status{};
-    bool readFailed{};
     bool tooLarge = false;
 
     if (!legacyFilename || !legacyFilename[0]) return nullptr;
-    legacy = fs::path(legacyFilename);
-    format = formatFor(legacy);
+    const fs::path legacy(legacyFilename);
+    const char *format = formatFor(legacy);
     if (!format ||
-/* Find the canonical editable JSON replacement for a structured asset. */
         !findStructuredJson(legacy, jsonPath, sizeof(jsonPath))) {
         return nullptr;
     }
@@ -205,15 +198,15 @@ SDL_IOStream *openStructuredAssetReplacement(const char *legacyFilename) {
     /* Default 3D3 sidecars are indexes for per-shape GLBs, not complete binary
      * replacements. Only an explicitly exported model_data field can replace
      * the legacy 3D3 table stream. */
-    if (std::strcmp(format, "3D3") == 0 &&
-/* Check whether a constrained converter-generated JSON file contains a required property. */
-        !fileContainsProperty(jsonPath, "\"model_data\"")) {
+    const bool incompleteShapeTable = std::strcmp(format, "3D3") == 0 &&
+        !fileContainsProperty(jsonPath, "\"model_data\"");
+    if (incompleteShapeTable) {
         return nullptr;
     }
 
-    command = defaultToolCommand(jsonPath) + " build-binary " +
+    const std::string command = defaultToolCommand(jsonPath) + " build-binary " +
               shellQuote(jsonPath) + " --format " + format;
-    pipe = F15_POPEN(command.c_str(), F15_PIPE_READ_MODE);
+    FILE *pipe = F15_POPEN(command.c_str(), F15_PIPE_READ_MODE);
     if (!pipe) {
         LogWarn(("asset replacement: cannot start JSON importer for %s; using legacy asset",
                  legacyFilename));
@@ -235,8 +228,8 @@ SDL_IOStream *openStructuredAssetReplacement(const char *legacyFilename) {
             }
         }
     }
-    readFailed = std::ferror(pipe) != 0;
-    status = F15_PCLOSE(pipe);
+    const bool readFailed = std::ferror(pipe) != 0;
+    const int status = F15_PCLOSE(pipe);
     if (tooLarge) {
         LogWarn(("asset replacement: rebuilt %s exceeds size limit; using legacy asset",
                  legacyFilename));
