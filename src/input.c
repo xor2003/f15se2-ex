@@ -164,13 +164,16 @@ bool input_takeMenuClick(int *x, int *y) {
 }
 
 /* Convert a click through the active renderer's exact presentation mapping. */
-static bool menuPointFromWindow(const SDL_MouseButtonEvent *button, int *x, int *y) {
+static bool menuPointFromWindow(const SDL_MouseButtonEvent *button, int *x, int *y,
+                                bool normalized = false) {
     SDL_Window *window = SDL_GetWindowFromID(button->windowID);
     int width;
     int height;
 
     if (!window || !SDL_GetWindowSize(window, &width, &height)) return false;
-    return gfx_windowToLogical(button->x, button->y, width, height, x, y);
+    const float windowX = normalized ? button->x * width : button->x;
+    const float windowY = normalized ? button->y * height : button->y;
+    return gfx_windowToLogical(windowX, windowY, width, height, x, y);
 }
 
 bool input_keyWaiting(void) {
@@ -1069,8 +1072,21 @@ void input_pumpEvents(void) {
 #endif
             }
             break;
-#if defined(__ANDROID__)
         case SDL_EVENT_FINGER_DOWN:
+            if (g_mode == INPUT_MODE_MENU) {
+                /* Options use press events; roster/mission selection uses
+                 * release events. Match the existing mouse path without
+                 * accepting SDL's duplicate synthetic mouse event. */
+                SDL_MouseButtonEvent point = {};
+                point.windowID = ev.tfinger.windowID;
+                point.x = ev.tfinger.x;
+                point.y = ev.tfinger.y;
+                if (menuPointFromWindow(&point, &g_menuClickX, &g_menuClickY, true)) {
+                    g_menuClickPending = true;
+                    ringPush(INPUT_MENU_MOUSE_CLICK);
+                }
+            }
+#if defined(__ANDROID__)
             if (g_mode == INPUT_MODE_FLIGHT) {
                 if (!beginFlightThrottlePointer(
                         ev.tfinger.windowID, ev.tfinger.x, ev.tfinger.y, true)) {
@@ -1085,7 +1101,9 @@ void input_pumpEvents(void) {
                     g_flightFingerStartY = ev.tfinger.y;
                 }
             }
+#endif
             break;
+#if defined(__ANDROID__)
         case SDL_EVENT_FINGER_MOTION:
             if (g_mode == INPUT_MODE_FLIGHT && g_flightThrottlePointerActive) {
                 updateFlightThrottlePointer(
