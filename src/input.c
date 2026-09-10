@@ -18,6 +18,7 @@
 #include "const.h"
 #include "gfx.h"
 #include "joystick.h"
+#include "controls.h"
 #include <SDL3/SDL.h>
 
 /* Game tick clock (timer.c); pumped here so the window stays responsive and the
@@ -500,33 +501,8 @@ static void menuKeyDown(const SDL_Event *ev) {
  * reproduces the same axis assignment and gives smooth diagonals for free.
  * Deflection matches the original first-press value (0x5A off centre). */
 static void updateStick(void) {
-    const bool *ks = SDL_GetKeyboardState(NULL);
-    const Uint8 LO = 0x26, HI = 0xDA; /* centre 0x80 -/+ 0x5A */
-    Uint8 x = 0x80;                   /* g_joyRawX = roll  (left = LO, right = HI) */
-    Uint8 y = 0x80;                   /* g_joyRawY = pitch (up   = LO, down  = HI) */
-
-    if (ks[SDL_SCANCODE_UP] || ks[SDL_SCANCODE_KP_8]) y = LO;
-    if (ks[SDL_SCANCODE_DOWN] || ks[SDL_SCANCODE_KP_2]) y = HI;
-    if (ks[SDL_SCANCODE_LEFT] || ks[SDL_SCANCODE_KP_4]) x = LO;
-    if (ks[SDL_SCANCODE_RIGHT] || ks[SDL_SCANCODE_KP_6]) x = HI;
-    /* Keypad diagonals deflect both axes at once. */
-    if (ks[SDL_SCANCODE_KP_7]) {
-        y = LO;
-        x = LO;
-    }
-    if (ks[SDL_SCANCODE_KP_9]) {
-        y = LO;
-        x = HI;
-    }
-    if (ks[SDL_SCANCODE_KP_1]) {
-        y = HI;
-        x = LO;
-    }
-    if (ks[SDL_SCANCODE_KP_3]) {
-        y = HI;
-        x = HI;
-    }
-
+    Uint8 x = 0x80, y = 0x80;
+    controls_applyAxes(&x, &y, false);
     g_joyRawX = x;
     g_joyRawY = y;
 }
@@ -774,6 +750,7 @@ void input_pumpEvents(void) {
             gfx_repaint();
             break;
         case SDL_EVENT_KEY_DOWN:
+            if (controls_captureKey(ev.key)) break;
             /* A real key hands flight control back to the keyboard (it stays
              * with the keyboard until the stick is moved again). */
             g_lastWasGamepad = false;
@@ -784,7 +761,8 @@ void input_pumpEvents(void) {
                 break;
             }
             if (g_mode == INPUT_MODE_FLIGHT) {
-                uint16 word = biosWord(ev.key.scancode, ev.key.mod);
+                uint16 word = controls_translateKey(ev.key.scancode, ev.key.mod,
+                                                     biosWord(ev.key.scancode, ev.key.mod));
                 if (word) ringPush(word);
             } else {
                 menuKeyDown(&ev);

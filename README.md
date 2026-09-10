@@ -21,7 +21,7 @@ Development journal: https://neuviemeporte.github.io/category/f15-se2
 
 The entire game is playable, rendering and input handling is ported to SDL, sound works using Adlib emulation through [Nuked-OPL3](https://github.com/nukeykt/Nuked-OPL3) and joystick/gamepad input is supported (though not configurable right now). Multiple improvements have been implemented including high resolution and widescreen support with some bugs from the original having been fixed too. Work is ongoing to add more features and eliminate bugs.
 
-## Raw joystick controls
+## Controls mapping
 
 Linux/SDL supplies calibrated axis values; no in-game calibration is needed.
 Mapped gamepads retain their existing layout. Other joysticks get these defaults,
@@ -58,15 +58,26 @@ For example, `F15_JOY_CANNON=2 F15_JOY_MISSILE=1 ./build/f15se2-ex --game /path/
 exchanges missile and cannon buttons. These settings apply to the active raw
 joystick, not mapped gamepads.
 
-When a raw joystick is connected at startup, the game shows a button setup
-screen using its original bitmap fonts. Continue is selected initially: press
-any joystick button to save and play. Move the stick up/down or left/right
-to select an action, then press the desired joystick button to assign it.
-Keyboard arrows also select actions. Press the currently assigned button again
-(or Delete) to unassign it; assigning an occupied button swaps the actions.
-Select Continue and press any joystick button, or press Enter/Escape, to save
-and play. If saving fails, the screen reports it; Continue again plays without
-saving. Mapped gamepads retain their existing bindings and skip this screen.
+At startup, Controls Setup shows a scrolling list of flight actions using the
+original bitmap fonts, even without a joystick. Existing keyboard shortcuts are
+the defaults, including modifier chords and arrow/keypad steering. Cycle weapon,
+cycle view, and alternating countermeasures have no keyboard shortcut until assigned.
+
+- Up/down arrows or the stick select an action; left/right arrows select the
+  keyboard or joystick column.
+- In the keyboard column, press Enter, then the desired key or modifier chord.
+  Escape cancels capture. Alt+Enter remains reserved for fullscreen.
+- Press a raw joystick button to assign it to the selected action. Pressing its
+  current assignment again clears it. Assigning an occupied key or button swaps
+  the two actions.
+- Delete clears the selected column. Reset Defaults restores keyboard shortcuts
+  and the active stick's default buttons; Continue saves the result.
+- Continue is selected initially: Enter or any raw joystick button saves and
+  plays. Escape also finishes setup. If saving fails, Continue again plays unsaved.
+
+Mapped gamepads retain their existing flight layout. Menu navigation and
+pilot-name typing are not remapped. Training-only actions still require training
+mode, and legacy calibration remains a no-op with SDL-calibrated devices.
 
 Button mappings are saved per SDL device GUID and control counts in SDL's user
 settings directory (`f15se2-ex/joystick`), not in the game-assets directory.
@@ -75,6 +86,9 @@ Identical devices with the same GUID and counts share a profile. Set
 button numbers (zero disables an action). Loading applies defaults, then saved
 bindings, then explicit environment overrides. Invalid files leave defaults
 unchanged. Throttle-axis selection remains automatic or environment-configured.
+Keyboard bindings use a separate `keyboard.txt` in the same directory and apply
+across devices. The file stores SDL physical scancodes and modifier masks, not
+localized text. Reset Defaults does not change throttle-axis configuration.
 
 In the other menus, move the stick to select, press physical button 1 to
 confirm, or button 2 to go back. These menu controls are independent of the

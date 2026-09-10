@@ -295,6 +295,7 @@ void persistence(const std::filesystem::path &directory) {
     const std::string path = (directory / "roundtrip.txt").string();
     int original[RAW_ACTION_COUNT] = {2, 0, 1, 3, -1, -1, -1, -1, -1, -1};
     int loaded[RAW_ACTION_COUNT] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
+    for (int i = RAW_VIEW + 1; i < RAW_ACTION_COUNT; ++i) original[i] = loaded[i] = -1;
     require(joy_saveMapping(path, 4, original), "save complete mapping");
     require(joy_loadMapping(path, 4, loaded), "load complete mapping");
     for (int i = 0; i < RAW_ACTION_COUNT; ++i)
@@ -365,7 +366,7 @@ void overridesAndGamepad() {
         require(misc_readJoystick(1) != 0, "gamepad left trigger still fires missile");
         require(joy_rawButtonCount() == 0 && joy_throttleChange() == -1,
                 "raw defaults do not affect mapped gamepad");
-        joy_showSetup();
+        // Controls setup also serves keyboards now; tested separately below.
     }
 }
 
