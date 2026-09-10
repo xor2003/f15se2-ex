@@ -114,6 +114,7 @@ set(F15SE2_SOURCES
     ${SRC_DIR}/gfx_impl.c
     ${SRC_DIR}/joystick.c
     ${SRC_DIR}/joystick_setup.c
+    ${SRC_DIR}/joystick_calibration.cpp
     ${SRC_DIR}/joystick_mapping.cpp
     ${SRC_DIR}/controls.cpp
     ${SRC_DIR}/controls_mapping.cpp

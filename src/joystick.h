@@ -60,6 +60,7 @@ Sint16 joy_rawMenuAxis(int axis);
 int joy_rawBinding(RawAction action);
 void joy_bindRawButton(RawAction action, int button);
 void joy_showSetup(void);
+void joy_calibrate(void);
 /* Persist the current raw device; false leaves the previous saved file intact. */
 bool joy_saveRawMapping(void);
 SDL_JoystickID joy_rawDeviceId(void);

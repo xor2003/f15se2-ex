@@ -30,6 +30,7 @@
 #include "joystick.h"
 #include "joystick_axes.h"
 #include "joystick_mapping.h"
+#include "joystick_calibration.h"
 #include "controls.h"
 #include "input.h"
 #include "inttype.h"
@@ -49,6 +50,7 @@ extern uint8 joyAxes[];
 static SDL_Gamepad *g_pad = NULL;
 static SDL_Joystick *g_joy = NULL;
 static SDL_JoystickID g_devId = 0;
+static JoystickCalibration g_calibration;
 
 static int g_rawButtons[RAW_ACTION_COUNT] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
 static bool g_rawPending[RAW_ACTION_COUNT] = {};
@@ -80,6 +82,8 @@ static void configureRawJoystick(void) {
     g_throttleAxis = rawAssignment("F15_JOY_THROTTLE_AXIS", joy_detectThrottleAxis(g_joy), axes);
     /* Never accidentally replace the primary flight stick with thrust. */
     if (g_throttleAxis >= 0 && g_throttleAxis < 2) g_throttleAxis = -1;
+    g_calibration = {};
+    joy_loadCalibration(joy_mappingPath(g_joy) + ".calibration", g_throttleAxis, g_calibration);
     const char *invert = SDL_getenv("F15_JOY_THROTTLE_INVERT");
     g_throttleInvert = !invert || SDL_strcmp(invert, "0") != 0;
     static const char *names[RAW_ACTION_COUNT] = {
@@ -275,8 +279,8 @@ static void updateAxes(void) {
         joyAxes[0] = axisByte(SDL_GetGamepadAxis(g_pad, SDL_GAMEPAD_AXIS_LEFTX));
         joyAxes[1] = axisByte(SDL_GetGamepadAxis(g_pad, SDL_GAMEPAD_AXIS_LEFTY));
     } else if (g_joy && SDL_GetNumJoystickAxes(g_joy) >= 2) {
-        joyAxes[0] = axisByte(SDL_GetJoystickAxis(g_joy, 0));
-        joyAxes[1] = axisByte(SDL_GetJoystickAxis(g_joy, 1));
+        joyAxes[0] = axisByte(joy_correctAxis(g_calibration, 0, SDL_GetJoystickAxis(g_joy, 0)));
+        joyAxes[1] = axisByte(joy_correctAxis(g_calibration, 1, SDL_GetJoystickAxis(g_joy, 1)));
     } else {
         joyAxes[0] = joyAxes[1] = 0x80;
     }
@@ -316,7 +320,7 @@ Sint16 joy_axisRaw(SDL_GamepadAxis a) { return g_pad ? SDL_GetGamepadAxis(g_pad,
 bool joy_rawActive(void) {
     if (!g_joy || !input_hasFocus()) return false;
     for (int axis = 0; axis < 2 && axis < SDL_GetNumJoystickAxes(g_joy); ++axis)
-        if (SDL_abs((int)SDL_GetJoystickAxis(g_joy, axis)) > JOY_AXIS_DEADZONE) return true;
+        if (SDL_abs(joy_correctAxis(g_calibration, axis, SDL_GetJoystickAxis(g_joy, axis))) > JOY_AXIS_DEADZONE) return true;
     for (int action = 0; action < RAW_ACTION_COUNT; ++action)
         if (rawButton((RawAction)action)) return true;
     return false;
@@ -337,7 +341,7 @@ int joy_rawPressedButton(void) {
 /* Do not interpret optional throttle/rudder axes as menu directions. */
 Sint16 joy_rawMenuAxis(int axis) {
     if (!g_joy || axis < 0 || axis > 1 || axis >= SDL_GetNumJoystickAxes(g_joy)) return 0;
-    return SDL_GetJoystickAxis(g_joy, axis);
+    return (Sint16)joy_correctAxis(g_calibration, axis, SDL_GetJoystickAxis(g_joy, axis));
 }
 
 /* Missing buttons are displayed as unassigned, including after unplugging. */
@@ -398,11 +402,18 @@ bool joy_hasThrottleAxis(void) {
 int joy_throttleChange(void) {
     if (!g_joy || g_throttleAxis < 0 || !input_hasFocus()) return -1;
     const int raw = (int)SDL_GetJoystickAxis(g_joy, g_throttleAxis) + 32768;
-    const int percent = ((g_throttleInvert ? 65535 - raw : raw) * 100 + 32767) / 65535;
+    const int percent = g_calibration.enabled
+        ? joy_correctThrottle(g_calibration, raw - 32768)
+        : ((g_throttleInvert ? 65535 - raw : raw) * 100 + 32767) / 65535;
     if (g_lastThrottle >= 0 && SDL_abs(percent - g_lastThrottle) < 2 &&
         !(percent != g_lastThrottle && (percent == 0 || percent == 100))) return -1;
     g_lastThrottle = percent;
     return percent;
+}
+
+void joy_calibrate(void) {
+    joy_calibrationScreen(g_joy, g_throttleAxis, g_calibration);
+    joy_resetFlightInput();
 }
 
 /* === game-facing joystick API (declared in egcode.h / stcode.h / slot.h) === */

@@ -39,7 +39,10 @@ static void setupKey(SDL_Scancode sc, SDL_Keycode key) {
 static void editThenReset(const char *text, int, int, int, int) {
     if (!SDL_strstr(text, "ENTER: edit") && !SDL_strstr(text, "Press key / chord")) return;
     switch (setupStep++) {
-    case 0: setupKey(SDL_SCANCODE_UP, SDLK_UP); break;
+    case 0:
+        setupKey(SDL_SCANCODE_UP, SDLK_UP); // Calibrate, then the last action.
+        setupKey(SDL_SCANCODE_UP, SDLK_UP);
+        break;
     case 1:
         setupKey(SDL_SCANCODE_LEFT, SDLK_LEFT);
         setupKey(SDL_SCANCODE_RETURN, SDLK_RETURN);
@@ -51,6 +54,7 @@ static void editThenReset(const char *text, int, int, int, int) {
     case 3:
         require(controls_keyboardBinding(RAW_KP_DOWN_RIGHT).key == SDL_SCANCODE_F12,
                 "setup assigns selected action");
+        setupKey(SDL_SCANCODE_DOWN, SDLK_DOWN); // Skip Calibrate.
         setupKey(SDL_SCANCODE_DOWN, SDLK_DOWN);
         setupKey(SDL_SCANCODE_DOWN, SDLK_DOWN);
         setupKey(SDL_SCANCODE_RETURN, SDLK_RETURN);

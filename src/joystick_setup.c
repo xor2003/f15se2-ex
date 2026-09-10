@@ -7,9 +7,10 @@
 #include "const.h"
 #include "shared/common.h"
 
-static const int visibleRows = 8;
-static const int continueRow = RAW_ACTION_COUNT;
-static const int resetRow = RAW_ACTION_COUNT + 1;
+static const int visibleRows = 7;
+static const int calibrateRow = RAW_ACTION_COUNT;
+static const int continueRow = RAW_ACTION_COUNT + 1;
+static const int resetRow = RAW_ACTION_COUNT + 2;
 static const int rowCount = resetRow + 1;
 static const int stickNavigationThreshold = 16000;
 static const Uint64 firstNavigationRepeatMs = 400;
@@ -19,6 +20,7 @@ static const Uint32 setupPollMs = 20;
 static const int buttonLeftPx = 80;
 static const int buttonRightPx = 240;
 static const int continueTextY = 151;
+static const int calibrateTextY = 140;
 static const int resetTextY = 162;
 static const int buttonHeightPx = resetTextY - continueTextY;
 static const int buttonTopPaddingPx = 4;
@@ -62,8 +64,10 @@ static void drawJoystickSetup(int selected, int first, bool keyboard, bool saveF
     if (selected < RAW_ACTION_COUNT) {
         page[2] = COLOR_WHITE;
         const std::string binding = "Key: " + controls_keyName((RawAction)selected);
-        drawStringCentered(page, binding.c_str(), 0, 138, LOGICAL_WIDTH);
+        drawStringCentered(page, binding.c_str(), 0, 127, LOGICAL_WIDTH);
     }
+    page[2] = selected == calibrateRow ? COLOR_WHITE : COLOR_LIGHTGRAY;
+    drawStringCentered(page, selected == calibrateRow ? "> CALIBRATE JOYSTICK <" : "CALIBRATE JOYSTICK", 0, calibrateTextY, LOGICAL_WIDTH);
     page[2] = selected == continueRow ? COLOR_WHITE : COLOR_LIGHTGRAY;
     drawStringCentered(page, selected == continueRow ? "> CONTINUE <" : "CONTINUE", 0, continueTextY, LOGICAL_WIDTH);
     page[2] = selected == resetRow ? COLOR_WHITE : COLOR_LIGHTGRAY;
@@ -131,8 +135,9 @@ static bool navigateWithKeyboard(SetupState &state, bool &activate) {
             const int resetTop = resetTextY - buttonTopPaddingPx;
             const bool onContinue = insideButtonWidth && y >= continueTop && y < resetTop;
             const bool onReset = insideButtonWidth && y >= resetTop && y < resetTop + buttonHeightPx;
-            if (onContinue || onReset) {
-                state.selected = onContinue ? continueRow : resetRow;
+            const bool onCalibrate = insideButtonWidth && y >= calibrateTextY - buttonTopPaddingPx && y < continueTop;
+            if (onContinue || onReset || onCalibrate) {
+                state.selected = onCalibrate ? calibrateRow : onContinue ? continueRow : resetRow;
                 activate = true;
                 /* Apply this release before processing a later queued click. */
                 break;
@@ -170,6 +175,13 @@ static void assignJoystickButton(SetupState &state, bool &activate) {
 /* Start capture or restore defaults; only Continue asks the caller to finish. */
 static bool activateSelection(SetupState &state) {
     if (state.selected == continueRow) return true;
+    if (state.selected == calibrateRow) {
+        joy_calibrate();
+        state.released = false;
+        state.stickZone = 0;
+        state.selected = continueRow;
+        return false;
+    }
     if (state.selected == resetRow) {
         controls_resetKeyboard();
         joy_resetRawMapping();
