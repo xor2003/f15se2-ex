@@ -20,6 +20,7 @@
 #include <stdio.h>
 #include <string.h>
 
+/* All menu coordinates and hit padding are logical 320x200 pixels. */
 enum {
     GEAR_LEFT = 302,
     GEAR_TOP = 183,
@@ -30,7 +31,14 @@ enum {
     PANEL_RIGHT = 277,
     PANEL_BOTTOM = 157,
     OPTION_FIRST_Y = 70,
-    OPTION_ROW_HEIGHT = 15
+    OPTION_ROW_HEIGHT = 15,
+    OPTION_HIT_ABOVE = 3,
+    OPTION_HIT_BELOW = 8,
+    TITLE_Y = 51,
+    SELECTION_X = 55,
+    LABEL_X = 67,
+    VALUE_X = 238,
+    HELP_Y = 143
 };
 
 static const char *const g_optionLabels[GAME_OPTION_COUNT] = {
@@ -81,8 +89,7 @@ int stOptionsGearHit(int x, int y) {
 
 /* Draw the modal with the compact font so later options fit without scrolling. */
 static void drawOptionsPanel(const char *pilotName, int selected) {
-    char title[48];
-    int option;
+    char title[48] = {0};
     int oldColor = screenBuf[2];
     int oldFont = screenBuf[6];
 
@@ -95,24 +102,21 @@ static void drawOptionsPanel(const char *pilotName, int selected) {
     screenBuf[6] = FONT_SMALL;
     screenBuf[2] = COLOR_WHITE;
     snprintf(title, sizeof(title), "OPTIONS - %s", pilotName && *pilotName ? pilotName : "PILOT");
-    drawStringCentered(screenBuf, title, PANEL_LEFT, 51, PANEL_RIGHT);
+    drawStringCentered(screenBuf, title, PANEL_LEFT, TITLE_Y, PANEL_RIGHT);
 
-    for (option = 0; option < GAME_OPTION_COUNT; option++) {
+    for (int option = 0; option < GAME_OPTION_COUNT; option++) {
         int y = OPTION_FIRST_Y + option * OPTION_ROW_HEIGHT;
+        const bool enabled = gameOptionsEnabled((enum GameOption)option);
         screenBuf[2] = option == selected ? COLOR_WHITE : COLOR_LIGHTGRAY;
-        drawStringAt(screenBuf, option == selected ? ">" : " ", 55, y);
-        drawStringAt(screenBuf, g_optionLabels[option], 67, y);
-        screenBuf[2] = gameOptionsEnabled((enum GameOption)option)
-                           ? COLOR_LIGHTGREEN
-                           : COLOR_LIGHTRED;
-        drawStringAt(screenBuf,
-                     gameOptionsEnabled((enum GameOption)option) ? "ON" : "OFF",
-                     238, y);
+        drawStringAt(screenBuf, option == selected ? ">" : " ", SELECTION_X, y);
+        drawStringAt(screenBuf, g_optionLabels[option], LABEL_X, y);
+        screenBuf[2] = enabled ? COLOR_LIGHTGREEN : COLOR_LIGHTRED;
+        drawStringAt(screenBuf, enabled ? "ON" : "OFF", VALUE_X, y);
     }
 
     screenBuf[2] = COLOR_LIGHTGRAY;
     drawStringCentered(screenBuf, "ARROWS SELECT  SPACE/CLICK TOGGLE  ESC CLOSE",
-                       PANEL_LEFT, 143, PANEL_RIGHT);
+                       PANEL_LEFT, HELP_Y, PANEL_RIGHT);
     screenBuf[2] = oldColor;
     screenBuf[6] = oldFont;
     gfx_commitPage();
@@ -129,22 +133,22 @@ static void repaintOptionsPanel(void) {
 
 /* Return the option row under a logical point, or -1 outside all rows. */
 static int optionAtPoint(int x, int y) {
-    int option;
     if (x < PANEL_LEFT || x > PANEL_RIGHT) return -1;
-    for (option = 0; option < GAME_OPTION_COUNT; option++) {
+    for (int option = 0; option < GAME_OPTION_COUNT; option++) {
         int rowY = OPTION_FIRST_Y + option * OPTION_ROW_HEIGHT;
-        if (y >= rowY - 3 && y <= rowY + 8) return option;
+        const bool insideRow = y >= rowY - OPTION_HIT_ABOVE &&
+                               y <= rowY + OPTION_HIT_BELOW;
+        if (insideRow) return option;
     }
     return -1;
 }
 
 /* Show the modal gameplay-options screen over the selected pilot background. */
 void stOptionsShow(const char *pilotName) {
-    struct R2DImage *background;
+    struct R2DImage *background = gfx_allocImage(LOGICAL_WIDTH, LOGICAL_HEIGHT);
     int selected = 0;
     int done = 0;
 
-    background = gfx_allocImage(LOGICAL_WIDTH, LOGICAL_HEIGHT);
     if (background) {
         gfx_captureToImage(background, screenBuf[0], 0, 0, 0, 0,
                            LOGICAL_WIDTH, LOGICAL_HEIGHT);
@@ -159,48 +163,43 @@ void stOptionsShow(const char *pilotName) {
         switch (key) {
         case KEYCODE_UPARROW:
             selected = (selected + GAME_OPTION_COUNT - 1) % GAME_OPTION_COUNT;
-            g_activeSelection = selected;
-            drawOptionsPanel(pilotName, selected);
             break;
         case KEYCODE_DNARROW:
             selected = (selected + 1) % GAME_OPTION_COUNT;
-            g_activeSelection = selected;
-            drawOptionsPanel(pilotName, selected);
             break;
         case KEYCODE_LEFTARROW:
             gameOptionsSet((enum GameOption)selected, false);
-            drawOptionsPanel(pilotName, selected);
             break;
         case KEYCODE_RIGHTARROW:
             gameOptionsSet((enum GameOption)selected, true);
-            drawOptionsPanel(pilotName, selected);
             break;
         case KEYCODE_ENTER:
         case ' ':
             gameOptionsToggle((enum GameOption)selected);
-            drawOptionsPanel(pilotName, selected);
             break;
         case INPUT_MENU_MOUSE_CLICK: {
-            int x;
-            int y;
-            int option;
-            if (!input_takeMenuClick(&x, &y)) break;
+            int x = 0;
+            int y = 0;
+            if (!input_takeMenuClick(&x, &y)) continue;
             if (stOptionsGearHit(x, y)) {
                 done = 1;
                 break;
             }
-            option = optionAtPoint(x, y);
-            if (option >= 0) {
-                selected = option;
-                g_activeSelection = selected;
-                gameOptionsToggle((enum GameOption)selected);
-                drawOptionsPanel(pilotName, selected);
-            }
+            const int option = optionAtPoint(x, y);
+            if (option < 0) continue;
+            selected = option;
+            gameOptionsToggle((enum GameOption)selected);
             break;
         }
         case KEYCODE_ESC:
             done = 1;
             break;
+        default:
+            continue;
+        }
+        if (!done) {
+            g_activeSelection = selected;
+            drawOptionsPanel(pilotName, selected);
         }
     }
 

@@ -27,8 +27,7 @@ bool gameOptionsToggle(enum GameOption option) {
 
 /* Restore original gameplay by disabling every optional assist. */
 void gameOptionsReset(void) {
-    int option;
-    for (option = 0; option < GAME_OPTION_COUNT; option++) {
+    for (int option = 0; option < GAME_OPTION_COUNT; option++) {
         g_options[option] = false;
     }
 }
