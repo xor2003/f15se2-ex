@@ -784,11 +784,27 @@ static void pollGamepadMenu(void) {
     if (!joy_isGamepad()) return;
     if (gamepadActive()) g_lastWasGamepad = true;
 
+#if defined(__ANDROID__)
+    /* Android controller button numbering varies. Menu confirmation must not
+     * depend on flight bindings or on a particular face-button layout. */
+    bool confirm = false;
+    for (int button = 0; button < SDL_GAMEPAD_BUTTON_COUNT; ++button) {
+        const bool navigation = button == SDL_GAMEPAD_BUTTON_DPAD_UP ||
+            button == SDL_GAMEPAD_BUTTON_DPAD_DOWN ||
+            button == SDL_GAMEPAD_BUTTON_DPAD_LEFT ||
+            button == SDL_GAMEPAD_BUTTON_DPAD_RIGHT;
+        if (!navigation) confirm |= gpEdge((SDL_GamepadButton)button);
+    }
+    confirm |= trigEdge(SDL_GAMEPAD_AXIS_RIGHT_TRIGGER, 0);
+    confirm |= trigEdge(SDL_GAMEPAD_AXIS_LEFT_TRIGGER, 1);
+    if (confirm) ringPush(0x1c00 | KEYCODE_ENTER);
+#else
     if (gpEdge(SDL_GAMEPAD_BUTTON_SOUTH) || gpEdge(SDL_GAMEPAD_BUTTON_START) ||
         trigEdge(SDL_GAMEPAD_AXIS_RIGHT_TRIGGER, 0))
         ringPush(0x1c00 | KEYCODE_ENTER);
     if (gpEdge(SDL_GAMEPAD_BUTTON_EAST) || trigEdge(SDL_GAMEPAD_AXIS_LEFT_TRIGGER, 1))
         ringPush(0x0100 | KEYCODE_ESC);
+#endif
     if (gpEdge(SDL_GAMEPAD_BUTTON_DPAD_UP)) ringPush(KEYCODE_UPARROW);
     if (gpEdge(SDL_GAMEPAD_BUTTON_DPAD_DOWN)) ringPush(KEYCODE_DNARROW);
     if (gpEdge(SDL_GAMEPAD_BUTTON_DPAD_LEFT)) ringPush(KEYCODE_LEFTARROW);
@@ -976,8 +992,12 @@ static void pollRawJoystickMenu(void) {
     }
     const int button = joy_rawPressedButton();
     if (button >= 0 && g_rawMenuButton < 0) {
+#if defined(__ANDROID__)
+        ringPush(0x1c00 | KEYCODE_ENTER);
+#else
         if (button == 0) ringPush(0x1c00 | KEYCODE_ENTER);
         if (button == 1) ringPush(0x0100 | KEYCODE_ESC);
+#endif
     }
     g_rawMenuButton = button;
     stickArrowRepeat(joy_rawMenuAxis(0), KEYCODE_LEFTARROW, KEYCODE_RIGHTARROW,
