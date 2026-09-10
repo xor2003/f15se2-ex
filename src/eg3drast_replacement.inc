@@ -50,9 +50,12 @@ static int transformReplacementVertex(const R3DReplacementPrim *prim, int srcVer
      * integer conversion is undefined. These comparisons also reject NaN/Inf.
      * Division by the power-of-two LOD scale precedes conversion so a large
      * intermediate that becomes representable after scaling remains usable. */
-    if (!(cameraX >= -2147483648.0f && cameraX < 2147483648.0f &&
-          cameraY >= -2147483648.0f && cameraY < 2147483648.0f &&
-          cameraDepth >= -2147483648.0f && cameraDepth < 2147483648.0f)) return 0;
+    const float fixedPointMin = -2147483648.0f;
+    const float fixedPointEnd = 2147483648.0f; /* Exclusive: INT32_MAX rounds up as float. */
+    const bool xFits = cameraX >= fixedPointMin && cameraX < fixedPointEnd;
+    const bool yFits = cameraY >= fixedPointMin && cameraY < fixedPointEnd;
+    const bool depthFits = cameraDepth >= fixedPointMin && cameraDepth < fixedPointEnd;
+    if (!xFits || !yFits || !depthFits) return 0;
     out->x = (long)cameraX;
     out->y = (long)cameraY;
     out->depth = (long)cameraDepth;
@@ -226,4 +229,3 @@ static void drawReplacementMesh(R3DReplacementMesh *mesh) {
         }
     }
 }
-

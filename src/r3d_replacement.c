@@ -24,6 +24,19 @@
 
 namespace fs = std::filesystem;
 
+enum {
+    GLMESH_HEADER_BYTES = 44,
+    GLMESH_PRIMITIVE_BYTES = 40,
+    GLMESH_FLOAT_BYTES = 4,
+    MAX_MESH_PRIMITIVES = 4096,
+    MAX_PRIMITIVE_VERTICES = 65536,
+    MAX_SHAPE_ID = 999,
+    PRIMITIVE_POINTS = 0,
+    PRIMITIVE_LINES = 1,
+    PRIMITIVE_TRIANGLES = 4
+};
+static constexpr size_t MAX_CACHE_BYTES = 16 * 1024 * 1024;
+
 typedef struct CachedMesh {
     std::string key;
     R3DReplacementMesh mesh;
@@ -156,13 +169,13 @@ static void freeMesh(R3DReplacementMesh *mesh) {
 /* Decode a validated runtime mesh cache while preserving primitive order and colors. */
 static int parseGlmesh(R3DReplacementMesh *mesh, const uint8 *data,
                        size_t size) {
-    size_t position = 44;
+    size_t position = GLMESH_HEADER_BYTES;
     if (!mesh || !data || size < position
         || std::memcmp(data, "F15GLM3", 7) != 0) {
         return 0;
     }
     const uint32 primitive_count = readU32(data + 40);
-    if (primitive_count == 0 || primitive_count > 4096) return 0;
+    if (primitive_count == 0 || primitive_count > MAX_MESH_PRIMITIVES) return 0;
     mesh->prims = (R3DReplacementPrim *)SDL_calloc(
         primitive_count, sizeof(*mesh->prims));
     if (!mesh->prims) return 0;
@@ -170,7 +183,7 @@ static int parseGlmesh(R3DReplacementMesh *mesh, const uint8 *data,
 
     for (uint32 index = 0; index < primitive_count; ++index) {
         R3DReplacementPrim *primitive = &mesh->prims[index];
-        if (position > size || size - position < 40) goto fail;
+        if (position > size || size - position < GLMESH_PRIMITIVE_BYTES) goto fail;
         primitive->mode = (int)readU32(data + position);
         primitive->nVerts = (int)readU32(data + position + 4);
         primitive->sourceKind = (int)readU32(data + position + 8);
@@ -182,24 +195,26 @@ static int parseGlmesh(R3DReplacementMesh *mesh, const uint8 *data,
                 readF32(data + position + 24 + channel * 4);
             if (!std::isfinite(primitive->rgba[channel])) goto fail;
         }
-        position += 40;
+        position += GLMESH_PRIMITIVE_BYTES;
 
-        if (primitive->nVerts <= 0 || primitive->nVerts > 65536
-            || (primitive->mode != 4 && primitive->mode != 1
-                && primitive->mode != 0)
-            || (primitive->mode == 4 && primitive->nVerts % 3 != 0)
-            || (primitive->mode == 1 && primitive->nVerts % 2 != 0)) {
-            goto fail;
-        }
+        const bool validVertexCount = primitive->nVerts > 0 &&
+            primitive->nVerts <= MAX_PRIMITIVE_VERTICES;
+        const bool supportedMode = primitive->mode == PRIMITIVE_TRIANGLES ||
+            primitive->mode == PRIMITIVE_LINES || primitive->mode == PRIMITIVE_POINTS;
+        const bool incompleteTriangle = primitive->mode == PRIMITIVE_TRIANGLES &&
+            primitive->nVerts % 3 != 0;
+        const bool incompleteLine = primitive->mode == PRIMITIVE_LINES &&
+            primitive->nVerts % 2 != 0;
+        if (!validVertexCount || !supportedMode || incompleteTriangle || incompleteLine) goto fail;
         const size_t float_count = (size_t)primitive->nVerts * 3;
-        if (position > size || float_count > (size - position) / 4) goto fail;
+        if (position > size || float_count > (size - position) / GLMESH_FLOAT_BYTES) goto fail;
         primitive->xyz =
             (float *)SDL_malloc(float_count * sizeof(float));
         if (!primitive->xyz) goto fail;
         for (size_t value_index = 0; value_index < float_count; ++value_index) {
             primitive->xyz[value_index] = readF32(data + position);
             if (!std::isfinite(primitive->xyz[value_index])) goto fail;
-            position += 4;
+            position += GLMESH_FLOAT_BYTES;
         }
     }
     if (position != size) goto fail;
@@ -215,7 +230,7 @@ static std::vector<uint8> readBytes(const fs::path &path) {
     std::vector<uint8> bytes{};
     std::error_code error{};
     const uintmax_t length = fs::file_size(path, error);
-    if (error || length == 0 || length > 16 * 1024 * 1024) return bytes;
+    if (error || length == 0 || length > MAX_CACHE_BYTES) return bytes;
     FILE *file = std::fopen(path.string().c_str(), "rb");
     if (!file) return bytes;
     bytes.resize((size_t)length);
@@ -226,7 +241,7 @@ static std::vector<uint8> readBytes(const fs::path &path) {
     return bytes;
 }
 
-/* Write a complete byte buffer atomically enough for the disposable cache contract. */
+/* Write the disposable cache; incomplete writes are rejected by its reader. */
 static int writeBytes(const fs::path &path, const std::vector<uint8> &bytes) {
     std::error_code error{};
     fs::create_directories(path.parent_path(), error);
@@ -284,7 +299,7 @@ static std::vector<uint8> buildCache(const fs::path &glb_path) {
     uint8 chunk[4096]{};
     size_t count{};
     while ((count = std::fread(chunk, 1, sizeof(chunk), pipe)) != 0) {
-        if (!too_large && count > 16 * 1024 * 1024 - bytes.size()) {
+        if (!too_large && count > MAX_CACHE_BYTES - bytes.size()) {
             /*
              * Keep draining the child after crossing the limit. Calling pclose
              * with unread pipe data can deadlock while the converter is blocked
@@ -309,7 +324,7 @@ static std::vector<uint8> buildCache(const fs::path &glb_path) {
 /* Verify that cache identity metadata matches the current editable GLB. */
 static int cacheMatchesGlb(const std::vector<uint8> &bytes,
                            const fs::path &glb) {
-    if (bytes.size() < 44 || std::memcmp(bytes.data(), "F15GLM3", 7) != 0) {
+    if (bytes.size() < GLMESH_HEADER_BYTES || std::memcmp(bytes.data(), "F15GLM3", 7) != 0) {
         return 0;
     }
     const std::string expected((const char *)bytes.data() + 8, 32);
@@ -382,7 +397,7 @@ static R3DReplacementMesh *loadShape(const char *container_name,
 /* Return the lazily loaded replacement mesh for a legacy container and slot. */
 R3DReplacementMesh *r3dReplacementMesh(const char *container_name,
                                        int shape_id) {
-    if (!container_name || shape_id < 0 || shape_id > 999) return NULL;
+    if (!container_name || shape_id < 0 || shape_id > MAX_SHAPE_ID) return NULL;
     const std::string key =
         lower(fs::path(container_name).stem().string())
         + ":" + std::to_string(shape_id);
