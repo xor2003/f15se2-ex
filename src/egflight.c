@@ -114,7 +114,7 @@ void stepFlightModel(void) {
         egReadKey(); // Flush keyboard buffer
     }
 
-    if (input_takeFlightThrottle(&pointerThrottle)) {
+    if (input_takeFlightThrottle(&pointerThrottle) && !joy_hasThrottleAxis()) {
         /* Touch uses the same target-thrust state and gauge update as the
          * original +/- keys; only the input device is modern. */
         g_setThrust = clampRange(pointerThrottle, 0, 100);
@@ -265,7 +265,14 @@ switch_break:
      */
     /* A deliberately enabled altitude autopilot owns the controls until the
      * player toggles it off; otherwise handset attitude is authoritative. */
-    androidFlightControl = g_autopilotAltitude == 0
+    /* Direct attitude must not cancel a stall, ground constraint, or forced
+     * crash. Zero thrust alone is not a stall: unpowered gliding remains valid. */
+    const bool attitudeControlAllowed =
+        g_autopilotAltitude == 0 && g_inputDisabled == 0 &&
+        g_ejectState == 0 && g_autoCrashDive == 0 &&
+        (uint16)g_velocity > (uint16)g_stallSpeed &&
+        (g_groundAltitude != g_viewZ || g_knots >= g_cornerSpeed);
+    androidFlightControl = attitudeControlAllowed
                                ? android_ar_overrideFlightInput(
                                      &g_rollInput, &g_pitchInput)
                                : 0;
@@ -657,16 +664,8 @@ switch_break:
 
     g_highGeeFlag[0] = ((abs(g_ourPitch)) - (abs((int16)g_ourRoll) / 2) > 0x1000) ? 1 : 0;
 
-    /*
-     * computeAttitudeAngles() above must run so yaw updates the heading, but
-     * its legacy Euler decomposition can fold roll to a distant equivalent
-     * angle. Reassert the handset target at the final orientation boundary so
-     * rendering and the next simulation step both observe the requested pose.
-     */
-    if (androidFlightControl &&
-        android_ar_overrideFlightAttitude(&g_ourRoll, &g_ourPitch)) {
-        g_orientationDirty = 1;
-    }
+    /* Keep the stall and ground corrections above. Reapplying handset attitude
+     * here would erase their nose drop and permit flight below stall speed. */
 
     if (g_orientationDirty) {
         rebuildOrientation();

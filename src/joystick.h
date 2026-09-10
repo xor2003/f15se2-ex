@@ -68,5 +68,7 @@ void joy_resetFlightInput(void);
 Uint16 joy_flightCommand(int selectedWeapon, int viewMode);
 /* Changed thrust percentage (0..100), or -1 when no lever update is pending. */
 int joy_throttleChange(void);
+/* Availability is independent of movement: a stationary lever still owns thrust. */
+bool joy_hasThrottleAxis(void);
 
 #endif /* JOYSTICK_H */

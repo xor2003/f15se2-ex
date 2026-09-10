@@ -98,7 +98,14 @@ InputMode input_getMode(void) { return g_mode; }
 bool input_quitRequested(void) { return g_quitRequested; }
 bool input_hasFocus(void) { return g_hasFocus; }
 void input_setQuitHandler(void (*handler)(void)) { g_quitHandler = handler; }
-bool input_preferGamepad(void) { return g_lastWasGamepad && joy_connected(); }
+bool input_preferGamepad(void) {
+#if defined(__ANDROID__)
+    /* A connected controller owns flight input even after a cockpit tap. */
+    return joy_connected();
+#else
+    return g_lastWasGamepad && joy_connected();
+#endif
+}
 
 /* --- shared key ring -------------------------------------------------------
  * Each entry is a BIOS key word: AH = scan code, AL = ASCII. The game masks
@@ -589,7 +596,7 @@ static void updateStick(void) {
     Uint8 x = 0x80, y = 0x80;
     controls_applyAxes(&x, &y, false);
 #if defined(__ANDROID__)
-    if (android_ar_controlsActive()) android_ar_getFlightAxes(&x, &y);
+    if (android_ar_controlsActive() && !joy_connected()) android_ar_getFlightAxes(&x, &y);
 #endif
     g_joyRawX = x;
     g_joyRawY = y;

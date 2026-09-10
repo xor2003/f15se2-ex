@@ -369,6 +369,10 @@ Uint16 joy_flightCommand(int selectedWeapon, int viewMode) {
 
 /* Only lever movement changes thrust, leaving keyboard afterburner/throttle
  * usable. One-percent hysteresis suppresses resting axis noise. */
+bool joy_hasThrottleAxis(void) {
+    return g_joy != NULL && g_throttleAxis >= 0;
+}
+
 int joy_throttleChange(void) {
     if (!g_joy || g_throttleAxis < 0 || !input_hasFocus()) return -1;
     const int raw = (int)SDL_GetJoystickAxis(g_joy, g_throttleAxis) + 32768;

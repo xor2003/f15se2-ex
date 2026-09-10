@@ -4,6 +4,7 @@
  * Camera preview geometry is independent of both.
  */
 #include "android_ar.h"
+#include "joystick.h"
 
 #include <SDL3/SDL.h>
 #include <atomic>
@@ -118,7 +119,7 @@ int android_ar_controlsActive(void) {
 }
 
 static bool phoneControlsFlight(void) {
-    return android_ar_controlsActive() &&
+    return android_ar_controlsActive() && !joy_connected() &&
         !g_autopilotActive.load(std::memory_order_acquire) &&
         !g_lookMode.load(std::memory_order_acquire);
 }
