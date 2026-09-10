@@ -35,7 +35,17 @@ jobs:
           unzip -j /tmp/sdl-android.zip SDL3-3.4.10.aar -d android/app/libs
 
       - name: Build debug APK
+        env:
+          F15_ANDROID_KEYSTORE_BASE64: ${{ secrets.F15_ANDROID_KEYSTORE_BASE64 }}
+          F15_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.F15_ANDROID_KEYSTORE_PASSWORD }}
         run: |
+          # Never silently fall back to a fresh runner's temporary debug key.
+          test -n "$F15_ANDROID_KEYSTORE_BASE64"
+          test -n "$F15_ANDROID_KEYSTORE_PASSWORD"
+          umask 077
+          export F15_ANDROID_KEYSTORE="$RUNNER_TEMP/f15-android.p12"
+          trap 'rm -f "$F15_ANDROID_KEYSTORE"' EXIT
+          printf '%s' "$F15_ANDROID_KEYSTORE_BASE64" | base64 --decode > "$F15_ANDROID_KEYSTORE"
           sh android/test-assets.sh
           gradle -p android --no-daemon assembleDebug
 

@@ -7,6 +7,23 @@ android {
     compileSdk 35
     ndkVersion "28.2.13676358"
 
+    // CI uses a persistent key so downloaded APKs can update in place.
+    // Local builds without these variables retain Android's usual debug key.
+    def signingPath = System.getenv("F15_ANDROID_KEYSTORE")
+    if (signingPath) {
+        def signingPassword = System.getenv("F15_ANDROID_KEYSTORE_PASSWORD")
+        if (!signingPassword) throw new GradleException("Missing Android signing password")
+        signingConfigs {
+            persistent {
+                storeFile file(signingPath)
+                storePassword signingPassword
+                keyAlias "f15se2"
+                keyPassword signingPassword
+            }
+        }
+        buildTypes.debug.signingConfig = signingConfigs.persistent
+    }
+
     defaultConfig {
         applicationId "org.f15se2.ex"
         minSdk 21
