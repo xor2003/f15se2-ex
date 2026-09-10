@@ -25,11 +25,9 @@
  */
 #include <SDL3/SDL.h>
 #if defined(R3D_GLES_BUILD)
-#include <SDL3/SDL_opengles2.h>
-#include "android_ar.h"
-#include "r3d_gles_compat.h"
+#include "r3d_gles_platform.h"
 #else
-#include <SDL3/SDL_opengl.h>
+#include "r3d_gl_platform.h"
 #endif
 
 #include "r3d.h"
@@ -83,12 +81,7 @@ static const int GL_MSAA_SAMPLES = 4;
 int r3dgl_msaaSamples(void) { return GL_MSAA_SAMPLES; }
 
 void r3dgl_setGLAttributes(int msaaSamples) {
-#if defined(R3D_GLES_BUILD)
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
-    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
-    SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, android_ar_requested() ? 8 : 0);
-#endif
+    glPlatformSetAttributes();
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
     /* 8-bit stencil (D24S8, universal on GL 1.1) — the shadow pass masks each covered
      * pixel so a self-overlapping silhouette blends exactly once. */
@@ -109,18 +102,11 @@ int r3dgl_initContext(SDL_Window *win) {
     }
     SDL_GL_MakeCurrent(win, s_ctx);
     SDL_GL_SetSwapInterval(1);
-#if defined(R3D_GLES_BUILD)
-    if (!r3dgles_compatInit()) {
-        LogCritical(("GLES2 shader initialization failed"));
+    if (!glPlatformInit(&s_glFogCoordf, GL_MSAA_SAMPLES)) {
         SDL_GL_DestroyContext(s_ctx);
         s_ctx = NULL;
         return 0;
     }
-    s_glFogCoordf = r3dgles_fogCoordf;
-#else
-    s_glFogCoordf = (void (*)(GLfloat))SDL_GL_GetProcAddress("glFogCoordf");
-    if (GL_MSAA_SAMPLES > 0) glEnable(GL_MULTISAMPLE); /* no-op if the format has 0 samples */
-#endif
     {
         GLint depthBits = 0, stencilBits = 0, samples = 0;
         glGetIntegerv(GL_DEPTH_BITS, &depthBits);
@@ -397,11 +383,7 @@ static void fogVertex(float x, float y, float z) {
 }
 
 static const char *gl_name(void) {
-#if defined(R3D_GLES_BUILD)
-    return "opengles2";
-#else
-    return "opengl1";
-#endif
+    return glPlatformName();
 }
 
 static int gl_init(void) { return s_active; } /* claims iff the context came up */
@@ -663,9 +645,7 @@ static void gl_beginScene(const R3DScene *s) {
         gl_beginSubScene(s);
         return;
     }
-#if defined(R3D_GLES_BUILD)
-    android_ar_adjustView(&viewYaw, &viewPitch, &viewRoll);
-#endif
+    glPlatformAdjustView(&viewYaw, &viewPitch, &viewRoll);
     /* This is a flight 3D frame: its HUD/MFD line & point submissions draw
      * immediately at native resolution. The page backdrop is composited mid-frame
      * at the gl_endScene anchor (after the 3D, before the HUD), so don't compose it
@@ -718,11 +698,7 @@ static void gl_beginScene(const R3DScene *s) {
      * viewport region is re-cleared to the sky colour once scissored below. */
     glViewport(0, 0, win_w, win_h);
     glDisable(GL_SCISSOR_TEST);
-#if defined(R3D_GLES_BUILD)
-    glClearColor(0.0f, 0.0f, 0.0f, android_ar_active() ? 0.0f : 1.0f);
-#else
-    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-#endif
+    glPlatformClearColor(0.0f, 0.0f, 0.0f);
     glDepthMask(GL_TRUE);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
@@ -799,12 +775,7 @@ static void gl_beginScene(const R3DScene *s) {
     {
         uint8 r, g, b;
         gfx_paletteRGB((int)(uint8)skyIdx, &r, &g, &b);
-#if defined(R3D_GLES_BUILD)
-        if (android_ar_active())
-            glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-        else
-#endif
-            glClearColor(r / 255.0f, g / 255.0f, b / 255.0f, 1.0f);
+        glPlatformClearColor(r / 255.0f, g / 255.0f, b / 255.0f);
     }
     glDepthMask(GL_TRUE);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
@@ -814,12 +785,7 @@ static void gl_beginScene(const R3DScene *s) {
      * restored for the objects. */
     if ((char)g_detailLevel >= 3)
         glDrawSphere(sphOrtho[0], sphOrtho[1], sphOrtho[2], sphOrtho[3],
-#if defined(R3D_GLES_BUILD)
-                     !android_ar_active()
-#else
-                     1
-#endif
-        );
+                     glPlatformDrawSky());
     glMatrixMode(GL_PROJECTION);
     glLoadMatrixf(s_proj);
     glMatrixMode(GL_MODELVIEW);

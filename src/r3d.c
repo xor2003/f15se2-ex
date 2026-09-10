@@ -37,11 +37,7 @@ const char *r3d_requestedBackend(void) {
     const char *e = SDL_getenv("F15_RENDER");
     if (!e || !*e || ieq(e, "auto")) return 0;
     if (ieq(e, "gl") || ieq(e, "opengl") || ieq(e, "opengl1"))
-#if defined(__ANDROID__)
-        return "opengles2";
-#else
-        return "opengl1";
-#endif
+        return r3d_glBackend.name(); /* GL implementation selected by the build. */
     if (ieq(e, "gles") || ieq(e, "gles2") || ieq(e, "opengles2")) return "opengles2";
     if (ieq(e, "sw") || ieq(e, "soft") || ieq(e, "software")) return "software";
     return e; /* unknown name: probe loop will warn and fall back */
