@@ -17,6 +17,8 @@
 
 namespace fs = std::filesystem;
 
+enum { INDEX8_COLOR_COUNT = 256, RGBA_PIXEL_BYTES = 4 };
+
 /* Derive the canonical PNG replacement name from a legacy image filename. */
 static bool replacementName(const char *legacyFilename, std::string *name) {
     if (!legacyFilename || !legacyFilename[0]) return false;
@@ -64,7 +66,7 @@ static bool copyScaledIndices(SDL_Surface *source, SDL_Surface *destination) {
 static uint8 nearestPaletteIndex(const SDL_Palette *palette, uint8 r, uint8 g, uint8 b) {
     int bestIndex = 0;
     unsigned int bestDistance = ~0U;
-    for (int i = 0; i < palette->ncolors && i < 256; ++i) {
+    for (int i = 0; i < palette->ncolors && i < INDEX8_COLOR_COUNT; ++i) {
         const int dr = (int)r - palette->colors[i].r;
         const int dg = (int)g - palette->colors[i].g;
         const int db = (int)b - palette->colors[i].b;
@@ -108,7 +110,7 @@ static bool copyScaledTruecolor(SDL_Surface *source, SDL_Surface *destination) {
             (uint8 *)destination->pixels + (size_t)y * destination->pitch;
         for (int x = 0; x < destination->w; ++x) {
             const int sourceX = (int)(((int64)x * rgba->w) / destination->w);
-            const uint8 *pixel = sourceRow + sourceX * 4;
+            const uint8 *pixel = sourceRow + sourceX * RGBA_PIXEL_BYTES;
             destinationRow[x] =
                 nearestPaletteIndex(palette, pixel[0], pixel[1], pixel[2]);
         }
@@ -124,9 +126,10 @@ static bool copyScaledTruecolor(SDL_Surface *source, SDL_Surface *destination) {
 int loadReplacementPng(const char *legacyFilename, SDL_Surface *destination) {
     std::string relativeName{};
     char replacementPath[1024]{};
-    if (!destination || !replacementName(legacyFilename, &relativeName)
-        || !findAssetReplacement(relativeName.c_str(), replacementPath,
-                                 sizeof(replacementPath))) {
+    if (!destination || !replacementName(legacyFilename, &relativeName)) return 0;
+    const bool replacementFound = findAssetReplacement(
+        relativeName.c_str(), replacementPath, sizeof(replacementPath));
+    if (!replacementFound) {
         return 0;
     }
 
