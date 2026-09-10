@@ -97,6 +97,57 @@ static void profileValidation() {
         require(controls_command(RAW_VIEW, 0, views[i]) == commands[i], "view cycle follows game state");
 }
 
+static void remoteKeys(const std::string &path) {
+    controls_resetKeyboard();
+    input_setMode(INPUT_MODE_MENU);
+    input_ringReset();
+    setupKey(SDL_SCANCODE_SELECT, SDLK_SELECT);
+    require(input_keyWaiting() && input_readKey() == SCAN_ENTER, "remote Select confirms menus");
+    setupKey(SDL_SCANCODE_AC_BACK, SDLK_AC_BACK);
+    require(input_keyWaiting() && input_readKey() == SCAN_ESCAPE, "remote Back exits menus");
+
+    const struct {
+        RawAction action;
+        SDL_Scancode scancode;
+        SDL_Keycode key;
+        Uint16 command;
+    } buttons[] = {
+        {RAW_MISSILE, SDL_SCANCODE_SELECT, SDLK_SELECT, SCAN_ENTER},
+        {RAW_GEAR, SDL_SCANCODE_AC_BACK, SDLK_AC_BACK, SCAN_L},
+        {RAW_AUTOPILOT, SDL_SCANCODE_VOLUMEUP, SDLK_VOLUMEUP, SCAN_P},
+        {RAW_FLARE, SDL_SCANCODE_ESCAPE, SDLK_ESCAPE, SCAN_F}
+    };
+    for (const auto &button : buttons) {
+        controls_beginCapture(button.action);
+        setupKey(button.scancode, button.key);
+        input_pumpEvents();
+        require(!controls_capturing(), "remote key completes capture");
+        require(!input_keyWaiting(), "captured remote key does not navigate menu");
+        require(controls_keyboardBinding(button.action).key == button.scancode, "remote scancode captured");
+        require(!controls_keyName(button.action).empty(), "remote binding has a visible name");
+    }
+    controls_beginCapture(RAW_GEAR);
+    SDL_KeyboardEvent unknown = {};
+    require(controls_captureKey(unknown) && controls_capturing(), "unknown key does not end capture");
+    require(controls_keyboardBinding(RAW_GEAR).key == SDL_SCANCODE_AC_BACK, "unknown key does not erase binding");
+    unknown.scancode = SDL_SCANCODE_SELECT;
+    unknown.repeat = true;
+    require(controls_captureKey(unknown) && controls_capturing(), "repeat does not assign a remote key");
+    controls_beginCapture((RawAction)-1);
+
+    require(controls_saveKeyboard(path), "save remote bindings");
+    controls_resetKeyboard();
+    require(controls_loadKeyboard(path), "reload remote bindings");
+    input_setMode(INPUT_MODE_FLIGHT);
+    for (const auto &button : buttons) {
+        setupKey(button.scancode, button.key);
+        require(input_keyWaiting() && input_readKey() == button.command, "saved remote key reaches flight command");
+    }
+    controls_resetKeyboard();
+    require(controls_saveKeyboard(path), "restore defaults for subsequent setup tests");
+    input_setMode(INPUT_MODE_MENU);
+}
+
 static void directionalButtons() {
     SDL_VirtualJoystickDesc desc = {};
     SDL_INIT_INTERFACE(&desc);
@@ -169,10 +220,12 @@ int main() {
     event.key.scancode = SDL_SCANCODE_F11;
     require(controls_captureKey(event.key) && !controls_capturing(), "capture assigns chord");
     require(controls_translateKey(SDL_SCANCODE_F11, SDL_KMOD_SHIFT, 0) == SCAN_L, "captured chord acts");
-    controls_beginCapture(RAW_GEAR);
+    controls_beginCapture(RAW_MISSILE);
     event.key.scancode = SDL_SCANCODE_ESCAPE;
+    event.key.mod = SDL_KMOD_NONE;
     controls_captureKey(event.key);
-    require(!controls_capturing(), "escape cancels capture");
+    require(!controls_capturing() && controls_keyboardBinding(RAW_MISSILE).key == SDL_SCANCODE_ESCAPE,
+            "Escape can be assigned like other remote keys");
     const std::string path = controls_keyboardPath();
     require(controls_saveKeyboard(path), "save keyboard");
     controls_resetKeyboard();
@@ -192,6 +245,7 @@ int main() {
     require(g_textRecorder == nullptr, "keyboard-only setup defaults to Continue");
     require(controls_loadKeyboard(path), "setup saves valid defaults after invalid profile");
     profileValidation();
+    remoteKeys(path);
     directionalButtons();
     g_textRecorder = editThenReset;
     joy_showSetup();

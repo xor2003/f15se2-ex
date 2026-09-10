@@ -63,7 +63,7 @@ static void drawJoystickSetup(int selected, int first, bool keyboard, bool saveF
     drawStringCentered(page, selected == resetRow ? "> RESET DEFAULTS <" : "RESET DEFAULTS", 0, 162, LOGICAL_WIDTH);
     page[2] = COLOR_LIGHTRED;
     drawStringCentered(page, saveFailed ? "Save failed. Continue to play unsaved." :
-                       controls_capturing() ? "Press key / chord. ESC cancels." :
+                       controls_capturing() ? "Press key / chord to assign." :
                        "ENTER: edit  DEL: clear  ESC: finish", 0, 177, LOGICAL_WIDTH);
     gfx_commitPage();
 }

@@ -66,7 +66,8 @@ cycle view, and alternating countermeasures have no keyboard shortcut until assi
 - Up/down arrows or the stick select an action; left/right arrows select the
   keyboard or joystick column.
 - In the keyboard column, press Enter, then the desired key or modifier chord.
-  Escape cancels capture. Alt+Enter remains reserved for fullscreen.
+  Escape can also be assigned. Modifier keys alone are not assignments;
+  Alt+Enter remains reserved for fullscreen. Losing window focus cancels capture.
 - Press a raw joystick button to assign it to the selected action. Pressing its
   current assignment again clears it. Assigning an occupied key or button swaps
   the two actions.
@@ -89,6 +90,16 @@ unchanged. Throttle-axis selection remains automatic or environment-configured.
 Keyboard bindings use a separate `keyboard.txt` in the same directory and apply
 across devices. The file stores SDL physical scancodes and modifier masks, not
 localized text. Reset Defaults does not change throttle-axis configuration.
+
+Bluetooth remotes reported by SDL as keyboards use the keyboard column, including
+media keys, Select and Back when delivered as SDL scancodes. Select confirms and
+Back exits in menus; while capturing a binding they are assigned instead.
+Choose Continue to save, then the next startup restores the mapping. Unnamed
+scancodes are displayed as `Key <number>`; events without a scancode are ignored.
+Android TV may reserve Home, Power, volume or vendor-specific buttons before SDL
+receives them. Such buttons cannot be assigned here. Remotes reported as mapped
+gamepads still use the unchanged gamepad layout described above. This desktop PR
+alone does not add an Android build or change Android's event forwarding.
 
 In the other menus, move the stick to select, press physical button 1 to
 confirm, or button 2 to go back. These menu controls are independent of the

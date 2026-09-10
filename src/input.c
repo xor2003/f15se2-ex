@@ -478,9 +478,11 @@ static void menuKeyDown(const SDL_Event *ev) {
     switch (ev->key.key) {
     case SDLK_RETURN:
     case SDLK_KP_ENTER:
+    case SDLK_SELECT: /* Remote OK/select; capture still receives the original key. */
         ringPush(0x1c00 | KEYCODE_ENTER); /* AL = 0x0d */
         break;
     case SDLK_ESCAPE:
+    case SDLK_AC_BACK: /* Remote Back navigates menus, but is bindable in flight. */
         ringPush(0x0100 | KEYCODE_ESC); /* AL = 0x1b */
         break;
     case SDLK_BACKSPACE:

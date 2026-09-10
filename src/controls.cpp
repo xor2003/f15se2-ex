@@ -144,9 +144,11 @@ std::string controls_keyName(RawAction action) {
     if (!initialized) controls_resetKeyboard();
     const ControlBinding b = bindings[action];
     if (!b.key) return "-";
+    const char *name = SDL_GetScancodeName(b.key);
+    const std::string keyName = name && *name ? name : "Key " + std::to_string(b.key);
     return std::string(b.mod & SDL_KMOD_ALT ? "Alt+" : "") +
            (b.mod & SDL_KMOD_CTRL ? "Ctrl+" : "") +
-           (b.mod & SDL_KMOD_SHIFT ? "Shift+" : "") + SDL_GetScancodeName(b.key);
+           (b.mod & SDL_KMOD_SHIFT ? "Shift+" : "") + keyName;
 }
 
 /* Translate only flight keys. Suppress displaced defaults instead of leaving
@@ -202,11 +204,11 @@ bool controls_replaceKeyboard(const ControlBinding *candidate) {
 void controls_beginCapture(RawAction action) { capture = action; }
 bool controls_capturing(void) { return capture >= 0; }
 
-/* Escape cancels capture; modifier presses wait for the actual key. */
+/* Remotes can report Escape as a physical button, so capture it like any key.
+ * UNKNOWN is the stored unbound sentinel, not a usable input event. */
 bool controls_captureKey(const SDL_KeyboardEvent &event) {
     if (capture < 0) return false;
-    if (event.repeat) return true;
-    if (event.scancode == SDL_SCANCODE_ESCAPE) capture = -1;
-    else if (controls_bindKey((RawAction)capture, event.scancode, event.mod)) capture = -1;
+    if (event.repeat || event.scancode == SDL_SCANCODE_UNKNOWN) return true;
+    if (controls_bindKey((RawAction)capture, event.scancode, event.mod)) capture = -1;
     return true;
 }
