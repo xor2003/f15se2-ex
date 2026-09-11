@@ -20,7 +20,10 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build libgl1-mesa-dev libx11-dev libxext-dev
+          sudo apt-get install -y cmake ninja-build libgl1-mesa-dev \
+            libx11-dev libxext-dev libxcursor-dev libxi-dev libxfixes-dev \
+            libxrandr-dev libxss-dev libxtst-dev libwayland-dev wayland-protocols \
+            libegl1-mesa-dev libgles2-mesa-dev
       - name: Configure
         run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug -DASAN=ON -DUBSAN=ON
       - name: Build
@@ -50,7 +53,10 @@ jobs:
       - name: Install tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake ninja-build cppcheck clang-tools-18 libgl1-mesa-dev libx11-dev libxext-dev
+          sudo apt-get install -y cmake ninja-build cppcheck clang-tools-18 libgl1-mesa-dev \
+            libx11-dev libxext-dev libxcursor-dev libxi-dev libxfixes-dev \
+            libxrandr-dev libxss-dev libxtst-dev libwayland-dev wayland-protocols \
+            libegl1-mesa-dev libgles2-mesa-dev
           python -m pip install lizard==1.17.31
           cppcheck --version
           clang-check-18 --version

@@ -11,7 +11,6 @@ reading and understanding the change. A green run does not prove correct gamepla
 | Cppcheck and Clang static analyzer | Every PR; Linux | Findings for review; analyzer execution errors fail the job |
 | Function complexity and dependency graph | Every PR; Linux | Downloadable review metrics, no arbitrary legacy-wide threshold |
 | Mutation testing | Manual, selected test target | Baseline must pass; surviving mutations are reported for review |
-| Installed package smoke test | Packaging PRs and nightly | Runs `--help` from the installed directory |
 | Interactive acceptance | Before merging affected gameplay or UI | Contributor records the checks below |
 
 Repository branch protection must be configured by a maintainer to require CI
