@@ -99,12 +99,28 @@ else()
     endif()
 endif()
 
+# FM synthesis. Off-DOS there is no OPL chip, so the AdLib register stream has to
+# be synthesized (Nuked-OPL3) and mixed into the PCM output. On DOS every Sound
+# Blaster SDL can drive carries an OPL at 388h, so the default writes the chip and
+# leaves the emulator out (smaller binary, no synthesis CPU cost). Build with
+# -DFM_EMULATION=ON for a DOS card without an FM part.
+if(F15_DOS)
+    set(FM_EMULATION_DEFAULT OFF)
+else()
+    set(FM_EMULATION_DEFAULT ON)
+endif()
+option(FM_EMULATION "Synthesize FM in software (Nuked-OPL3) instead of driving the AdLib port; always ON off-DOS" ${FM_EMULATION_DEFAULT})
+if(NOT F15_DOS AND NOT FM_EMULATION)
+    message(STATUS "FM_EMULATION forced ON: only DOS can drive an OPL chip directly")
+    set(FM_EMULATION ON)
+endif()
+
 # Nuked-OPL3: the YM3812/OPL2 emulator that turns the ported AdLib driver's
 # register state into PCM. Header-light (opl3.c/.h), no CMake of its own, so we
-# just pull the sources and compile opl3.c into the target (as C). Only needed by
-# the real audio backend, so skip the fetch entirely when AUDIO is off.
+# just pull the sources and compile opl3.c into the target (as C). Only needed
+# when FM is synthesized, so skip the fetch otherwise.
 include(FetchContent)
-if(AUDIO)
+if(AUDIO AND FM_EMULATION)
     FetchContent_Declare(
         nuked_opl3
         GIT_REPOSITORY "https://github.com/nukeykt/Nuked-OPL3.git"
@@ -305,9 +321,9 @@ endif()
 set(F15SE2_CORE_SOURCES ${F15SE2_SOURCES})
 list(REMOVE_ITEM F15SE2_CORE_SOURCES ${SRC_DIR}/f15.c)
 
-# opl3.c (the OPL emulator) is only pulled in by the real audio backend.
+# opl3.c (the OPL emulator) is only pulled in when FM is synthesized.
 set(AUDIO_SOURCES "")
-if(AUDIO)
+if(AUDIO AND FM_EMULATION)
     list(APPEND AUDIO_SOURCES ${nuked_opl3_SOURCE_DIR}/opl3.c)
 endif()
 
@@ -326,8 +342,9 @@ target_include_directories(f15se2_core PRIVATE
     ${SRC_DIR}/asound
     ${quick_digest5_SOURCE_DIR}/include
 )
-if(AUDIO)
+if(AUDIO AND FM_EMULATION)
     target_include_directories(f15se2_core PRIVATE ${nuked_opl3_SOURCE_DIR})
+    target_compile_definitions(f15se2_core PRIVATE F15_FM_EMULATION=1)
 endif()
 # Keep the log.h diagnostics live (the Log* macros compile out without DEBUG).
 target_compile_definitions(f15se2_core PUBLIC DEBUG)

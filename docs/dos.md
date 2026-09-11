@@ -43,9 +43,12 @@ Keyboard controls are unchanged.
 Explicit joystick calibration is not included yet. The SDL DOS driver
 currently learns its axis range while the stick moves.
 
-FM music and effects use AdLib-compatible hardware registers on DOS rather
-than software OPL synthesis. Digitized speech still uses SDL's Sound Blaster
-audio output. This is a game-side DOS backend, not an SDL workaround.
+FM music and effects are written straight to the AdLib-compatible OPL at port
+388h that every Sound Blaster carries; the software OPL emulator is not built
+into the DOS binary by default. For a Sound Blaster-compatible card without an
+FM part, build with `-DFM_EMULATION=ON` to synthesize FM into the PCM output
+instead (much more CPU). Speech always uses SDL's Sound Blaster audio output.
+This is a game-side DOS backend, not an SDL workaround.
 
 ## Temporary SDL workarounds
 
