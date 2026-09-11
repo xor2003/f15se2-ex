@@ -74,7 +74,7 @@ change. It does not edit working source files.
 
 The default signed-ratio suite keeps the initial run small. Utility and software
 rasterizer suites are also selectable. This is not a whole-project mutation score:
-only code linked into and exercised by that test is measured. Inspect the HTML/JSON
+only code linked into and exercised by that test is measured. Inspect the JSON
 report and log in the artifact for killed, surviving, timed-out, or uncovered
 mutations. A surviving mutation may identify a missing assertion or an equivalent
 change. Investigate it before adding a test. A timeout is not evidence that an
