@@ -557,46 +557,11 @@ static bool gfx_initDirectFB(void) {
  * applying the explosion screen-shake as a horizontal source offset, then push it
  * to VRAM + the DAC. Both surfaces are INDEX8, so this is a straight per-row index
  * copy — no texture upload, no format conversion. */
-/* Opt-in per-present timing (F15_FRAME_STATS=1; same flag drives the egame
- * render/sim split in egsys.c). Splits the two costs of the direct-FB present —
- * the system-RAM row copy vs SDL_UpdateWindowSurface (the dosmemput-to-VRAM + VGA
- * DAC reprogram) — and counts how often the palette changed (which is what forces
- * the DAC reprogram). Accumulated over a batch and logged once per batch so the
- * file I/O can't skew the numbers. Answers "where do the ~125 ms/frame go, and
- * does it track palette animation?" in one hardware run. */
-#define PRESENT_STATS_BATCH 60
-static int s_presentStats = -1; /* -1 = not yet probed */
-static void gfx_presentStatsAccum(Uint64 copyNs, Uint64 updateNs, bool palChanged) {
-    static Uint64 copySum, updateSum, batchStart;
-    static int n, palChanges;
-    Uint64 now;
-    if (s_presentStats < 0) s_presentStats = SDL_getenv("F15_FRAME_STATS") != NULL;
-    if (!s_presentStats) return;
-    copySum += copyNs;
-    updateSum += updateNs;
-    if (palChanged) palChanges++;
-    if (n == 0) batchStart = SDL_GetTicksNS();
-    if (++n < PRESENT_STATS_BATCH) return;
-    now = SDL_GetTicksNS();
-    LogInfo(("present-stats: %d frames in %llu ms (%llu fps), copy avg %llu us, "
-             "update avg %llu us, palette changed %d/%d",
-             n, (unsigned long long)((now - batchStart) / SDL_NS_PER_MS),
-             (unsigned long long)(n * SDL_NS_PER_SECOND / (now - batchStart)),
-             (unsigned long long)(copySum / n / 1000),
-             (unsigned long long)(updateSum / n / 1000), palChanges, n));
-    copySum = updateSum = 0;
-    n = palChanges = 0;
-}
-
 static void gfx_presentDirectFB(SDL_Surface *page, int shake) {
     SDL_Surface *ws;
     const Uint8 *sp;
     Uint8 *dp;
     int y, w, h, copyw;
-    Uint64 t0, t1, t2;
-    static Uint32 palVerLastPresent; /* version at the previous present */
-    Uint32 palVerNow;
-    bool palChanged;
 
     if (!page) return;
     ws = SDL_GetWindowSurface(sdlWindow);
@@ -609,14 +574,6 @@ static void gfx_presentDirectFB(SDL_Surface *page, int shake) {
     if (shake > w) shake = w;
     copyw = w - shake;
 
-    /* Palette moved since the previous present? Then this present's
-     * SDL_UpdateWindowSurface reprograms the VGA DAC (768 port writes). The game
-     * bumps the version during rendering, so compare present-to-present. */
-    palVerNow = gfxPalette ? gfxPalette->version : 0;
-    palChanged = palVerNow != palVerLastPresent;
-    palVerLastPresent = palVerNow;
-
-    t0 = SDL_GetTicksNS();
     sp = (const Uint8 *)page->pixels;
     dp = (Uint8 *)ws->pixels;
     /* Centre a 350-line title in a taller VESA mode. */
@@ -624,11 +581,7 @@ static void gfx_presentDirectFB(SDL_Surface *page, int shake) {
     for (y = 0; y < h; y++)
         SDL_memcpy(dp + (size_t)y * ws->pitch,
                    sp + (size_t)y * page->pitch + shake, (size_t)copyw);
-    t1 = SDL_GetTicksNS();
     SDL_UpdateWindowSurface(sdlWindow);
-    t2 = SDL_GetTicksNS();
-
-    gfx_presentStatsAccum(t1 - t0, t2 - t1, palChanged);
 }
 
 /* Software present: blit a page surface through the SDL_Renderer (vsync-paced).

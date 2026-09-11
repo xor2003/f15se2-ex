@@ -74,14 +74,15 @@ else()
         message(STATUS "System SDL3 not found, building it from source")
         include(FetchContent)
         if(F15_DOS)
-            # DOS support landed after 3.4.12; pin the commit that carries the DOS
-            # video/timer/audio backends and the DJGPP toolchain.
+            # DOS support landed after 3.4.12; pin a commit that carries the DOS
+            # video/timer/audio backends and the DJGPP toolchain, the audio
+            # ring-buffer fairness fix (PR #16288), and the direct gameport
+            # joystick read (the BIOS INT 15h axis read it replaces cost tens of
+            # milliseconds per call on real hardware).
             FetchContent_Declare(
                 SDL3
-                URL "https://github.com/libsdl-org/SDL/archive/e442a9a5e1d6eb2621e9206f5176c53b0d034e09.tar.gz"
-                URL_HASH SHA256=8ebc84ff04c076c0e6249c885fc1efc6dc5f13a411b31de8621478646ff76bcf
-                PATCH_COMMAND ${CMAKE_COMMAND} -DSDL_SOURCE_DIR=<SOURCE_DIR>
-                    -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/patch_sdl_dos_audio.cmake
+                URL "https://github.com/libsdl-org/SDL/archive/015489c672f24feed28c2aa2cdd6176df95329f3.tar.gz"
+                URL_HASH SHA256=50c373115702974928c760f6e752aae33b69dcc51b4c2d909c35b30f41283a52
                 UPDATE_DISCONNECTED TRUE
             )
         else()

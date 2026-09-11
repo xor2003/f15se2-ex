@@ -52,17 +52,14 @@ This is a game-side DOS backend, not an SDL workaround.
 
 ## Temporary SDL workarounds
 
-- Audio starvation: `cmake/patch_sdl_dos_audio.cmake` adds a cooperative yield
-  even when the audio ring has free space. Tracked by
-  https://github.com/libsdl-org/SDL/pull/16288.
 - Joystick mapping: `src/joystick.c` supplies bindings for the controls the
   DOS driver actually exposes. The generic mapping otherwise reads missing
   trigger axes as half-pressed. Tracked by
   https://github.com/libsdl-org/SDL/issues/16289.
 
-Neither upstream fix is assumed to be available merely because it was
-reported. When updating SDL, check the linked changes, test idle joystick
-input and slow audio mixing, then remove the superseded workarounds.
+The upstream fix is not assumed to be available merely because it was
+reported. When updating SDL, check the linked issue, test idle joystick
+input, then remove the superseded workaround.
 
 ## Build
 
