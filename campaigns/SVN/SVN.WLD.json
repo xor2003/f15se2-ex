@@ -1,0 +1,2523 @@
+{
+  "format": "WLD",
+  "version": 1,
+  "terrain_target_ids": {
+    "land": 73,
+    "water": 91
+  },
+  "read_item_size": 37,
+  "ground_unit_count": 22,
+  "world_object_count": 27,
+  "world_objects": [
+    {
+      "unitRef": 0,
+      "unitType": 0,
+      "objectIdx": 0,
+      "x_coord": 27256,
+      "y_coord": 4893,
+      "targetFlags": 0,
+      "occupantType": 0,
+      "patrolCount": 0,
+      "legacy_label": "SOVIET HQ",
+      "scenario_label": "Soviet forward HQ",
+      "scenario_role": "soviet_start_area",
+      "scenario_objective_id": "start_soviet_hq",
+      "scenario_objective": "Player staging area and campaign anchor for Lisicin / Li Si Cin.",
+      "scenario_priority": "friendly",
+      "scenario_faction": "soviet_vietnamese",
+      "scenario_domain": "base",
+      "scenario_action": "defend",
+      "scenario_target_type": "friendly_command_post",
+      "scenario_threat_level": "friendly",
+      "scenario_desired_effect": "preserve",
+      "editor_notes": "Campaign starter target anchored near Gia Lam / Hanoi forward control; move in map editor if gameplay balance needs a different location.",
+      "scenario_real_world_anchor": {
+        "label": "Gia Lam / Hanoi forward control",
+        "lon": 105.886,
+        "lat": 21.04,
+        "coordinate_source": "author_approximate_osm_anchor",
+        "doctrine": "friendly staging and recovery point"
+      }
+    },
+    {
+      "unitRef": 0,
+      "unitType": 0,
+      "objectIdx": 0,
+      "x_coord": 0,
+      "y_coord": 0,
+      "targetFlags": 0,
+      "occupantType": 0,
+      "patrolCount": 0
+    },
+    {
+      "unitRef": 0,
+      "unitType": 0,
+      "objectIdx": 0,
+      "x_coord": 0,
+      "y_coord": 0,
+      "targetFlags": 0,
+      "occupantType": 0,
+      "patrolCount": 0
+    },
+    {
+      "unitRef": 1,
+      "unitType": 2,
+      "objectIdx": 294,
+      "x_coord": 27269,
+      "y_coord": 4750,
+      "targetFlags": 0,
+      "occupantType": 0,
+      "patrolCount": 0,
+      "legacy_label": "SAM Radar",
+      "scenario_label": "Hanoi radar net",
+      "scenario_role": "primary_radar_target",
+      "scenario_objective_id": "suppress_hanoi_radar",
+      "scenario_objective": "SAM/radar suppression target protecting North Vietnam.",
+      "scenario_priority": "primary",
+      "scenario_faction": "usa_allied",
+      "scenario_domain": "air_defense",
+      "scenario_action": "suppress",
+      "scenario_target_type": "sam_radar_network",
+      "scenario_threat_level": "high",
+      "scenario_desired_effect": "open a low-risk corridor toward Hanoi and Haiphong",
+      "editor_notes": "Campaign starter target anchored near Hanoi SAM radar belt; move in map editor if gameplay balance needs a different location.",
+      "scenario_real_world_anchor": {
+        "label": "Hanoi SAM radar belt",
+        "lon": 105.854,
+        "lat": 21.075,
+        "coordinate_source": "author_approximate_osm_anchor",
+        "doctrine": "open inland radar corridor"
+      }
+    },
+    {
+      "unitRef": 2,
+      "unitType": 1,
+      "objectIdx": 349,
+      "x_coord": 28384,
+      "y_coord": 6972,
+      "targetFlags": 0,
+      "occupantType": 0,
+      "patrolCount": 0,
+      "legacy_label": "Supply Dump",
+      "scenario_label": "Haiphong logistics",
+      "scenario_role": "secondary_logistics_target",
+      "scenario_objective_id": "interdict_haiphong_logistics",
+      "scenario_objective": "Depot, bridge, port, or logistics interdiction target.",
+      "scenario_priority": "secondary",
+      "scenario_faction": "usa_allied",
+      "scenario_domain": "logistics",
+      "scenario_action": "interdict",
+      "scenario_target_type": "port_depot_bridge_cluster",
+      "scenario_threat_level": "medium",
+      "scenario_desired_effect": "slow USA resupply and coastal reinforcement",
+      "editor_notes": "Campaign starter target anchored near Haiphong port logistics; move in map editor if gameplay balance needs a different location.",
+      "scenario_real_world_anchor": {
+        "label": "Haiphong port logistics",
+        "lon": 106.682,
+        "lat": 20.866,
+        "coordinate_source": "author_approximate_osm_anchor",
+        "doctrine": "cut port/depot/bridge supply flow"
+      }
+    },
+    {
+      "unitRef": 31,
+      "unitType": 1,
+      "objectIdx": 294,
+      "x_coord": 28523,
+      "y_coord": 9132,
+      "targetFlags": 0,
+      "occupantType": 0,
+      "patrolCount": 0,
+      "legacy_label": "SAM Radar",
+      "scenario_label": "Tonkin patrol",
+      "scenario_role": "air_patrol_area",
+      "scenario_objective_id": "sweep_tonkin_patrol",
+      "scenario_objective": "USA patrol aircraft / CAP encounter area.",
+      "scenario_priority": "secondary",
+      "scenario_faction": "usa",
+      "scenario_domain": "air",
+      "scenario_action": "sweep",
+      "scenario_target_type": "fighter_patrol_area",
+      "scenario_threat_level": "medium_high",
+      "scenario_desired_effect": "draw USA fighters away from the carrier strike lane",
+      "editor_notes": "Campaign starter target anchored near Gulf of Tonkin CAP lane; move in map editor if gameplay balance needs a different location.",
+      "scenario_real_world_anchor": {
+        "label": "Gulf of Tonkin CAP lane",
+        "lon": 107.25,
+        "lat": 20.42,
+        "coordinate_source": "author_approximate_osm_anchor",
+        "doctrine": "pull USA fighters off the carrier strike lane"
+      }
+    },
+    {
+      "unitRef": 4,
+      "unitType": 2,
+      "objectIdx": 294,
+      "x_coord": 28300,
+      "y_coord": 10979,
+      "targetFlags": 0,
+      "occupantType": 0,
+      "patrolCount": 0,
+      "legacy_label": "SAM Radar",
+      "scenario_label": "USA carrier group",
+      "scenario_role": "primary_us_naval_target",
+      "scenario_objective_id": "strike_carrier_group",
+      "scenario_objective": "Main naval strike target in the Gulf of Tonkin.",
+      "scenario_priority": "primary",
+      "scenario_faction": "usa",
+      "scenario_domain": "naval",
+      "scenario_action": "strike",
+      "scenario_target_type": "carrier_task_force",
+      "scenario_threat_level": "very_high",
+      "scenario_desired_effect": "disable carrier flight operations",
+      "editor_notes": "Campaign starter target anchored near Gulf of Tonkin carrier box; move in map editor if gameplay balance needs a different location.",
+      "scenario_real_world_anchor": {
+        "label": "Gulf of Tonkin carrier box",
+        "lon": 107.65,
+        "lat": 19.95,
+        "coordinate_source": "author_approximate_osm_anchor",
+        "doctrine": "disable carrier flight operations"
+      }
+    },
+    {
+      "unitRef": 5,
+      "unitType": 1,
+      "objectIdx": 277,
+      "x_coord": 21358,
+      "y_coord": 20256,
+      "targetFlags": 0,
+      "occupantType": 0,
+      "patrolCount": 0,
+      "legacy_label": "Airbase",
+      "scenario_label": "Da Nang airbase",
+      "scenario_role": "primary_us_airbase_target",
+      "scenario_objective_id": "strike_da_nang_airbase",
+      "scenario_objective": "Airbase strike target for runway, fuel, and aircraft concentration.",
+      "scenario_priority": "primary",
+      "scenario_faction": "usa",
+      "scenario_domain": "airbase",
+      "scenario_action": "strike",
+      "scenario_target_type": "runway_and_fuel_site",
+      "scenario_threat_level": "high",
+      "scenario_desired_effect": "reduce USA sortie tempo from the coastal airbase",
+      "editor_notes": "Campaign starter target anchored near Da Nang airbase; move in map editor if gameplay balance needs a different location.",
+      "scenario_real_world_anchor": {
+        "label": "Da Nang airbase",
+        "lon": 108.199,
+        "lat": 16.043,
+        "coordinate_source": "author_approximate_osm_anchor",
+        "doctrine": "crater runway and burn fuel/parked-aircraft capacity"
+      }
+    },
+    {
+      "unitRef": 6,
+      "unitType": 2,
+      "objectIdx": 294,
+      "x_coord": 28736,
+      "y_coord": 2240,
+      "targetFlags": 0,
+      "occupantType": 0,
+      "patrolCount": 0
+    },
+    {
+      "unitRef": 15,
+      "unitType": 1,
+      "objectIdx": 294,
+      "x_coord": 14400,
+      "y_coord": 4288,
+      "targetFlags": 0,
+      "occupantType": 0,
+      "patrolCount": 0
+    },
+    {
+      "unitRef": 16,
+      "unitType": 2,
+      "objectIdx": 294,
+      "x_coord": 6208,
+      "y_coord": 22720,
+      "targetFlags": 0,
+      "occupantType": 0,
+      "patrolCount": 0
+    },
+    {
+      "unitRef": 22,
+      "unitType": 1,
+      "objectIdx": 294,
+      "x_coord": 15040,
+      "y_coord": 21312,
+      "targetFlags": 0,
+      "occupantType": 0,
+      "patrolCount": 0
+    },
+    {
+      "unitRef": 20,
+      "unitType": 2,
+      "objectIdx": 294,
+      "x_coord": 12992,
+      "y_coord": 23360,
+      "targetFlags": 0,
+      "occupantType": 0,
+      "patrolCount": 0
+    },
+    {
+      "unitRef": 17,
+      "unitType": 1,
+      "objectIdx": 294,
+      "x_coord": 4800,
+      "y_coord": 25408,
+      "targetFlags": 0,
+      "occupantType": 0,
+      "patrolCount": 0
+    },
+    {
+      "unitRef": 25,
+      "unitType": 2,
+      "objectIdx": 294,
+      "x_coord": 15040,
+      "y_coord": 2880,
+      "targetFlags": 0,
+      "occupantType": 0,
+      "patrolCount": 0
+    },
+    {
+      "unitRef": 3,
+      "unitType": 2,
+      "objectIdx": 294,
+      "x_coord": 27072,
+      "y_coord": 5312,
+      "targetFlags": 0,
+      "occupantType": 0,
+      "patrolCount": 0
+    },
+    {
+      "unitRef": 27,
+      "unitType": 2,
+      "objectIdx": 294,
+      "x_coord": 25536,
+      "y_coord": 6848,
+      "targetFlags": 0,
+      "occupantType": 0,
+      "patrolCount": 0
+    },
+    {
+      "unitRef": 1,
+      "unitType": 0,
+      "objectIdx": 277,
+      "x_coord": 20800,
+      "y_coord": 14528,
+      "targetFlags": 1,
+      "occupantType": 0,
+      "patrolCount": 0
+    },
+    {
+      "unitRef": 2,
+      "unitType": 0,
+      "objectIdx": 277,
+      "x_coord": 23360,
+      "y_coord": 8896,
+      "targetFlags": 1,
+      "occupantType": 0,
+      "patrolCount": 0
+    },
+    {
+      "unitRef": 31,
+      "unitType": 0,
+      "objectIdx": 277,
+      "x_coord": 26944,
+      "y_coord": 4288,
+      "targetFlags": 1,
+      "occupantType": 0,
+      "patrolCount": 0
+    },
+    {
+      "unitRef": 4,
+      "unitType": 0,
+      "objectIdx": 277,
+      "x_coord": 28992,
+      "y_coord": 6336,
+      "targetFlags": 1,
+      "occupantType": 0,
+      "patrolCount": 0
+    },
+    {
+      "unitRef": 5,
+      "unitType": 0,
+      "objectIdx": 277,
+      "x_coord": 24896,
+      "y_coord": 4288,
+      "targetFlags": 1,
+      "occupantType": 0,
+      "patrolCount": 0
+    },
+    {
+      "unitRef": 6,
+      "unitType": 0,
+      "objectIdx": 277,
+      "x_coord": 28992,
+      "y_coord": 2240,
+      "targetFlags": 1,
+      "occupantType": 0,
+      "patrolCount": 0
+    },
+    {
+      "unitRef": 15,
+      "unitType": 0,
+      "objectIdx": 277,
+      "x_coord": 14656,
+      "y_coord": 4288,
+      "targetFlags": 1,
+      "occupantType": 0,
+      "patrolCount": 0
+    },
+    {
+      "unitRef": 16,
+      "unitType": 0,
+      "objectIdx": 277,
+      "x_coord": 6464,
+      "y_coord": 22720,
+      "targetFlags": 1,
+      "occupantType": 0,
+      "patrolCount": 0
+    },
+    {
+      "unitRef": 19,
+      "unitType": 0,
+      "objectIdx": 349,
+      "x_coord": 14656,
+      "y_coord": 25280,
+      "targetFlags": 0,
+      "occupantType": 0,
+      "patrolCount": 0
+    },
+    {
+      "unitRef": 19,
+      "unitType": 0,
+      "objectIdx": 349,
+      "x_coord": 16704,
+      "y_coord": 19136,
+      "targetFlags": 0,
+      "occupantType": 0,
+      "patrolCount": 0
+    },
+    {
+      "unitRef": 7,
+      "unitType": 0,
+      "objectIdx": 277,
+      "x_coord": 27364,
+      "y_coord": 4788,
+      "targetFlags": 1025,
+      "occupantType": 0,
+      "patrolCount": 0,
+      "scenario_label": "Gia Lam Airport",
+      "scenario_real_world_anchor": {
+        "lon": 105.8871869,
+        "lat": 21.0405828,
+        "source": "https://www.openstreetmap.org/way/217455233"
+      }
+    },
+    {
+      "unitRef": 8,
+      "unitType": 0,
+      "objectIdx": 277,
+      "x_coord": 27571,
+      "y_coord": 4234,
+      "targetFlags": 1025,
+      "occupantType": 0,
+      "patrolCount": 0,
+      "scenario_label": "Noi Bai International Airport",
+      "scenario_real_world_anchor": {
+        "lon": 105.8022579,
+        "lat": 21.2193208,
+        "source": "https://www.openstreetmap.org/relation/20136775"
+      }
+    },
+    {
+      "unitRef": 9,
+      "unitType": 0,
+      "objectIdx": 277,
+      "x_coord": 28468,
+      "y_coord": 7052,
+      "targetFlags": 1025,
+      "occupantType": 0,
+      "patrolCount": 0,
+      "scenario_label": "Cat Bi International Airport",
+      "scenario_real_world_anchor": {
+        "lon": 106.722662,
+        "lat": 20.8175148,
+        "source": "https://www.openstreetmap.org/way/240659354"
+      }
+    },
+    {
+      "unitRef": 10,
+      "unitType": 0,
+      "objectIdx": 277,
+      "x_coord": 22257,
+      "y_coord": 9095,
+      "targetFlags": 1025,
+      "occupantType": 0,
+      "patrolCount": 0,
+      "scenario_label": "Vinh International Airport",
+      "scenario_real_world_anchor": {
+        "lon": 105.6697446,
+        "lat": 18.7385973,
+        "source": "https://www.openstreetmap.org/way/585991360"
+      }
+    },
+    {
+      "unitRef": 11,
+      "unitType": 0,
+      "objectIdx": 277,
+      "x_coord": 21306,
+      "y_coord": 18305,
+      "targetFlags": 1025,
+      "occupantType": 0,
+      "patrolCount": 0,
+      "scenario_label": "Phu Bai International Airport",
+      "scenario_real_world_anchor": {
+        "lon": 107.7046124,
+        "lat": 16.3983538,
+        "source": "https://www.openstreetmap.org/way/217466613"
+      }
+    },
+    {
+      "unitRef": 12,
+      "unitType": 0,
+      "objectIdx": 277,
+      "x_coord": 21506,
+      "y_coord": 20102,
+      "targetFlags": 1025,
+      "occupantType": 0,
+      "patrolCount": 0,
+      "scenario_label": "Da Nang International Airport",
+      "scenario_real_world_anchor": {
+        "lon": 108.1983906,
+        "lat": 16.0428997,
+        "source": "https://www.openstreetmap.org/way/217476265"
+      }
+    },
+    {
+      "unitRef": 13,
+      "unitType": 0,
+      "objectIdx": 277,
+      "x_coord": 8751,
+      "y_coord": 27478,
+      "targetFlags": 1025,
+      "occupantType": 0,
+      "patrolCount": 0,
+      "scenario_label": "Bien Hoa Air Base",
+      "scenario_real_world_anchor": {
+        "lon": 106.8208126,
+        "lat": 10.9743403,
+        "source": "https://www.openstreetmap.org/way/1081333880"
+      }
+    },
+    {
+      "unitRef": 14,
+      "unitType": 0,
+      "objectIdx": 277,
+      "x_coord": 15263,
+      "y_coord": 30577,
+      "targetFlags": 1025,
+      "occupantType": 0,
+      "patrolCount": 0,
+      "scenario_label": "Cam Ranh International Airport",
+      "scenario_real_world_anchor": {
+        "lon": 109.2189411,
+        "lat": 11.9974959,
+        "source": "https://www.openstreetmap.org/way/217534447"
+      }
+    },
+    {
+      "unitRef": 91,
+      "unitType": 0,
+      "objectIdx": 346,
+      "x_coord": 29952,
+      "y_coord": 13568,
+      "targetFlags": 1537,
+      "occupantType": 0,
+      "patrolCount": 0
+    },
+    {
+      "unitRef": 92,
+      "unitType": 0,
+      "objectIdx": 346,
+      "x_coord": 27904,
+      "y_coord": 19712,
+      "targetFlags": 1537,
+      "occupantType": 0,
+      "patrolCount": 0
+    }
+  ],
+  "flight_unit_count": 11,
+  "flight_units": [
+    {
+      "waypointIdx": 0,
+      "flags": 1,
+      "weaponType": 16,
+      "terrainColor": 0,
+      "damage": 0,
+      "x": 0,
+      "y": 0,
+      "altitude": 0,
+      "xPrecise": 0,
+      "yPrecise": 0,
+      "heading": 0,
+      "pitch": 0,
+      "roll": 0,
+      "planeType": 6,
+      "maxSpeed": 0,
+      "fuel": 0
+    },
+    {
+      "waypointIdx": 0,
+      "flags": 129,
+      "weaponType": 16,
+      "terrainColor": 0,
+      "damage": 0,
+      "x": 0,
+      "y": 0,
+      "altitude": 0,
+      "xPrecise": 0,
+      "yPrecise": 0,
+      "heading": 0,
+      "pitch": 0,
+      "roll": 0,
+      "planeType": 7,
+      "maxSpeed": 0,
+      "fuel": 0
+    },
+    {
+      "waypointIdx": 0,
+      "flags": 257,
+      "weaponType": 34,
+      "terrainColor": 0,
+      "damage": 0,
+      "x": 0,
+      "y": 0,
+      "altitude": 0,
+      "xPrecise": 0,
+      "yPrecise": 0,
+      "heading": 0,
+      "pitch": 0,
+      "roll": 0,
+      "planeType": 6,
+      "maxSpeed": 0,
+      "fuel": 0
+    },
+    {
+      "waypointIdx": 0,
+      "flags": 129,
+      "weaponType": 16,
+      "terrainColor": 0,
+      "damage": 0,
+      "x": 0,
+      "y": 0,
+      "altitude": 0,
+      "xPrecise": 0,
+      "yPrecise": 0,
+      "heading": 0,
+      "pitch": 0,
+      "roll": 0,
+      "planeType": 7,
+      "maxSpeed": 0,
+      "fuel": 0
+    },
+    {
+      "waypointIdx": 0,
+      "flags": 1,
+      "weaponType": 34,
+      "terrainColor": 0,
+      "damage": 0,
+      "x": 0,
+      "y": 0,
+      "altitude": 0,
+      "xPrecise": 0,
+      "yPrecise": 0,
+      "heading": 0,
+      "pitch": 0,
+      "roll": 0,
+      "planeType": 6,
+      "maxSpeed": 0,
+      "fuel": 0
+    },
+    {
+      "waypointIdx": 0,
+      "flags": 1,
+      "weaponType": 18,
+      "terrainColor": 0,
+      "damage": 0,
+      "x": 0,
+      "y": 0,
+      "altitude": 0,
+      "xPrecise": 0,
+      "yPrecise": 0,
+      "heading": 0,
+      "pitch": 0,
+      "roll": 0,
+      "planeType": 7,
+      "maxSpeed": 0,
+      "fuel": 0
+    },
+    {
+      "waypointIdx": 0,
+      "flags": 257,
+      "weaponType": 16,
+      "terrainColor": 0,
+      "damage": 0,
+      "x": 0,
+      "y": 0,
+      "altitude": 0,
+      "xPrecise": 0,
+      "yPrecise": 0,
+      "heading": 0,
+      "pitch": 0,
+      "roll": 0,
+      "planeType": 6,
+      "maxSpeed": 0,
+      "fuel": 0
+    },
+    {
+      "waypointIdx": 0,
+      "flags": 1,
+      "weaponType": 0,
+      "terrainColor": 0,
+      "damage": 0,
+      "x": 0,
+      "y": 0,
+      "altitude": 0,
+      "xPrecise": 0,
+      "yPrecise": 0,
+      "heading": 0,
+      "pitch": 0,
+      "roll": 0,
+      "planeType": 14,
+      "maxSpeed": 0,
+      "fuel": 0
+    },
+    {
+      "waypointIdx": 0,
+      "flags": 1,
+      "weaponType": 0,
+      "terrainColor": 0,
+      "damage": 0,
+      "x": 0,
+      "y": 0,
+      "altitude": 0,
+      "xPrecise": 0,
+      "yPrecise": 0,
+      "heading": 0,
+      "pitch": 0,
+      "roll": 0,
+      "planeType": 14,
+      "maxSpeed": 0,
+      "fuel": 0
+    },
+    {
+      "waypointIdx": 0,
+      "flags": 1,
+      "weaponType": 0,
+      "terrainColor": 0,
+      "damage": 0,
+      "x": 0,
+      "y": 0,
+      "altitude": 0,
+      "xPrecise": 0,
+      "yPrecise": 0,
+      "heading": 0,
+      "pitch": 0,
+      "roll": 0,
+      "planeType": 14,
+      "maxSpeed": 0,
+      "fuel": 0
+    },
+    {
+      "waypointIdx": 0,
+      "flags": 1,
+      "weaponType": 0,
+      "terrainColor": 0,
+      "damage": 0,
+      "x": 0,
+      "y": 0,
+      "altitude": 0,
+      "xPrecise": 0,
+      "yPrecise": 0,
+      "heading": 0,
+      "pitch": 0,
+      "roll": 0,
+      "planeType": 14,
+      "maxSpeed": 0,
+      "fuel": 0
+    }
+  ],
+  "name_strings": [
+    "Soviet HQ",
+    "Dong Hoi",
+    "Vinh",
+    "Hanoi",
+    "Haiphong",
+    "Tonkin",
+    "US Fleet",
+    "Da Nang",
+    "Don Muang",
+    "Korat",
+    "Takhli",
+    "Bangkok",
+    "Tan Son Nhut",
+    "Da Nang",
+    "Nha Trang",
+    "Vientiane",
+    "Pnom Penh",
+    "Takeo",
+    "Destroyer",
+    "HoChiMinh Trail",
+    "Ban Phlak",
+    "Airbase",
+    "Ban Khea",
+    "",
+    "",
+    "Viangchan",
+    "Town",
+    "Thanh Hoa",
+    "Depot",
+    "Headquarters",
+    "Tank Farm",
+    "Gia Lam",
+    "",
+    "SA Missile",
+    "",
+    "",
+    "",
+    "",
+    "SAM Radar",
+    "Tower",
+    "Hangar",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "Bridge",
+    "",
+    "",
+    "",
+    "Missile Boat",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "Bridge",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "USS Constellation",
+    "USS Kitty Hawk",
+    "Supply Dump",
+    "",
+    "",
+    "",
+    "",
+    ""
+  ],
+  "campaign": {
+    "id": "SVN",
+    "title": "Li Si Cin: Soviet Vietnam Campaign",
+    "schema": "F15SE2_MODERN_CAMPAIGN_WLD",
+    "schema_version": 1,
+    "theater": "Vietnam",
+    "side": "Soviet / Warsaw Pact expeditionary group",
+    "opponent": "United States and allied air/naval forces",
+    "protagonist": {
+      "name": "Lisicin",
+      "callsign": "Li Si Cin",
+      "background": "An F-15 plane was stolen by Soviet spy pilot Lisicin. Vietnamese allies call him Li Si Cin while he flies captured and Soviet aircraft against USA targets."
+    },
+    "format_version": 1,
+    "authoring_notes": [
+      "This is a modern-format WLD JSON scaffold derived from the selected template.",
+      "It is intended for custom scenario editing, not byte-identical original proof.",
+      "Keep WLD/3DT/3DG JSON loadable; replace aircraft visuals with selected 15FLT/shape_###*.glb files."
+    ],
+    "base_theater": "VN"
+  },
+  "scenario_design": {
+    "premise": "Soviet spy pilot Lisicin has stolen an F-15 plane and now operates in Vietnam as Li Si Cin, supporting North Vietnam against USA carrier, airbase, radar, and logistics targets.",
+    "recommended_player_role": "Lisicin / Li Si Cin, Soviet spy pilot",
+    "mission_target_ideas": [
+      "USA carrier group and escort ships in the Gulf of Tonkin",
+      "Da Nang / coastal airbase strike",
+      "SAM and radar defense suppression around Hanoi and Haiphong",
+      "Interdiction of USA logistics depots and bridges",
+      "Fighter sweep against USA patrol aircraft"
+    ],
+    "aircraft_visual_swaps": [
+      {
+        "container": "15FLT",
+        "files": "shape_###*.glb",
+        "notes": "Replace selected aircraft model slots with custom MiG/Sukhoi/Tupole GLBs. The slot number controls runtime lookup; behavior still comes from game aircraft tables."
+      }
+    ],
+    "route_authoring_notes": "campaign_route_plan ties sorties to approximate Vietnam real-world anchors transformed into WLD coordinates; edit waypoints and object x_coord/y_coord together when redesigning missions."
+  },
+  "mission_plan": {
+    "format_version": 1,
+    "notes": [
+      "Scenario-authoring fields are ignored by legacy WLD rebuild.",
+      "Map/editor tooling should treat object_slot as the starter object to move, copy, or replace.",
+      "mission_target_sets groups objectives into richer packages for editors/future runtime mission logic.",
+      "Original mission generation still uses preserved WLD tables until deeper campaign runtime support is added."
+    ],
+    "mission_target_sets": [
+      {
+        "id": "target_set_hanoi_corridor",
+        "sortie_id": "opening_sead",
+        "title": "Hanoi radar corridor package",
+        "objective_ids": [
+          "suppress_hanoi_radar"
+        ],
+        "package_role": "SEAD / ingress corridor opening",
+        "attack_order": [
+          "search_radar",
+          "sam_launcher",
+          "aaa_screen"
+        ],
+        "target_elements": [
+          {
+            "element_id": "search_radar",
+            "objective_id": "suppress_hanoi_radar",
+            "role": "primary",
+            "recommended_weapon": "anti-radiation missile or precision bomb",
+            "effect": "blind the radar belt",
+            "placement_hint": "Place on or near the Hanoi radar waypoint; this is the runtime primary target slot.",
+            "defense_behavior": "Should cue SAM/AAA objects and be visible early enough for a SEAD pass."
+          },
+          {
+            "element_id": "sam_launcher",
+            "objective_id": "suppress_hanoi_radar",
+            "role": "secondary",
+            "recommended_weapon": "bombs/rockets",
+            "effect": "reduce missile threat during egress",
+            "placement_hint": "Place 1-3 nearby launcher objects offset from the radar so one bomb run cannot erase the whole site.",
+            "defense_behavior": "Threat should punish high-altitude direct ingress but leave low-altitude masking viable."
+          },
+          {
+            "element_id": "aaa_screen",
+            "objective_id": "suppress_hanoi_radar",
+            "role": "optional",
+            "recommended_weapon": "cannon/rockets",
+            "effect": "make repeated passes survivable",
+            "placement_hint": "Place around the radar perimeter or along the egress lane.",
+            "defense_behavior": "Short-range pressure only; avoid making the first sortie impossible."
+          }
+        ],
+        "victory_logic": {
+          "required_primary_destroyed": 1,
+          "required_secondary_destroyed": 0,
+          "friendly_survival_required": [
+            "start_soviet_hq"
+          ]
+        },
+        "editor_notes": "Place paired radar/SAM/AAA objects around Hanoi; keep one clear low-altitude return lane to HQ."
+      },
+      {
+        "id": "target_set_tonkin_carrier",
+        "sortie_id": "carrier_strike",
+        "title": "Gulf of Tonkin carrier strike package",
+        "objective_ids": [
+          "sweep_tonkin_patrol",
+          "strike_carrier_group"
+        ],
+        "package_role": "fighter sweep followed by anti-ship strike",
+        "attack_order": [
+          "cap_patrol",
+          "escort_radar",
+          "carrier_deck"
+        ],
+        "target_elements": [
+          {
+            "element_id": "cap_patrol",
+            "objective_id": "sweep_tonkin_patrol",
+            "role": "screen",
+            "recommended_weapon": "air-to-air missiles",
+            "effect": "open the approach lane",
+            "placement_hint": "Place ahead of the carrier box, not directly on top of it, so sweep-first and bypass tactics differ.",
+            "defense_behavior": "Intercept player before anti-ship release; disengage pressure after carrier strike lane is opened."
+          },
+          {
+            "element_id": "escort_radar",
+            "objective_id": "strike_carrier_group",
+            "role": "secondary",
+            "recommended_weapon": "anti-radiation or precision strike",
+            "effect": "reduce fleet warning time",
+            "placement_hint": "Place close to the carrier group as an escort/radar picket object.",
+            "defense_behavior": "Supports point defense and early warning; not required if using a simple one-object carrier target."
+          },
+          {
+            "element_id": "carrier_deck",
+            "objective_id": "strike_carrier_group",
+            "role": "primary",
+            "recommended_weapon": "heavy bombs / anti-ship loadout",
+            "effect": "disable carrier flight operations",
+            "placement_hint": "Place at the Gulf of Tonkin carrier waypoint; this is the runtime primary target slot.",
+            "defense_behavior": "High-value target with escort coverage; should not require destroying every ship to complete the sortie."
+          }
+        ],
+        "victory_logic": {
+          "required_primary_destroyed": 1,
+          "required_secondary_destroyed": 1,
+          "bonus_objective_ids": [
+            "sweep_tonkin_patrol"
+          ]
+        },
+        "editor_notes": "Keep carrier and CAP separated enough that the player must choose sweep-first or high-risk direct strike."
+      },
+      {
+        "id": "target_set_southern_air_bridge",
+        "sortie_id": "airbase_and_logistics",
+        "title": "Da Nang and Haiphong air-bridge package",
+        "objective_ids": [
+          "interdict_haiphong_logistics",
+          "strike_da_nang_airbase"
+        ],
+        "package_role": "logistics interdiction plus airbase strike",
+        "attack_order": [
+          "haiphong_depot",
+          "da_nang_runway",
+          "fuel_storage"
+        ],
+        "target_elements": [
+          {
+            "element_id": "haiphong_depot",
+            "objective_id": "interdict_haiphong_logistics",
+            "role": "secondary",
+            "recommended_weapon": "medium bombs",
+            "effect": "slow coastal resupply",
+            "placement_hint": "Place on the Haiphong logistics waypoint as a depot, bridge, port, or convoy-staging object.",
+            "defense_behavior": "Medium threat; should be optional if fuel or damage state makes Da Nang the safer priority."
+          },
+          {
+            "element_id": "da_nang_runway",
+            "objective_id": "strike_da_nang_airbase",
+            "role": "primary",
+            "recommended_weapon": "runway cratering bombs",
+            "effect": "stop USA sorties from Da Nang",
+            "placement_hint": "Place at the Da Nang waypoint; this is the runtime primary target slot.",
+            "defense_behavior": "Defended by local AAA/SAM and possible fighters, but reachable without carrier-level escort density."
+          },
+          {
+            "element_id": "fuel_storage",
+            "objective_id": "strike_da_nang_airbase",
+            "role": "secondary",
+            "recommended_weapon": "bombs/rockets",
+            "effect": "increase recovery time after runway repair",
+            "placement_hint": "Place near but not overlapping the runway target so the player must choose a second pass.",
+            "defense_behavior": "Soft secondary target; useful for score/campaign effect rather than hard mission completion."
+          }
+        ],
+        "victory_logic": {
+          "required_primary_destroyed": 1,
+          "required_secondary_destroyed": 1,
+          "egress_waypoint": "wp_hq"
+        },
+        "editor_notes": "This route is long; keep threats sparse or provide a custom aircraft/fuel balance in future runtime logic."
+      }
+    ],
+    "sortie_sequence": [
+      {
+        "id": "opening_sead",
+        "phase": 1,
+        "title": "Open the radar corridor",
+        "player_aircraft": "captured F-15 / Soviet-marked cover identity",
+        "primary_objective_id": "suppress_hanoi_radar",
+        "secondary_objective_id": "interdict_haiphong_logistics",
+        "objective_ids": [
+          "suppress_hanoi_radar",
+          "interdict_haiphong_logistics"
+        ],
+        "primary_objective_ids": [
+          "suppress_hanoi_radar"
+        ],
+        "secondary_objective_ids": [
+          "interdict_haiphong_logistics"
+        ],
+        "radio_cue_ids": [
+          "voice_cue_000_sample0",
+          "voice_cue_001_sample4"
+        ],
+        "briefing": "Suppress the Hanoi radar, then strike Haiphong logistics before recovery."
+      },
+      {
+        "id": "carrier_strike",
+        "phase": 2,
+        "title": "Strike the carrier group",
+        "player_aircraft": "captured F-15 with Soviet/Vietnamese ground control",
+        "primary_objective_id": "strike_carrier_group",
+        "secondary_objective_id": "sweep_tonkin_patrol",
+        "objective_ids": [
+          "strike_carrier_group",
+          "sweep_tonkin_patrol"
+        ],
+        "primary_objective_ids": [
+          "strike_carrier_group"
+        ],
+        "secondary_objective_ids": [
+          "sweep_tonkin_patrol"
+        ],
+        "radio_cue_ids": [
+          "voice_cue_002_sample2_variant0"
+        ],
+        "briefing": "Attack the USA carrier group while fighter patrols are displaced over the Gulf of Tonkin."
+      },
+      {
+        "id": "airbase_and_logistics",
+        "phase": 3,
+        "title": "Cut the air bridge",
+        "player_aircraft": "captured F-15 or custom Soviet strike aircraft GLB slot",
+        "primary_objective_id": "strike_da_nang_airbase",
+        "secondary_objective_id": "interdict_haiphong_logistics",
+        "objective_ids": [
+          "strike_da_nang_airbase",
+          "interdict_haiphong_logistics"
+        ],
+        "primary_objective_ids": [
+          "strike_da_nang_airbase"
+        ],
+        "secondary_objective_ids": [
+          "interdict_haiphong_logistics"
+        ],
+        "radio_cue_ids": [
+          "voice_cue_003_sample2_variant1",
+          "voice_cue_004_sample2_variant2"
+        ],
+        "briefing": "Hit Da Nang and Haiphong support targets to reduce USA sortie tempo."
+      }
+    ],
+    "objectives": [
+      {
+        "name": "Soviet forward HQ",
+        "id": "start_soviet_hq",
+        "object_slot": 0,
+        "role": "start_area",
+        "priority": "friendly",
+        "faction": "soviet_vietnamese",
+        "domain": "base",
+        "action": "defend",
+        "target_type": "friendly_command_post",
+        "threat_level": "friendly",
+        "desired_effect": "preserve",
+        "success_criteria": [
+          "HQ remains available as sortie staging point"
+        ],
+        "suggested_loadout": "none",
+        "radio_cue_ids": [
+          "voice_cue_000_sample0"
+        ],
+        "intent": "Player staging area and campaign anchor for Lisicin / Li Si Cin.",
+        "real_world_anchor": {
+          "label": "Gia Lam / Hanoi forward control",
+          "x_coord": 27256,
+          "y_coord": 4893,
+          "lon": 105.886,
+          "lat": 21.04,
+          "doctrine": "friendly staging and recovery point"
+        }
+      },
+      {
+        "name": "USA carrier group",
+        "id": "strike_carrier_group",
+        "object_slot": 6,
+        "role": "primary_target",
+        "priority": "primary",
+        "faction": "usa",
+        "domain": "naval",
+        "action": "strike",
+        "target_type": "carrier_task_force",
+        "threat_level": "very_high",
+        "target_systems": [
+          "carrier deck",
+          "escort radar",
+          "point-defense escorts"
+        ],
+        "desired_effect": "disable carrier flight operations",
+        "success_criteria": [
+          "primary ship or carrier-equivalent object destroyed",
+          "at least one escort/radar object suppressed if present"
+        ],
+        "suggested_loadout": "anti-ship / heavy strike ordnance with fighter cover",
+        "radio_cue_ids": [
+          "voice_cue_002_sample2_variant0"
+        ],
+        "intent": "Main naval strike target in the Gulf of Tonkin.",
+        "real_world_anchor": {
+          "label": "Gulf of Tonkin carrier box",
+          "x_coord": 28300,
+          "y_coord": 10979,
+          "lon": 107.65,
+          "lat": 19.95,
+          "doctrine": "disable carrier flight operations"
+        }
+      },
+      {
+        "name": "Da Nang airbase",
+        "id": "strike_da_nang_airbase",
+        "object_slot": 7,
+        "role": "primary_target",
+        "priority": "primary",
+        "faction": "usa",
+        "domain": "airbase",
+        "action": "strike",
+        "target_type": "runway_and_fuel_site",
+        "threat_level": "high",
+        "target_systems": [
+          "runway",
+          "fuel storage",
+          "parked aircraft",
+          "tower/radar"
+        ],
+        "desired_effect": "reduce USA sortie tempo from the coastal airbase",
+        "success_criteria": [
+          "runway or airbase object destroyed",
+          "secondary fuel/logistics object destroyed if placed"
+        ],
+        "suggested_loadout": "runway cratering bombs plus self-defense missiles",
+        "radio_cue_ids": [
+          "voice_cue_003_sample2_variant1"
+        ],
+        "intent": "Airbase strike target for runway, fuel, and aircraft concentration.",
+        "real_world_anchor": {
+          "label": "Da Nang airbase",
+          "x_coord": 21358,
+          "y_coord": 20256,
+          "lon": 108.199,
+          "lat": 16.043,
+          "doctrine": "crater runway and burn fuel/parked-aircraft capacity"
+        }
+      },
+      {
+        "name": "Hanoi radar net",
+        "id": "suppress_hanoi_radar",
+        "object_slot": 3,
+        "role": "primary_target",
+        "priority": "primary",
+        "faction": "usa_allied",
+        "domain": "air_defense",
+        "action": "suppress",
+        "target_type": "sam_radar_network",
+        "threat_level": "high",
+        "target_systems": [
+          "search radar",
+          "SAM launcher",
+          "AAA site"
+        ],
+        "desired_effect": "open a low-risk corridor toward Hanoi and Haiphong",
+        "success_criteria": [
+          "radar object destroyed or moved out of active route",
+          "SAM/AAA object destroyed if paired with the radar"
+        ],
+        "suggested_loadout": "anti-radiation / precision strike weapons",
+        "radio_cue_ids": [
+          "voice_cue_001_sample4",
+          "voice_cue_004_sample2_variant2"
+        ],
+        "intent": "SAM/radar suppression target protecting North Vietnam.",
+        "real_world_anchor": {
+          "label": "Hanoi SAM radar belt",
+          "x_coord": 27269,
+          "y_coord": 4750,
+          "lon": 105.854,
+          "lat": 21.075,
+          "doctrine": "open inland radar corridor"
+        }
+      },
+      {
+        "name": "Haiphong logistics",
+        "id": "interdict_haiphong_logistics",
+        "object_slot": 4,
+        "role": "secondary_target",
+        "priority": "secondary",
+        "faction": "usa_allied",
+        "domain": "logistics",
+        "action": "interdict",
+        "target_type": "port_depot_bridge_cluster",
+        "threat_level": "medium",
+        "target_systems": [
+          "depot",
+          "bridge",
+          "port crane",
+          "convoy staging point"
+        ],
+        "desired_effect": "slow USA resupply and coastal reinforcement",
+        "success_criteria": [
+          "depot/bridge-equivalent object destroyed",
+          "escape route remains open after attack"
+        ],
+        "suggested_loadout": "medium bombs or rockets with fuel margin for egress",
+        "radio_cue_ids": [
+          "voice_cue_004_sample2_variant2"
+        ],
+        "intent": "Depot, bridge, port, or logistics interdiction target.",
+        "real_world_anchor": {
+          "label": "Haiphong port logistics",
+          "x_coord": 28384,
+          "y_coord": 6972,
+          "lon": 106.682,
+          "lat": 20.866,
+          "doctrine": "cut port/depot/bridge supply flow"
+        }
+      },
+      {
+        "name": "Tonkin patrol",
+        "id": "sweep_tonkin_patrol",
+        "object_slot": 5,
+        "role": "air_patrol",
+        "priority": "secondary",
+        "faction": "usa",
+        "domain": "air",
+        "action": "sweep",
+        "target_type": "fighter_patrol_area",
+        "threat_level": "medium_high",
+        "target_systems": [
+          "CAP patrol",
+          "AWACS/radar cue",
+          "fighter ingress lane"
+        ],
+        "desired_effect": "draw USA fighters away from the carrier strike lane",
+        "success_criteria": [
+          "enemy patrol aircraft destroyed or displaced",
+          "carrier strike route remains clear"
+        ],
+        "suggested_loadout": "air-to-air missiles and external fuel",
+        "radio_cue_ids": [
+          "voice_cue_002_sample2_variant0"
+        ],
+        "intent": "USA patrol aircraft / CAP encounter area.",
+        "real_world_anchor": {
+          "label": "Gulf of Tonkin CAP lane",
+          "x_coord": 28523,
+          "y_coord": 9132,
+          "lon": 107.25,
+          "lat": 20.42,
+          "doctrine": "pull USA fighters off the carrier strike lane"
+        }
+      }
+    ]
+  },
+  "campaign_route_plan": {
+    "format": "F15SE2_CAMPAIGN_ROUTE_PLAN",
+    "format_version": 1,
+    "coordinate_system": "legacy_wld_x_coord_y_coord with approximate lon/lat anchors",
+    "georef": {
+      "theater": "VN",
+      "source": "tools/f15assets/map_editor.html OSM_GEOREFS.VN",
+      "world_max": 32768,
+      "osm_tile_zoom": 6,
+      "affine": {
+        "xx": 41.1144272,
+        "xy": -42.6172157,
+        "x0": -200320.7,
+        "yx": 47.2476764,
+        "yy": 43.2960353,
+        "y0": -922104.446
+      }
+    },
+    "waypoints": [
+      {
+        "label": "Gia Lam / Hanoi forward control",
+        "x_coord": 27256,
+        "y_coord": 4893,
+        "id": "wp_hq",
+        "objective_id": "start_soviet_hq",
+        "kind": "friendly_base",
+        "lon": 105.886,
+        "lat": 21.04,
+        "doctrine": "friendly staging and recovery point",
+        "coordinate_source": "world_object"
+      },
+      {
+        "label": "Hanoi SAM radar belt",
+        "x_coord": 27269,
+        "y_coord": 4750,
+        "id": "wp_hanoi_radar",
+        "objective_id": "suppress_hanoi_radar",
+        "kind": "sead_target",
+        "lon": 105.854,
+        "lat": 21.075,
+        "doctrine": "open inland radar corridor",
+        "coordinate_source": "world_object"
+      },
+      {
+        "label": "Haiphong port logistics",
+        "x_coord": 28384,
+        "y_coord": 6972,
+        "id": "wp_haiphong",
+        "objective_id": "interdict_haiphong_logistics",
+        "kind": "logistics_target",
+        "lon": 106.682,
+        "lat": 20.866,
+        "doctrine": "cut port/depot/bridge supply flow",
+        "coordinate_source": "world_object"
+      },
+      {
+        "label": "Gulf of Tonkin CAP lane",
+        "x_coord": 28523,
+        "y_coord": 9132,
+        "id": "wp_tonkin_cap",
+        "objective_id": "sweep_tonkin_patrol",
+        "kind": "fighter_sweep_area",
+        "lon": 107.25,
+        "lat": 20.42,
+        "doctrine": "pull USA fighters off the carrier strike lane",
+        "coordinate_source": "world_object"
+      },
+      {
+        "label": "Gulf of Tonkin carrier box",
+        "x_coord": 28300,
+        "y_coord": 10979,
+        "id": "wp_carrier",
+        "objective_id": "strike_carrier_group",
+        "kind": "naval_strike_target",
+        "lon": 107.65,
+        "lat": 19.95,
+        "doctrine": "disable carrier flight operations",
+        "coordinate_source": "world_object"
+      },
+      {
+        "label": "Da Nang airbase",
+        "x_coord": 21358,
+        "y_coord": 20256,
+        "id": "wp_danang",
+        "objective_id": "strike_da_nang_airbase",
+        "kind": "airbase_strike_target",
+        "lon": 108.199,
+        "lat": 16.043,
+        "doctrine": "crater runway and burn fuel/parked-aircraft capacity",
+        "coordinate_source": "world_object"
+      },
+      {
+        "id": "wp_start",
+        "kind": "start",
+        "object_slot": 30,
+        "label": "Vinh International Airport",
+        "x_coord": 22257,
+        "y_coord": 9095,
+        "coordinate_source": "world_object"
+      },
+      {
+        "id": "wp_end",
+        "kind": "end",
+        "object_slot": 27,
+        "label": "Gia Lam Airport",
+        "x_coord": 27364,
+        "y_coord": 4788,
+        "coordinate_source": "world_object"
+      }
+    ],
+    "sortie_routes": [
+      {
+        "sortie_id": "opening_sead",
+        "route": [
+          "wp_start",
+          "wp_hanoi_radar",
+          "wp_haiphong",
+          "wp_end"
+        ],
+        "mission_logic": "Start, primary target, secondary target, recovery."
+      },
+      {
+        "sortie_id": "carrier_strike",
+        "route": [
+          "wp_start",
+          "wp_carrier",
+          "wp_tonkin_cap",
+          "wp_end"
+        ],
+        "mission_logic": "Start, primary target, secondary target, recovery."
+      },
+      {
+        "sortie_id": "airbase_and_logistics",
+        "route": [
+          "wp_start",
+          "wp_danang",
+          "wp_haiphong",
+          "wp_end"
+        ],
+        "mission_logic": "Start, primary target, secondary target, recovery."
+      }
+    ],
+    "notes": [
+      "Authoring examples only. Runtime uses the original randomized base selection, range limits and target ordering.",
+      "Incompatible campaign target hints fall back to a compatible target rather than bypassing mission rules."
+    ]
+  },
+  "target_annotations": [
+    {
+      "name": "Soviet forward HQ",
+      "object_index": 0,
+      "legacy_name": "SOVIET HQ",
+      "role": "soviet_start_area",
+      "scenario_objective_id": "start_soviet_hq",
+      "scenario_objective": "Player staging area and campaign anchor for Lisicin / Li Si Cin.",
+      "scenario_priority": "friendly",
+      "scenario_faction": "soviet_vietnamese",
+      "scenario_domain": "base",
+      "scenario_action": "defend",
+      "scenario_target_type": "friendly_command_post",
+      "scenario_threat_level": "friendly",
+      "scenario_desired_effect": "preserve",
+      "suggested_loadout": "none",
+      "success_criteria": [
+        "HQ remains available as sortie staging point"
+      ],
+      "radio_cue_ids": [
+        "voice_cue_000_sample0"
+      ],
+      "mission_object_type": 0,
+      "coordinates": {
+        "x_coord": 27256,
+        "y_coord": 4893
+      },
+      "real_world_anchor": {
+        "label": "Gia Lam / Hanoi forward control",
+        "lon": 105.886,
+        "lat": 21.04,
+        "doctrine": "friendly staging and recovery point"
+      },
+      "notes": "Edit role/name/coordinates in WLD JSON or the map editor. mission_object_type comes from the preserved mission table."
+    },
+    {
+      "name": "SOVIET HQ",
+      "object_index": 1,
+      "legacy_name": "SOVIET HQ",
+      "role": "reference",
+      "scenario_objective_id": "",
+      "scenario_objective": "",
+      "scenario_priority": "",
+      "scenario_faction": "",
+      "scenario_domain": "",
+      "scenario_action": "",
+      "scenario_target_type": "",
+      "scenario_threat_level": "",
+      "scenario_desired_effect": "",
+      "suggested_loadout": "",
+      "success_criteria": [],
+      "radio_cue_ids": [],
+      "mission_object_type": 0,
+      "coordinates": {
+        "x_coord": 0,
+        "y_coord": 0
+      },
+      "real_world_anchor": null,
+      "notes": "Edit role/name/coordinates in WLD JSON or the map editor. mission_object_type comes from the preserved mission table."
+    },
+    {
+      "name": "SOVIET HQ",
+      "object_index": 2,
+      "legacy_name": "SOVIET HQ",
+      "role": "reference",
+      "scenario_objective_id": "",
+      "scenario_objective": "",
+      "scenario_priority": "",
+      "scenario_faction": "",
+      "scenario_domain": "",
+      "scenario_action": "",
+      "scenario_target_type": "",
+      "scenario_threat_level": "",
+      "scenario_desired_effect": "",
+      "suggested_loadout": "",
+      "success_criteria": [],
+      "radio_cue_ids": [],
+      "mission_object_type": 0,
+      "coordinates": {
+        "x_coord": 0,
+        "y_coord": 0
+      },
+      "real_world_anchor": null,
+      "notes": "Edit role/name/coordinates in WLD JSON or the map editor. mission_object_type comes from the preserved mission table."
+    },
+    {
+      "name": "Hanoi radar net",
+      "object_index": 3,
+      "legacy_name": "SAM Radar",
+      "role": "primary_us_target",
+      "scenario_objective_id": "suppress_hanoi_radar",
+      "scenario_objective": "SAM/radar suppression target protecting North Vietnam.",
+      "scenario_priority": "primary",
+      "scenario_faction": "usa_allied",
+      "scenario_domain": "air_defense",
+      "scenario_action": "suppress",
+      "scenario_target_type": "sam_radar_network",
+      "scenario_threat_level": "high",
+      "scenario_desired_effect": "open a low-risk corridor toward Hanoi and Haiphong",
+      "suggested_loadout": "anti-radiation / precision strike weapons",
+      "success_criteria": [
+        "radar object destroyed or moved out of active route",
+        "SAM/AAA object destroyed if paired with the radar"
+      ],
+      "radio_cue_ids": [
+        "voice_cue_001_sample4",
+        "voice_cue_004_sample2_variant2"
+      ],
+      "mission_object_type": 2,
+      "coordinates": {
+        "x_coord": 27269,
+        "y_coord": 4750
+      },
+      "real_world_anchor": {
+        "label": "Hanoi SAM radar belt",
+        "lon": 105.854,
+        "lat": 21.075,
+        "doctrine": "open inland radar corridor"
+      },
+      "notes": "Edit role/name/coordinates in WLD JSON or the map editor. mission_object_type comes from the preserved mission table."
+    },
+    {
+      "name": "Haiphong logistics",
+      "object_index": 4,
+      "legacy_name": "SAM Radar",
+      "role": "mission_target",
+      "scenario_objective_id": "interdict_haiphong_logistics",
+      "scenario_objective": "Depot, bridge, port, or logistics interdiction target.",
+      "scenario_priority": "secondary",
+      "scenario_faction": "usa_allied",
+      "scenario_domain": "logistics",
+      "scenario_action": "interdict",
+      "scenario_target_type": "port_depot_bridge_cluster",
+      "scenario_threat_level": "medium",
+      "scenario_desired_effect": "slow USA resupply and coastal reinforcement",
+      "suggested_loadout": "medium bombs or rockets with fuel margin for egress",
+      "success_criteria": [
+        "depot/bridge-equivalent object destroyed",
+        "escape route remains open after attack"
+      ],
+      "radio_cue_ids": [
+        "voice_cue_004_sample2_variant2"
+      ],
+      "mission_object_type": 2,
+      "coordinates": {
+        "x_coord": 28384,
+        "y_coord": 6972
+      },
+      "real_world_anchor": {
+        "label": "Haiphong port logistics",
+        "lon": 106.682,
+        "lat": 20.866,
+        "doctrine": "cut port/depot/bridge supply flow"
+      },
+      "notes": "Edit role/name/coordinates in WLD JSON or the map editor. mission_object_type comes from the preserved mission table."
+    },
+    {
+      "name": "Tonkin patrol",
+      "object_index": 5,
+      "legacy_name": "SAM Radar",
+      "role": "mission_target",
+      "scenario_objective_id": "sweep_tonkin_patrol",
+      "scenario_objective": "USA patrol aircraft / CAP encounter area.",
+      "scenario_priority": "secondary",
+      "scenario_faction": "usa",
+      "scenario_domain": "air",
+      "scenario_action": "sweep",
+      "scenario_target_type": "fighter_patrol_area",
+      "scenario_threat_level": "medium_high",
+      "scenario_desired_effect": "draw USA fighters away from the carrier strike lane",
+      "suggested_loadout": "air-to-air missiles and external fuel",
+      "success_criteria": [
+        "enemy patrol aircraft destroyed or displaced",
+        "carrier strike route remains clear"
+      ],
+      "radio_cue_ids": [
+        "voice_cue_002_sample2_variant0"
+      ],
+      "mission_object_type": 2,
+      "coordinates": {
+        "x_coord": 28523,
+        "y_coord": 9132
+      },
+      "real_world_anchor": {
+        "label": "Gulf of Tonkin CAP lane",
+        "lon": 107.25,
+        "lat": 20.42,
+        "doctrine": "pull USA fighters off the carrier strike lane"
+      },
+      "notes": "Edit role/name/coordinates in WLD JSON or the map editor. mission_object_type comes from the preserved mission table."
+    },
+    {
+      "name": "USA carrier group",
+      "object_index": 6,
+      "legacy_name": "SAM Radar",
+      "role": "mission_target",
+      "scenario_objective_id": "strike_carrier_group",
+      "scenario_objective": "Main naval strike target in the Gulf of Tonkin.",
+      "scenario_priority": "primary",
+      "scenario_faction": "usa",
+      "scenario_domain": "naval",
+      "scenario_action": "strike",
+      "scenario_target_type": "carrier_task_force",
+      "scenario_threat_level": "very_high",
+      "scenario_desired_effect": "disable carrier flight operations",
+      "suggested_loadout": "anti-ship / heavy strike ordnance with fighter cover",
+      "success_criteria": [
+        "primary ship or carrier-equivalent object destroyed",
+        "at least one escort/radar object suppressed if present"
+      ],
+      "radio_cue_ids": [
+        "voice_cue_002_sample2_variant0"
+      ],
+      "mission_object_type": 2,
+      "coordinates": {
+        "x_coord": 28300,
+        "y_coord": 10979
+      },
+      "real_world_anchor": {
+        "label": "Gulf of Tonkin carrier box",
+        "lon": 107.65,
+        "lat": 19.95,
+        "doctrine": "disable carrier flight operations"
+      },
+      "notes": "Edit role/name/coordinates in WLD JSON or the map editor. mission_object_type comes from the preserved mission table."
+    },
+    {
+      "name": "Da Nang airbase",
+      "object_index": 7,
+      "legacy_name": "SAM Radar",
+      "role": "mission_target",
+      "scenario_objective_id": "strike_da_nang_airbase",
+      "scenario_objective": "Airbase strike target for runway, fuel, and aircraft concentration.",
+      "scenario_priority": "primary",
+      "scenario_faction": "usa",
+      "scenario_domain": "airbase",
+      "scenario_action": "strike",
+      "scenario_target_type": "runway_and_fuel_site",
+      "scenario_threat_level": "high",
+      "scenario_desired_effect": "reduce USA sortie tempo from the coastal airbase",
+      "suggested_loadout": "runway cratering bombs plus self-defense missiles",
+      "success_criteria": [
+        "runway or airbase object destroyed",
+        "secondary fuel/logistics object destroyed if placed"
+      ],
+      "radio_cue_ids": [
+        "voice_cue_003_sample2_variant1"
+      ],
+      "mission_object_type": 2,
+      "coordinates": {
+        "x_coord": 21358,
+        "y_coord": 20256
+      },
+      "real_world_anchor": {
+        "label": "Da Nang airbase",
+        "lon": 108.199,
+        "lat": 16.043,
+        "doctrine": "crater runway and burn fuel/parked-aircraft capacity"
+      },
+      "notes": "Edit role/name/coordinates in WLD JSON or the map editor. mission_object_type comes from the preserved mission table."
+    },
+    {
+      "name": "SAM Radar",
+      "object_index": 8,
+      "legacy_name": "SAM Radar",
+      "role": "mission_target",
+      "scenario_objective_id": "",
+      "scenario_objective": "",
+      "scenario_priority": "",
+      "scenario_faction": "",
+      "scenario_domain": "",
+      "scenario_action": "",
+      "scenario_target_type": "",
+      "scenario_threat_level": "",
+      "scenario_desired_effect": "",
+      "suggested_loadout": "",
+      "success_criteria": [],
+      "radio_cue_ids": [],
+      "mission_object_type": 2,
+      "coordinates": {
+        "x_coord": 28736,
+        "y_coord": 2240
+      },
+      "real_world_anchor": null,
+      "notes": "Edit role/name/coordinates in WLD JSON or the map editor. mission_object_type comes from the preserved mission table."
+    },
+    {
+      "name": "SAM Radar",
+      "object_index": 9,
+      "legacy_name": "SAM Radar",
+      "role": "mission_target",
+      "scenario_objective_id": "",
+      "scenario_objective": "",
+      "scenario_priority": "",
+      "scenario_faction": "",
+      "scenario_domain": "",
+      "scenario_action": "",
+      "scenario_target_type": "",
+      "scenario_threat_level": "",
+      "scenario_desired_effect": "",
+      "suggested_loadout": "",
+      "success_criteria": [],
+      "radio_cue_ids": [],
+      "mission_object_type": 2,
+      "coordinates": {
+        "x_coord": 14400,
+        "y_coord": 4288
+      },
+      "real_world_anchor": null,
+      "notes": "Edit role/name/coordinates in WLD JSON or the map editor. mission_object_type comes from the preserved mission table."
+    },
+    {
+      "name": "SAM Radar",
+      "object_index": 10,
+      "legacy_name": "SAM Radar",
+      "role": "mission_target",
+      "scenario_objective_id": "",
+      "scenario_objective": "",
+      "scenario_priority": "",
+      "scenario_faction": "",
+      "scenario_domain": "",
+      "scenario_action": "",
+      "scenario_target_type": "",
+      "scenario_threat_level": "",
+      "scenario_desired_effect": "",
+      "suggested_loadout": "",
+      "success_criteria": [],
+      "radio_cue_ids": [],
+      "mission_object_type": 2,
+      "coordinates": {
+        "x_coord": 6208,
+        "y_coord": 22720
+      },
+      "real_world_anchor": null,
+      "notes": "Edit role/name/coordinates in WLD JSON or the map editor. mission_object_type comes from the preserved mission table."
+    },
+    {
+      "name": "SAM Radar",
+      "object_index": 11,
+      "legacy_name": "SAM Radar",
+      "role": "mission_target",
+      "scenario_objective_id": "",
+      "scenario_objective": "",
+      "scenario_priority": "",
+      "scenario_faction": "",
+      "scenario_domain": "",
+      "scenario_action": "",
+      "scenario_target_type": "",
+      "scenario_threat_level": "",
+      "scenario_desired_effect": "",
+      "suggested_loadout": "",
+      "success_criteria": [],
+      "radio_cue_ids": [],
+      "mission_object_type": 2,
+      "coordinates": {
+        "x_coord": 15040,
+        "y_coord": 21312
+      },
+      "real_world_anchor": null,
+      "notes": "Edit role/name/coordinates in WLD JSON or the map editor. mission_object_type comes from the preserved mission table."
+    },
+    {
+      "name": "SAM Radar",
+      "object_index": 12,
+      "legacy_name": "SAM Radar",
+      "role": "mission_target",
+      "scenario_objective_id": "",
+      "scenario_objective": "",
+      "scenario_priority": "",
+      "scenario_faction": "",
+      "scenario_domain": "",
+      "scenario_action": "",
+      "scenario_target_type": "",
+      "scenario_threat_level": "",
+      "scenario_desired_effect": "",
+      "suggested_loadout": "",
+      "success_criteria": [],
+      "radio_cue_ids": [],
+      "mission_object_type": 2,
+      "coordinates": {
+        "x_coord": 12992,
+        "y_coord": 23360
+      },
+      "real_world_anchor": null,
+      "notes": "Edit role/name/coordinates in WLD JSON or the map editor. mission_object_type comes from the preserved mission table."
+    },
+    {
+      "name": "SAM Radar",
+      "object_index": 13,
+      "legacy_name": "SAM Radar",
+      "role": "mission_target",
+      "scenario_objective_id": "",
+      "scenario_objective": "",
+      "scenario_priority": "",
+      "scenario_faction": "",
+      "scenario_domain": "",
+      "scenario_action": "",
+      "scenario_target_type": "",
+      "scenario_threat_level": "",
+      "scenario_desired_effect": "",
+      "suggested_loadout": "",
+      "success_criteria": [],
+      "radio_cue_ids": [],
+      "mission_object_type": 2,
+      "coordinates": {
+        "x_coord": 4800,
+        "y_coord": 25408
+      },
+      "real_world_anchor": null,
+      "notes": "Edit role/name/coordinates in WLD JSON or the map editor. mission_object_type comes from the preserved mission table."
+    },
+    {
+      "name": "SAM Radar",
+      "object_index": 14,
+      "legacy_name": "SAM Radar",
+      "role": "mission_target",
+      "scenario_objective_id": "",
+      "scenario_objective": "",
+      "scenario_priority": "",
+      "scenario_faction": "",
+      "scenario_domain": "",
+      "scenario_action": "",
+      "scenario_target_type": "",
+      "scenario_threat_level": "",
+      "scenario_desired_effect": "",
+      "suggested_loadout": "",
+      "success_criteria": [],
+      "radio_cue_ids": [],
+      "mission_object_type": 2,
+      "coordinates": {
+        "x_coord": 15040,
+        "y_coord": 2880
+      },
+      "real_world_anchor": null,
+      "notes": "Edit role/name/coordinates in WLD JSON or the map editor. mission_object_type comes from the preserved mission table."
+    },
+    {
+      "name": "SAM Radar",
+      "object_index": 15,
+      "legacy_name": "SAM Radar",
+      "role": "mission_target",
+      "scenario_objective_id": "",
+      "scenario_objective": "",
+      "scenario_priority": "",
+      "scenario_faction": "",
+      "scenario_domain": "",
+      "scenario_action": "",
+      "scenario_target_type": "",
+      "scenario_threat_level": "",
+      "scenario_desired_effect": "",
+      "suggested_loadout": "",
+      "success_criteria": [],
+      "radio_cue_ids": [],
+      "mission_object_type": 2,
+      "coordinates": {
+        "x_coord": 27072,
+        "y_coord": 5312
+      },
+      "real_world_anchor": null,
+      "notes": "Edit role/name/coordinates in WLD JSON or the map editor. mission_object_type comes from the preserved mission table."
+    },
+    {
+      "name": "SAM Radar",
+      "object_index": 16,
+      "legacy_name": "SAM Radar",
+      "role": "mission_target",
+      "scenario_objective_id": "",
+      "scenario_objective": "",
+      "scenario_priority": "",
+      "scenario_faction": "",
+      "scenario_domain": "",
+      "scenario_action": "",
+      "scenario_target_type": "",
+      "scenario_threat_level": "",
+      "scenario_desired_effect": "",
+      "suggested_loadout": "",
+      "success_criteria": [],
+      "radio_cue_ids": [],
+      "mission_object_type": 2,
+      "coordinates": {
+        "x_coord": 25536,
+        "y_coord": 6848
+      },
+      "real_world_anchor": null,
+      "notes": "Edit role/name/coordinates in WLD JSON or the map editor. mission_object_type comes from the preserved mission table."
+    },
+    {
+      "name": "Airbase",
+      "object_index": 17,
+      "legacy_name": "Airbase",
+      "role": "mission_target",
+      "scenario_objective_id": "",
+      "scenario_objective": "",
+      "scenario_priority": "",
+      "scenario_faction": "",
+      "scenario_domain": "",
+      "scenario_action": "",
+      "scenario_target_type": "",
+      "scenario_threat_level": "",
+      "scenario_desired_effect": "",
+      "suggested_loadout": "",
+      "success_criteria": [],
+      "radio_cue_ids": [],
+      "mission_object_type": 21,
+      "coordinates": {
+        "x_coord": 20800,
+        "y_coord": 14528
+      },
+      "real_world_anchor": null,
+      "notes": "Edit role/name/coordinates in WLD JSON or the map editor. mission_object_type comes from the preserved mission table."
+    },
+    {
+      "name": "Airbase",
+      "object_index": 18,
+      "legacy_name": "Airbase",
+      "role": "mission_target",
+      "scenario_objective_id": "",
+      "scenario_objective": "",
+      "scenario_priority": "",
+      "scenario_faction": "",
+      "scenario_domain": "",
+      "scenario_action": "",
+      "scenario_target_type": "",
+      "scenario_threat_level": "",
+      "scenario_desired_effect": "",
+      "suggested_loadout": "",
+      "success_criteria": [],
+      "radio_cue_ids": [],
+      "mission_object_type": 21,
+      "coordinates": {
+        "x_coord": 23360,
+        "y_coord": 8896
+      },
+      "real_world_anchor": null,
+      "notes": "Edit role/name/coordinates in WLD JSON or the map editor. mission_object_type comes from the preserved mission table."
+    },
+    {
+      "name": "Airbase",
+      "object_index": 19,
+      "legacy_name": "Airbase",
+      "role": "mission_target",
+      "scenario_objective_id": "",
+      "scenario_objective": "",
+      "scenario_priority": "",
+      "scenario_faction": "",
+      "scenario_domain": "",
+      "scenario_action": "",
+      "scenario_target_type": "",
+      "scenario_threat_level": "",
+      "scenario_desired_effect": "",
+      "suggested_loadout": "",
+      "success_criteria": [],
+      "radio_cue_ids": [],
+      "mission_object_type": 21,
+      "coordinates": {
+        "x_coord": 26944,
+        "y_coord": 4288
+      },
+      "real_world_anchor": null,
+      "notes": "Edit role/name/coordinates in WLD JSON or the map editor. mission_object_type comes from the preserved mission table."
+    },
+    {
+      "name": "Airbase",
+      "object_index": 20,
+      "legacy_name": "Airbase",
+      "role": "mission_target",
+      "scenario_objective_id": "",
+      "scenario_objective": "",
+      "scenario_priority": "",
+      "scenario_faction": "",
+      "scenario_domain": "",
+      "scenario_action": "",
+      "scenario_target_type": "",
+      "scenario_threat_level": "",
+      "scenario_desired_effect": "",
+      "suggested_loadout": "",
+      "success_criteria": [],
+      "radio_cue_ids": [],
+      "mission_object_type": 21,
+      "coordinates": {
+        "x_coord": 28992,
+        "y_coord": 6336
+      },
+      "real_world_anchor": null,
+      "notes": "Edit role/name/coordinates in WLD JSON or the map editor. mission_object_type comes from the preserved mission table."
+    },
+    {
+      "name": "Airbase",
+      "object_index": 21,
+      "legacy_name": "Airbase",
+      "role": "mission_target",
+      "scenario_objective_id": "",
+      "scenario_objective": "",
+      "scenario_priority": "",
+      "scenario_faction": "",
+      "scenario_domain": "",
+      "scenario_action": "",
+      "scenario_target_type": "",
+      "scenario_threat_level": "",
+      "scenario_desired_effect": "",
+      "suggested_loadout": "",
+      "success_criteria": [],
+      "radio_cue_ids": [],
+      "mission_object_type": 21,
+      "coordinates": {
+        "x_coord": 24896,
+        "y_coord": 4288
+      },
+      "real_world_anchor": null,
+      "notes": "Edit role/name/coordinates in WLD JSON or the map editor. mission_object_type comes from the preserved mission table."
+    },
+    {
+      "name": "Airbase",
+      "object_index": 22,
+      "legacy_name": "Airbase",
+      "role": "mission_target",
+      "scenario_objective_id": "",
+      "scenario_objective": "",
+      "scenario_priority": "",
+      "scenario_faction": "",
+      "scenario_domain": "",
+      "scenario_action": "",
+      "scenario_target_type": "",
+      "scenario_threat_level": "",
+      "scenario_desired_effect": "",
+      "suggested_loadout": "",
+      "success_criteria": [],
+      "radio_cue_ids": [],
+      "mission_object_type": 21,
+      "coordinates": {
+        "x_coord": 28992,
+        "y_coord": 2240
+      },
+      "real_world_anchor": null,
+      "notes": "Edit role/name/coordinates in WLD JSON or the map editor. mission_object_type comes from the preserved mission table."
+    },
+    {
+      "name": "Airbase",
+      "object_index": 23,
+      "legacy_name": "Airbase",
+      "role": "mission_target",
+      "scenario_objective_id": "",
+      "scenario_objective": "",
+      "scenario_priority": "",
+      "scenario_faction": "",
+      "scenario_domain": "",
+      "scenario_action": "",
+      "scenario_target_type": "",
+      "scenario_threat_level": "",
+      "scenario_desired_effect": "",
+      "suggested_loadout": "",
+      "success_criteria": [],
+      "radio_cue_ids": [],
+      "mission_object_type": 21,
+      "coordinates": {
+        "x_coord": 14656,
+        "y_coord": 4288
+      },
+      "real_world_anchor": null,
+      "notes": "Edit role/name/coordinates in WLD JSON or the map editor. mission_object_type comes from the preserved mission table."
+    },
+    {
+      "name": "Airbase",
+      "object_index": 24,
+      "legacy_name": "Airbase",
+      "role": "mission_target",
+      "scenario_objective_id": "",
+      "scenario_objective": "",
+      "scenario_priority": "",
+      "scenario_faction": "",
+      "scenario_domain": "",
+      "scenario_action": "",
+      "scenario_target_type": "",
+      "scenario_threat_level": "",
+      "scenario_desired_effect": "",
+      "suggested_loadout": "",
+      "success_criteria": [],
+      "radio_cue_ids": [],
+      "mission_object_type": 21,
+      "coordinates": {
+        "x_coord": 6464,
+        "y_coord": 22720
+      },
+      "real_world_anchor": null,
+      "notes": "Edit role/name/coordinates in WLD JSON or the map editor. mission_object_type comes from the preserved mission table."
+    },
+    {
+      "name": "Supply Dump",
+      "object_index": 25,
+      "legacy_name": "Supply Dump",
+      "role": "mission_target",
+      "scenario_objective_id": "",
+      "scenario_objective": "",
+      "scenario_priority": "",
+      "scenario_faction": "",
+      "scenario_domain": "",
+      "scenario_action": "",
+      "scenario_target_type": "",
+      "scenario_threat_level": "",
+      "scenario_desired_effect": "",
+      "suggested_loadout": "",
+      "success_criteria": [],
+      "radio_cue_ids": [],
+      "mission_object_type": 19,
+      "coordinates": {
+        "x_coord": 14656,
+        "y_coord": 25280
+      },
+      "real_world_anchor": null,
+      "notes": "Edit role/name/coordinates in WLD JSON or the map editor. mission_object_type comes from the preserved mission table."
+    },
+    {
+      "name": "Supply Dump",
+      "object_index": 26,
+      "legacy_name": "Supply Dump",
+      "role": "mission_target",
+      "scenario_objective_id": "",
+      "scenario_objective": "",
+      "scenario_priority": "",
+      "scenario_faction": "",
+      "scenario_domain": "",
+      "scenario_action": "",
+      "scenario_target_type": "",
+      "scenario_threat_level": "",
+      "scenario_desired_effect": "",
+      "suggested_loadout": "",
+      "success_criteria": [],
+      "radio_cue_ids": [],
+      "mission_object_type": 19,
+      "coordinates": {
+        "x_coord": 16704,
+        "y_coord": 19136
+      },
+      "real_world_anchor": null,
+      "notes": "Edit role/name/coordinates in WLD JSON or the map editor. mission_object_type comes from the preserved mission table."
+    },
+    {
+      "name": "Gia Lam Airport",
+      "object_index": 27,
+      "legacy_name": "Airbase",
+      "role": "mission_target",
+      "scenario_objective_id": "",
+      "scenario_objective": "",
+      "scenario_priority": "",
+      "scenario_faction": "",
+      "scenario_domain": "",
+      "scenario_action": "",
+      "scenario_target_type": "",
+      "scenario_threat_level": "",
+      "scenario_desired_effect": "",
+      "suggested_loadout": "",
+      "success_criteria": [],
+      "radio_cue_ids": [],
+      "mission_object_type": 21,
+      "coordinates": {
+        "x_coord": 27364,
+        "y_coord": 4788
+      },
+      "real_world_anchor": {
+        "lon": 105.8871869,
+        "lat": 21.0405828,
+        "source": "https://www.openstreetmap.org/way/217455233"
+      },
+      "notes": "Edit role/name/coordinates in WLD JSON or the map editor. mission_object_type comes from the preserved mission table."
+    },
+    {
+      "name": "Noi Bai International Airport",
+      "object_index": 28,
+      "legacy_name": "Airbase",
+      "role": "mission_target",
+      "scenario_objective_id": "",
+      "scenario_objective": "",
+      "scenario_priority": "",
+      "scenario_faction": "",
+      "scenario_domain": "",
+      "scenario_action": "",
+      "scenario_target_type": "",
+      "scenario_threat_level": "",
+      "scenario_desired_effect": "",
+      "suggested_loadout": "",
+      "success_criteria": [],
+      "radio_cue_ids": [],
+      "mission_object_type": 21,
+      "coordinates": {
+        "x_coord": 27571,
+        "y_coord": 4234
+      },
+      "real_world_anchor": {
+        "lon": 105.8022579,
+        "lat": 21.2193208,
+        "source": "https://www.openstreetmap.org/relation/20136775"
+      },
+      "notes": "Edit role/name/coordinates in WLD JSON or the map editor. mission_object_type comes from the preserved mission table."
+    },
+    {
+      "name": "Cat Bi International Airport",
+      "object_index": 29,
+      "legacy_name": "Airbase",
+      "role": "mission_target",
+      "scenario_objective_id": "",
+      "scenario_objective": "",
+      "scenario_priority": "",
+      "scenario_faction": "",
+      "scenario_domain": "",
+      "scenario_action": "",
+      "scenario_target_type": "",
+      "scenario_threat_level": "",
+      "scenario_desired_effect": "",
+      "suggested_loadout": "",
+      "success_criteria": [],
+      "radio_cue_ids": [],
+      "mission_object_type": 21,
+      "coordinates": {
+        "x_coord": 28468,
+        "y_coord": 7052
+      },
+      "real_world_anchor": {
+        "lon": 106.722662,
+        "lat": 20.8175148,
+        "source": "https://www.openstreetmap.org/way/240659354"
+      },
+      "notes": "Edit role/name/coordinates in WLD JSON or the map editor. mission_object_type comes from the preserved mission table."
+    },
+    {
+      "name": "Vinh International Airport",
+      "object_index": 30,
+      "legacy_name": "Airbase",
+      "role": "mission_target",
+      "scenario_objective_id": "",
+      "scenario_objective": "",
+      "scenario_priority": "",
+      "scenario_faction": "",
+      "scenario_domain": "",
+      "scenario_action": "",
+      "scenario_target_type": "",
+      "scenario_threat_level": "",
+      "scenario_desired_effect": "",
+      "suggested_loadout": "",
+      "success_criteria": [],
+      "radio_cue_ids": [],
+      "mission_object_type": 21,
+      "coordinates": {
+        "x_coord": 22257,
+        "y_coord": 9095
+      },
+      "real_world_anchor": {
+        "lon": 105.6697446,
+        "lat": 18.7385973,
+        "source": "https://www.openstreetmap.org/way/585991360"
+      },
+      "notes": "Edit role/name/coordinates in WLD JSON or the map editor. mission_object_type comes from the preserved mission table."
+    },
+    {
+      "name": "Phu Bai International Airport",
+      "object_index": 31,
+      "legacy_name": "Airbase",
+      "role": "mission_target",
+      "scenario_objective_id": "",
+      "scenario_objective": "",
+      "scenario_priority": "",
+      "scenario_faction": "",
+      "scenario_domain": "",
+      "scenario_action": "",
+      "scenario_target_type": "",
+      "scenario_threat_level": "",
+      "scenario_desired_effect": "",
+      "suggested_loadout": "",
+      "success_criteria": [],
+      "radio_cue_ids": [],
+      "mission_object_type": 21,
+      "coordinates": {
+        "x_coord": 21306,
+        "y_coord": 18305
+      },
+      "real_world_anchor": {
+        "lon": 107.7046124,
+        "lat": 16.3983538,
+        "source": "https://www.openstreetmap.org/way/217466613"
+      },
+      "notes": "Edit role/name/coordinates in WLD JSON or the map editor. mission_object_type comes from the preserved mission table."
+    },
+    {
+      "name": "Da Nang International Airport",
+      "object_index": 32,
+      "legacy_name": "Airbase",
+      "role": "mission_target",
+      "scenario_objective_id": "",
+      "scenario_objective": "",
+      "scenario_priority": "",
+      "scenario_faction": "",
+      "scenario_domain": "",
+      "scenario_action": "",
+      "scenario_target_type": "",
+      "scenario_threat_level": "",
+      "scenario_desired_effect": "",
+      "suggested_loadout": "",
+      "success_criteria": [],
+      "radio_cue_ids": [],
+      "mission_object_type": 21,
+      "coordinates": {
+        "x_coord": 21506,
+        "y_coord": 20102
+      },
+      "real_world_anchor": {
+        "lon": 108.1983906,
+        "lat": 16.0428997,
+        "source": "https://www.openstreetmap.org/way/217476265"
+      },
+      "notes": "Edit role/name/coordinates in WLD JSON or the map editor. mission_object_type comes from the preserved mission table."
+    },
+    {
+      "name": "Bien Hoa Air Base",
+      "object_index": 33,
+      "legacy_name": "Airbase",
+      "role": "mission_target",
+      "scenario_objective_id": "",
+      "scenario_objective": "",
+      "scenario_priority": "",
+      "scenario_faction": "",
+      "scenario_domain": "",
+      "scenario_action": "",
+      "scenario_target_type": "",
+      "scenario_threat_level": "",
+      "scenario_desired_effect": "",
+      "suggested_loadout": "",
+      "success_criteria": [],
+      "radio_cue_ids": [],
+      "mission_object_type": 21,
+      "coordinates": {
+        "x_coord": 8751,
+        "y_coord": 27478
+      },
+      "real_world_anchor": {
+        "lon": 106.8208126,
+        "lat": 10.9743403,
+        "source": "https://www.openstreetmap.org/way/1081333880"
+      },
+      "notes": "Edit role/name/coordinates in WLD JSON or the map editor. mission_object_type comes from the preserved mission table."
+    },
+    {
+      "name": "Cam Ranh International Airport",
+      "object_index": 34,
+      "legacy_name": "Airbase",
+      "role": "mission_target",
+      "scenario_objective_id": "",
+      "scenario_objective": "",
+      "scenario_priority": "",
+      "scenario_faction": "",
+      "scenario_domain": "",
+      "scenario_action": "",
+      "scenario_target_type": "",
+      "scenario_threat_level": "",
+      "scenario_desired_effect": "",
+      "suggested_loadout": "",
+      "success_criteria": [],
+      "radio_cue_ids": [],
+      "mission_object_type": 21,
+      "coordinates": {
+        "x_coord": 15263,
+        "y_coord": 30577
+      },
+      "real_world_anchor": {
+        "lon": 109.2189411,
+        "lat": 11.9974959,
+        "source": "https://www.openstreetmap.org/way/217534447"
+      },
+      "notes": "Edit role/name/coordinates in WLD JSON or the map editor. mission_object_type comes from the preserved mission table."
+    },
+    {
+      "name": "",
+      "object_index": 35,
+      "legacy_name": "",
+      "role": "reference",
+      "scenario_objective_id": "",
+      "scenario_objective": "",
+      "scenario_priority": "",
+      "scenario_faction": "",
+      "scenario_domain": "",
+      "scenario_action": "",
+      "scenario_target_type": "",
+      "scenario_threat_level": "",
+      "scenario_desired_effect": "",
+      "suggested_loadout": "",
+      "success_criteria": [],
+      "radio_cue_ids": [],
+      "mission_object_type": 0,
+      "coordinates": {
+        "x_coord": 29952,
+        "y_coord": 13568
+      },
+      "real_world_anchor": null,
+      "notes": "Edit role/name/coordinates in WLD JSON or the map editor. mission_object_type comes from the preserved mission table."
+    },
+    {
+      "name": "",
+      "object_index": 36,
+      "legacy_name": "",
+      "role": "reference",
+      "scenario_objective_id": "",
+      "scenario_objective": "",
+      "scenario_priority": "",
+      "scenario_faction": "",
+      "scenario_domain": "",
+      "scenario_action": "",
+      "scenario_target_type": "",
+      "scenario_threat_level": "",
+      "scenario_desired_effect": "",
+      "suggested_loadout": "",
+      "success_criteria": [],
+      "radio_cue_ids": [],
+      "mission_object_type": 0,
+      "coordinates": {
+        "x_coord": 27904,
+        "y_coord": 19712
+      },
+      "real_world_anchor": null,
+      "notes": "Edit role/name/coordinates in WLD JSON or the map editor. mission_object_type comes from the preserved mission table."
+    }
+  ],
+  "runtime_selection": {
+    "scenario": "SVN",
+    "scenario_base": "VN",
+    "argv": [
+      "--scenario",
+      "SVN",
+      "--scenario-base",
+      "VN"
+    ],
+    "environment": {
+      "F15_WORLD_SCENARIO": "SVN",
+      "F15_WORLD_SCENARIO_BASE": "VN"
+    },
+    "notes": "Use with F15_REPLACEMENT_ROOT pointing at converted_assets_all. The scenario base limits WLD redirection to the intended source theater, and --campaign selects that base theater automatically in START."
+  },
+  "shape_target_category_table": "AAAAAAAAAAAAAAAAAAAAAAAATAAAIQAAAACDAIYFCgAABwAAAAAIAIAAAAAAAAAAAAAAAAAMAAAAAAAAAAAAAAAAAAAAAIQAAAAAbAAAAAAAAAAAAAAAAAAAbAAABQAAAAAAAA==",
+  "kill_tally_or_unit_flags": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+  "mission_object_type_table": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAFQAAAAAAAAAJBwAADQAAAAACAAgAAAAAAAAAAAAAAAAMAAAAAAAAAAAAAAAAAAAAABQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEwAAAAAAAA==",
+  "terrain_grid": "BwsLBwcHCAgEBAQEBAgIBAcLCwsHBwgIBAQEBAgICAgHCwsLCwcICAgEBAgICAgICwsLCwsLCwsIBAQICAgICAsLCwsLBwsLCAQICA4MDg4LCwsLCwsLCwgECAwODA4OCwcLBwcLCwsIBAQIDg4ODg4LBAgIBAcLCAQIDg4ODg4OCAQICAgICAgECAsODg4ODggIDAgICAgEBAgLDg4ODg4ICAgICAgIBAQLDg4ODg4OCAgICAgICAQECw4ODg4ODgsICAgICAQHBwsODg4ODg4PCwsICwsEBwQPDg4ODg4LCwsLCwgLCAsLDg4ODg4ODg4ODg4PCwsPDg4ODg4ODg==",
+  "name_table": "U292aWV0IEhRAERvbmcgSG9pAFZpbmgASGFub2kASGFpcGhvbmcAVG9ua2luAFVTIEZsZWV0AERhIE5hbmcARG9uIE11YW5nAEtvcmF0AFRha2hsaQBCYW5na29rAFRhbiBTb24gTmh1dABEYSBOYW5nAE5oYSBUcmFuZwBWaWVudGlhbmUAUG5vbSBQZW5oAFRha2VvAERlc3Ryb3llcgBIb0NoaU1pbmggVHJhaWwAQmFuIFBobGFrAEFpcmJhc2UAQmFuIEtoZWEAAABWaWFuZ2NoYW4AVG93bgBUaGFuaCBIb2EARGVwb3QASGVhZHF1YXJ0ZXJzAFRhbmsgRmFybQBHaWEgTGFtAABTQSBNaXNzaWxlAAAAAABTQU0gUmFkYXIAVG93ZXIASGFuZ2FyAAAAAAAAAAAAQnJpZGdlAAAAAE1pc3NpbGUgQm9hdAAAAAAAAAAAAAAAAAAAAAAAQnJpZGdlAAAAAAAAAAAAAAAAAAAAAAAAAAAAVVNTIENvbnN0ZWxsYXRpb24AVVNTIEtpdHR5IEhhd2sAU3VwcGx5IER1bXAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+  "trailing_bytes": ""
+}

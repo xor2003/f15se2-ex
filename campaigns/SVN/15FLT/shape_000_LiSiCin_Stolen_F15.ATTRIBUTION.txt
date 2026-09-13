@@ -1,0 +1,11 @@
+Replacement model for SVN slot 000.
+
+Source: https://github.com/srcejon/sdrangel-3d-models/blob/main/f15.glb
+Original asset: "McDonnell Douglas F-15 Eagle" by PolyDucky
+Original Sketchfab page: https://skfb.ly/6QWGp
+License: Creative Commons Attribution 4.0, https://creativecommons.org/licenses/by/4.0/
+
+This file was downloaded from the SDRangel 3D models repository and transformed to match the F-15 SE2 converted slot-0 game bounds:
+- source axes: X wings, Y length, Z height
+- game axes: X wings, Y height/thickness, Z length
+- non-uniform scale fitted exactly to converted_assets_all/15FLT/shape_000.glb bounds so in-game orientation and envelope size match the original slot

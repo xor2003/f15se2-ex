@@ -1,0 +1,12 @@
+{
+  "corners": [[97.843, 15.059], [106.060, 23.514], [105.932, 7.412], [114.149, 16.180]],
+  "starts": [{"object_slot": 30}],
+  "targets": [
+    {"object_slot": 3, "objective_id": "suppress_hanoi_radar"},
+    {"object_slot": 4, "objective_id": "interdict_haiphong_logistics"},
+    {"object_slot": 6, "objective_id": "strike_carrier_group"},
+    {"object_slot": 7, "objective_id": "strike_da_nang_airbase"}
+  ],
+  "ends": [{"object_slot": 27}, {"object_slot": 28}, {"object_slot": 29}],
+  "max_leg_world_units": 32767
+}

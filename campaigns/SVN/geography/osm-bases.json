@@ -1,0 +1,81 @@
+{
+  "attribution": "OpenStreetMap contributors",
+  "license": "ODbL-1.0",
+  "license_url": "https://www.openstreetmap.org/copyright",
+  "osm_timestamp": "2026-09-12T20:17:51Z",
+  "notes": "Current geographic anchors for a fictional campaign.",
+  "bases": [
+    {
+      "slot": 27,
+      "name": "Gia Lam Airport",
+      "lon": 105.8871869,
+      "lat": 21.0405828,
+      "source": "https://www.openstreetmap.org/way/217455233",
+      "x": 27364,
+      "y": 4788
+    },
+    {
+      "slot": 28,
+      "name": "Noi Bai International Airport",
+      "lon": 105.8022579,
+      "lat": 21.2193208,
+      "source": "https://www.openstreetmap.org/relation/20136775",
+      "x": 27571,
+      "y": 4234
+    },
+    {
+      "slot": 29,
+      "name": "Cat Bi International Airport",
+      "lon": 106.722662,
+      "lat": 20.8175148,
+      "source": "https://www.openstreetmap.org/way/240659354",
+      "x": 28468,
+      "y": 7052
+    },
+    {
+      "slot": 30,
+      "name": "Vinh International Airport",
+      "lon": 105.6697446,
+      "lat": 18.7385973,
+      "source": "https://www.openstreetmap.org/way/585991360",
+      "x": 22257,
+      "y": 9095
+    },
+    {
+      "slot": 31,
+      "name": "Phu Bai International Airport",
+      "lon": 107.7046124,
+      "lat": 16.3983538,
+      "source": "https://www.openstreetmap.org/way/217466613",
+      "x": 21306,
+      "y": 18305
+    },
+    {
+      "slot": 32,
+      "name": "Da Nang International Airport",
+      "lon": 108.1983906,
+      "lat": 16.0428997,
+      "source": "https://www.openstreetmap.org/way/217476265",
+      "x": 21506,
+      "y": 20102
+    },
+    {
+      "slot": 33,
+      "name": "Bien Hoa Air Base",
+      "lon": 106.8208126,
+      "lat": 10.9743403,
+      "source": "https://www.openstreetmap.org/way/1081333880",
+      "x": 8751,
+      "y": 27478
+    },
+    {
+      "slot": 34,
+      "name": "Cam Ranh International Airport",
+      "lon": 109.2189411,
+      "lat": 11.9974959,
+      "source": "https://www.openstreetmap.org/way/217534447",
+      "x": 15263,
+      "y": 30577
+    }
+  ]
+}

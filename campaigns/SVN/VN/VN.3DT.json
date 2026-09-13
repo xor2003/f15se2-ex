@@ -1,0 +1,953 @@
+{
+  "format": "3DT",
+  "version": 1,
+  "signature": 12593,
+  "tile_counts": [
+    32,
+    32,
+    32,
+    32,
+    32
+  ],
+  "levels": [
+    {
+      "level": 0,
+      "objects": [
+        {
+          "tile_index": 0,
+          "objects": []
+        },
+        {
+          "tile_index": 1,
+          "objects": []
+        },
+        {
+          "tile_index": 2,
+          "objects": []
+        },
+        {
+          "tile_index": 3,
+          "objects": []
+        },
+        {
+          "tile_index": 4,
+          "objects": []
+        },
+        {
+          "tile_index": 5,
+          "objects": []
+        },
+        {
+          "tile_index": 6,
+          "objects": []
+        },
+        {
+          "tile_index": 7,
+          "objects": []
+        },
+        {
+          "tile_index": 8,
+          "objects": []
+        },
+        {
+          "tile_index": 9,
+          "objects": []
+        },
+        {
+          "tile_index": 10,
+          "objects": []
+        },
+        {
+          "tile_index": 11,
+          "objects": []
+        },
+        {
+          "tile_index": 12,
+          "objects": []
+        },
+        {
+          "tile_index": 13,
+          "objects": []
+        },
+        {
+          "tile_index": 14,
+          "objects": []
+        },
+        {
+          "tile_index": 15,
+          "objects": []
+        },
+        {
+          "tile_index": 16,
+          "objects": []
+        },
+        {
+          "tile_index": 17,
+          "objects": []
+        },
+        {
+          "tile_index": 18,
+          "objects": []
+        },
+        {
+          "tile_index": 19,
+          "objects": []
+        },
+        {
+          "tile_index": 20,
+          "objects": []
+        },
+        {
+          "tile_index": 21,
+          "objects": []
+        },
+        {
+          "tile_index": 22,
+          "objects": []
+        },
+        {
+          "tile_index": 23,
+          "objects": []
+        },
+        {
+          "tile_index": 24,
+          "objects": []
+        },
+        {
+          "tile_index": 25,
+          "objects": []
+        },
+        {
+          "tile_index": 26,
+          "objects": []
+        },
+        {
+          "tile_index": 27,
+          "objects": []
+        },
+        {
+          "tile_index": 28,
+          "objects": []
+        },
+        {
+          "tile_index": 29,
+          "objects": []
+        },
+        {
+          "tile_index": 30,
+          "objects": []
+        },
+        {
+          "tile_index": 31,
+          "objects": []
+        }
+      ]
+    },
+    {
+      "level": 1,
+      "objects": [
+        {
+          "tile_index": 0,
+          "objects": []
+        },
+        {
+          "tile_index": 1,
+          "objects": [
+            {
+              "x": -1888,
+              "y": 1600,
+              "z": 0,
+              "shape_word": 166
+            }
+          ]
+        },
+        {
+          "tile_index": 2,
+          "objects": [
+            {
+              "x": 1024,
+              "y": 128,
+              "z": 0,
+              "shape_word": 221
+            }
+          ]
+        },
+        {
+          "tile_index": 3,
+          "objects": [
+            {
+              "x": 1376,
+              "y": 640,
+              "z": 0,
+              "shape_word": 166
+            }
+          ]
+        },
+        {
+          "tile_index": 4,
+          "objects": [
+            {
+              "x": -1664,
+              "y": -1120,
+              "z": 0,
+              "shape_word": 166
+            }
+          ]
+        },
+        {
+          "tile_index": 5,
+          "objects": [
+            {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "shape_word": 166
+            }
+          ]
+        },
+        {
+          "tile_index": 6,
+          "objects": [
+            {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "shape_word": 221
+            }
+          ]
+        },
+        {
+          "tile_index": 7,
+          "objects": []
+        },
+        {
+          "tile_index": 8,
+          "objects": []
+        },
+        {
+          "tile_index": 9,
+          "objects": []
+        },
+        {
+          "tile_index": 10,
+          "objects": []
+        },
+        {
+          "tile_index": 11,
+          "objects": []
+        },
+        {
+          "tile_index": 12,
+          "objects": []
+        },
+        {
+          "tile_index": 13,
+          "objects": []
+        },
+        {
+          "tile_index": 14,
+          "objects": []
+        },
+        {
+          "tile_index": 15,
+          "objects": []
+        },
+        {
+          "tile_index": 16,
+          "objects": []
+        },
+        {
+          "tile_index": 17,
+          "objects": []
+        },
+        {
+          "tile_index": 18,
+          "objects": []
+        },
+        {
+          "tile_index": 19,
+          "objects": []
+        },
+        {
+          "tile_index": 20,
+          "objects": []
+        },
+        {
+          "tile_index": 21,
+          "objects": []
+        },
+        {
+          "tile_index": 22,
+          "objects": []
+        },
+        {
+          "tile_index": 23,
+          "objects": []
+        },
+        {
+          "tile_index": 24,
+          "objects": []
+        },
+        {
+          "tile_index": 25,
+          "objects": []
+        },
+        {
+          "tile_index": 26,
+          "objects": []
+        },
+        {
+          "tile_index": 27,
+          "objects": []
+        },
+        {
+          "tile_index": 28,
+          "objects": []
+        },
+        {
+          "tile_index": 29,
+          "objects": []
+        },
+        {
+          "tile_index": 30,
+          "objects": []
+        },
+        {
+          "tile_index": 31,
+          "objects": []
+        }
+      ]
+    },
+    {
+      "level": 2,
+      "objects": [
+        {
+          "tile_index": 0,
+          "objects": []
+        },
+        {
+          "tile_index": 1,
+          "objects": [
+            {
+              "x": -224,
+              "y": 608,
+              "z": 0,
+              "shape_word": 149
+            }
+          ]
+        },
+        {
+          "tile_index": 2,
+          "objects": [
+            {
+              "x": 416,
+              "y": -1120,
+              "z": 0,
+              "shape_word": 149
+            }
+          ]
+        },
+        {
+          "tile_index": 3,
+          "objects": []
+        },
+        {
+          "tile_index": 4,
+          "objects": []
+        },
+        {
+          "tile_index": 5,
+          "objects": [
+            {
+              "x": 512,
+              "y": 512,
+              "z": 0,
+              "shape_word": 149
+            }
+          ]
+        },
+        {
+          "tile_index": 6,
+          "objects": []
+        },
+        {
+          "tile_index": 7,
+          "objects": []
+        },
+        {
+          "tile_index": 8,
+          "objects": []
+        },
+        {
+          "tile_index": 9,
+          "objects": [
+            {
+              "x": 880,
+              "y": -256,
+              "z": 0,
+              "shape_word": 149
+            }
+          ]
+        },
+        {
+          "tile_index": 10,
+          "objects": [
+            {
+              "x": 512,
+              "y": 512,
+              "z": 0,
+              "shape_word": 149
+            }
+          ]
+        },
+        {
+          "tile_index": 11,
+          "objects": [
+            {
+              "x": 1432,
+              "y": 944,
+              "z": 0,
+              "shape_word": 149
+            }
+          ]
+        },
+        {
+          "tile_index": 12,
+          "objects": [
+            {
+              "x": -120,
+              "y": -1080,
+              "z": 0,
+              "shape_word": 149
+            }
+          ]
+        },
+        {
+          "tile_index": 13,
+          "objects": [
+            {
+              "x": 464,
+              "y": -1032,
+              "z": 0,
+              "shape_word": 149
+            }
+          ]
+        },
+        {
+          "tile_index": 14,
+          "objects": [
+            {
+              "x": -2032,
+              "y": 976,
+              "z": 0,
+              "shape_word": 149
+            }
+          ]
+        },
+        {
+          "tile_index": 15,
+          "objects": [
+            {
+              "x": -1672,
+              "y": -688,
+              "z": 0,
+              "shape_word": 149
+            }
+          ]
+        },
+        {
+          "tile_index": 16,
+          "objects": [
+            {
+              "x": 1272,
+              "y": -904,
+              "z": 0,
+              "shape_word": 149
+            }
+          ]
+        },
+        {
+          "tile_index": 17,
+          "objects": [
+            {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "shape_word": 218
+            }
+          ]
+        },
+        {
+          "tile_index": 18,
+          "objects": []
+        },
+        {
+          "tile_index": 19,
+          "objects": []
+        },
+        {
+          "tile_index": 20,
+          "objects": []
+        },
+        {
+          "tile_index": 21,
+          "objects": []
+        },
+        {
+          "tile_index": 22,
+          "objects": []
+        },
+        {
+          "tile_index": 23,
+          "objects": []
+        },
+        {
+          "tile_index": 24,
+          "objects": []
+        },
+        {
+          "tile_index": 25,
+          "objects": []
+        },
+        {
+          "tile_index": 26,
+          "objects": []
+        },
+        {
+          "tile_index": 27,
+          "objects": []
+        },
+        {
+          "tile_index": 28,
+          "objects": []
+        },
+        {
+          "tile_index": 29,
+          "objects": []
+        },
+        {
+          "tile_index": 30,
+          "objects": []
+        },
+        {
+          "tile_index": 31,
+          "objects": []
+        }
+      ]
+    },
+    {
+      "level": 3,
+      "objects": [
+        {
+          "tile_index": 0,
+          "objects": []
+        },
+        {
+          "tile_index": 1,
+          "objects": []
+        },
+        {
+          "tile_index": 2,
+          "objects": []
+        },
+        {
+          "tile_index": 3,
+          "objects": []
+        },
+        {
+          "tile_index": 4,
+          "objects": []
+        },
+        {
+          "tile_index": 5,
+          "objects": []
+        },
+        {
+          "tile_index": 6,
+          "objects": [
+            {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "shape_word": 82
+            }
+          ]
+        },
+        {
+          "tile_index": 7,
+          "objects": []
+        },
+        {
+          "tile_index": 8,
+          "objects": []
+        },
+        {
+          "tile_index": 9,
+          "objects": []
+        },
+        {
+          "tile_index": 10,
+          "objects": []
+        },
+        {
+          "tile_index": 11,
+          "objects": []
+        },
+        {
+          "tile_index": 12,
+          "objects": []
+        },
+        {
+          "tile_index": 13,
+          "objects": []
+        },
+        {
+          "tile_index": 14,
+          "objects": []
+        },
+        {
+          "tile_index": 15,
+          "objects": []
+        },
+        {
+          "tile_index": 16,
+          "objects": []
+        },
+        {
+          "tile_index": 17,
+          "objects": []
+        },
+        {
+          "tile_index": 18,
+          "objects": [
+            {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "shape_word": 83
+            }
+          ]
+        },
+        {
+          "tile_index": 19,
+          "objects": [
+            {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "shape_word": 81
+            }
+          ]
+        },
+        {
+          "tile_index": 20,
+          "objects": [
+            {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "shape_word": 82
+            }
+          ]
+        },
+        {
+          "tile_index": 21,
+          "objects": [
+            {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "shape_word": 80
+            }
+          ]
+        },
+        {
+          "tile_index": 22,
+          "objects": []
+        },
+        {
+          "tile_index": 23,
+          "objects": []
+        },
+        {
+          "tile_index": 24,
+          "objects": []
+        },
+        {
+          "tile_index": 25,
+          "objects": []
+        },
+        {
+          "tile_index": 26,
+          "objects": []
+        },
+        {
+          "tile_index": 27,
+          "objects": []
+        },
+        {
+          "tile_index": 28,
+          "objects": []
+        },
+        {
+          "tile_index": 29,
+          "objects": []
+        },
+        {
+          "tile_index": 30,
+          "objects": []
+        },
+        {
+          "tile_index": 31,
+          "objects": []
+        }
+      ]
+    },
+    {
+      "level": 4,
+      "objects": [
+        {
+          "tile_index": 0,
+          "objects": []
+        },
+        {
+          "tile_index": 1,
+          "objects": [
+            {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "shape_word": 100
+            }
+          ]
+        },
+        {
+          "tile_index": 2,
+          "objects": [
+            {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "shape_word": 101
+            }
+          ]
+        },
+        {
+          "tile_index": 3,
+          "objects": [
+            {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "shape_word": 102
+            }
+          ]
+        },
+        {
+          "tile_index": 4,
+          "objects": [
+            {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "shape_word": 103
+            }
+          ]
+        },
+        {
+          "tile_index": 5,
+          "objects": [
+            {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "shape_word": 104
+            }
+          ]
+        },
+        {
+          "tile_index": 6,
+          "objects": [
+            {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "shape_word": 105
+            }
+          ]
+        },
+        {
+          "tile_index": 7,
+          "objects": [
+            {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "shape_word": 106
+            }
+          ]
+        },
+        {
+          "tile_index": 8,
+          "objects": [
+            {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "shape_word": 107
+            }
+          ]
+        },
+        {
+          "tile_index": 9,
+          "objects": [
+            {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "shape_word": 108
+            }
+          ]
+        },
+        {
+          "tile_index": 10,
+          "objects": [
+            {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "shape_word": 109
+            }
+          ]
+        },
+        {
+          "tile_index": 11,
+          "objects": [
+            {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "shape_word": 110
+            }
+          ]
+        },
+        {
+          "tile_index": 12,
+          "objects": [
+            {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "shape_word": 111
+            }
+          ]
+        },
+        {
+          "tile_index": 13,
+          "objects": [
+            {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "shape_word": 112
+            }
+          ]
+        },
+        {
+          "tile_index": 14,
+          "objects": [
+            {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "shape_word": 113
+            }
+          ]
+        },
+        {
+          "tile_index": 15,
+          "objects": [
+            {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "shape_word": 114
+            }
+          ]
+        },
+        {
+          "tile_index": 16,
+          "objects": [
+            {
+              "x": 0,
+              "y": 0,
+              "z": 0,
+              "shape_word": 115
+            }
+          ]
+        },
+        {
+          "tile_index": 17,
+          "objects": []
+        },
+        {
+          "tile_index": 18,
+          "objects": []
+        },
+        {
+          "tile_index": 19,
+          "objects": []
+        },
+        {
+          "tile_index": 20,
+          "objects": []
+        },
+        {
+          "tile_index": 21,
+          "objects": []
+        },
+        {
+          "tile_index": 22,
+          "objects": []
+        },
+        {
+          "tile_index": 23,
+          "objects": []
+        },
+        {
+          "tile_index": 24,
+          "objects": []
+        },
+        {
+          "tile_index": 25,
+          "objects": []
+        },
+        {
+          "tile_index": 26,
+          "objects": []
+        },
+        {
+          "tile_index": 27,
+          "objects": []
+        },
+        {
+          "tile_index": 28,
+          "objects": []
+        },
+        {
+          "tile_index": 29,
+          "objects": []
+        },
+        {
+          "tile_index": 30,
+          "objects": []
+        },
+        {
+          "tile_index": 31,
+          "objects": []
+        }
+      ]
+    }
+  ],
+  "trailing_bytes": ""
+}

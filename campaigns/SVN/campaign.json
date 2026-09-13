@@ -1,0 +1,1708 @@
+{
+  "format": "F15SE2_CAMPAIGN",
+  "format_version": 1,
+  "scenario_schema": "F15SE2_MODERN_CAMPAIGN_WLD",
+  "scenario_schema_version": 1,
+  "id": "SVN",
+  "campaign_id": "SVN",
+  "title": "Li Si Cin: Soviet Vietnam Campaign",
+  "display_name": "Li Si Cin: Soviet Vietnam Campaign",
+  "base_theater": "VN",
+  "world": "SVN.WLD.json",
+  "runtime_selection": {
+    "scenario": "SVN",
+    "scenario_base": "VN",
+    "argv": [
+      "--scenario",
+      "SVN",
+      "--scenario-base",
+      "VN"
+    ],
+    "environment": {
+      "F15_WORLD_SCENARIO": "SVN",
+      "F15_WORLD_SCENARIO_BASE": "VN"
+    },
+    "notes": "Use with F15_REPLACEMENT_ROOT pointing at converted_assets_all. The scenario base limits WLD redirection to the intended source theater, and --campaign selects that base theater automatically in START."
+  },
+  "launch": {
+    "replacement_root": "converted_assets_all",
+    "argv": [
+      "--campaign",
+      "SVN"
+    ],
+    "environment": {
+      "F15_REPLACEMENT_ROOT": "converted_assets_all"
+    },
+    "example": "F15_REPLACEMENT_ROOT=converted_assets_all ./f15se2-ex --game /path/to/F15_GAME --campaign SVN",
+    "notes": "Launchers can use this block directly; runtime_selection is the lower-level WLD redirect detail."
+  },
+  "runtime_modes": [
+    {
+      "id": "campaign",
+      "title": "Full campaign",
+      "argv": [
+        "--campaign",
+        "SVN"
+      ],
+      "environment": {
+        "F15_REPLACEMENT_ROOT": "converted_assets_all"
+      },
+      "uses_campaign_media": true,
+      "uses_sortie_hints": true,
+      "notes": "Normal play mode. Loads campaign.json, redirects the base theater WLD, enables campaign-local media, and applies selected sortie briefing/targets."
+    },
+    {
+      "id": "campaign_sortie",
+      "title": "Full campaign, selected sortie",
+      "argv": [
+        "--campaign",
+        "SVN",
+        "--campaign-sortie",
+        "<sortie-id-or-phase>"
+      ],
+      "environment": {
+        "F15_REPLACEMENT_ROOT": "converted_assets_all",
+        "F15_CAMPAIGN_SORTIE": "<sortie-id-or-phase>"
+      },
+      "uses_campaign_media": true,
+      "uses_sortie_hints": true,
+      "notes": "Use a sortie id such as carrier_strike, or a phase number such as 2."
+    },
+    {
+      "id": "raw_scenario",
+      "title": "Raw custom WLD scenario",
+      "argv": [
+        "--scenario",
+        "SVN",
+        "--scenario-base",
+        "VN"
+      ],
+      "environment": {
+        "F15_REPLACEMENT_ROOT": "converted_assets_all",
+        "F15_WORLD_SCENARIO": "SVN",
+        "F15_WORLD_SCENARIO_BASE": "VN"
+      },
+      "uses_campaign_media": false,
+      "uses_sortie_hints": false,
+      "notes": "Testing mode for only the WLD JSON redirect. Use --campaign for the complete pack."
+    }
+  ],
+  "media_policy": {
+    "images": {
+      "source_of_truth": "PNG",
+      "allowed_color_models": [
+        "indexed_with_embedded_palette",
+        "RGBA8888",
+        "RGB888"
+      ],
+      "scaling": "fit_original_game_rectangle",
+      "notes": "Custom PNGs may use higher resolution and truecolor; runtime maps them into the legacy draw target instead of treating pixels as game-world size."
+    },
+    "sounds": {
+      "source_of_truth": "individual WAV cue files",
+      "notes": "Replace per-cue WAV files directly; the original digitized sound blob is not required for custom cue authoring."
+    },
+    "fonts": {
+      "source_of_truth": "TTF/OTF, then BDF/PNG fallback",
+      "notes": "Use scalable Unicode fonts for localized campaign text where runtime text paths support TTF/OTF."
+    },
+    "models": {
+      "source_of_truth": "per-shape GLB files",
+      "notes": "Keep the shape slot prefix stable so WLD/object references still resolve to the edited model."
+    }
+  },
+  "runtime_contract": {
+    "modern_editable": [
+      "campaign WLD JSON selection via --campaign/--scenario",
+      "selected campaign sortie objective slots as runtime mission target hints",
+      "selected campaign sortie title on the START mission briefing board",
+      "selected campaign sortie briefing text on the START mission briefing board",
+      "campaign-local PNG art replacements",
+      "campaign-local high-resolution briefing room PNGs for native overlay",
+      "campaign-local high-resolution theater map PNGs for debrief/native overlay",
+      "campaign-local WAV cue replacements",
+      "campaign-local ASOUND intro music stream JSON",
+      "campaign-local TTF/OTF/BDF/PNG font overrides",
+      "campaign-local per-shape GLB visual model replacements",
+      "Markdown briefing text for authoring tools"
+    ],
+    "legacy_driven": [
+      "aircraft flight model, weapons, AI, and hardcoded behavior tables",
+      "deep mission generation rules beyond selected-sortie objective hints and WLD object/table data",
+      "software 3D backend model drawing for GLB replacements",
+      "unsupported original binary assets not yet mapped to modern replacements"
+    ],
+    "notes": "The pack is intentionally media-first and editable; original game data remains the fallback for behavior not represented by modern assets yet."
+  },
+  "objective_capabilities": {
+    "custom_world_scenario": {
+      "provided": true,
+      "artifacts": [
+        "SVN.WLD.json",
+        "campaign.json"
+      ],
+      "runtime_modes": [
+        "campaign",
+        "campaign_sortie",
+        "raw_scenario"
+      ],
+      "notes": "`--campaign SVN` selects the campaign wrapper; `--scenario SVN --scenario-base VN` tests only WLD redirection."
+    },
+    "soviet_vietnam_campaign": {
+      "provided": true,
+      "artifacts": [
+        "campaign.json",
+        "SUMMARY.md",
+        "MISSION_TARGETS.md"
+      ],
+      "theme": "Soviet/Vietnamese side against USA air, naval, logistics, and air-defense targets",
+      "player_identity": "Lisicin / Li Si Cin"
+    },
+    "modern_png_images": {
+      "provided": true,
+      "artifacts": [
+        "TITLE640.png",
+        "DESK.png",
+        "HISCORE.png",
+        "ARMPIECE.png",
+        "VN.png",
+        "start/menu/person/room.png",
+        "start/menu/person/0.png",
+        "start/menu/person/1.png",
+        "start/menu/person/2.png",
+        "start/menu/person/3.png",
+        "start/menu/person/4.png",
+        "start/menu/person/5.png",
+        "start/menu/person/6.png"
+      ],
+      "limits_removed": [
+        "source_resolution",
+        "source_color_count",
+        "legacy_palette_required"
+      ],
+      "source_format": "PNG",
+      "notes": "The complete room/person set supersedes WALL.png and split arm overlays in the OpenGL briefing renderer."
+    },
+    "modern_wav_radio": {
+      "provided": true,
+      "artifacts": [
+        "sounds/voice_cue_000_sample0.wav",
+        "sounds/voice_cue_001_sample4.wav",
+        "sounds/voice_cue_002_sample2_variant0.wav",
+        "sounds/voice_cue_003_sample2_variant1.wav",
+        "sounds/voice_cue_004_sample2_variant2.wav"
+      ],
+      "source_format": "WAV PCM",
+      "language": "Russian",
+      "generated_sample_rate_hz": 7850,
+      "generated_postprocess": "local TTS WAVs are normalized to mono unsigned PCM8 radio cues when possible"
+    },
+    "modern_asound_music": {
+      "provided": true,
+      "artifacts": [
+        "sounds/intro_music.asound.json"
+      ],
+      "source_format": "F15_ASOUND_MUSIC JSON"
+    },
+    "modern_fonts": {
+      "provided": true,
+      "artifacts": [
+        "fonts/font_1.ttf",
+        "fonts/font_3.ttf",
+        "fonts/font_4.ttf"
+      ],
+      "override_slots": [
+        "fonts/font_1.ttf",
+        "fonts/font_3.ttf",
+        "fonts/font_4.ttf"
+      ],
+      "source_format": "TTF/OTF",
+      "notes": "Font files are campaign-local override points; generated packs copy a supplied font when --font is used, otherwise these paths document where customizers place Unicode fonts."
+    },
+    "modern_glb_models": {
+      "provided": true,
+      "artifacts": [
+        "15FLT/shape_000_LiSiCin_Stolen_F15.glb",
+        "15FLT/shape_001_Tonkin_Carrier_Target.glb",
+        "15FLT/shape_002_DaNang_Strike_Jet.glb",
+        "15FLT/shape_003_Hanoi_Radar.glb",
+        "15FLT/shape_004_MiG23_Far.glb",
+        "15FLT/shape_005_Tonkin_CAP_Radar.glb",
+        "15FLT/shape_006_SVN_Custom_Aircraft_006.glb",
+        "15FLT/shape_007_SVN_Custom_Aircraft_007.glb",
+        "15FLT/shape_008_SVN_Custom_Aircraft_008.glb",
+        "15FLT/shape_009_SVN_Custom_Aircraft_009.glb",
+        "15FLT/shape_010_MiG21_Escort.glb",
+        "15FLT/shape_011_SVN_Custom_Aircraft_011.glb",
+        "15FLT/shape_012_SVN_Custom_Aircraft_012.glb",
+        "15FLT/shape_013_SVN_Custom_Aircraft_013.glb",
+        "15FLT/shape_014_SVN_Custom_Aircraft_014.glb",
+        "15FLT/shape_015_MiG19_Patrol.glb",
+        "15FLT/shape_016_MiG17_Fresco.glb",
+        "15FLT/shape_017_SVN_Custom_Aircraft_017.glb",
+        "15FLT/shape_018_SVN_Custom_Aircraft_018.glb",
+        "15FLT/shape_019_SVN_Custom_Aircraft_019.glb",
+        "15FLT/shape_020_MiG29_Su27.glb",
+        "15FLT/shape_021_SVN_Custom_Aircraft_021.glb",
+        "15FLT/shape_022_F4_Phantom_Opponent.glb"
+      ],
+      "source_format": "GLB"
+    },
+    "mission_targets": {
+      "provided": true,
+      "artifacts": [
+        "campaign.json",
+        "MISSION_TARGETS.md",
+        "SVN.WLD.json"
+      ],
+      "objective_count": 6,
+      "target_set_count": 3
+    }
+  },
+  "verification_status": {
+    "generated_by": "build-soviet-vietnam-pack",
+    "package_validation": "passed",
+    "capability_artifact_validation": "all provided objective_capabilities artifacts must exist and be campaign-relative",
+    "wld_json_buildability": "checked by campaign manifest validation",
+    "replacement_loadability_validation": "passed",
+    "runtime_launch_validation": "passed",
+    "full_asset_replacement_validation": "not_recorded_by_generator",
+    "notes": "This block records generator/package-level evidence only. A release should also record a game build, launch, and replacement validation result after running them.",
+    "package_validation_evidence": {
+      "recorded_at": "2026-09-12T18:59:21+00:00",
+      "status": "passed",
+      "command": "python3 tools/f15assets/cli.py package-campaign converted_assets_all/SVN converted_assets_all/SVN.zip --pretty",
+      "notes": "Campaign manifest, referenced media, inventory, WLD buildability, and package inputs validated before ZIP creation."
+    },
+    "replacement_loadability_validation_evidence": {
+      "recorded_at": "2026-07-18T01:05:16+00:00",
+      "status": "passed",
+      "command": "python3 tools/f15assets/cli.py validate-replacements /home/xor/games/f15 converted_assets_all --loadability-only",
+      "notes": "source-free loadability validation passed for generated SVN pack after regeneration"
+    },
+    "latest_notes": "repo wrapper launch selected SVN campaign and entered the interactive startup path; timeout 124 is expected for non-interactive smoke launch",
+    "runtime_launch_validation_evidence": {
+      "recorded_at": "2026-07-18T09:54:31+00:00",
+      "status": "passed",
+      "command": "SDL_VIDEODRIVER=dummy timeout 8s ./play_svn.sh /home/xor/games/f15",
+      "notes": "repo wrapper launch selected SVN campaign and entered the interactive startup path; timeout 124 is expected for non-interactive smoke launch"
+    }
+  },
+  "mission_objectives": [
+    {
+      "name": "Soviet forward HQ",
+      "id": "start_soviet_hq",
+      "object_slot": 0,
+      "role": "start_area",
+      "priority": "friendly",
+      "faction": "soviet_vietnamese",
+      "domain": "base",
+      "action": "defend",
+      "target_type": "friendly_command_post",
+      "threat_level": "friendly",
+      "desired_effect": "preserve",
+      "success_criteria": [
+        "HQ remains available as sortie staging point"
+      ],
+      "suggested_loadout": "none",
+      "radio_cue_ids": [
+        "voice_cue_000_sample0"
+      ],
+      "intent": "Player staging area and campaign anchor for Lisicin / Li Si Cin.",
+      "real_world_anchor": {
+        "label": "Gia Lam / Hanoi forward control",
+        "x_coord": 27256,
+        "y_coord": 4893,
+        "lon": 105.886,
+        "lat": 21.04,
+        "doctrine": "friendly staging and recovery point"
+      }
+    },
+    {
+      "name": "USA carrier group",
+      "id": "strike_carrier_group",
+      "object_slot": 6,
+      "role": "primary_target",
+      "priority": "primary",
+      "faction": "usa",
+      "domain": "naval",
+      "action": "strike",
+      "target_type": "carrier_task_force",
+      "threat_level": "very_high",
+      "target_systems": [
+        "carrier deck",
+        "escort radar",
+        "point-defense escorts"
+      ],
+      "desired_effect": "disable carrier flight operations",
+      "success_criteria": [
+        "primary ship or carrier-equivalent object destroyed",
+        "at least one escort/radar object suppressed if present"
+      ],
+      "suggested_loadout": "anti-ship / heavy strike ordnance with fighter cover",
+      "radio_cue_ids": [
+        "voice_cue_002_sample2_variant0"
+      ],
+      "intent": "Main naval strike target in the Gulf of Tonkin.",
+      "real_world_anchor": {
+        "label": "Gulf of Tonkin carrier box",
+        "x_coord": 28300,
+        "y_coord": 10979,
+        "lon": 107.65,
+        "lat": 19.95,
+        "doctrine": "disable carrier flight operations"
+      }
+    },
+    {
+      "name": "Da Nang airbase",
+      "id": "strike_da_nang_airbase",
+      "object_slot": 7,
+      "role": "primary_target",
+      "priority": "primary",
+      "faction": "usa",
+      "domain": "airbase",
+      "action": "strike",
+      "target_type": "runway_and_fuel_site",
+      "threat_level": "high",
+      "target_systems": [
+        "runway",
+        "fuel storage",
+        "parked aircraft",
+        "tower/radar"
+      ],
+      "desired_effect": "reduce USA sortie tempo from the coastal airbase",
+      "success_criteria": [
+        "runway or airbase object destroyed",
+        "secondary fuel/logistics object destroyed if placed"
+      ],
+      "suggested_loadout": "runway cratering bombs plus self-defense missiles",
+      "radio_cue_ids": [
+        "voice_cue_003_sample2_variant1"
+      ],
+      "intent": "Airbase strike target for runway, fuel, and aircraft concentration.",
+      "real_world_anchor": {
+        "label": "Da Nang airbase",
+        "x_coord": 21358,
+        "y_coord": 20256,
+        "lon": 108.199,
+        "lat": 16.043,
+        "doctrine": "crater runway and burn fuel/parked-aircraft capacity"
+      }
+    },
+    {
+      "name": "Hanoi radar net",
+      "id": "suppress_hanoi_radar",
+      "object_slot": 3,
+      "role": "primary_target",
+      "priority": "primary",
+      "faction": "usa_allied",
+      "domain": "air_defense",
+      "action": "suppress",
+      "target_type": "sam_radar_network",
+      "threat_level": "high",
+      "target_systems": [
+        "search radar",
+        "SAM launcher",
+        "AAA site"
+      ],
+      "desired_effect": "open a low-risk corridor toward Hanoi and Haiphong",
+      "success_criteria": [
+        "radar object destroyed or moved out of active route",
+        "SAM/AAA object destroyed if paired with the radar"
+      ],
+      "suggested_loadout": "anti-radiation / precision strike weapons",
+      "radio_cue_ids": [
+        "voice_cue_001_sample4",
+        "voice_cue_004_sample2_variant2"
+      ],
+      "intent": "SAM/radar suppression target protecting North Vietnam.",
+      "real_world_anchor": {
+        "label": "Hanoi SAM radar belt",
+        "x_coord": 27269,
+        "y_coord": 4750,
+        "lon": 105.854,
+        "lat": 21.075,
+        "doctrine": "open inland radar corridor"
+      }
+    },
+    {
+      "name": "Haiphong logistics",
+      "id": "interdict_haiphong_logistics",
+      "object_slot": 4,
+      "role": "secondary_target",
+      "priority": "secondary",
+      "faction": "usa_allied",
+      "domain": "logistics",
+      "action": "interdict",
+      "target_type": "port_depot_bridge_cluster",
+      "threat_level": "medium",
+      "target_systems": [
+        "depot",
+        "bridge",
+        "port crane",
+        "convoy staging point"
+      ],
+      "desired_effect": "slow USA resupply and coastal reinforcement",
+      "success_criteria": [
+        "depot/bridge-equivalent object destroyed",
+        "escape route remains open after attack"
+      ],
+      "suggested_loadout": "medium bombs or rockets with fuel margin for egress",
+      "radio_cue_ids": [
+        "voice_cue_004_sample2_variant2"
+      ],
+      "intent": "Depot, bridge, port, or logistics interdiction target.",
+      "real_world_anchor": {
+        "label": "Haiphong port logistics",
+        "x_coord": 28384,
+        "y_coord": 6972,
+        "lon": 106.682,
+        "lat": 20.866,
+        "doctrine": "cut port/depot/bridge supply flow"
+      }
+    },
+    {
+      "name": "Tonkin patrol",
+      "id": "sweep_tonkin_patrol",
+      "object_slot": 5,
+      "role": "air_patrol",
+      "priority": "secondary",
+      "faction": "usa",
+      "domain": "air",
+      "action": "sweep",
+      "target_type": "fighter_patrol_area",
+      "threat_level": "medium_high",
+      "target_systems": [
+        "CAP patrol",
+        "AWACS/radar cue",
+        "fighter ingress lane"
+      ],
+      "desired_effect": "draw USA fighters away from the carrier strike lane",
+      "success_criteria": [
+        "enemy patrol aircraft destroyed or displaced",
+        "carrier strike route remains clear"
+      ],
+      "suggested_loadout": "air-to-air missiles and external fuel",
+      "radio_cue_ids": [
+        "voice_cue_002_sample2_variant0"
+      ],
+      "intent": "USA patrol aircraft / CAP encounter area.",
+      "real_world_anchor": {
+        "label": "Gulf of Tonkin CAP lane",
+        "x_coord": 28523,
+        "y_coord": 9132,
+        "lon": 107.25,
+        "lat": 20.42,
+        "doctrine": "pull USA fighters off the carrier strike lane"
+      }
+    }
+  ],
+  "sortie_sequence": [
+    {
+      "id": "opening_sead",
+      "phase": 1,
+      "title": "Open the radar corridor",
+      "player_aircraft": "captured F-15 / Soviet-marked cover identity",
+      "primary_objective_id": "suppress_hanoi_radar",
+      "secondary_objective_id": "interdict_haiphong_logistics",
+      "objective_ids": [
+        "suppress_hanoi_radar",
+        "interdict_haiphong_logistics"
+      ],
+      "primary_objective_ids": [
+        "suppress_hanoi_radar"
+      ],
+      "secondary_objective_ids": [
+        "interdict_haiphong_logistics"
+      ],
+      "radio_cue_ids": [
+        "voice_cue_000_sample0",
+        "voice_cue_001_sample4"
+      ],
+      "briefing": "Suppress the Hanoi radar, then strike Haiphong logistics before recovery."
+    },
+    {
+      "id": "carrier_strike",
+      "phase": 2,
+      "title": "Strike the carrier group",
+      "player_aircraft": "captured F-15 with Soviet/Vietnamese ground control",
+      "primary_objective_id": "strike_carrier_group",
+      "secondary_objective_id": "sweep_tonkin_patrol",
+      "objective_ids": [
+        "strike_carrier_group",
+        "sweep_tonkin_patrol"
+      ],
+      "primary_objective_ids": [
+        "strike_carrier_group"
+      ],
+      "secondary_objective_ids": [
+        "sweep_tonkin_patrol"
+      ],
+      "radio_cue_ids": [
+        "voice_cue_002_sample2_variant0"
+      ],
+      "briefing": "Attack the USA carrier group while fighter patrols are displaced over the Gulf of Tonkin."
+    },
+    {
+      "id": "airbase_and_logistics",
+      "phase": 3,
+      "title": "Cut the air bridge",
+      "player_aircraft": "captured F-15 or custom Soviet strike aircraft GLB slot",
+      "primary_objective_id": "strike_da_nang_airbase",
+      "secondary_objective_id": "interdict_haiphong_logistics",
+      "objective_ids": [
+        "strike_da_nang_airbase",
+        "interdict_haiphong_logistics"
+      ],
+      "primary_objective_ids": [
+        "strike_da_nang_airbase"
+      ],
+      "secondary_objective_ids": [
+        "interdict_haiphong_logistics"
+      ],
+      "radio_cue_ids": [
+        "voice_cue_003_sample2_variant1",
+        "voice_cue_004_sample2_variant2"
+      ],
+      "briefing": "Hit Da Nang and Haiphong support targets to reduce USA sortie tempo."
+    }
+  ],
+  "mission_target_sets": [
+    {
+      "id": "target_set_hanoi_corridor",
+      "sortie_id": "opening_sead",
+      "title": "Hanoi radar corridor package",
+      "objective_ids": [
+        "suppress_hanoi_radar"
+      ],
+      "package_role": "SEAD / ingress corridor opening",
+      "attack_order": [
+        "search_radar",
+        "sam_launcher",
+        "aaa_screen"
+      ],
+      "target_elements": [
+        {
+          "element_id": "search_radar",
+          "objective_id": "suppress_hanoi_radar",
+          "role": "primary",
+          "recommended_weapon": "anti-radiation missile or precision bomb",
+          "effect": "blind the radar belt",
+          "placement_hint": "Place on or near the Hanoi radar waypoint; this is the runtime primary target slot.",
+          "defense_behavior": "Should cue SAM/AAA objects and be visible early enough for a SEAD pass."
+        },
+        {
+          "element_id": "sam_launcher",
+          "objective_id": "suppress_hanoi_radar",
+          "role": "secondary",
+          "recommended_weapon": "bombs/rockets",
+          "effect": "reduce missile threat during egress",
+          "placement_hint": "Place 1-3 nearby launcher objects offset from the radar so one bomb run cannot erase the whole site.",
+          "defense_behavior": "Threat should punish high-altitude direct ingress but leave low-altitude masking viable."
+        },
+        {
+          "element_id": "aaa_screen",
+          "objective_id": "suppress_hanoi_radar",
+          "role": "optional",
+          "recommended_weapon": "cannon/rockets",
+          "effect": "make repeated passes survivable",
+          "placement_hint": "Place around the radar perimeter or along the egress lane.",
+          "defense_behavior": "Short-range pressure only; avoid making the first sortie impossible."
+        }
+      ],
+      "victory_logic": {
+        "required_primary_destroyed": 1,
+        "required_secondary_destroyed": 0,
+        "friendly_survival_required": [
+          "start_soviet_hq"
+        ]
+      },
+      "editor_notes": "Place paired radar/SAM/AAA objects around Hanoi; keep one clear low-altitude return lane to HQ."
+    },
+    {
+      "id": "target_set_tonkin_carrier",
+      "sortie_id": "carrier_strike",
+      "title": "Gulf of Tonkin carrier strike package",
+      "objective_ids": [
+        "sweep_tonkin_patrol",
+        "strike_carrier_group"
+      ],
+      "package_role": "fighter sweep followed by anti-ship strike",
+      "attack_order": [
+        "cap_patrol",
+        "escort_radar",
+        "carrier_deck"
+      ],
+      "target_elements": [
+        {
+          "element_id": "cap_patrol",
+          "objective_id": "sweep_tonkin_patrol",
+          "role": "screen",
+          "recommended_weapon": "air-to-air missiles",
+          "effect": "open the approach lane",
+          "placement_hint": "Place ahead of the carrier box, not directly on top of it, so sweep-first and bypass tactics differ.",
+          "defense_behavior": "Intercept player before anti-ship release; disengage pressure after carrier strike lane is opened."
+        },
+        {
+          "element_id": "escort_radar",
+          "objective_id": "strike_carrier_group",
+          "role": "secondary",
+          "recommended_weapon": "anti-radiation or precision strike",
+          "effect": "reduce fleet warning time",
+          "placement_hint": "Place close to the carrier group as an escort/radar picket object.",
+          "defense_behavior": "Supports point defense and early warning; not required if using a simple one-object carrier target."
+        },
+        {
+          "element_id": "carrier_deck",
+          "objective_id": "strike_carrier_group",
+          "role": "primary",
+          "recommended_weapon": "heavy bombs / anti-ship loadout",
+          "effect": "disable carrier flight operations",
+          "placement_hint": "Place at the Gulf of Tonkin carrier waypoint; this is the runtime primary target slot.",
+          "defense_behavior": "High-value target with escort coverage; should not require destroying every ship to complete the sortie."
+        }
+      ],
+      "victory_logic": {
+        "required_primary_destroyed": 1,
+        "required_secondary_destroyed": 1,
+        "bonus_objective_ids": [
+          "sweep_tonkin_patrol"
+        ]
+      },
+      "editor_notes": "Keep carrier and CAP separated enough that the player must choose sweep-first or high-risk direct strike."
+    },
+    {
+      "id": "target_set_southern_air_bridge",
+      "sortie_id": "airbase_and_logistics",
+      "title": "Da Nang and Haiphong air-bridge package",
+      "objective_ids": [
+        "interdict_haiphong_logistics",
+        "strike_da_nang_airbase"
+      ],
+      "package_role": "logistics interdiction plus airbase strike",
+      "attack_order": [
+        "haiphong_depot",
+        "da_nang_runway",
+        "fuel_storage"
+      ],
+      "target_elements": [
+        {
+          "element_id": "haiphong_depot",
+          "objective_id": "interdict_haiphong_logistics",
+          "role": "secondary",
+          "recommended_weapon": "medium bombs",
+          "effect": "slow coastal resupply",
+          "placement_hint": "Place on the Haiphong logistics waypoint as a depot, bridge, port, or convoy-staging object.",
+          "defense_behavior": "Medium threat; should be optional if fuel or damage state makes Da Nang the safer priority."
+        },
+        {
+          "element_id": "da_nang_runway",
+          "objective_id": "strike_da_nang_airbase",
+          "role": "primary",
+          "recommended_weapon": "runway cratering bombs",
+          "effect": "stop USA sorties from Da Nang",
+          "placement_hint": "Place at the Da Nang waypoint; this is the runtime primary target slot.",
+          "defense_behavior": "Defended by local AAA/SAM and possible fighters, but reachable without carrier-level escort density."
+        },
+        {
+          "element_id": "fuel_storage",
+          "objective_id": "strike_da_nang_airbase",
+          "role": "secondary",
+          "recommended_weapon": "bombs/rockets",
+          "effect": "increase recovery time after runway repair",
+          "placement_hint": "Place near but not overlapping the runway target so the player must choose a second pass.",
+          "defense_behavior": "Soft secondary target; useful for score/campaign effect rather than hard mission completion."
+        }
+      ],
+      "victory_logic": {
+        "required_primary_destroyed": 1,
+        "required_secondary_destroyed": 1,
+        "egress_waypoint": "wp_hq"
+      },
+      "editor_notes": "This route is long; keep threats sparse or provide a custom aircraft/fuel balance in future runtime logic."
+    }
+  ],
+  "route_plan": {
+    "source": "SVN.WLD.json#campaign_route_plan",
+    "waypoints": [
+      {
+        "label": "Gia Lam / Hanoi forward control",
+        "x_coord": 27256,
+        "y_coord": 4893,
+        "id": "wp_hq",
+        "objective_id": "start_soviet_hq",
+        "kind": "friendly_base",
+        "lon": 105.886,
+        "lat": 21.04,
+        "doctrine": "friendly staging and recovery point",
+        "coordinate_source": "author_approximate_osm_anchor"
+      },
+      {
+        "label": "Hanoi SAM radar belt",
+        "x_coord": 27269,
+        "y_coord": 4750,
+        "id": "wp_hanoi_radar",
+        "objective_id": "suppress_hanoi_radar",
+        "kind": "sead_target",
+        "lon": 105.854,
+        "lat": 21.075,
+        "doctrine": "open inland radar corridor",
+        "coordinate_source": "author_approximate_osm_anchor"
+      },
+      {
+        "label": "Haiphong port logistics",
+        "x_coord": 28384,
+        "y_coord": 6972,
+        "id": "wp_haiphong",
+        "objective_id": "interdict_haiphong_logistics",
+        "kind": "logistics_target",
+        "lon": 106.682,
+        "lat": 20.866,
+        "doctrine": "cut port/depot/bridge supply flow",
+        "coordinate_source": "author_approximate_osm_anchor"
+      },
+      {
+        "label": "Gulf of Tonkin CAP lane",
+        "x_coord": 28523,
+        "y_coord": 9132,
+        "id": "wp_tonkin_cap",
+        "objective_id": "sweep_tonkin_patrol",
+        "kind": "fighter_sweep_area",
+        "lon": 107.25,
+        "lat": 20.42,
+        "doctrine": "pull USA fighters off the carrier strike lane",
+        "coordinate_source": "author_approximate_osm_anchor"
+      },
+      {
+        "label": "Gulf of Tonkin carrier box",
+        "x_coord": 28300,
+        "y_coord": 10979,
+        "id": "wp_carrier",
+        "objective_id": "strike_carrier_group",
+        "kind": "naval_strike_target",
+        "lon": 107.65,
+        "lat": 19.95,
+        "doctrine": "disable carrier flight operations",
+        "coordinate_source": "author_approximate_osm_anchor"
+      },
+      {
+        "label": "Da Nang airbase",
+        "x_coord": 21358,
+        "y_coord": 20256,
+        "id": "wp_danang",
+        "objective_id": "strike_da_nang_airbase",
+        "kind": "airbase_strike_target",
+        "lon": 108.199,
+        "lat": 16.043,
+        "doctrine": "crater runway and burn fuel/parked-aircraft capacity",
+        "coordinate_source": "author_approximate_osm_anchor"
+      }
+    ],
+    "sortie_routes": [
+      {
+        "sortie_id": "opening_sead",
+        "route": [
+          "wp_hq",
+          "wp_hanoi_radar",
+          "wp_hq"
+        ],
+        "mission_logic": "clear radar corridor before deeper strike sorties"
+      },
+      {
+        "sortie_id": "carrier_strike",
+        "route": [
+          "wp_hq",
+          "wp_tonkin_cap",
+          "wp_carrier",
+          "wp_hq"
+        ],
+        "mission_logic": "sweep CAP lane, strike carrier box, return north"
+      },
+      {
+        "sortie_id": "airbase_and_logistics",
+        "route": [
+          "wp_hq",
+          "wp_haiphong",
+          "wp_danang",
+          "wp_hq"
+        ],
+        "mission_logic": "interdict logistics, then attack southern airbase if fuel/weapons permit"
+      }
+    ]
+  },
+  "briefings": [
+    {
+      "file": "briefings/01_opening_sead.md",
+      "sortie_id": "opening_sead",
+      "kind": "editable_markdown_briefing",
+      "title": "Open the radar corridor",
+      "summary": "Destroy or suppress the Hanoi radar net so Lisicin can move deeper into the theater."
+    },
+    {
+      "file": "briefings/02_carrier_strike.md",
+      "sortie_id": "carrier_strike",
+      "kind": "editable_markdown_briefing",
+      "title": "Strike the carrier group",
+      "summary": "Attack the USA carrier group while fighter patrols are displaced over the Gulf of Tonkin."
+    },
+    {
+      "file": "briefings/03_airbase_and_logistics.md",
+      "sortie_id": "airbase_and_logistics",
+      "kind": "editable_markdown_briefing",
+      "title": "Cut the air bridge",
+      "summary": "Hit Da Nang and Haiphong support targets to reduce USA sortie tempo."
+    }
+  ],
+  "campaign_art": [
+    {
+      "file": "TITLE640.png",
+      "replaces": "TITLE640.PIC",
+      "kind": "high_resolution_truecolor_png",
+      "width": 1448,
+      "height": 1086,
+      "target_width": 640,
+      "target_height": 350,
+      "scaling": "fit_original_game_rectangle",
+      "color_model": "RGB888",
+      "runtime_path": "high_resolution_truecolor_title",
+      "replacement_contract": {
+        "source_of_truth": true,
+        "runtime_path": "high_resolution_truecolor_title",
+        "source_format": "PNG",
+        "fallback": "TITLE640.PIC"
+      },
+      "legacy_limits_removed": {
+        "source_resolution": true,
+        "source_color_count": true,
+        "legacy_palette_required": false,
+        "source_pixels_are_game_pixels": false
+      },
+      "license_status": "generated_placeholder_needs_replacement_or_review"
+    },
+    {
+      "file": "DESK.png",
+      "replaces": "DESK.PIC",
+      "kind": "high_resolution_truecolor_png",
+      "width": 1585,
+      "height": 992,
+      "target_width": 320,
+      "target_height": 200,
+      "scaling": "fit_original_game_rectangle",
+      "color_model": "RGB888",
+      "runtime_path": "truecolor_page_backdrop",
+      "replacement_contract": {
+        "source_of_truth": true,
+        "runtime_path": "truecolor_page_backdrop",
+        "source_format": "PNG",
+        "fallback": "DESK.PIC"
+      },
+      "legacy_limits_removed": {
+        "source_resolution": true,
+        "source_color_count": true,
+        "legacy_palette_required": false,
+        "source_pixels_are_game_pixels": false
+      },
+      "license_status": "generated_placeholder_needs_replacement_or_review"
+    },
+    {
+      "file": "HISCORE.png",
+      "replaces": "HISCORE.PIC",
+      "kind": "high_resolution_truecolor_png",
+      "width": 1586,
+      "height": 992,
+      "target_width": 320,
+      "target_height": 200,
+      "scaling": "fit_original_game_rectangle",
+      "color_model": "RGB888",
+      "runtime_path": "truecolor_page_backdrop",
+      "replacement_contract": {
+        "source_of_truth": true,
+        "runtime_path": "truecolor_page_backdrop",
+        "source_format": "PNG",
+        "fallback": "HISCORE.PIC"
+      },
+      "legacy_limits_removed": {
+        "source_resolution": true,
+        "source_color_count": true,
+        "legacy_palette_required": false,
+        "source_pixels_are_game_pixels": false
+      },
+      "license_status": "generated_placeholder_needs_replacement_or_review"
+    },
+    {
+      "file": "ARMPIECE.png",
+      "replaces": "ARMPIECE.PIC",
+      "kind": "high_resolution_truecolor_png",
+      "width": 1586,
+      "height": 992,
+      "target_width": 320,
+      "target_height": 200,
+      "scaling": "fit_original_game_rectangle",
+      "color_model": "RGBA8888",
+      "runtime_path": "truecolor_page_backdrop",
+      "replacement_contract": {
+        "source_of_truth": true,
+        "runtime_path": "truecolor_page_backdrop",
+        "source_format": "PNG",
+        "fallback": "ARMPIECE.PIC"
+      },
+      "legacy_limits_removed": {
+        "source_resolution": true,
+        "source_color_count": true,
+        "legacy_palette_required": false,
+        "source_pixels_are_game_pixels": false
+      },
+      "license_status": "generated_placeholder_needs_replacement_or_review"
+    },
+    {
+      "file": "VN.png",
+      "replaces": "VN.SPR",
+      "kind": "high_resolution_truecolor_theater_map_png",
+      "width": 2240,
+      "height": 1400,
+      "target_width": 224,
+      "target_height": 168,
+      "scaling": "fit_original_game_rectangle",
+      "color_model": "RGBA8888",
+      "runtime_path": "high_resolution_truecolor_map",
+      "replacement_contract": {
+        "source_of_truth": true,
+        "runtime_path": "high_resolution_truecolor_map",
+        "source_format": "PNG",
+        "fallback": "VN.SPR"
+      },
+      "legacy_limits_removed": {
+        "source_resolution": true,
+        "source_color_count": true,
+        "legacy_palette_required": false,
+        "source_pixels_are_game_pixels": false
+      },
+      "license_status": "generated_placeholder_needs_replacement_or_review"
+    },
+    {
+      "file": "start/menu/person/room.png",
+      "replaces": "WALL.PIC and ARMPIECE.PIC briefing composition",
+      "kind": "high_resolution_truecolor_briefing_room_png",
+      "width": 1600,
+      "height": 1000,
+      "target_width": 320,
+      "target_height": 200,
+      "scaling": "fit_original_game_rectangle",
+      "color_model": "RGBA8888",
+      "runtime_path": "complete_briefing_person_set",
+      "replacement_contract": {
+        "source_of_truth": true,
+        "runtime_path": "complete_briefing_person_set",
+        "source_format": "PNG",
+        "fallback": "WALL.PIC plus ARMPIECE.PIC"
+      },
+      "legacy_limits_removed": {
+        "source_resolution": true,
+        "source_color_count": true,
+        "legacy_palette_required": false,
+        "source_pixels_are_game_pixels": false
+      },
+      "license_status": "custom_campaign_art_review_required"
+    },
+    {
+      "file": "start/menu/person/0.png",
+      "replaces": "WALL.PIC and ARMPIECE.PIC briefing composition",
+      "kind": "high_resolution_truecolor_complete_person_pose_png",
+      "width": 1600,
+      "height": 1000,
+      "target_width": 320,
+      "target_height": 200,
+      "scaling": "fit_original_game_rectangle",
+      "color_model": "RGBA8888",
+      "runtime_path": "complete_briefing_person_set",
+      "replacement_contract": {
+        "source_of_truth": true,
+        "runtime_path": "complete_briefing_person_set",
+        "source_format": "PNG",
+        "fallback": "WALL.PIC plus ARMPIECE.PIC"
+      },
+      "legacy_limits_removed": {
+        "source_resolution": true,
+        "source_color_count": true,
+        "legacy_palette_required": false,
+        "source_pixels_are_game_pixels": false
+      },
+      "license_status": "custom_campaign_art_review_required"
+    },
+    {
+      "file": "start/menu/person/1.png",
+      "replaces": "WALL.PIC and ARMPIECE.PIC briefing composition",
+      "kind": "high_resolution_truecolor_complete_person_pose_png",
+      "width": 1600,
+      "height": 1000,
+      "target_width": 320,
+      "target_height": 200,
+      "scaling": "fit_original_game_rectangle",
+      "color_model": "RGBA8888",
+      "runtime_path": "complete_briefing_person_set",
+      "replacement_contract": {
+        "source_of_truth": true,
+        "runtime_path": "complete_briefing_person_set",
+        "source_format": "PNG",
+        "fallback": "WALL.PIC plus ARMPIECE.PIC"
+      },
+      "legacy_limits_removed": {
+        "source_resolution": true,
+        "source_color_count": true,
+        "legacy_palette_required": false,
+        "source_pixels_are_game_pixels": false
+      },
+      "license_status": "custom_campaign_art_review_required"
+    },
+    {
+      "file": "start/menu/person/2.png",
+      "replaces": "WALL.PIC and ARMPIECE.PIC briefing composition",
+      "kind": "high_resolution_truecolor_complete_person_pose_png",
+      "width": 1600,
+      "height": 1000,
+      "target_width": 320,
+      "target_height": 200,
+      "scaling": "fit_original_game_rectangle",
+      "color_model": "RGBA8888",
+      "runtime_path": "complete_briefing_person_set",
+      "replacement_contract": {
+        "source_of_truth": true,
+        "runtime_path": "complete_briefing_person_set",
+        "source_format": "PNG",
+        "fallback": "WALL.PIC plus ARMPIECE.PIC"
+      },
+      "legacy_limits_removed": {
+        "source_resolution": true,
+        "source_color_count": true,
+        "legacy_palette_required": false,
+        "source_pixels_are_game_pixels": false
+      },
+      "license_status": "custom_campaign_art_review_required"
+    },
+    {
+      "file": "start/menu/person/3.png",
+      "replaces": "WALL.PIC and ARMPIECE.PIC briefing composition",
+      "kind": "high_resolution_truecolor_complete_person_pose_png",
+      "width": 1600,
+      "height": 1000,
+      "target_width": 320,
+      "target_height": 200,
+      "scaling": "fit_original_game_rectangle",
+      "color_model": "RGBA8888",
+      "runtime_path": "complete_briefing_person_set",
+      "replacement_contract": {
+        "source_of_truth": true,
+        "runtime_path": "complete_briefing_person_set",
+        "source_format": "PNG",
+        "fallback": "WALL.PIC plus ARMPIECE.PIC"
+      },
+      "legacy_limits_removed": {
+        "source_resolution": true,
+        "source_color_count": true,
+        "legacy_palette_required": false,
+        "source_pixels_are_game_pixels": false
+      },
+      "license_status": "custom_campaign_art_review_required"
+    },
+    {
+      "file": "start/menu/person/4.png",
+      "replaces": "WALL.PIC and ARMPIECE.PIC briefing composition",
+      "kind": "high_resolution_truecolor_complete_person_pose_png",
+      "width": 1600,
+      "height": 1000,
+      "target_width": 320,
+      "target_height": 200,
+      "scaling": "fit_original_game_rectangle",
+      "color_model": "RGBA8888",
+      "runtime_path": "complete_briefing_person_set",
+      "replacement_contract": {
+        "source_of_truth": true,
+        "runtime_path": "complete_briefing_person_set",
+        "source_format": "PNG",
+        "fallback": "WALL.PIC plus ARMPIECE.PIC"
+      },
+      "legacy_limits_removed": {
+        "source_resolution": true,
+        "source_color_count": true,
+        "legacy_palette_required": false,
+        "source_pixels_are_game_pixels": false
+      },
+      "license_status": "custom_campaign_art_review_required"
+    },
+    {
+      "file": "start/menu/person/5.png",
+      "replaces": "WALL.PIC and ARMPIECE.PIC briefing composition",
+      "kind": "high_resolution_truecolor_complete_person_pose_png",
+      "width": 1600,
+      "height": 1000,
+      "target_width": 320,
+      "target_height": 200,
+      "scaling": "fit_original_game_rectangle",
+      "color_model": "RGBA8888",
+      "runtime_path": "complete_briefing_person_set",
+      "replacement_contract": {
+        "source_of_truth": true,
+        "runtime_path": "complete_briefing_person_set",
+        "source_format": "PNG",
+        "fallback": "WALL.PIC plus ARMPIECE.PIC"
+      },
+      "legacy_limits_removed": {
+        "source_resolution": true,
+        "source_color_count": true,
+        "legacy_palette_required": false,
+        "source_pixels_are_game_pixels": false
+      },
+      "license_status": "custom_campaign_art_review_required"
+    },
+    {
+      "file": "start/menu/person/6.png",
+      "replaces": "WALL.PIC and ARMPIECE.PIC briefing composition",
+      "kind": "high_resolution_truecolor_complete_person_pose_png",
+      "width": 1600,
+      "height": 1000,
+      "target_width": 320,
+      "target_height": 200,
+      "scaling": "fit_original_game_rectangle",
+      "color_model": "RGBA8888",
+      "runtime_path": "complete_briefing_person_set",
+      "replacement_contract": {
+        "source_of_truth": true,
+        "runtime_path": "complete_briefing_person_set",
+        "source_format": "PNG",
+        "fallback": "WALL.PIC plus ARMPIECE.PIC"
+      },
+      "legacy_limits_removed": {
+        "source_resolution": true,
+        "source_color_count": true,
+        "legacy_palette_required": false,
+        "source_pixels_are_game_pixels": false
+      },
+      "license_status": "custom_campaign_art_review_required"
+    }
+  ],
+  "campaign_sounds": [
+    {
+      "file": "sounds/voice_cue_000_sample0.wav",
+      "script": "sounds/voice_cue_000_sample0.txt",
+      "replaces": "voice_cue_000_sample0",
+      "kind": "generated_tts_wav",
+      "license_status": "tts_output_review_required",
+      "replacement_contract": {
+        "source_of_truth": true,
+        "runtime_path": "campaign_local_wav_radio_cue",
+        "source_format": "WAV PCM",
+        "fallback": "legacy digitized cue blob"
+      },
+      "text_ru": "Ли Си Цин, это Ромб. Взлёт разрешён. Держи малую высоту.",
+      "text_en": "Li Si Cin, this is Romb. Takeoff cleared. Keep low altitude.",
+      "postprocess": "mono unsigned PCM8 radio at project sample rate",
+      "sample_rate_hz": 7850,
+      "tts_command_template": "/usr/bin/espeak-ng -v ru -s 145 -a 135 -w {output} {text}"
+    },
+    {
+      "file": "sounds/voice_cue_001_sample4.wav",
+      "script": "sounds/voice_cue_001_sample4.txt",
+      "replaces": "voice_cue_001_sample4",
+      "kind": "generated_tts_wav",
+      "license_status": "tts_output_review_required",
+      "replacement_contract": {
+        "source_of_truth": true,
+        "runtime_path": "campaign_local_wav_radio_cue",
+        "source_format": "WAV PCM",
+        "fallback": "legacy digitized cue blob"
+      },
+      "text_ru": "Группа прикрытия видит цель. Американский радар впереди.",
+      "text_en": "Cover group has the target. American radar ahead.",
+      "postprocess": "mono unsigned PCM8 radio at project sample rate",
+      "sample_rate_hz": 7850,
+      "tts_command_template": "/usr/bin/espeak-ng -v ru -s 145 -a 135 -w {output} {text}"
+    },
+    {
+      "file": "sounds/voice_cue_002_sample2_variant0.wav",
+      "script": "sounds/voice_cue_002_sample2_variant0.txt",
+      "replaces": "voice_cue_002_sample2_variant0",
+      "kind": "generated_tts_wav",
+      "license_status": "tts_output_review_required",
+      "replacement_contract": {
+        "source_of_truth": true,
+        "runtime_path": "campaign_local_wav_radio_cue",
+        "source_format": "WAV PCM",
+        "fallback": "legacy digitized cue blob"
+      },
+      "text_ru": "Главная цель отмечена. Удар по авианосной группе. Уход на север.",
+      "text_en": "Primary target marked. Strike the carrier group. Exit north.",
+      "postprocess": "mono unsigned PCM8 radio at project sample rate",
+      "sample_rate_hz": 7850,
+      "tts_command_template": "/usr/bin/espeak-ng -v ru -s 145 -a 135 -w {output} {text}"
+    },
+    {
+      "file": "sounds/voice_cue_003_sample2_variant1.wav",
+      "script": "sounds/voice_cue_003_sample2_variant1.txt",
+      "replaces": "voice_cue_003_sample2_variant1",
+      "kind": "generated_tts_wav",
+      "license_status": "tts_output_review_required",
+      "replacement_contract": {
+        "source_of_truth": true,
+        "runtime_path": "campaign_local_wav_radio_cue",
+        "source_format": "WAV PCM",
+        "fallback": "legacy digitized cue blob"
+      },
+      "text_ru": "Дананг активен. Полоса и топливо. Маневрируй немедленно.",
+      "text_en": "Da Nang is active. Runway and fuel. Maneuver immediately.",
+      "postprocess": "mono unsigned PCM8 radio at project sample rate",
+      "sample_rate_hz": 7850,
+      "tts_command_template": "/usr/bin/espeak-ng -v ru -s 145 -a 135 -w {output} {text}"
+    },
+    {
+      "file": "sounds/voice_cue_004_sample2_variant2.wav",
+      "script": "sounds/voice_cue_004_sample2_variant2.txt",
+      "replaces": "voice_cue_004_sample2_variant2",
+      "kind": "generated_tts_wav",
+      "license_status": "tts_output_review_required",
+      "replacement_contract": {
+        "source_of_truth": true,
+        "runtime_path": "campaign_local_wav_radio_cue",
+        "source_format": "WAV PCM",
+        "fallback": "legacy digitized cue blob"
+      },
+      "text_ru": "Возвращайся на базу. Топливо и боекомплект на исходе.",
+      "text_en": "Return to base. Fuel and ammunition are nearly gone.",
+      "postprocess": "mono unsigned PCM8 radio at project sample rate",
+      "sample_rate_hz": 7850,
+      "tts_command_template": "/usr/bin/espeak-ng -v ru -s 145 -a 135 -w {output} {text}"
+    }
+  ],
+  "campaign_music": [
+    {
+      "file": "sounds/intro_music.asound.json",
+      "replaces": "sounds/intro_music.asound.json",
+      "kind": "generated_asound_intro_music",
+      "license_status": "generated_placeholder_needs_replacement_or_review",
+      "replacement_contract": {
+        "source_of_truth": true,
+        "runtime_path": "campaign_local_asound_intro_music",
+        "source_format": "F15_ASOUND_MUSIC JSON",
+        "fallback": "built-in ASOUND intro/release streams"
+      },
+      "notes": "Runtime-authoritative ASOUND stream JSON; replace this file to customize campaign intro music."
+    }
+  ],
+  "font_overrides": [
+    {
+      "font_id": 1,
+      "file": "fonts/font_1.ttf",
+      "replacement_contract": {
+        "source_of_truth": true,
+        "runtime_path": "campaign_local_scalable_font",
+        "source_format": "TTF/OTF",
+        "fallback": "legacy bitmap font 1"
+      },
+      "purpose": "pilot/menu text; use a Cyrillic-capable TTF/OTF for Russian pilot names and campaign UI"
+    },
+    {
+      "font_id": 3,
+      "file": "fonts/font_3.ttf",
+      "replacement_contract": {
+        "source_of_truth": true,
+        "runtime_path": "campaign_local_scalable_font",
+        "source_format": "TTF/OTF",
+        "fallback": "legacy bitmap font 3"
+      },
+      "purpose": "briefing/menu body text; use the same family as font_1 if possible"
+    },
+    {
+      "font_id": 4,
+      "file": "fonts/font_4.ttf",
+      "replacement_contract": {
+        "source_of_truth": true,
+        "runtime_path": "campaign_local_scalable_font",
+        "source_format": "TTF/OTF",
+        "fallback": "legacy bitmap font 4"
+      },
+      "purpose": "large menu/header text; use a bold Cyrillic-capable face"
+    }
+  ],
+  "installed_fonts": [
+    "fonts/font_1.ttf",
+    "fonts/font_3.ttf",
+    "fonts/font_4.ttf"
+  ],
+  "installed_aircraft": [
+    {
+      "slot": 0,
+      "file": "15FLT/shape_000_LiSiCin_Stolen_F15.glb",
+      "source": "https://opengameart.org/content/fighter-jets#f15_eagle",
+      "kind": "redistributable_cc0_aircraft_glb",
+      "license_status": "CC0-1.0",
+      "replacement_contract": {
+        "source_of_truth": true,
+        "runtime_path": "campaign_local_shape_glb",
+        "source_format": "GLB",
+        "fallback": "shared converted GLB or original 15FLT.3D3 shape slot"
+      },
+      "notes": "Source aspect ratio preserved; axes mapped and uniformly scaled to fit the original shape 0 bounds.",
+      "author": "Captain_Ahab_62"
+    },
+    {
+      "slot": 1,
+      "file": "15FLT/shape_001_Tonkin_Carrier_Target.glb",
+      "source": "procedural_svn_campaign_generator",
+      "kind": "campaign_native_procedural_glb_placeholder",
+      "license_status": "generated_procedural_placeholder_review_required",
+      "replacement_contract": {
+        "source_of_truth": true,
+        "runtime_path": "campaign_local_shape_glb",
+        "source_format": "GLB",
+        "fallback": "shared converted GLB or original 15FLT.3D3 shape slot"
+      },
+      "notes": "Editable campaign-native GLB placeholder with colored surfaces and line primitives; replace with reviewed CC/free Blender-exported GLB for final distribution."
+    },
+    {
+      "slot": 2,
+      "file": "15FLT/shape_002_DaNang_Strike_Jet.glb",
+      "source": "procedural_svn_campaign_generator",
+      "kind": "campaign_native_procedural_glb_placeholder",
+      "license_status": "generated_procedural_placeholder_review_required",
+      "replacement_contract": {
+        "source_of_truth": true,
+        "runtime_path": "campaign_local_shape_glb",
+        "source_format": "GLB",
+        "fallback": "shared converted GLB or original 15FLT.3D3 shape slot"
+      },
+      "notes": "Editable campaign-native GLB placeholder with colored surfaces and line primitives; replace with reviewed CC/free Blender-exported GLB for final distribution."
+    },
+    {
+      "slot": 3,
+      "file": "15FLT/shape_003_Hanoi_Radar.glb",
+      "source": "procedural_svn_campaign_generator",
+      "kind": "campaign_native_procedural_glb_placeholder",
+      "license_status": "generated_procedural_placeholder_review_required",
+      "replacement_contract": {
+        "source_of_truth": true,
+        "runtime_path": "campaign_local_shape_glb",
+        "source_format": "GLB",
+        "fallback": "shared converted GLB or original 15FLT.3D3 shape slot"
+      },
+      "notes": "Editable campaign-native GLB placeholder with colored surfaces and line primitives; replace with reviewed CC/free Blender-exported GLB for final distribution."
+    },
+    {
+      "slot": 4,
+      "file": "15FLT/shape_004_MiG23_Far.glb",
+      "source": "procedural_svn_campaign_generator",
+      "kind": "campaign_native_procedural_glb_placeholder",
+      "license_status": "generated_procedural_placeholder_review_required",
+      "replacement_contract": {
+        "source_of_truth": true,
+        "runtime_path": "campaign_local_shape_glb",
+        "source_format": "GLB",
+        "fallback": "shared converted GLB or original 15FLT.3D3 shape slot"
+      },
+      "notes": "Editable campaign-native GLB placeholder with colored surfaces and line primitives; replace with reviewed CC/free Blender-exported GLB for final distribution."
+    },
+    {
+      "slot": 5,
+      "file": "15FLT/shape_005_Tonkin_CAP_Radar.glb",
+      "source": "procedural_svn_campaign_generator",
+      "kind": "campaign_native_procedural_glb_placeholder",
+      "license_status": "generated_procedural_placeholder_review_required",
+      "replacement_contract": {
+        "source_of_truth": true,
+        "runtime_path": "campaign_local_shape_glb",
+        "source_format": "GLB",
+        "fallback": "shared converted GLB or original 15FLT.3D3 shape slot"
+      },
+      "notes": "Editable campaign-native GLB placeholder with colored surfaces and line primitives; replace with reviewed CC/free Blender-exported GLB for final distribution."
+    },
+    {
+      "slot": 6,
+      "file": "15FLT/shape_006_SVN_Custom_Aircraft_006.glb",
+      "source": "https://opengameart.org/content/fighter-jets#f15_eagle",
+      "kind": "redistributable_cc0_aircraft_glb",
+      "license_status": "CC0-1.0",
+      "replacement_contract": {
+        "source_of_truth": true,
+        "runtime_path": "campaign_local_shape_glb",
+        "source_format": "GLB",
+        "fallback": "shared converted GLB or original 15FLT.3D3 shape slot"
+      },
+      "notes": "Source aspect ratio preserved; axes mapped and uniformly scaled to fit the original shape 0 bounds.",
+      "author": "Captain_Ahab_62"
+    },
+    {
+      "slot": 7,
+      "file": "15FLT/shape_007_SVN_Custom_Aircraft_007.glb",
+      "source": "https://opengameart.org/content/fighter-jets#f15_eagle",
+      "kind": "redistributable_cc0_aircraft_glb",
+      "license_status": "CC0-1.0",
+      "replacement_contract": {
+        "source_of_truth": true,
+        "runtime_path": "campaign_local_shape_glb",
+        "source_format": "GLB",
+        "fallback": "shared converted GLB or original 15FLT.3D3 shape slot"
+      },
+      "notes": "Source aspect ratio preserved; axes mapped and uniformly scaled to fit the original shape 0 bounds.",
+      "author": "Captain_Ahab_62"
+    },
+    {
+      "slot": 8,
+      "file": "15FLT/shape_008_SVN_Custom_Aircraft_008.glb",
+      "source": "procedural_svn_campaign_generator",
+      "kind": "campaign_native_procedural_glb_placeholder",
+      "license_status": "generated_procedural_placeholder_review_required",
+      "replacement_contract": {
+        "source_of_truth": true,
+        "runtime_path": "campaign_local_shape_glb",
+        "source_format": "GLB",
+        "fallback": "shared converted GLB or original 15FLT.3D3 shape slot"
+      },
+      "notes": "Editable campaign-native GLB placeholder with colored surfaces and line primitives; replace with reviewed CC/free Blender-exported GLB for final distribution."
+    },
+    {
+      "slot": 9,
+      "file": "15FLT/shape_009_SVN_Custom_Aircraft_009.glb",
+      "source": "procedural_svn_campaign_generator",
+      "kind": "campaign_native_procedural_glb_placeholder",
+      "license_status": "generated_procedural_placeholder_review_required",
+      "replacement_contract": {
+        "source_of_truth": true,
+        "runtime_path": "campaign_local_shape_glb",
+        "source_format": "GLB",
+        "fallback": "shared converted GLB or original 15FLT.3D3 shape slot"
+      },
+      "notes": "Editable campaign-native GLB placeholder with colored surfaces and line primitives; replace with reviewed CC/free Blender-exported GLB for final distribution."
+    },
+    {
+      "slot": 10,
+      "file": "15FLT/shape_010_MiG21_Escort.glb",
+      "source": "procedural_svn_campaign_generator",
+      "kind": "campaign_native_procedural_glb_placeholder",
+      "license_status": "generated_procedural_placeholder_review_required",
+      "replacement_contract": {
+        "source_of_truth": true,
+        "runtime_path": "campaign_local_shape_glb",
+        "source_format": "GLB",
+        "fallback": "shared converted GLB or original 15FLT.3D3 shape slot"
+      },
+      "notes": "Editable campaign-native GLB placeholder with colored surfaces and line primitives; replace with reviewed CC/free Blender-exported GLB for final distribution."
+    },
+    {
+      "slot": 11,
+      "file": "15FLT/shape_011_SVN_Custom_Aircraft_011.glb",
+      "source": "procedural_svn_campaign_generator",
+      "kind": "campaign_native_procedural_glb_placeholder",
+      "license_status": "generated_procedural_placeholder_review_required",
+      "replacement_contract": {
+        "source_of_truth": true,
+        "runtime_path": "campaign_local_shape_glb",
+        "source_format": "GLB",
+        "fallback": "shared converted GLB or original 15FLT.3D3 shape slot"
+      },
+      "notes": "Editable campaign-native GLB placeholder with colored surfaces and line primitives; replace with reviewed CC/free Blender-exported GLB for final distribution."
+    },
+    {
+      "slot": 12,
+      "file": "15FLT/shape_012_SVN_Custom_Aircraft_012.glb",
+      "source": "procedural_svn_campaign_generator",
+      "kind": "campaign_native_procedural_glb_placeholder",
+      "license_status": "generated_procedural_placeholder_review_required",
+      "replacement_contract": {
+        "source_of_truth": true,
+        "runtime_path": "campaign_local_shape_glb",
+        "source_format": "GLB",
+        "fallback": "shared converted GLB or original 15FLT.3D3 shape slot"
+      },
+      "notes": "Editable campaign-native GLB placeholder with colored surfaces and line primitives; replace with reviewed CC/free Blender-exported GLB for final distribution."
+    },
+    {
+      "slot": 13,
+      "file": "15FLT/shape_013_SVN_Custom_Aircraft_013.glb",
+      "source": "procedural_svn_campaign_generator",
+      "kind": "campaign_native_procedural_glb_placeholder",
+      "license_status": "generated_procedural_placeholder_review_required",
+      "replacement_contract": {
+        "source_of_truth": true,
+        "runtime_path": "campaign_local_shape_glb",
+        "source_format": "GLB",
+        "fallback": "shared converted GLB or original 15FLT.3D3 shape slot"
+      },
+      "notes": "Editable campaign-native GLB placeholder with colored surfaces and line primitives; replace with reviewed CC/free Blender-exported GLB for final distribution."
+    },
+    {
+      "slot": 14,
+      "file": "15FLT/shape_014_SVN_Custom_Aircraft_014.glb",
+      "source": "procedural_svn_campaign_generator",
+      "kind": "campaign_native_procedural_glb_placeholder",
+      "license_status": "generated_procedural_placeholder_review_required",
+      "replacement_contract": {
+        "source_of_truth": true,
+        "runtime_path": "campaign_local_shape_glb",
+        "source_format": "GLB",
+        "fallback": "shared converted GLB or original 15FLT.3D3 shape slot"
+      },
+      "notes": "Editable campaign-native GLB placeholder with colored surfaces and line primitives; replace with reviewed CC/free Blender-exported GLB for final distribution."
+    },
+    {
+      "slot": 15,
+      "file": "15FLT/shape_015_MiG19_Patrol.glb",
+      "source": "procedural_svn_campaign_generator",
+      "kind": "campaign_native_procedural_glb_placeholder",
+      "license_status": "generated_procedural_placeholder_review_required",
+      "replacement_contract": {
+        "source_of_truth": true,
+        "runtime_path": "campaign_local_shape_glb",
+        "source_format": "GLB",
+        "fallback": "shared converted GLB or original 15FLT.3D3 shape slot"
+      },
+      "notes": "Editable campaign-native GLB placeholder with colored surfaces and line primitives; replace with reviewed CC/free Blender-exported GLB for final distribution."
+    },
+    {
+      "slot": 16,
+      "file": "15FLT/shape_016_MiG17_Fresco.glb",
+      "source": "procedural_svn_campaign_generator",
+      "kind": "campaign_native_procedural_glb_placeholder",
+      "license_status": "generated_procedural_placeholder_review_required",
+      "replacement_contract": {
+        "source_of_truth": true,
+        "runtime_path": "campaign_local_shape_glb",
+        "source_format": "GLB",
+        "fallback": "shared converted GLB or original 15FLT.3D3 shape slot"
+      },
+      "notes": "Editable campaign-native GLB placeholder with colored surfaces and line primitives; replace with reviewed CC/free Blender-exported GLB for final distribution."
+    },
+    {
+      "slot": 17,
+      "file": "15FLT/shape_017_SVN_Custom_Aircraft_017.glb",
+      "source": "procedural_svn_campaign_generator",
+      "kind": "campaign_native_procedural_glb_placeholder",
+      "license_status": "generated_procedural_placeholder_review_required",
+      "replacement_contract": {
+        "source_of_truth": true,
+        "runtime_path": "campaign_local_shape_glb",
+        "source_format": "GLB",
+        "fallback": "shared converted GLB or original 15FLT.3D3 shape slot"
+      },
+      "notes": "Editable campaign-native GLB placeholder with colored surfaces and line primitives; replace with reviewed CC/free Blender-exported GLB for final distribution."
+    },
+    {
+      "slot": 18,
+      "file": "15FLT/shape_018_SVN_Custom_Aircraft_018.glb",
+      "source": "procedural_svn_campaign_generator",
+      "kind": "campaign_native_procedural_glb_placeholder",
+      "license_status": "generated_procedural_placeholder_review_required",
+      "replacement_contract": {
+        "source_of_truth": true,
+        "runtime_path": "campaign_local_shape_glb",
+        "source_format": "GLB",
+        "fallback": "shared converted GLB or original 15FLT.3D3 shape slot"
+      },
+      "notes": "Editable campaign-native GLB placeholder with colored surfaces and line primitives; replace with reviewed CC/free Blender-exported GLB for final distribution."
+    },
+    {
+      "slot": 19,
+      "file": "15FLT/shape_019_SVN_Custom_Aircraft_019.glb",
+      "source": "procedural_svn_campaign_generator",
+      "kind": "campaign_native_procedural_glb_placeholder",
+      "license_status": "generated_procedural_placeholder_review_required",
+      "replacement_contract": {
+        "source_of_truth": true,
+        "runtime_path": "campaign_local_shape_glb",
+        "source_format": "GLB",
+        "fallback": "shared converted GLB or original 15FLT.3D3 shape slot"
+      },
+      "notes": "Editable campaign-native GLB placeholder with colored surfaces and line primitives; replace with reviewed CC/free Blender-exported GLB for final distribution."
+    },
+    {
+      "slot": 20,
+      "file": "15FLT/shape_020_MiG29_Su27.glb",
+      "source": "procedural_svn_campaign_generator",
+      "kind": "campaign_native_procedural_glb_placeholder",
+      "license_status": "generated_procedural_placeholder_review_required",
+      "replacement_contract": {
+        "source_of_truth": true,
+        "runtime_path": "campaign_local_shape_glb",
+        "source_format": "GLB",
+        "fallback": "shared converted GLB or original 15FLT.3D3 shape slot"
+      },
+      "notes": "Editable campaign-native GLB placeholder with colored surfaces and line primitives; replace with reviewed CC/free Blender-exported GLB for final distribution."
+    },
+    {
+      "slot": 21,
+      "file": "15FLT/shape_021_SVN_Custom_Aircraft_021.glb",
+      "source": "procedural_svn_campaign_generator",
+      "kind": "campaign_native_procedural_glb_placeholder",
+      "license_status": "generated_procedural_placeholder_review_required",
+      "replacement_contract": {
+        "source_of_truth": true,
+        "runtime_path": "campaign_local_shape_glb",
+        "source_format": "GLB",
+        "fallback": "shared converted GLB or original 15FLT.3D3 shape slot"
+      },
+      "notes": "Editable campaign-native GLB placeholder with colored surfaces and line primitives; replace with reviewed CC/free Blender-exported GLB for final distribution."
+    },
+    {
+      "slot": 22,
+      "file": "15FLT/shape_022_F4_Phantom_Opponent.glb",
+      "source": "procedural_svn_campaign_generator",
+      "kind": "campaign_native_procedural_glb_placeholder",
+      "license_status": "generated_procedural_placeholder_review_required",
+      "replacement_contract": {
+        "source_of_truth": true,
+        "runtime_path": "campaign_local_shape_glb",
+        "source_format": "GLB",
+        "fallback": "shared converted GLB or original 15FLT.3D3 shape slot"
+      },
+      "notes": "Editable campaign-native GLB placeholder with colored surfaces and line primitives; replace with reviewed CC/free Blender-exported GLB for final distribution."
+    }
+  ],
+  "customization_status": {
+    "scenario": "campaign-local SVN.WLD.json with route/objective metadata",
+    "graphics": "high-resolution campaign-local PNG replacements",
+    "models": "campaign-local procedural GLB placeholders plus optional per-slot user overrides",
+    "sounds": "individual Russian radio WAV cue replacements",
+    "fonts": "campaign-local TTF/OTF/BDF/PNG font override slots",
+    "remaining_free_asset_work": "review or replace generated placeholders before free/CC redistribution"
+  },
+  "asset_license_review": {
+    "status": "required_before_free_asset_distribution",
+    "generated_placeholders": [
+      "campaign_art",
+      "campaign_music",
+      "installed_aircraft"
+    ],
+    "user_supplied_assets": [
+      "installed_fonts",
+      "campaign_sounds generated with local espeak/espeak-ng"
+    ],
+    "notes": "Replace placeholders with reviewed CC/free assets before distributing a free custom asset pack.",
+    "reviewed_external_assets": [
+      {
+        "file": "15FLT/shape_000_LiSiCin_Stolen_F15.glb",
+        "source": "https://opengameart.org/content/fighter-jets",
+        "author": "Captain_Ahab_62",
+        "license": "CC0-1.0"
+      }
+    ]
+  },
+  "notes": [
+    "campaign.json is the modern custom-pack entry point for launchers and editor tools.",
+    "The WLD JSON remains the authoritative editable world/scenario data.",
+    "Aircraft visuals are campaign-local SVN/15FLT/shape_###_*.glb procedural placeholders unless disabled or overridden with --aircraft-glb.",
+    "Campaign-local PNGs are used before global replacements while this campaign is selected.",
+    "Campaign-local WAV cues are used before global cue replacements while this campaign is selected.",
+    "Font override entries document where to copy Cyrillic-capable TTF/OTF files; no font file is bundled by default.",
+    "Installed aircraft entries are copied into the campaign-local 15FLT shape slot directory and override shared aircraft only while the campaign is selected."
+  ],
+  "friendly_flight_slots": [],
+  "friendly_base_slots": [
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36
+  ]
+}
