@@ -218,12 +218,23 @@ void updateFrame(void) {
      * Nearest-base tracking still serves ground contact and nearby aircraft. */
     {
         const int autopilotLanding = g_autopilotAltitude != 0 && waypointIndex == 3;
+        const int recoveryIndex = g_targetSlots[1].viewIndex;
+        const int recoveryFlags = recoveryIndex >= 0 && recoveryIndex < g_planeCount
+            ? g_planeTable.planes[recoveryIndex].flags : 0;
+        const int recoveryUsable = (recoveryFlags & 0x500) != 0 &&
+            (recoveryFlags & 0x201) != 0 && (recoveryFlags & 0x800) == 0;
+        const int alternativeAvailable = g_nearestThreatRange != 0x7fff;
         const int recoveryBaseChanged = g_prevThreatIndex != g_closestThreatIndex ||
             g_targetSlots[1].viewIndex != g_closestThreatIndex;
-        if (recoveryBaseChanged && !autopilotLanding) {
+        if (alternativeAvailable && recoveryBaseChanged && (!autopilotLanding || !recoveryUsable)) {
             g_targetSlots[1].viewIndex = g_closestThreatIndex;
             waypoints[3].mapX = g_planeTable.planes[g_closestThreatIndex].mapX;
             waypoints[3].mapY = g_planeTable.planes[g_closestThreatIndex].mapY;
+        }
+        if (autopilotLanding && !recoveryUsable && !alternativeAvailable) {
+            g_autopilotAltitude = 0;
+            g_autoLandingActive = 0;
+            hudMessage("No landing base available");
         }
     }
 

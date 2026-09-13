@@ -324,10 +324,24 @@ counterMore1k:
     missionDistAccum -= (missionBits + missionDistAccum) % 150;
 }
 
+static int isCampaignRecoveryLocation(int x, int y) {
+    if (customWorldScenarioBaseTheaterIndex() < 0) return 0;
+    for (int base = worldObjectCount; base < readItemSize; ++base) {
+        const int flags = worldObjects[base].targetFlags;
+        const int recoveryBase = (flags & 0x500) != 0 && (flags & 0x201) != 0;
+        // Reserve the location even if this base was destroyed on an earlier sortie.
+        if (recoveryBase && worldObjects[base].x_coord == x &&
+            worldObjects[base].y_coord == y) return 1;
+    }
+    return 0;
+}
+
 int16 isUsableCampaignTargetSlot(int16 targetIdx) {
     int16 slot;
 
     if (targetIdx < FIRST_REAL_ITEM || targetIdx >= readItemSize) return 0;
+    if (isCampaignRecoveryLocation(worldObjects[targetIdx].x_coord,
+                                   worldObjects[targetIdx].y_coord)) return 0;
     if (strcmp(wldOffsets[targetIdx], "POW Camp") == 0) return 0;
     const unsigned modelIndex = worldObjects[targetIdx].objectIdx & 0x7f;
     if (modelIndex >= sizeof(objectTypeTable)) return 0;
@@ -358,6 +372,7 @@ int16 findOrPlaceItem(int16 wx, int16 wy, int16 slot) {
     if ((nearestTerrainResult = findNearestTerrain((int32)wx << WORLD_COORD_SHIFT, (0x8000 - (int32)wy) << WORLD_COORD_SHIFT)) != NULL) {
         wx = nearestTerrainResult->worldX >> WORLD_COORD_SHIFT;
         wy = -((nearestTerrainResult->worldY >> WORLD_COORD_SHIFT) - 0x8000);
+        if (isCampaignRecoveryLocation(wx, wy)) return -1;
         for (objIdx = FIRST_REAL_ITEM; objIdx < readItemSize; objIdx++) {
             if (wx == worldObjects[objIdx].x_coord && wy == worldObjects[objIdx].y_coord) return objIdx;
         }
