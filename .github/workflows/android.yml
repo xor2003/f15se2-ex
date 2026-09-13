@@ -3,7 +3,7 @@ name: Android APK
 on:
   workflow_dispatch:
   push:
-    branches: [android-gles, android-upstream, android-tv-integration]
+    branches: [android-gles, android-upstream, android-tv-integration, release/svn-multiplatform]
 
 jobs:
   apk:
@@ -47,6 +47,7 @@ jobs:
           trap 'rm -f "$F15_ANDROID_KEYSTORE"' EXIT
           printf '%s' "$F15_ANDROID_KEYSTORE_BASE64" | base64 --decode > "$F15_ANDROID_KEYSTORE"
           sh android/test-assets.sh
+          python3 tools/package_svn.py android/app/src/main/assets/campaigns/SVN
           gradle -p android --no-daemon assembleDebug
 
       - name: Verify Android native entry point

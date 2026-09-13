@@ -66,7 +66,12 @@ element('start').onclick = () => {
     element('files').disabled = true;
     element('canvas').focus();
     status('Flight running. Saves are synchronized every five seconds.');
-    runtime.callMain(['--game', '/game']);
+    const bundled = element('campaign').value === 'svn';
+    if (bundled) {
+        runtime.ENV.F15_REPLACEMENT_ROOT = '/campaigns';
+        runtime.ENV.F15_REPLACEMENT_ROOT_ONLY = '1';
+    }
+    runtime.callMain(bundled ? ['--game', '/game', '--campaign', 'SVN'] : ['--game', '/game']);
 };
 
 element('save').onclick = async () => {
@@ -108,8 +113,12 @@ createF15Game({
     element('save').disabled = false;
     element('backup').disabled = false;
     const imported = runtime.FS.analyzePath('/game/15FLT.3D3').exists;
-    element('start').disabled = !imported;
-    status(imported ? 'Saved game folder restored. Ready to fly.' : 'Choose your original game folder.');
+    const bundled = runtime.FS.analyzePath('/campaigns/SVN/campaign.json').exists;
+    element('campaign').onchange = () => {
+        element('start').disabled = element('campaign').value === 'svn' ? !bundled : !imported;
+    };
+    element('start').disabled = !bundled;
+    status(bundled ? 'SVN campaign ready. Original game files are optional.' : 'Choose your original game folder.');
     setInterval(() => {
         if (started && !saving) saveStorage().catch(error => status('Autosave failed: ' + error.message));
     }, 5000);

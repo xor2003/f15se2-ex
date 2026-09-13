@@ -183,6 +183,13 @@ public final class MainActivity extends SDLActivity {
         }
         File gameDirectory = new File(storage, "game");
         gameDirectory.mkdirs();
+        if (getIntent().getBooleanExtra("bundledSVN", false)) {
+            nativeSetenv("F15_REPLACEMENT_ROOT", BundledCampaign.directory(this).getParent());
+            nativeSetenv("F15_REPLACEMENT_ROOT_ONLY", "1");
+            File saves = new File(storage, "svn-saves");
+            saves.mkdirs();
+            return new String[] {"--game", saves.getAbsolutePath(), "--campaign", "SVN"};
+        }
         return new String[] {"--game", gameDirectory.getAbsolutePath()};
     }
 }

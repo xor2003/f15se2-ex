@@ -63,6 +63,7 @@ int egame_main(void);
 int end_main(void);
 bool setGamePath(const char *path);
 bool verifyGameAssets();
+#include "bundled_campaign.h"
 
 /* Graceful application shutdown, registered with the input pump as the
  * window-close (SDL_EVENT_QUIT) handler so closing the window quits from any
@@ -141,6 +142,11 @@ int main(int argc, char *argv[]) {
             printf("Unrecognized option: '%s'\n", optStr);
             usage(1);
         }
+    }
+
+    if (selectBundledCampaign(argc, argv)) {
+        campaignArg = "SVN";
+        campaignSet = 1;
     }
 
     /* Resolve env defaults after --game has selected the asset directory.

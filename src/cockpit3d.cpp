@@ -1,4 +1,10 @@
 #include "cockpit3d.h"
+#if defined(__ANDROID__) || defined(__EMSCRIPTEN__)
+// The 3D cockpit needs desktop GL attribute stacks. Keep the flat cockpit on GLES.
+void cockpit3d_captureScene(int, int) {}
+void cockpit3d_present(int, int, int, int) {}
+void cockpit3d_shutdown(void) {}
+#else
 #include "shared/common.h"
 #include "r2d.h"
 #include "log.h"
@@ -256,3 +262,4 @@ void cockpit3d_shutdown(void) {
     sceneTexture = instrumentsTexture = 0;
     tried = captured = false;
 }
+#endif

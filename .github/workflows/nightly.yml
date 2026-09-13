@@ -1,6 +1,8 @@
 name: Nightly packages
 
 on:
+  push:
+    branches: [release/svn-multiplatform]
   schedule:
     - cron: '23 3 * * *'
   workflow_dispatch:
@@ -61,6 +63,9 @@ jobs:
         working-directory: stage/f15se2-ex
         run: ./f15se2-ex --help
       - name: Archive
+        # Cache generation happens on the build host, never on the player's device.
+        run: python tools/package_svn.py stage/f15se2-ex/campaigns/SVN
+      - name: Archive packages
         env:
           PLATFORM: ${{ matrix.platform }}
         run: |

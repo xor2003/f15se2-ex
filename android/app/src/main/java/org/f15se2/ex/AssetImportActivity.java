@@ -52,9 +52,25 @@ public final class AssetImportActivity extends Activity {
             startActivityForResult(picker, PICK_ZIP);
         });
         layout.addView(status);
+        Button svn = new Button(this);
+        svn.setText("Play SVN (included)");
+        svn.setEnabled(false);
+        svn.setOnClickListener(view -> {
+            startActivity(new Intent(this, MainActivity.class).putExtra("bundledSVN", true));
+            finish();
+        });
+        layout.addView(svn);
         layout.addView(play);
         layout.addView(importZip);
         setContentView(layout);
+        worker.execute(() -> {
+            try {
+                BundledCampaign.prepare(this);
+                runOnUiThread(() -> { if (!isDestroyed()) svn.setEnabled(true); });
+            } catch (Exception error) {
+                runOnUiThread(() -> status.setText("Bundled campaign installation failed: " + error.getMessage()));
+            }
+        });
         worker.execute(() -> {
             try (InputStream input = getAssets().open("game-assets.md5")) {
                 manifest = GameAssetInstaller.readManifest(input);
@@ -62,8 +78,8 @@ public final class AssetImportActivity extends Activity {
                 GameAssetInstaller.validate(new File(root, "game"), manifest);
                 show("Game files ready.", true);
             } catch (Exception error) {
-                show("Import a ZIP of your F-15 Strike Eagle II v451.03 game directory. " +
-                     "The APK does not include game data.\n\n" + error.getMessage(), false);
+                show("SVN is included. To play the original campaigns, optionally import " +
+                     "your F-15 Strike Eagle II v451.03 game ZIP.", false);
             }
         });
     }

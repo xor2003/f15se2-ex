@@ -2,7 +2,7 @@ name: Browser build
 on:
   workflow_dispatch:
   push:
-    branches: [wasm-upstream]
+    branches: [wasm-upstream, release/svn-multiplatform]
   pull_request:
     paths:
       - 'src/**'
@@ -25,6 +25,7 @@ jobs:
         shell: bash
         run: |
           source "$RUNNER_TEMP/emsdk/emsdk_env.sh"
+          python3 tools/package_svn.py build-wasm/campaigns/SVN
           emcmake cmake -S . -B build-wasm -DCMAKE_BUILD_TYPE=Release
           cmake --build build-wasm -j2
       - uses: actions/upload-artifact@v4
@@ -35,3 +36,22 @@ jobs:
             build-wasm/launcher.js
             build-wasm/f15se2-ex.js
             build-wasm/f15se2-ex.wasm
+            build-wasm/f15se2-ex.data
+      - uses: actions/upload-pages-artifact@v3
+        if: github.ref_name == 'release/svn-multiplatform'
+        with:
+          path: build-wasm/site
+
+  deploy:
+    if: github.ref_name == 'release/svn-multiplatform'
+    needs: wasm
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/deploy-pages@v4
+        id: deployment

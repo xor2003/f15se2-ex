@@ -39,7 +39,7 @@ function(f15_configure_browser target)
         "-sFORCE_FILESYSTEM=1"
         "-sMODULARIZE=1"
         "-sEXPORT_NAME=createF15Game"
-        "-sEXPORTED_RUNTIME_METHODS=['FS','callMain']"
+        "-sEXPORTED_RUNTIME_METHODS=['FS','ENV','callMain']"
         "-sEXIT_RUNTIME=1"
         "-lidbfs.js"
         "--pre-js=${PROJECT_SOURCE_DIR}/web/storage.js")
@@ -47,4 +47,18 @@ function(f15_configure_browser target)
         configure_file("${PROJECT_SOURCE_DIR}/web/${file}"
             "${CMAKE_CURRENT_BINARY_DIR}/${file}" COPYONLY)
     endforeach()
+    if(EXISTS "${CMAKE_BINARY_DIR}/campaigns/SVN/campaign.json")
+        target_link_options(${target} PRIVATE
+            "--preload-file=${CMAKE_BINARY_DIR}/campaigns@/campaigns")
+    endif()
+    add_custom_command(TARGET ${target} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory "${CMAKE_BINARY_DIR}/site"
+        COMMAND ${CMAKE_COMMAND} -E copy
+            "${CMAKE_BINARY_DIR}/index.html" "${CMAKE_BINARY_DIR}/launcher.js"
+            "${CMAKE_BINARY_DIR}/f15se2-ex.js" "${CMAKE_BINARY_DIR}/f15se2-ex.wasm"
+            "${CMAKE_BINARY_DIR}/site")
+    if(EXISTS "${CMAKE_BINARY_DIR}/campaigns/SVN/campaign.json")
+        add_custom_command(TARGET ${target} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_BINARY_DIR}/f15se2-ex.data" "${CMAKE_BINARY_DIR}/site")
+    endif()
 endfunction()
