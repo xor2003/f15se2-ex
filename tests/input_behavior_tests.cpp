@@ -140,6 +140,15 @@ void pushFingerRelease(float x, float y) {
     SDL_PushEvent(&event);
 }
 
+void pushFingerPress(float x, float y) {
+    SDL_Event event = {};
+    event.type = SDL_EVENT_FINGER_DOWN;
+    event.tfinger.type = SDL_EVENT_FINGER_DOWN;
+    event.tfinger.x = x;
+    event.tfinger.y = y;
+    SDL_PushEvent(&event);
+}
+
 void pushMenuClick(float x, float y, Uint8 button = SDL_BUTTON_LEFT,
                    SDL_MouseID mouse = 0) {
     SDL_Event event = {};
@@ -280,6 +289,12 @@ int main() {
     pushMouseMotion();
     require(kbhit() == 0,
             "egReadKey ignores non-key SDL events");
+
+    input_setMode(INPUT_MODE_SPLASH);
+    input_ringReset();
+    pushFingerPress(0.5f, 0.25f);
+    require(input_keyWaiting() && input_readKey() == 0x1c0d,
+            "splash touch press queues Enter");
 
     input_setMode(INPUT_MODE_MENU);
     input_ringReset();

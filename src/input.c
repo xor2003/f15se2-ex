@@ -1173,7 +1173,9 @@ void input_pumpEvents(void) {
             }
             break;
         case SDL_EVENT_FINGER_DOWN:
-            if (g_mode == INPUT_MODE_MENU) {
+            if (g_mode == INPUT_MODE_SPLASH) {
+                ringPush(0x1c00 | KEYCODE_ENTER);
+            } else if (g_mode == INPUT_MODE_MENU) {
                 /* Options use press events; roster/mission selection uses
                  * release events. Match the existing mouse path without
                  * accepting SDL's duplicate synthetic mouse event. */
