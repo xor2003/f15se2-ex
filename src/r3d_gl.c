@@ -1612,6 +1612,9 @@ static void drawDepthPoint(float x, float y, long depth32, int colorIdx) {
     glEnd();
 }
 
+static const float GL_SHADOW_ALPHA = 0.4f;
+static const float GL_SHADOW_RAISE_FRAC = 0.25f;
+
 static void drawGlbReplacementSub(const GlSub *r, const GlbMesh *mesh) {
     int primIndex, i;
     float cm[9], scaleDiv;
@@ -1619,6 +1622,37 @@ static void drawGlbReplacementSub(const GlSub *r, const GlbMesh *mesh) {
     if (shift < 0) shift = 0;
     scaleDiv = (float)(1 << shift);
     for (i = 0; i < 9; i++) cm[i] = (float)r->combined[i];
+
+    float groundNormal[3] = {0, 0, 0};
+    float shadowLift = 0;
+    if (r->shadow) {
+        float lengthSquared = 0;
+        for (i = 0; i < 3; i++) {
+            groundNormal[i] = (float)g_viewRotMatrix[3 + i];
+            lengthSquared += groundNormal[i] * groundNormal[i];
+        }
+        if (lengthSquared < 1e-6f) return;
+        const float normalLength = SDL_sqrtf(lengthSquared);
+        for (i = 0; i < 3; i++) groundNormal[i] /= normalLength;
+
+        // Match the legacy shadow's camera-ward lift, scaled to this mesh.
+        float maxHeight = 0;
+        for (primIndex = 0; primIndex < mesh->nPrims; primIndex++) {
+            const GlbPrim *prim = &mesh->prims[primIndex];
+            for (i = 0; i < prim->nVerts; i++) {
+                const float *vertex = &prim->xyz[i * 3];
+                float height = 0;
+                for (int axis = 0; axis < 3; axis++) {
+                    height += groundNormal[axis] * 2.0f *
+                        (cm[axis] * vertex[0] + cm[axis + 3] * vertex[2] +
+                         cm[axis + 6] * vertex[1]) / scaleDiv;
+                }
+                maxHeight = SDL_max(maxHeight, SDL_fabsf(height));
+            }
+        }
+        shadowLift = (groundNormal[2] > 0 ? -1.0f : 1.0f) *
+                     GL_SHADOW_RAISE_FRAC * maxHeight;
+    }
 
     for (primIndex = 0; primIndex < mesh->nPrims; primIndex++) {
         const GlbPrim *prim = &mesh->prims[primIndex];
@@ -1628,8 +1662,13 @@ static void drawGlbReplacementSub(const GlSub *r, const GlbMesh *mesh) {
         else if (prim->mode == 0) glMode = GL_POINTS;
         else continue;
 
-        paintBias();
-        glColor4f(prim->rgba[0], prim->rgba[1], prim->rgba[2], prim->rgba[3]);
+        if (r->shadow) {
+            if (glMode != GL_TRIANGLES) continue;
+            glColor4f(0, 0, 0, GL_SHADOW_ALPHA);
+        } else {
+            paintBias();
+            glColor4f(prim->rgba[0], prim->rgba[1], prim->rgba[2], prim->rgba[3]);
+        }
         if (glMode == GL_POINTS) {
             glPointSize(s_pixelScale > 1.0f ? s_pixelScale : 1.0f);
         }
@@ -1641,6 +1680,15 @@ static void drawGlbReplacementSub(const GlSub *r, const GlbMesh *mesh) {
             float camX = (2.0f * (cm[0] * X + cm[3] * Z + cm[6] * Y) + (float)r->camBase) / scaleDiv;
             float camY = (2.0f * (cm[1] * X + cm[4] * Z + cm[7] * Y) + (float)r->camX) / scaleDiv;
             float depth = (2.0f * (cm[2] * X + cm[5] * Z + cm[8] * Y) + (float)r->camY) / scaleDiv;
+            if (r->shadow) {
+                const float height =
+                    (camX - (float)r->camBase / scaleDiv) * groundNormal[0] +
+                    (camY - (float)r->camX / scaleDiv) * groundNormal[1] +
+                    (depth - (float)r->camY / scaleDiv) * groundNormal[2];
+                camX += (shadowLift - height) * groundNormal[0];
+                camY += (shadowLift - height) * groundNormal[1];
+                depth += (shadowLift - height) * groundNormal[2];
+            }
             fogVertex(camX, camY, depth / 65536.0f);
         }
         glEnd();
@@ -1800,13 +1848,11 @@ static void compareGlbReplacementWithLegacy(const GlSub *r, GlbMesh *mesh) {
 /* Aircraft ground-shadow opacity (translucent black, GL_SRC_ALPHA blend). Lower =
  * fainter. A silhouette flattened from a real 3D model self-overlaps slightly (tail
  * over fuselage), so keep it below 0.5 or the overlaps read as a darker core. */
-static const float GL_SHADOW_ALPHA = 0.4f;
 
 /* Lift the flattened shadow toward the camera by this fraction of the model's own
  * camera-space height, so it clears the ground surface it lies on instead of
  * z-fighting it. Self-scaling (a far, small shadow lifts less) and small enough that
  * the float above the ground is imperceptible from a cockpit view. */
-static const float GL_SHADOW_RAISE_FRAC = 0.25f;
 
 static void drawSub(const GlSub *r) {
     MeshVtxPools pools;
