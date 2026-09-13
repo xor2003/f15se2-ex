@@ -1,0 +1,731 @@
+{
+  "format": "F15SE2_FOUR_POINT_ROUTES",
+  "format_version": 1,
+  "seed": 1,
+  "eligible_routes": 36,
+  "routes": [
+    {
+      "points": [
+        {
+          "object_slot": 30,
+          "x_coord": 22257,
+          "y_coord": 9095,
+          "name": "Vinh International Airport",
+          "role": "start"
+        },
+        {
+          "object_slot": 3,
+          "objective_id": "suppress_hanoi_radar",
+          "x_coord": 27269,
+          "y_coord": 4750,
+          "name": "Hanoi radar net",
+          "role": "primary"
+        },
+        {
+          "object_slot": 4,
+          "objective_id": "interdict_haiphong_logistics",
+          "x_coord": 28384,
+          "y_coord": 6972,
+          "name": "Haiphong logistics",
+          "role": "secondary"
+        },
+        {
+          "object_slot": 27,
+          "x_coord": 27364,
+          "y_coord": 4788,
+          "name": "Gia Lam Airport",
+          "role": "end"
+        }
+      ],
+      "length_world_units": 11529.7,
+      "id": "route_001"
+    },
+    {
+      "points": [
+        {
+          "object_slot": 30,
+          "x_coord": 22257,
+          "y_coord": 9095,
+          "name": "Vinh International Airport",
+          "role": "start"
+        },
+        {
+          "object_slot": 7,
+          "objective_id": "strike_da_nang_airbase",
+          "x_coord": 21358,
+          "y_coord": 20256,
+          "name": "Da Nang airbase",
+          "role": "primary"
+        },
+        {
+          "object_slot": 6,
+          "objective_id": "strike_carrier_group",
+          "x_coord": 28300,
+          "y_coord": 10979,
+          "name": "USA carrier group",
+          "role": "secondary"
+        },
+        {
+          "object_slot": 28,
+          "x_coord": 27571,
+          "y_coord": 4234,
+          "name": "Noi Bai International Airport",
+          "role": "end"
+        }
+      ],
+      "length_world_units": 29568.24,
+      "id": "route_002"
+    },
+    {
+      "points": [
+        {
+          "object_slot": 30,
+          "x_coord": 22257,
+          "y_coord": 9095,
+          "name": "Vinh International Airport",
+          "role": "start"
+        },
+        {
+          "object_slot": 6,
+          "objective_id": "strike_carrier_group",
+          "x_coord": 28300,
+          "y_coord": 10979,
+          "name": "USA carrier group",
+          "role": "primary"
+        },
+        {
+          "object_slot": 4,
+          "objective_id": "interdict_haiphong_logistics",
+          "x_coord": 28384,
+          "y_coord": 6972,
+          "name": "Haiphong logistics",
+          "role": "secondary"
+        },
+        {
+          "object_slot": 28,
+          "x_coord": 27571,
+          "y_coord": 4234,
+          "name": "Noi Bai International Airport",
+          "role": "end"
+        }
+      ],
+      "length_world_units": 13193.91,
+      "id": "route_003"
+    },
+    {
+      "points": [
+        {
+          "object_slot": 30,
+          "x_coord": 22257,
+          "y_coord": 9095,
+          "name": "Vinh International Airport",
+          "role": "start"
+        },
+        {
+          "object_slot": 6,
+          "objective_id": "strike_carrier_group",
+          "x_coord": 28300,
+          "y_coord": 10979,
+          "name": "USA carrier group",
+          "role": "primary"
+        },
+        {
+          "object_slot": 7,
+          "objective_id": "strike_da_nang_airbase",
+          "x_coord": 21358,
+          "y_coord": 20256,
+          "name": "Da Nang airbase",
+          "role": "secondary"
+        },
+        {
+          "object_slot": 27,
+          "x_coord": 27364,
+          "y_coord": 4788,
+          "name": "Gia Lam Airport",
+          "role": "end"
+        }
+      ],
+      "length_world_units": 34509.78,
+      "id": "route_004"
+    },
+    {
+      "points": [
+        {
+          "object_slot": 30,
+          "x_coord": 22257,
+          "y_coord": 9095,
+          "name": "Vinh International Airport",
+          "role": "start"
+        },
+        {
+          "object_slot": 6,
+          "objective_id": "strike_carrier_group",
+          "x_coord": 28300,
+          "y_coord": 10979,
+          "name": "USA carrier group",
+          "role": "primary"
+        },
+        {
+          "object_slot": 3,
+          "objective_id": "suppress_hanoi_radar",
+          "x_coord": 27269,
+          "y_coord": 4750,
+          "name": "Hanoi radar net",
+          "role": "secondary"
+        },
+        {
+          "object_slot": 29,
+          "x_coord": 28468,
+          "y_coord": 7052,
+          "name": "Cat Bi International Airport",
+          "role": "end"
+        }
+      ],
+      "length_world_units": 15239.16,
+      "id": "route_005"
+    },
+    {
+      "points": [
+        {
+          "object_slot": 30,
+          "x_coord": 22257,
+          "y_coord": 9095,
+          "name": "Vinh International Airport",
+          "role": "start"
+        },
+        {
+          "object_slot": 3,
+          "objective_id": "suppress_hanoi_radar",
+          "x_coord": 27269,
+          "y_coord": 4750,
+          "name": "Hanoi radar net",
+          "role": "primary"
+        },
+        {
+          "object_slot": 6,
+          "objective_id": "strike_carrier_group",
+          "x_coord": 28300,
+          "y_coord": 10979,
+          "name": "USA carrier group",
+          "role": "secondary"
+        },
+        {
+          "object_slot": 29,
+          "x_coord": 28468,
+          "y_coord": 7052,
+          "name": "Cat Bi International Airport",
+          "role": "end"
+        }
+      ],
+      "length_world_units": 16877.53,
+      "id": "route_006"
+    },
+    {
+      "points": [
+        {
+          "object_slot": 30,
+          "x_coord": 22257,
+          "y_coord": 9095,
+          "name": "Vinh International Airport",
+          "role": "start"
+        },
+        {
+          "object_slot": 7,
+          "objective_id": "strike_da_nang_airbase",
+          "x_coord": 21358,
+          "y_coord": 20256,
+          "name": "Da Nang airbase",
+          "role": "primary"
+        },
+        {
+          "object_slot": 4,
+          "objective_id": "interdict_haiphong_logistics",
+          "x_coord": 28384,
+          "y_coord": 6972,
+          "name": "Haiphong logistics",
+          "role": "secondary"
+        },
+        {
+          "object_slot": 29,
+          "x_coord": 28468,
+          "y_coord": 7052,
+          "name": "Cat Bi International Airport",
+          "role": "end"
+        }
+      ],
+      "length_world_units": 26340.77,
+      "id": "route_007"
+    },
+    {
+      "points": [
+        {
+          "object_slot": 30,
+          "x_coord": 22257,
+          "y_coord": 9095,
+          "name": "Vinh International Airport",
+          "role": "start"
+        },
+        {
+          "object_slot": 3,
+          "objective_id": "suppress_hanoi_radar",
+          "x_coord": 27269,
+          "y_coord": 4750,
+          "name": "Hanoi radar net",
+          "role": "primary"
+        },
+        {
+          "object_slot": 7,
+          "objective_id": "strike_da_nang_airbase",
+          "x_coord": 21358,
+          "y_coord": 20256,
+          "name": "Da Nang airbase",
+          "role": "secondary"
+        },
+        {
+          "object_slot": 28,
+          "x_coord": 27571,
+          "y_coord": 4234,
+          "name": "Noi Bai International Airport",
+          "role": "end"
+        }
+      ],
+      "length_world_units": 40412.11,
+      "id": "route_008"
+    },
+    {
+      "points": [
+        {
+          "object_slot": 30,
+          "x_coord": 22257,
+          "y_coord": 9095,
+          "name": "Vinh International Airport",
+          "role": "start"
+        },
+        {
+          "object_slot": 6,
+          "objective_id": "strike_carrier_group",
+          "x_coord": 28300,
+          "y_coord": 10979,
+          "name": "USA carrier group",
+          "role": "primary"
+        },
+        {
+          "object_slot": 4,
+          "objective_id": "interdict_haiphong_logistics",
+          "x_coord": 28384,
+          "y_coord": 6972,
+          "name": "Haiphong logistics",
+          "role": "secondary"
+        },
+        {
+          "object_slot": 29,
+          "x_coord": 28468,
+          "y_coord": 7052,
+          "name": "Cat Bi International Airport",
+          "role": "end"
+        }
+      ],
+      "length_world_units": 10453.75,
+      "id": "route_009"
+    },
+    {
+      "points": [
+        {
+          "object_slot": 30,
+          "x_coord": 22257,
+          "y_coord": 9095,
+          "name": "Vinh International Airport",
+          "role": "start"
+        },
+        {
+          "object_slot": 4,
+          "objective_id": "interdict_haiphong_logistics",
+          "x_coord": 28384,
+          "y_coord": 6972,
+          "name": "Haiphong logistics",
+          "role": "primary"
+        },
+        {
+          "object_slot": 3,
+          "objective_id": "suppress_hanoi_radar",
+          "x_coord": 27269,
+          "y_coord": 4750,
+          "name": "Hanoi radar net",
+          "role": "secondary"
+        },
+        {
+          "object_slot": 27,
+          "x_coord": 27364,
+          "y_coord": 4788,
+          "name": "Gia Lam Airport",
+          "role": "end"
+        }
+      ],
+      "length_world_units": 9072.77,
+      "id": "route_010"
+    },
+    {
+      "points": [
+        {
+          "object_slot": 30,
+          "x_coord": 22257,
+          "y_coord": 9095,
+          "name": "Vinh International Airport",
+          "role": "start"
+        },
+        {
+          "object_slot": 4,
+          "objective_id": "interdict_haiphong_logistics",
+          "x_coord": 28384,
+          "y_coord": 6972,
+          "name": "Haiphong logistics",
+          "role": "primary"
+        },
+        {
+          "object_slot": 3,
+          "objective_id": "suppress_hanoi_radar",
+          "x_coord": 27269,
+          "y_coord": 4750,
+          "name": "Hanoi radar net",
+          "role": "secondary"
+        },
+        {
+          "object_slot": 28,
+          "x_coord": 27571,
+          "y_coord": 4234,
+          "name": "Noi Bai International Airport",
+          "role": "end"
+        }
+      ],
+      "length_world_units": 9568.33,
+      "id": "route_011"
+    },
+    {
+      "points": [
+        {
+          "object_slot": 30,
+          "x_coord": 22257,
+          "y_coord": 9095,
+          "name": "Vinh International Airport",
+          "role": "start"
+        },
+        {
+          "object_slot": 4,
+          "objective_id": "interdict_haiphong_logistics",
+          "x_coord": 28384,
+          "y_coord": 6972,
+          "name": "Haiphong logistics",
+          "role": "primary"
+        },
+        {
+          "object_slot": 3,
+          "objective_id": "suppress_hanoi_radar",
+          "x_coord": 27269,
+          "y_coord": 4750,
+          "name": "Hanoi radar net",
+          "role": "secondary"
+        },
+        {
+          "object_slot": 29,
+          "x_coord": 28468,
+          "y_coord": 7052,
+          "name": "Cat Bi International Airport",
+          "role": "end"
+        }
+      ],
+      "length_world_units": 11565.98,
+      "id": "route_012"
+    },
+    {
+      "points": [
+        {
+          "object_slot": 30,
+          "x_coord": 22257,
+          "y_coord": 9095,
+          "name": "Vinh International Airport",
+          "role": "start"
+        },
+        {
+          "object_slot": 7,
+          "objective_id": "strike_da_nang_airbase",
+          "x_coord": 21358,
+          "y_coord": 20256,
+          "name": "Da Nang airbase",
+          "role": "primary"
+        },
+        {
+          "object_slot": 4,
+          "objective_id": "interdict_haiphong_logistics",
+          "x_coord": 28384,
+          "y_coord": 6972,
+          "name": "Haiphong logistics",
+          "role": "secondary"
+        },
+        {
+          "object_slot": 27,
+          "x_coord": 27364,
+          "y_coord": 4788,
+          "name": "Gia Lam Airport",
+          "role": "end"
+        }
+      ],
+      "length_world_units": 28635.21,
+      "id": "route_013"
+    },
+    {
+      "points": [
+        {
+          "object_slot": 30,
+          "x_coord": 22257,
+          "y_coord": 9095,
+          "name": "Vinh International Airport",
+          "role": "start"
+        },
+        {
+          "object_slot": 7,
+          "objective_id": "strike_da_nang_airbase",
+          "x_coord": 21358,
+          "y_coord": 20256,
+          "name": "Da Nang airbase",
+          "role": "primary"
+        },
+        {
+          "object_slot": 4,
+          "objective_id": "interdict_haiphong_logistics",
+          "x_coord": 28384,
+          "y_coord": 6972,
+          "name": "Haiphong logistics",
+          "role": "secondary"
+        },
+        {
+          "object_slot": 28,
+          "x_coord": 27571,
+          "y_coord": 4234,
+          "name": "Noi Bai International Airport",
+          "role": "end"
+        }
+      ],
+      "length_world_units": 29080.92,
+      "id": "route_014"
+    },
+    {
+      "points": [
+        {
+          "object_slot": 30,
+          "x_coord": 22257,
+          "y_coord": 9095,
+          "name": "Vinh International Airport",
+          "role": "start"
+        },
+        {
+          "object_slot": 7,
+          "objective_id": "strike_da_nang_airbase",
+          "x_coord": 21358,
+          "y_coord": 20256,
+          "name": "Da Nang airbase",
+          "role": "primary"
+        },
+        {
+          "object_slot": 3,
+          "objective_id": "suppress_hanoi_radar",
+          "x_coord": 27269,
+          "y_coord": 4750,
+          "name": "Hanoi radar net",
+          "role": "secondary"
+        },
+        {
+          "object_slot": 27,
+          "x_coord": 27364,
+          "y_coord": 4788,
+          "name": "Gia Lam Airport",
+          "role": "end"
+        }
+      ],
+      "length_world_units": 27893.92,
+      "id": "route_015"
+    },
+    {
+      "points": [
+        {
+          "object_slot": 30,
+          "x_coord": 22257,
+          "y_coord": 9095,
+          "name": "Vinh International Airport",
+          "role": "start"
+        },
+        {
+          "object_slot": 7,
+          "objective_id": "strike_da_nang_airbase",
+          "x_coord": 21358,
+          "y_coord": 20256,
+          "name": "Da Nang airbase",
+          "role": "primary"
+        },
+        {
+          "object_slot": 3,
+          "objective_id": "suppress_hanoi_radar",
+          "x_coord": 27269,
+          "y_coord": 4750,
+          "name": "Hanoi radar net",
+          "role": "secondary"
+        },
+        {
+          "object_slot": 28,
+          "x_coord": 27571,
+          "y_coord": 4234,
+          "name": "Noi Bai International Airport",
+          "role": "end"
+        }
+      ],
+      "length_world_units": 28389.48,
+      "id": "route_016"
+    },
+    {
+      "points": [
+        {
+          "object_slot": 30,
+          "x_coord": 22257,
+          "y_coord": 9095,
+          "name": "Vinh International Airport",
+          "role": "start"
+        },
+        {
+          "object_slot": 4,
+          "objective_id": "interdict_haiphong_logistics",
+          "x_coord": 28384,
+          "y_coord": 6972,
+          "name": "Haiphong logistics",
+          "role": "primary"
+        },
+        {
+          "object_slot": 7,
+          "objective_id": "strike_da_nang_airbase",
+          "x_coord": 21358,
+          "y_coord": 20256,
+          "name": "Da Nang airbase",
+          "role": "secondary"
+        },
+        {
+          "object_slot": 28,
+          "x_coord": 27571,
+          "y_coord": 4234,
+          "name": "Noi Bai International Airport",
+          "role": "end"
+        }
+      ],
+      "length_world_units": 38696.47,
+      "id": "route_017"
+    },
+    {
+      "points": [
+        {
+          "object_slot": 30,
+          "x_coord": 22257,
+          "y_coord": 9095,
+          "name": "Vinh International Airport",
+          "role": "start"
+        },
+        {
+          "object_slot": 4,
+          "objective_id": "interdict_haiphong_logistics",
+          "x_coord": 28384,
+          "y_coord": 6972,
+          "name": "Haiphong logistics",
+          "role": "primary"
+        },
+        {
+          "object_slot": 7,
+          "objective_id": "strike_da_nang_airbase",
+          "x_coord": 21358,
+          "y_coord": 20256,
+          "name": "Da Nang airbase",
+          "role": "secondary"
+        },
+        {
+          "object_slot": 29,
+          "x_coord": 28468,
+          "y_coord": 7052,
+          "name": "Cat Bi International Airport",
+          "role": "end"
+        }
+      ],
+      "length_world_units": 36508.59,
+      "id": "route_018"
+    },
+    {
+      "points": [
+        {
+          "object_slot": 30,
+          "x_coord": 22257,
+          "y_coord": 9095,
+          "name": "Vinh International Airport",
+          "role": "start"
+        },
+        {
+          "object_slot": 6,
+          "objective_id": "strike_carrier_group",
+          "x_coord": 28300,
+          "y_coord": 10979,
+          "name": "USA carrier group",
+          "role": "primary"
+        },
+        {
+          "object_slot": 4,
+          "objective_id": "interdict_haiphong_logistics",
+          "x_coord": 28384,
+          "y_coord": 6972,
+          "name": "Haiphong logistics",
+          "role": "secondary"
+        },
+        {
+          "object_slot": 27,
+          "x_coord": 27364,
+          "y_coord": 4788,
+          "name": "Gia Lam Airport",
+          "role": "end"
+        }
+      ],
+      "length_world_units": 12748.2,
+      "id": "route_019"
+    },
+    {
+      "points": [
+        {
+          "object_slot": 30,
+          "x_coord": 22257,
+          "y_coord": 9095,
+          "name": "Vinh International Airport",
+          "role": "start"
+        },
+        {
+          "object_slot": 6,
+          "objective_id": "strike_carrier_group",
+          "x_coord": 28300,
+          "y_coord": 10979,
+          "name": "USA carrier group",
+          "role": "primary"
+        },
+        {
+          "object_slot": 3,
+          "objective_id": "suppress_hanoi_radar",
+          "x_coord": 27269,
+          "y_coord": 4750,
+          "name": "Hanoi radar net",
+          "role": "secondary"
+        },
+        {
+          "object_slot": 28,
+          "x_coord": 27571,
+          "y_coord": 4234,
+          "name": "Noi Bai International Airport",
+          "role": "end"
+        }
+      ],
+      "length_world_units": 13241.5,
+      "id": "route_020"
+    }
+  ],
+  "osm_attribution": "OpenStreetMap contributors",
+  "osm_timestamp": null,
+  "notes": "Authoring options; OSM locations do not assign factions or move world objects."
+}

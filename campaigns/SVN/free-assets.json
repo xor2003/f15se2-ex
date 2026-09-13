@@ -1,0 +1,692 @@
+{
+  "format": "F15SE2_GENERATED_FREE_ASSETS",
+  "format_version": 1,
+  "policy": "Existing files are customizer-owned and are never overwritten.",
+  "cockpit": "COCKPIT.png is intentionally supplied separately by the customizer.",
+  "generated": [
+    {
+      "file": "1.png",
+      "bytes": 6478,
+      "sha256": "b5cae5f4c60911b534cebc7f54cf24f47235ccffb91d777cf663427d548e9cd3",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/f15assets/free_pack.py"
+    },
+    {
+      "file": "15FLT/15FLT.3D3.json",
+      "bytes": 343,
+      "sha256": "c074e7498c74e95cc8050c2b9e9701d8ab6c477cfd9876aefd2357c985319ce3",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/f15assets/free_pack.py"
+    },
+    {
+      "file": "2.png",
+      "bytes": 6659,
+      "sha256": "f43cf603b650852319da401e9d82bcfa81e38d71cd2463f233a0db243599df50",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/f15assets/free_pack.py"
+    },
+    {
+      "file": "3.png",
+      "bytes": 6679,
+      "sha256": "388cabdf73315591f78e44b7175602983ae397fe621d4c894de8168b1dd06679",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/f15assets/free_pack.py"
+    },
+    {
+      "file": "4.png",
+      "bytes": 6579,
+      "sha256": "c3f1eeba1acdb73038b2e5b16521034715333b737424a827d3ea75dfe50ce965",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/f15assets/free_pack.py"
+    },
+    {
+      "file": "CE/CE.3D3.json",
+      "bytes": 854,
+      "sha256": "529a662b94780251ff70e5bb355045e097364a59761488fc9d2f72ff1bc743d5",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/f15assets/free_pack.py"
+    },
+    {
+      "file": "CE/CE.3DG.json",
+      "bytes": 12868,
+      "sha256": "7c9438c9b678073f227c5a0b622d0daa03b271bcd5bd4cbca8d2183b9b8caf08",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/f15assets/free_pack.py"
+    },
+    {
+      "file": "CE/CE.3DT.json",
+      "bytes": 12080,
+      "sha256": "ec7a84490715bd70c6d6bd1869fcba84ab7713a6601c76cf8f1d782b6d118a16",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/f15assets/free_pack.py"
+    },
+    {
+      "file": "CE.WLD.json",
+      "bytes": 76140,
+      "sha256": "0fa4da59d79b5af94b2d60a67f9629232095804d4056bb19569685f58d10599f",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/f15assets/free_pack.py"
+    },
+    {
+      "file": "CEUROPE.png",
+      "bytes": 7403,
+      "sha256": "319b1b44592bb9d6dcb236b3b821b29dcfbda002379c262660f46fd53d7caa37",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/f15assets/free_pack.py"
+    },
+    {
+      "file": "GULF.WLD.json",
+      "bytes": 76140,
+      "sha256": "0fa4da59d79b5af94b2d60a67f9629232095804d4056bb19569685f58d10599f",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/f15assets/free_pack.py"
+    },
+    {
+      "file": "JP/JP.3D3.json",
+      "bytes": 854,
+      "sha256": "529a662b94780251ff70e5bb355045e097364a59761488fc9d2f72ff1bc743d5",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/f15assets/free_pack.py"
+    },
+    {
+      "file": "JP/JP.3DG.json",
+      "bytes": 12868,
+      "sha256": "7c9438c9b678073f227c5a0b622d0daa03b271bcd5bd4cbca8d2183b9b8caf08",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/f15assets/free_pack.py"
+    },
+    {
+      "file": "JP/JP.3DT.json",
+      "bytes": 12080,
+      "sha256": "ec7a84490715bd70c6d6bd1869fcba84ab7713a6601c76cf8f1d782b6d118a16",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/f15assets/free_pack.py"
+    },
+    {
+      "file": "JP.WLD.json",
+      "bytes": 76140,
+      "sha256": "0fa4da59d79b5af94b2d60a67f9629232095804d4056bb19569685f58d10599f",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/f15assets/free_pack.py"
+    },
+    {
+      "file": "JP.png",
+      "bytes": 6663,
+      "sha256": "5deb6c836224e393f8d76644b1789aef7eb75b3de89638749759d94b3552de09",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/f15assets/free_pack.py"
+    },
+    {
+      "file": "LB/LB.3D3.json",
+      "bytes": 854,
+      "sha256": "529a662b94780251ff70e5bb355045e097364a59761488fc9d2f72ff1bc743d5",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/f15assets/free_pack.py"
+    },
+    {
+      "file": "LB/LB.3DG.json",
+      "bytes": 12868,
+      "sha256": "7c9438c9b678073f227c5a0b622d0daa03b271bcd5bd4cbca8d2183b9b8caf08",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/f15assets/free_pack.py"
+    },
+    {
+      "file": "LB/LB.3DT.json",
+      "bytes": 12080,
+      "sha256": "ec7a84490715bd70c6d6bd1869fcba84ab7713a6601c76cf8f1d782b6d118a16",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/f15assets/free_pack.py"
+    },
+    {
+      "file": "LEFT.png",
+      "bytes": 598,
+      "sha256": "bc5c09edee4bfe09f1b3da1e0e46f9b37fdfa0ed0890638dd3bcf50e11cbad46",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/f15assets/free_pack.py"
+    },
+    {
+      "file": "LIBYA.WLD.json",
+      "bytes": 76140,
+      "sha256": "0fa4da59d79b5af94b2d60a67f9629232095804d4056bb19569685f58d10599f",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/f15assets/free_pack.py"
+    },
+    {
+      "file": "LIBYA.png",
+      "bytes": 7095,
+      "sha256": "9343bc00bda71e0c3e60ad87188ba6be53ee9f8b9729362b299a372c3001d433",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/f15assets/free_pack.py"
+    },
+    {
+      "file": "ME/ME.3D3.json",
+      "bytes": 854,
+      "sha256": "529a662b94780251ff70e5bb355045e097364a59761488fc9d2f72ff1bc743d5",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/f15assets/free_pack.py"
+    },
+    {
+      "file": "ME/ME.3DG.json",
+      "bytes": 12868,
+      "sha256": "7c9438c9b678073f227c5a0b622d0daa03b271bcd5bd4cbca8d2183b9b8caf08",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/f15assets/free_pack.py"
+    },
+    {
+      "file": "ME/ME.3DT.json",
+      "bytes": 12080,
+      "sha256": "ec7a84490715bd70c6d6bd1869fcba84ab7713a6601c76cf8f1d782b6d118a16",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/f15assets/free_pack.py"
+    },
+    {
+      "file": "ME.WLD.json",
+      "bytes": 76140,
+      "sha256": "0fa4da59d79b5af94b2d60a67f9629232095804d4056bb19569685f58d10599f",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/f15assets/free_pack.py"
+    },
+    {
+      "file": "ME.png",
+      "bytes": 6801,
+      "sha256": "6c948aaefd13a526174bcedabb53a27b7f3af29d0e440d6c1b5a35f279241317",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/f15assets/free_pack.py"
+    },
+    {
+      "file": "NC/NC.3D3.json",
+      "bytes": 854,
+      "sha256": "529a662b94780251ff70e5bb355045e097364a59761488fc9d2f72ff1bc743d5",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/f15assets/free_pack.py"
+    },
+    {
+      "file": "NC/NC.3DG.json",
+      "bytes": 12868,
+      "sha256": "7c9438c9b678073f227c5a0b622d0daa03b271bcd5bd4cbca8d2183b9b8caf08",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/f15assets/free_pack.py"
+    },
+    {
+      "file": "NC/NC.3DT.json",
+      "bytes": 12080,
+      "sha256": "ec7a84490715bd70c6d6bd1869fcba84ab7713a6601c76cf8f1d782b6d118a16",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/f15assets/free_pack.py"
+    },
+    {
+      "file": "NC.WLD.json",
+      "bytes": 76140,
+      "sha256": "0fa4da59d79b5af94b2d60a67f9629232095804d4056bb19569685f58d10599f",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/f15assets/free_pack.py"
+    },
+    {
+      "file": "NCAPE.png",
+      "bytes": 7307,
+      "sha256": "278659b3f0a0b95dc590335eace7699cfdd1a8a1952801a5983ab34f1fa3aed1",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/f15assets/free_pack.py"
+    },
+    {
+      "file": "PERSIAN.png",
+      "bytes": 7437,
+      "sha256": "21118d29e48289cef367b2c805939b4090706c028b699c0cf7072b7c900ba483",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/f15assets/free_pack.py"
+    },
+    {
+      "file": "PG/PG.3D3.json",
+      "bytes": 854,
+      "sha256": "529a662b94780251ff70e5bb355045e097364a59761488fc9d2f72ff1bc743d5",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/f15assets/free_pack.py"
+    },
+    {
+      "file": "PG/PG.3DG.json",
+      "bytes": 12868,
+      "sha256": "7c9438c9b678073f227c5a0b622d0daa03b271bcd5bd4cbca8d2183b9b8caf08",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/f15assets/free_pack.py"
+    },
+    {
+      "file": "PG/PG.3DT.json",
+      "bytes": 12080,
+      "sha256": "ec7a84490715bd70c6d6bd1869fcba84ab7713a6601c76cf8f1d782b6d118a16",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/f15assets/free_pack.py"
+    },
+    {
+      "file": "PG.WLD.json",
+      "bytes": 76140,
+      "sha256": "0fa4da59d79b5af94b2d60a67f9629232095804d4056bb19569685f58d10599f",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/f15assets/free_pack.py"
+    },
+    {
+      "file": "PHOTO/PHOTO.3D3.json",
+      "bytes": 273,
+      "sha256": "cc9d9cc39893ae7147d192e761c031862e0232155c2d59c484ad06f81884f0da",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/f15assets/free_pack.py"
+    },
+    {
+      "file": "REAR.png",
+      "bytes": 809,
+      "sha256": "b52d8ffc771bd10c07fbac2ad54d4c51ce2d061001628ef13da474fa94136c42",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/f15assets/free_pack.py"
+    },
+    {
+      "file": "RIGHT.png",
+      "bytes": 877,
+      "sha256": "fef19d3d43415d0040ec1a8c3424bd4cf955f5581a274f1fe79186653bd814c9",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/f15assets/free_pack.py"
+    },
+    {
+      "file": "TITLE16.png",
+      "bytes": 7120,
+      "sha256": "344be07e90e51b9e92eb3e65de6b9222abd4efb8241b758360eacd7dd7091355",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/f15assets/free_pack.py"
+    },
+    {
+      "file": "VN/VN.3D3.json",
+      "bytes": 1670,
+      "sha256": "376bf347ebdb9c85aaa033093d881c9392824a0bb553dfdd29e20a8d1b835b3b",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/f15assets/free_pack.py"
+    },
+    {
+      "file": "VN/VN.3DG.json",
+      "bytes": 12920,
+      "sha256": "17c71c3f7850617e0910f5ab722ee7abda1cb44b97f309c4033ddb1eaacfbef0",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/f15assets/free_pack.py"
+    },
+    {
+      "file": "VN/VN.3DT.json",
+      "bytes": 17504,
+      "sha256": "034983d9c829f92c67255604b12fd2d9f604c1d42be55dcc03368cd0c1e9c194",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/f15assets/free_pack.py"
+    },
+    {
+      "file": "WALL.png",
+      "bytes": 7116,
+      "sha256": "29103d389f6a7eb53fb991e91b4e04211b65c2c5d363a5a7c26608157ef0b318",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/f15assets/free_pack.py"
+    },
+    {
+      "file": "assets/flight/radar/boat.png",
+      "bytes": 335,
+      "sha256": "90fbb8ddba4f818d3f48566a9e5be3d40cf9cd608016b9c2784838752f513781",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/f15assets/free_pack.py"
+    },
+    {
+      "file": "assets/flight/radar/bullseye.png",
+      "bytes": 919,
+      "sha256": "d146c2f2234d398a004699482ad8ac9a0718223b27ebcc42cd9bb4c3140758c5",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/f15assets/free_pack.py"
+    },
+    {
+      "file": "assets/flight/radar/plane-high.png",
+      "bytes": 469,
+      "sha256": "2aa8128a029ab3a086e595496e914eb9c9e9229da0814901d7eda87fa58e087a",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/f15assets/free_pack.py"
+    },
+    {
+      "file": "assets/flight/radar/plane-low.png",
+      "bytes": 476,
+      "sha256": "8495235b09ee29e12b0c06a5d3cb918c3cf7134d8ad434e90a6cee1442a113a6",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/f15assets/free_pack.py"
+    },
+    {
+      "file": "assets/flight/radar/sam.png",
+      "bytes": 346,
+      "sha256": "356829888c026181ec537668b51c0a86c8db333371e7e35fbe953666f85e59f4",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/f15assets/free_pack.py"
+    },
+    {
+      "file": "fonts/font_0.ttf",
+      "bytes": 91956,
+      "sha256": "2cb4774f9bc38967abee16560fa03360d99223f2058245e2657779841e941f81",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/f15assets/free_pack.py"
+    },
+    {
+      "file": "VN/shape_080_SVN_Terrain_0.glb",
+      "bytes": 47516,
+      "sha256": "2ee75b18ba1bf8754a120eb0268ebc69ffb66fbdd5fb8eddb3f8ef636e17fed7",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/generate_svn_terrain.py"
+    },
+    {
+      "file": "VN/shape_081_SVN_Terrain_1.glb",
+      "bytes": 47584,
+      "sha256": "9e8f25cbebf16ada0ccfb09b75212aa96c2a7d6c1a74052e60fc1f3907ee35a8",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/generate_svn_terrain.py"
+    },
+    {
+      "file": "VN/shape_082_SVN_Terrain_2.glb",
+      "bytes": 47484,
+      "sha256": "c445810f8dd697de24cb188e821f82e0916d0397234038cff9b0d54c8c96c6ee",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/generate_svn_terrain.py"
+    },
+    {
+      "file": "VN/shape_083_SVN_Terrain_3.glb",
+      "bytes": 47556,
+      "sha256": "7ec2cdf4bce5b681b81b5957ae494c76000b107f43e2c8e6ab6ac9c0915a5df9",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/generate_svn_terrain.py"
+    },
+    {
+      "file": "geography/osm-bases.json",
+      "bytes": 2048,
+      "sha256": "ec0b098994b1822588ffa2ceb3678f0b9b485d226760c108bb8c95d0530c60b8",
+      "license": "ODbL-1.0",
+      "generator": "tools/f15assets/place_svn_bases.py"
+    },
+    {
+      "file": "VN/shape_021_SVN_Airbase.glb",
+      "bytes": 29388,
+      "sha256": "ae5997a893108888a8c5436cbf8ff3fd23e8b86c70bbe4b9a877742700c09a2e",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/generate_svn_ground.py"
+    },
+    {
+      "file": "VN/shape_038_SVN_SAM_Radar.glb",
+      "bytes": 13500,
+      "sha256": "1d4f60475161c84044d3c0f30d9f45289df05a5869e6d80b7a866b9b328e78ae",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/generate_svn_ground.py"
+    },
+    {
+      "file": "VN/shape_090_SVN_Carrier.glb",
+      "bytes": 37308,
+      "sha256": "5b8ba11838fa1f3bf85392b0c5578d2be349c4dbd2a837d9ff139df858f0f300",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/generate_svn_ground.py"
+    },
+    {
+      "file": "VN/shape_093_SVN_Supply_Dump.glb",
+      "bytes": 16536,
+      "sha256": "e02b2a3e18a851cd070da9d3cf1c4b0fb7b54646ae264c298a2adab4820bee13",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/generate_svn_ground.py"
+    },
+    {
+      "file": "VN/shape_100_Coast_00.glb",
+      "bytes": 44888,
+      "sha256": "a43f7aaddfeeec5ae9850531ee6052368726d601710f6443732f086b1be83cfe",
+      "license": "public-domain",
+      "source": "https://www.naturalearthdata.com/downloads/10m-physical-vectors/10m-land/",
+      "generator": "tools/f15assets/build_coast_tiles.py"
+    },
+    {
+      "file": "VN/cache/shape_100_Coast_00.glmesh",
+      "bytes": 43972,
+      "sha256": "3c41e681d5e276a6b26194f45239bece0b57cd11416f1ac4508d4fca13fbbf64",
+      "license": "public-domain",
+      "source": "https://www.naturalearthdata.com/downloads/10m-physical-vectors/10m-land/",
+      "generator": "tools/f15assets/f15assets/validation_model3d.py"
+    },
+    {
+      "file": "VN/shape_101_Coast_01.glb",
+      "bytes": 29204,
+      "sha256": "df68be0e1c59c42ce45ff4687fbedc005e96f456b307da844107d3e8a00d42d9",
+      "license": "public-domain",
+      "source": "https://www.naturalearthdata.com/downloads/10m-physical-vectors/10m-land/",
+      "generator": "tools/f15assets/build_coast_tiles.py"
+    },
+    {
+      "file": "VN/cache/shape_101_Coast_01.glmesh",
+      "bytes": 28276,
+      "sha256": "9b4f0664f1a4db0b650c15e97154008c4c1fe0c8a84795c3e21edbfe1ab85f24",
+      "license": "public-domain",
+      "source": "https://www.naturalearthdata.com/downloads/10m-physical-vectors/10m-land/",
+      "generator": "tools/f15assets/f15assets/validation_model3d.py"
+    },
+    {
+      "file": "VN/shape_102_Coast_02.glb",
+      "bytes": 24376,
+      "sha256": "b5936d8b3e64b1ccc41b2b27327c5a79bca0ade3f436a65b592d211853d516e4",
+      "license": "public-domain",
+      "source": "https://www.naturalearthdata.com/downloads/10m-physical-vectors/10m-land/",
+      "generator": "tools/f15assets/build_coast_tiles.py"
+    },
+    {
+      "file": "VN/cache/shape_102_Coast_02.glmesh",
+      "bytes": 23452,
+      "sha256": "cadea781be8a81ae2483a902d1b5b67475b4026859df98bc8cefaaf53982ad4a",
+      "license": "public-domain",
+      "source": "https://www.naturalearthdata.com/downloads/10m-physical-vectors/10m-land/",
+      "generator": "tools/f15assets/f15assets/validation_model3d.py"
+    },
+    {
+      "file": "VN/shape_103_Coast_03.glb",
+      "bytes": 7044,
+      "sha256": "e4f6b410befda93f438c50fdf5e9a195859a9c7a9de573ddf60ac69f4906aa46",
+      "license": "public-domain",
+      "source": "https://www.naturalearthdata.com/downloads/10m-physical-vectors/10m-land/",
+      "generator": "tools/f15assets/build_coast_tiles.py"
+    },
+    {
+      "file": "VN/cache/shape_103_Coast_03.glmesh",
+      "bytes": 6100,
+      "sha256": "808399a0f1ecefeae0c6b83d6fed178cf8ecdbc114e5cc25ca0b7756eab97804",
+      "license": "public-domain",
+      "source": "https://www.naturalearthdata.com/downloads/10m-physical-vectors/10m-land/",
+      "generator": "tools/f15assets/f15assets/validation_model3d.py"
+    },
+    {
+      "file": "VN/shape_104_Coast_04.glb",
+      "bytes": 43820,
+      "sha256": "b24b5e49c5b001cd812448550c2a8a1fe223c74d2f6444f6c4be02b34da43764",
+      "license": "public-domain",
+      "source": "https://www.naturalearthdata.com/downloads/10m-physical-vectors/10m-land/",
+      "generator": "tools/f15assets/build_coast_tiles.py"
+    },
+    {
+      "file": "VN/cache/shape_104_Coast_04.glmesh",
+      "bytes": 42892,
+      "sha256": "3f73460a206e6b4383678538c117f581c86352e7b95ea00a65c031e02b78b9df",
+      "license": "public-domain",
+      "source": "https://www.naturalearthdata.com/downloads/10m-physical-vectors/10m-land/",
+      "generator": "tools/f15assets/f15assets/validation_model3d.py"
+    },
+    {
+      "file": "VN/shape_105_Coast_05.glb",
+      "bytes": 680,
+      "sha256": "5fb6fadc7b625b15d439ceb4f06ae1f68e4e3727d262ab9d53e6d3df8c3cef4e",
+      "license": "public-domain",
+      "source": "https://www.naturalearthdata.com/downloads/10m-physical-vectors/10m-land/",
+      "generator": "tools/f15assets/build_coast_tiles.py"
+    },
+    {
+      "file": "VN/cache/shape_105_Coast_05.glmesh",
+      "bytes": 156,
+      "sha256": "3e751147918bddfa47e28cdc1aa92c797e203a8ddb72f0ce003e904b839cf0a2",
+      "license": "public-domain",
+      "source": "https://www.naturalearthdata.com/downloads/10m-physical-vectors/10m-land/",
+      "generator": "tools/f15assets/f15assets/validation_model3d.py"
+    },
+    {
+      "file": "VN/shape_106_Coast_06.glb",
+      "bytes": 22504,
+      "sha256": "6e4fbd6bd20580ea484f810837f08630661f0d6f5be78d38b62ec59fa2a39db0",
+      "license": "public-domain",
+      "source": "https://www.naturalearthdata.com/downloads/10m-physical-vectors/10m-land/",
+      "generator": "tools/f15assets/build_coast_tiles.py"
+    },
+    {
+      "file": "VN/cache/shape_106_Coast_06.glmesh",
+      "bytes": 21580,
+      "sha256": "ca68577a55b91c323a5d79ba0cd3ce787092f6ff8e85cc714a07a52397473501",
+      "license": "public-domain",
+      "source": "https://www.naturalearthdata.com/downloads/10m-physical-vectors/10m-land/",
+      "generator": "tools/f15assets/f15assets/validation_model3d.py"
+    },
+    {
+      "file": "VN/shape_107_Coast_07.glb",
+      "bytes": 19980,
+      "sha256": "f47915e0f455320d50ba3f8fe8f68a8f4f0a8289488bad589c326eeaca219313",
+      "license": "public-domain",
+      "source": "https://www.naturalearthdata.com/downloads/10m-physical-vectors/10m-land/",
+      "generator": "tools/f15assets/build_coast_tiles.py"
+    },
+    {
+      "file": "VN/cache/shape_107_Coast_07.glmesh",
+      "bytes": 19060,
+      "sha256": "6c183f0deb1053f3c7b894703115d91c3c821cb01c6ad8d6b637b6b74aaddf91",
+      "license": "public-domain",
+      "source": "https://www.naturalearthdata.com/downloads/10m-physical-vectors/10m-land/",
+      "generator": "tools/f15assets/f15assets/validation_model3d.py"
+    },
+    {
+      "file": "VN/shape_108_Coast_08.glb",
+      "bytes": 27176,
+      "sha256": "dfa39fcf5ba9fe187b1d1695228419b48a344c07b91999f04ae7e324e63f1440",
+      "license": "public-domain",
+      "source": "https://www.naturalearthdata.com/downloads/10m-physical-vectors/10m-land/",
+      "generator": "tools/f15assets/build_coast_tiles.py"
+    },
+    {
+      "file": "VN/cache/shape_108_Coast_08.glmesh",
+      "bytes": 26260,
+      "sha256": "a3eb0e84135b18a0635e12b8222991338b32ad36643c53e2027a1d0be20eb51c",
+      "license": "public-domain",
+      "source": "https://www.naturalearthdata.com/downloads/10m-physical-vectors/10m-land/",
+      "generator": "tools/f15assets/f15assets/validation_model3d.py"
+    },
+    {
+      "file": "VN/shape_109_Coast_09.glb",
+      "bytes": 680,
+      "sha256": "5fb6fadc7b625b15d439ceb4f06ae1f68e4e3727d262ab9d53e6d3df8c3cef4e",
+      "license": "public-domain",
+      "source": "https://www.naturalearthdata.com/downloads/10m-physical-vectors/10m-land/",
+      "generator": "tools/f15assets/build_coast_tiles.py"
+    },
+    {
+      "file": "VN/cache/shape_109_Coast_09.glmesh",
+      "bytes": 156,
+      "sha256": "3e751147918bddfa47e28cdc1aa92c797e203a8ddb72f0ce003e904b839cf0a2",
+      "license": "public-domain",
+      "source": "https://www.naturalearthdata.com/downloads/10m-physical-vectors/10m-land/",
+      "generator": "tools/f15assets/f15assets/validation_model3d.py"
+    },
+    {
+      "file": "VN/shape_110_Coast_10.glb",
+      "bytes": 16956,
+      "sha256": "55e5fed16c5ba709a2a39da7b68d217ec9e1dc1575a1004518cf4ae5e919b033",
+      "license": "public-domain",
+      "source": "https://www.naturalearthdata.com/downloads/10m-physical-vectors/10m-land/",
+      "generator": "tools/f15assets/build_coast_tiles.py"
+    },
+    {
+      "file": "VN/cache/shape_110_Coast_10.glmesh",
+      "bytes": 16036,
+      "sha256": "90694faf8ccb4583a2fc6f7aaddaa971f82252204bb04730a566373739e19461",
+      "license": "public-domain",
+      "source": "https://www.naturalearthdata.com/downloads/10m-physical-vectors/10m-land/",
+      "generator": "tools/f15assets/f15assets/validation_model3d.py"
+    },
+    {
+      "file": "VN/shape_111_Coast_11.glb",
+      "bytes": 46040,
+      "sha256": "52e99f372ac176df0f466749c29f48468c27ee4bd4f2cf8e8f4cf4606ef8c21e",
+      "license": "public-domain",
+      "source": "https://www.naturalearthdata.com/downloads/10m-physical-vectors/10m-land/",
+      "generator": "tools/f15assets/build_coast_tiles.py"
+    },
+    {
+      "file": "VN/cache/shape_111_Coast_11.glmesh",
+      "bytes": 45124,
+      "sha256": "8997e1a4ec081a6a5c16921c1366d71667b311821f8ca9cfeaece71cc0e80a30",
+      "license": "public-domain",
+      "source": "https://www.naturalearthdata.com/downloads/10m-physical-vectors/10m-land/",
+      "generator": "tools/f15assets/f15assets/validation_model3d.py"
+    },
+    {
+      "file": "VN/shape_112_Coast_12.glb",
+      "bytes": 2540,
+      "sha256": "423ee8caa9f769649c70a8a7830df9c2b113ff72639bc050a212da0d43dd9fce",
+      "license": "public-domain",
+      "source": "https://www.naturalearthdata.com/downloads/10m-physical-vectors/10m-land/",
+      "generator": "tools/f15assets/build_coast_tiles.py"
+    },
+    {
+      "file": "VN/cache/shape_112_Coast_12.glmesh",
+      "bytes": 1636,
+      "sha256": "3eb5fb6701d88988bafb5a52f05e902383526b544a3c55d798ffd64dc17a49b6",
+      "license": "public-domain",
+      "source": "https://www.naturalearthdata.com/downloads/10m-physical-vectors/10m-land/",
+      "generator": "tools/f15assets/f15assets/validation_model3d.py"
+    },
+    {
+      "file": "VN/shape_113_Coast_13.glb",
+      "bytes": 680,
+      "sha256": "2e88c469d77b9c9d45f332e38d50a836a051ddb5a1d2a44126ee5e67186f9d0f",
+      "license": "public-domain",
+      "source": "https://www.naturalearthdata.com/downloads/10m-physical-vectors/10m-land/",
+      "generator": "tools/f15assets/build_coast_tiles.py"
+    },
+    {
+      "file": "VN/cache/shape_113_Coast_13.glmesh",
+      "bytes": 156,
+      "sha256": "10979cc1ebb660419b852941e9a2ee8aaad4e6f4fa9615fc390ad3c8906fb576",
+      "license": "public-domain",
+      "source": "https://www.naturalearthdata.com/downloads/10m-physical-vectors/10m-land/",
+      "generator": "tools/f15assets/f15assets/validation_model3d.py"
+    },
+    {
+      "file": "VN/shape_114_Coast_14.glb",
+      "bytes": 3492,
+      "sha256": "eb86809a7f7c9504ae32fdc1e28733696ef4789c213480bae2057523ef532875",
+      "license": "public-domain",
+      "source": "https://www.naturalearthdata.com/downloads/10m-physical-vectors/10m-land/",
+      "generator": "tools/f15assets/build_coast_tiles.py"
+    },
+    {
+      "file": "VN/cache/shape_114_Coast_14.glmesh",
+      "bytes": 2572,
+      "sha256": "e2640cb5a2c5d04424ff5ea548366d055a73601e302c0e52b08b4318fd8682e5",
+      "license": "public-domain",
+      "source": "https://www.naturalearthdata.com/downloads/10m-physical-vectors/10m-land/",
+      "generator": "tools/f15assets/f15assets/validation_model3d.py"
+    },
+    {
+      "file": "VN/shape_115_Coast_15.glb",
+      "bytes": 64964,
+      "sha256": "f485abdffc789777b149b19e67ffd521b739dd42c00d105d5318e5dd67fa2958",
+      "license": "public-domain",
+      "source": "https://www.naturalearthdata.com/downloads/10m-physical-vectors/10m-land/",
+      "generator": "tools/f15assets/build_coast_tiles.py"
+    },
+    {
+      "file": "VN/cache/shape_115_Coast_15.glmesh",
+      "bytes": 64060,
+      "sha256": "2e565d095cb63b192ba168e42bea8b4855c96b3aa058bdf75c0a1c665bd235f9",
+      "license": "public-domain",
+      "source": "https://www.naturalearthdata.com/downloads/10m-physical-vectors/10m-land/",
+      "generator": "tools/f15assets/f15assets/validation_model3d.py"
+    },
+    {
+      "file": "geography/land.geojson",
+      "bytes": 386787,
+      "sha256": "17fa9a0b04ea6b95dc5ee5abf31c71948283444267011e16de2b6bf42b9ca762",
+      "license": "public-domain",
+      "source": "https://www.naturalearthdata.com/downloads/10m-physical-vectors/10m-land/",
+      "generator": "tools/f15assets/clip_land_polygons.py"
+    }
+  ]
+}

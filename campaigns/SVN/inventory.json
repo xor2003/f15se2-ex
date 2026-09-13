@@ -1,0 +1,1529 @@
+{
+  "format": "F15SE2_CAMPAIGN_INVENTORY",
+  "format_version": 1,
+  "campaign_id": "SVN",
+  "display_name": "Li Si Cin: Soviet Vietnam Campaign",
+  "files": [
+    {
+      "file": "SVN.WLD.json",
+      "role": "world_scenario",
+      "source_of_truth": true,
+      "sha256": "341ca22399d0aaaa12bafa6c9ffab75011176d37371a98acfb0c07082c0a2925",
+      "bytes": 79476
+    },
+    {
+      "file": "campaign.json",
+      "role": "campaign_manifest",
+      "source_of_truth": true,
+      "sha256": "a1615ef50176d63e3cc9fddbfa814ebbf2bba398ee9cc26111db3849228fdc9c",
+      "bytes": 67078
+    },
+    {
+      "file": "SUMMARY.md",
+      "role": "human_summary",
+      "source_of_truth": false,
+      "sha256": "972e8dc28a581d1512d8fb44dda705b3f04713fea0f94c369eb6b90c53c5cd82",
+      "bytes": 4801
+    },
+    {
+      "file": "MISSION_TARGETS.md",
+      "role": "mission_target_plan",
+      "source_of_truth": false,
+      "sha256": "908348d24c6dc546fef9a624f22e2e2a9a889dc3461f664f761186fc970c1472",
+      "bytes": 9037
+    },
+    {
+      "file": "CUSTOM_ASSETS_README.md",
+      "role": "custom_asset_guide",
+      "source_of_truth": false,
+      "sha256": "aae60f266f6118b8bfde492e1faba02e29d875b8bf2a383c86cd44ac1f8cab7d",
+      "bytes": 5926
+    },
+    {
+      "file": "README.md",
+      "role": "human_readme",
+      "source_of_truth": false,
+      "sha256": "bbe38cbff6f73a18298bacf6c6b4ebc8a5385752d7bcb281d53ee4a67423b9db",
+      "bytes": 18019
+    },
+    {
+      "file": "run_campaign.sh",
+      "role": "campaign_launcher",
+      "source_of_truth": false,
+      "sha256": "9503111b1fa3915514b0100a6379e696fa5d04b98148e8d0a6a90b0c4010bac8",
+      "bytes": 1117
+    },
+    {
+      "file": "TITLE640.png",
+      "role": "campaign_art",
+      "source_of_truth": true,
+      "license_status": "generated_placeholder_needs_replacement_or_review",
+      "sha256": "c9e4d2dde40b3b1c12ea6305f65e10c48bd766dc66a279bd12f83d59823f4b58",
+      "bytes": 1912110
+    },
+    {
+      "file": "DESK.png",
+      "role": "campaign_art",
+      "source_of_truth": true,
+      "license_status": "generated_placeholder_needs_replacement_or_review",
+      "sha256": "570bbf7ca6b6c0ea33f1462c86256e52ba7843178c498c0ee5d42662bc5b8b6d",
+      "bytes": 2408374
+    },
+    {
+      "file": "HISCORE.png",
+      "role": "campaign_art",
+      "source_of_truth": true,
+      "license_status": "generated_placeholder_needs_replacement_or_review",
+      "sha256": "f087dc2f87ae29825acb0c5b6922aac1ce48f0efd39a0256602003df30f3d57f",
+      "bytes": 356582
+    },
+    {
+      "file": "ARMPIECE.png",
+      "role": "campaign_art",
+      "source_of_truth": true,
+      "license_status": "generated_placeholder_needs_replacement_or_review",
+      "sha256": "203d7d5d7dda5f1ac01c177d0419cf953b5eca5b0b3d017d2716cf9a2f176c22",
+      "bytes": 824576
+    },
+    {
+      "file": "VN.png",
+      "role": "campaign_art",
+      "source_of_truth": true,
+      "license_status": "generated_placeholder_needs_replacement_or_review",
+      "sha256": "5a1581d5814f370b111e67f8d0dfea4f492f2edeafd4a185e04fed04170b8b59",
+      "bytes": 2621403
+    },
+    {
+      "file": "start/menu/person/room.png",
+      "role": "campaign_art",
+      "source_of_truth": true,
+      "license_status": "custom_campaign_art_review_required",
+      "sha256": "533d3b4385c070e442a3599d1a7422e7ae9407d4671fb649bf3004dff9be0121",
+      "bytes": 1344762
+    },
+    {
+      "file": "start/menu/person/0.png",
+      "role": "campaign_art",
+      "source_of_truth": true,
+      "license_status": "custom_campaign_art_review_required",
+      "sha256": "f634545be306e6f4b1892ad1ea64781ce0bc0af8cb0c975e8327085a215a8085",
+      "bytes": 650531
+    },
+    {
+      "file": "start/menu/person/1.png",
+      "role": "campaign_art",
+      "source_of_truth": true,
+      "license_status": "custom_campaign_art_review_required",
+      "sha256": "d65725b85a870fdd05196e0fcbf5ae901fab5ea39216bd36d72b98bb7ea7c123",
+      "bytes": 665143
+    },
+    {
+      "file": "start/menu/person/2.png",
+      "role": "campaign_art",
+      "source_of_truth": true,
+      "license_status": "custom_campaign_art_review_required",
+      "sha256": "16516ed66db2cf33711ab3dc55f57f50de3d4d6a8cf3ae2b939d298996d8a232",
+      "bytes": 672633
+    },
+    {
+      "file": "start/menu/person/3.png",
+      "role": "campaign_art",
+      "source_of_truth": true,
+      "license_status": "custom_campaign_art_review_required",
+      "sha256": "aa9fca2a2414525b0aa33492ad70bd4e4952e0cb1a700fb18e278c785ceb470b",
+      "bytes": 639377
+    },
+    {
+      "file": "start/menu/person/4.png",
+      "role": "campaign_art",
+      "source_of_truth": true,
+      "license_status": "custom_campaign_art_review_required",
+      "sha256": "046325c04d56d74dcae8dc0014749a4a0bfff0a44a4df50aea89528fa5d15fe3",
+      "bytes": 677419
+    },
+    {
+      "file": "start/menu/person/5.png",
+      "role": "campaign_art",
+      "source_of_truth": true,
+      "license_status": "custom_campaign_art_review_required",
+      "sha256": "5d817483fb0472ce68790da229a4f2140b5d338204c8871d476ad88ea5e99c97",
+      "bytes": 675434
+    },
+    {
+      "file": "start/menu/person/6.png",
+      "role": "campaign_art",
+      "source_of_truth": true,
+      "license_status": "custom_campaign_art_review_required",
+      "sha256": "0be70cdca5ebf6339678aa49ca3c919c08ade7fcb16299f31ae4b3ba3720926f",
+      "bytes": 669800
+    },
+    {
+      "file": "sounds/voice_cue_000_sample0.wav",
+      "role": "campaign_sound",
+      "source_of_truth": true,
+      "license_status": "tts_output_review_required",
+      "sha256": "fae90b1c4ab515b958d145eda808681a74d43c1c11aca344c6f7107c6a9bcb07",
+      "bytes": 40182
+    },
+    {
+      "file": "sounds/voice_cue_000_sample0.txt",
+      "role": "campaign_sound_script",
+      "source_of_truth": true,
+      "sha256": "1e7be8158e8f2495dcb8cb98110a3f370a2d96571dddc4a9fd5f80ccd2b6ba7e",
+      "bytes": 161
+    },
+    {
+      "file": "sounds/voice_cue_001_sample4.wav",
+      "role": "campaign_sound",
+      "source_of_truth": true,
+      "license_status": "tts_output_review_required",
+      "sha256": "62827b98278aa21d51994640dc70e9b187620cea4400130eb346f57a8f2a86d1",
+      "bytes": 35221
+    },
+    {
+      "file": "sounds/voice_cue_001_sample4.txt",
+      "role": "campaign_sound_script",
+      "source_of_truth": true,
+      "sha256": "cef89ac9270e43a73286da1e7ef75e2d4af7491e76eabe375b91ae68eade6296",
+      "bytes": 155
+    },
+    {
+      "file": "sounds/voice_cue_002_sample2_variant0.wav",
+      "role": "campaign_sound",
+      "source_of_truth": true,
+      "license_status": "tts_output_review_required",
+      "sha256": "fd1d2e2a2d2a00bb4ea3dbdc52de847082cf040ac7ebdeab1e56ff14d0e4ca92",
+      "bytes": 39870
+    },
+    {
+      "file": "sounds/voice_cue_002_sample2_variant0.txt",
+      "role": "campaign_sound_script",
+      "source_of_truth": true,
+      "sha256": "c07280ba8b5b8856ee9c433484b1c797de7bd3ee820a9f103e49782d98510988",
+      "bytes": 178
+    },
+    {
+      "file": "sounds/voice_cue_003_sample2_variant1.wav",
+      "role": "campaign_sound",
+      "source_of_truth": true,
+      "license_status": "tts_output_review_required",
+      "sha256": "a151ca29b211a0320c0458442dd3bad1a502a1e5eae6b57faa2717d276581fe1",
+      "bytes": 35483
+    },
+    {
+      "file": "sounds/voice_cue_003_sample2_variant1.txt",
+      "role": "campaign_sound_script",
+      "source_of_truth": true,
+      "sha256": "77b7d8d0ba4a942bed2d63e67c62d7f75bca948922e991c8881b0e3fc86e8fb3",
+      "bytes": 162
+    },
+    {
+      "file": "sounds/voice_cue_004_sample2_variant2.wav",
+      "role": "campaign_sound",
+      "source_of_truth": true,
+      "license_status": "tts_output_review_required",
+      "sha256": "246b0130783eee3a3998acf449752e48e5a4161fd887449c2a0c25ec4504b953",
+      "bytes": 32081
+    },
+    {
+      "file": "sounds/voice_cue_004_sample2_variant2.txt",
+      "role": "campaign_sound_script",
+      "source_of_truth": true,
+      "sha256": "d0ca6408894aa65d78e7c19b6af375725279b02e6564b32826fe045b79124033",
+      "bytes": 151
+    },
+    {
+      "file": "sounds/intro_music.asound.json",
+      "role": "campaign_music",
+      "source_of_truth": true,
+      "license_status": "generated_placeholder_needs_replacement_or_review",
+      "sha256": "a8cfd167cd7ecb9bb60a349f40f231e402b718cd13cf8c6010b7db6d58c91e7a",
+      "bytes": 48683
+    },
+    {
+      "file": "briefings/01_opening_sead.md",
+      "role": "sortie_briefing",
+      "source_of_truth": true,
+      "sha256": "0e01178749da0ecf21b9556ee787a346ba382df0a32f5f731a042f1ff9f3070c",
+      "bytes": 788
+    },
+    {
+      "file": "briefings/02_carrier_strike.md",
+      "role": "sortie_briefing",
+      "source_of_truth": true,
+      "sha256": "ed150fae06cb6fede069b2af8af41994c11dc513e6645bffe97171bcb86b8328",
+      "bytes": 1171
+    },
+    {
+      "file": "briefings/03_airbase_and_logistics.md",
+      "role": "sortie_briefing",
+      "source_of_truth": true,
+      "sha256": "2492d361cf3a741cbddfe0c99838d6ab856c265173ff85c78357a161dcc3835c",
+      "bytes": 1198
+    },
+    {
+      "file": "fonts/font_1.ttf",
+      "role": "campaign_font",
+      "source_of_truth": true,
+      "license_status": "user_supplied_review_required",
+      "sha256": "2cb4774f9bc38967abee16560fa03360d99223f2058245e2657779841e941f81",
+      "bytes": 91956
+    },
+    {
+      "file": "fonts/font_3.ttf",
+      "role": "campaign_font",
+      "source_of_truth": true,
+      "license_status": "user_supplied_review_required",
+      "sha256": "2cb4774f9bc38967abee16560fa03360d99223f2058245e2657779841e941f81",
+      "bytes": 91956
+    },
+    {
+      "file": "fonts/font_4.ttf",
+      "role": "campaign_font",
+      "source_of_truth": true,
+      "license_status": "user_supplied_review_required",
+      "sha256": "2cb4774f9bc38967abee16560fa03360d99223f2058245e2657779841e941f81",
+      "bytes": 91956
+    },
+    {
+      "file": "15FLT/shape_000_LiSiCin_Stolen_F15.glb",
+      "role": "campaign_aircraft_model",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "0721c98680b561f17815a4a5ef9fcf8eba33ce62f449b3196a8c72fd4e6afef5",
+      "bytes": 59848
+    },
+    {
+      "file": "15FLT/shape_001_Tonkin_Carrier_Target.glb",
+      "role": "campaign_aircraft_model",
+      "source_of_truth": true,
+      "license_status": "generated_procedural_placeholder_review_required",
+      "sha256": "34d584b2611e49f1f011126c5c6724139a6c9801f2a0ae182de30582d7f24d0f",
+      "bytes": 2024
+    },
+    {
+      "file": "15FLT/shape_002_DaNang_Strike_Jet.glb",
+      "role": "campaign_aircraft_model",
+      "source_of_truth": true,
+      "license_status": "generated_procedural_placeholder_review_required",
+      "sha256": "7129fa9167800c4123dc91703751e301fc2c96c0c54ca2839edf64d01c44376c",
+      "bytes": 3620
+    },
+    {
+      "file": "15FLT/shape_003_Hanoi_Radar.glb",
+      "role": "campaign_aircraft_model",
+      "source_of_truth": true,
+      "license_status": "generated_procedural_placeholder_review_required",
+      "sha256": "2710853b091a7b5258dd6f77a285e2ba8bec256700372eea50e340fef8afd57f",
+      "bytes": 5628
+    },
+    {
+      "file": "15FLT/shape_004_MiG23_Far.glb",
+      "role": "campaign_aircraft_model",
+      "source_of_truth": true,
+      "license_status": "generated_procedural_placeholder_review_required",
+      "sha256": "94e7c23dec777f1fb12b6462c84dec18dceb7cac3a5a195c0db01fd1bb5d8666",
+      "bytes": 3628
+    },
+    {
+      "file": "15FLT/shape_005_Tonkin_CAP_Radar.glb",
+      "role": "campaign_aircraft_model",
+      "source_of_truth": true,
+      "license_status": "generated_procedural_placeholder_review_required",
+      "sha256": "1304c06ad69901adbd268053989633a2c98a0bfe8a48706b495a2bd5da00dcae",
+      "bytes": 1116
+    },
+    {
+      "file": "15FLT/shape_006_SVN_Custom_Aircraft_006.glb",
+      "role": "campaign_aircraft_model",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "9afa03f896b857e35d65183d7ef3ee312bd6f1f18a190df124e2b5cd93eb560c",
+      "bytes": 59736
+    },
+    {
+      "file": "15FLT/shape_007_SVN_Custom_Aircraft_007.glb",
+      "role": "campaign_aircraft_model",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "4487f575ad1f2e3d66d230b78684bd5fe0c0a4bf736399ff11dc2a29dbb3616c",
+      "bytes": 106908
+    },
+    {
+      "file": "15FLT/shape_008_SVN_Custom_Aircraft_008.glb",
+      "role": "campaign_aircraft_model",
+      "source_of_truth": true,
+      "license_status": "generated_procedural_placeholder_review_required",
+      "sha256": "691d7d6c6e8607d043a784789705c0a031d344f01b9ff1be89693738341f6116",
+      "bytes": 3524
+    },
+    {
+      "file": "15FLT/shape_009_SVN_Custom_Aircraft_009.glb",
+      "role": "campaign_aircraft_model",
+      "source_of_truth": true,
+      "license_status": "generated_procedural_placeholder_review_required",
+      "sha256": "e80bb1d4fc5fe850ea8ba9907176f797592b973924df4231af07e63d47f6b2d8",
+      "bytes": 3660
+    },
+    {
+      "file": "15FLT/shape_010_MiG21_Escort.glb",
+      "role": "campaign_aircraft_model",
+      "source_of_truth": true,
+      "license_status": "generated_procedural_placeholder_review_required",
+      "sha256": "183541ca44c8195a462299691d2b39a52b50c60837900d986f9e0033ddf0c6b9",
+      "bytes": 3628
+    },
+    {
+      "file": "15FLT/shape_011_SVN_Custom_Aircraft_011.glb",
+      "role": "campaign_aircraft_model",
+      "source_of_truth": true,
+      "license_status": "generated_procedural_placeholder_review_required",
+      "sha256": "5f08e5302aae241e92a67bd5774f55805d2a3b5c4775dbb0030e1c6a8964329b",
+      "bytes": 3792
+    },
+    {
+      "file": "15FLT/shape_012_SVN_Custom_Aircraft_012.glb",
+      "role": "campaign_aircraft_model",
+      "source_of_truth": true,
+      "license_status": "generated_procedural_placeholder_review_required",
+      "sha256": "cb248fe208d808673a30bc8c4cb0eaf96c2998c5ba87b02c37051cbaccff063b",
+      "bytes": 3640
+    },
+    {
+      "file": "15FLT/shape_013_SVN_Custom_Aircraft_013.glb",
+      "role": "campaign_aircraft_model",
+      "source_of_truth": true,
+      "license_status": "generated_procedural_placeholder_review_required",
+      "sha256": "99ef943b16207548068b8fa5cfa59164907419a2c5f8ef25acdfc20b72ee0664",
+      "bytes": 2024
+    },
+    {
+      "file": "15FLT/shape_014_SVN_Custom_Aircraft_014.glb",
+      "role": "campaign_aircraft_model",
+      "source_of_truth": true,
+      "license_status": "generated_procedural_placeholder_review_required",
+      "sha256": "c3a3e1b8b5723718b41f0b098ef07041b3f8e16f0cc2cf3acc47eba72d5e3897",
+      "bytes": 1612
+    },
+    {
+      "file": "15FLT/shape_015_MiG19_Patrol.glb",
+      "role": "campaign_aircraft_model",
+      "source_of_truth": true,
+      "license_status": "generated_procedural_placeholder_review_required",
+      "sha256": "71495778f4eb72e359511cd4cb85282bb4688c8722fc9f7ad746e836dbd33370",
+      "bytes": 2012
+    },
+    {
+      "file": "15FLT/shape_016_MiG17_Fresco.glb",
+      "role": "campaign_aircraft_model",
+      "source_of_truth": true,
+      "license_status": "generated_procedural_placeholder_review_required",
+      "sha256": "7297951e514de7077b8758824738697a9cc684433b4ef326ce99c4c811e11436",
+      "bytes": 3628
+    },
+    {
+      "file": "15FLT/shape_017_SVN_Custom_Aircraft_017.glb",
+      "role": "campaign_aircraft_model",
+      "source_of_truth": true,
+      "license_status": "generated_procedural_placeholder_review_required",
+      "sha256": "a66b423b42cf5a4237f3df5c619f29c05b6aa9d5720aa39e437ae686a7813c42",
+      "bytes": 5628
+    },
+    {
+      "file": "15FLT/shape_018_SVN_Custom_Aircraft_018.glb",
+      "role": "campaign_aircraft_model",
+      "source_of_truth": true,
+      "license_status": "generated_procedural_placeholder_review_required",
+      "sha256": "f1f4959d8cc27fa3d8deb06941f11b6906f070bedb16feb22224c5e6ab5c57e3",
+      "bytes": 3532
+    },
+    {
+      "file": "15FLT/shape_019_SVN_Custom_Aircraft_019.glb",
+      "role": "campaign_aircraft_model",
+      "source_of_truth": true,
+      "license_status": "generated_procedural_placeholder_review_required",
+      "sha256": "b27822143dbeae2e564bb4f3d52ceb0fb1f93e533b6945c2bdc88b2f0cc083d0",
+      "bytes": 2024
+    },
+    {
+      "file": "15FLT/shape_020_MiG29_Su27.glb",
+      "role": "campaign_aircraft_model",
+      "source_of_truth": true,
+      "license_status": "generated_procedural_placeholder_review_required",
+      "sha256": "0bef985d896af8885d2902874b25d62249266f6d56bfbe75b8291b1b1b02654c",
+      "bytes": 3688
+    },
+    {
+      "file": "15FLT/shape_021_SVN_Custom_Aircraft_021.glb",
+      "role": "campaign_aircraft_model",
+      "source_of_truth": true,
+      "license_status": "generated_procedural_placeholder_review_required",
+      "sha256": "1304c06ad69901adbd268053989633a2c98a0bfe8a48706b495a2bd5da00dcae",
+      "bytes": 1116
+    },
+    {
+      "file": "15FLT/shape_022_F4_Phantom_Opponent.glb",
+      "role": "campaign_aircraft_model",
+      "source_of_truth": true,
+      "license_status": "generated_procedural_placeholder_review_required",
+      "sha256": "c896fb8601d374a8f03db7fcfa622383cc5b1755afc8ecaf6940c5cc805c9ecf",
+      "bytes": 3628
+    },
+    {
+      "file": "free-assets.json",
+      "role": "generated_asset_manifest",
+      "source_of_truth": true,
+      "sha256": "462ad482aa6499382f5d59f7507cde6502602cad22b9d88b6a49c5afe66ace80",
+      "bytes": 26424
+    },
+    {
+      "file": "1.png",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "b5cae5f4c60911b534cebc7f54cf24f47235ccffb91d777cf663427d548e9cd3",
+      "bytes": 6478
+    },
+    {
+      "file": "15FLT/15FLT.3D3.json",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "c074e7498c74e95cc8050c2b9e9701d8ab6c477cfd9876aefd2357c985319ce3",
+      "bytes": 343
+    },
+    {
+      "file": "2.png",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "f43cf603b650852319da401e9d82bcfa81e38d71cd2463f233a0db243599df50",
+      "bytes": 6659
+    },
+    {
+      "file": "3.png",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "388cabdf73315591f78e44b7175602983ae397fe621d4c894de8168b1dd06679",
+      "bytes": 6679
+    },
+    {
+      "file": "4.png",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "c3f1eeba1acdb73038b2e5b16521034715333b737424a827d3ea75dfe50ce965",
+      "bytes": 6579
+    },
+    {
+      "file": "CE/CE.3D3.json",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "529a662b94780251ff70e5bb355045e097364a59761488fc9d2f72ff1bc743d5",
+      "bytes": 854
+    },
+    {
+      "file": "CE/CE.3DG.json",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "7c9438c9b678073f227c5a0b622d0daa03b271bcd5bd4cbca8d2183b9b8caf08",
+      "bytes": 12868
+    },
+    {
+      "file": "CE/CE.3DT.json",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "25c4e9054cd2dff51c1fbf6ee93e864b172255f0bef61e36668f1a4dec166fed",
+      "bytes": 12352
+    },
+    {
+      "file": "CE.WLD.json",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "0fa4da59d79b5af94b2d60a67f9629232095804d4056bb19569685f58d10599f",
+      "bytes": 76140
+    },
+    {
+      "file": "CEUROPE.png",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "319b1b44592bb9d6dcb236b3b821b29dcfbda002379c262660f46fd53d7caa37",
+      "bytes": 7403
+    },
+    {
+      "file": "GULF.WLD.json",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "0fa4da59d79b5af94b2d60a67f9629232095804d4056bb19569685f58d10599f",
+      "bytes": 76140
+    },
+    {
+      "file": "JP/JP.3D3.json",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "529a662b94780251ff70e5bb355045e097364a59761488fc9d2f72ff1bc743d5",
+      "bytes": 854
+    },
+    {
+      "file": "JP/JP.3DG.json",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "7c9438c9b678073f227c5a0b622d0daa03b271bcd5bd4cbca8d2183b9b8caf08",
+      "bytes": 12868
+    },
+    {
+      "file": "JP/JP.3DT.json",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "25c4e9054cd2dff51c1fbf6ee93e864b172255f0bef61e36668f1a4dec166fed",
+      "bytes": 12352
+    },
+    {
+      "file": "JP.WLD.json",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "0fa4da59d79b5af94b2d60a67f9629232095804d4056bb19569685f58d10599f",
+      "bytes": 76140
+    },
+    {
+      "file": "JP.png",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "5deb6c836224e393f8d76644b1789aef7eb75b3de89638749759d94b3552de09",
+      "bytes": 6663
+    },
+    {
+      "file": "LB/LB.3D3.json",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "529a662b94780251ff70e5bb355045e097364a59761488fc9d2f72ff1bc743d5",
+      "bytes": 854
+    },
+    {
+      "file": "LB/LB.3DG.json",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "7c9438c9b678073f227c5a0b622d0daa03b271bcd5bd4cbca8d2183b9b8caf08",
+      "bytes": 12868
+    },
+    {
+      "file": "LB/LB.3DT.json",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "25c4e9054cd2dff51c1fbf6ee93e864b172255f0bef61e36668f1a4dec166fed",
+      "bytes": 12352
+    },
+    {
+      "file": "LEFT.png",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "bc5c09edee4bfe09f1b3da1e0e46f9b37fdfa0ed0890638dd3bcf50e11cbad46",
+      "bytes": 598
+    },
+    {
+      "file": "LIBYA.WLD.json",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "0fa4da59d79b5af94b2d60a67f9629232095804d4056bb19569685f58d10599f",
+      "bytes": 76140
+    },
+    {
+      "file": "LIBYA.png",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "9343bc00bda71e0c3e60ad87188ba6be53ee9f8b9729362b299a372c3001d433",
+      "bytes": 7095
+    },
+    {
+      "file": "ME/ME.3D3.json",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "529a662b94780251ff70e5bb355045e097364a59761488fc9d2f72ff1bc743d5",
+      "bytes": 854
+    },
+    {
+      "file": "ME/ME.3DG.json",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "7c9438c9b678073f227c5a0b622d0daa03b271bcd5bd4cbca8d2183b9b8caf08",
+      "bytes": 12868
+    },
+    {
+      "file": "ME/ME.3DT.json",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "25c4e9054cd2dff51c1fbf6ee93e864b172255f0bef61e36668f1a4dec166fed",
+      "bytes": 12352
+    },
+    {
+      "file": "ME.WLD.json",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "0fa4da59d79b5af94b2d60a67f9629232095804d4056bb19569685f58d10599f",
+      "bytes": 76140
+    },
+    {
+      "file": "ME.png",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "6c948aaefd13a526174bcedabb53a27b7f3af29d0e440d6c1b5a35f279241317",
+      "bytes": 6801
+    },
+    {
+      "file": "NC/NC.3D3.json",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "529a662b94780251ff70e5bb355045e097364a59761488fc9d2f72ff1bc743d5",
+      "bytes": 854
+    },
+    {
+      "file": "NC/NC.3DG.json",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "7c9438c9b678073f227c5a0b622d0daa03b271bcd5bd4cbca8d2183b9b8caf08",
+      "bytes": 12868
+    },
+    {
+      "file": "NC/NC.3DT.json",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "25c4e9054cd2dff51c1fbf6ee93e864b172255f0bef61e36668f1a4dec166fed",
+      "bytes": 12352
+    },
+    {
+      "file": "NC.WLD.json",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "0fa4da59d79b5af94b2d60a67f9629232095804d4056bb19569685f58d10599f",
+      "bytes": 76140
+    },
+    {
+      "file": "NCAPE.png",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "278659b3f0a0b95dc590335eace7699cfdd1a8a1952801a5983ab34f1fa3aed1",
+      "bytes": 7307
+    },
+    {
+      "file": "PERSIAN.png",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "21118d29e48289cef367b2c805939b4090706c028b699c0cf7072b7c900ba483",
+      "bytes": 7437
+    },
+    {
+      "file": "PG/PG.3D3.json",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "529a662b94780251ff70e5bb355045e097364a59761488fc9d2f72ff1bc743d5",
+      "bytes": 854
+    },
+    {
+      "file": "PG/PG.3DG.json",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "7c9438c9b678073f227c5a0b622d0daa03b271bcd5bd4cbca8d2183b9b8caf08",
+      "bytes": 12868
+    },
+    {
+      "file": "PG/PG.3DT.json",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "25c4e9054cd2dff51c1fbf6ee93e864b172255f0bef61e36668f1a4dec166fed",
+      "bytes": 12352
+    },
+    {
+      "file": "PG.WLD.json",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "0fa4da59d79b5af94b2d60a67f9629232095804d4056bb19569685f58d10599f",
+      "bytes": 76140
+    },
+    {
+      "file": "PHOTO/PHOTO.3D3.json",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "cc9d9cc39893ae7147d192e761c031862e0232155c2d59c484ad06f81884f0da",
+      "bytes": 273
+    },
+    {
+      "file": "REAR.png",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "b52d8ffc771bd10c07fbac2ad54d4c51ce2d061001628ef13da474fa94136c42",
+      "bytes": 809
+    },
+    {
+      "file": "RIGHT.png",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "fef19d3d43415d0040ec1a8c3424bd4cf955f5581a274f1fe79186653bd814c9",
+      "bytes": 877
+    },
+    {
+      "file": "TITLE16.png",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "344be07e90e51b9e92eb3e65de6b9222abd4efb8241b758360eacd7dd7091355",
+      "bytes": 7120
+    },
+    {
+      "file": "VN/VN.3D3.json",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "376bf347ebdb9c85aaa033093d881c9392824a0bb553dfdd29e20a8d1b835b3b",
+      "bytes": 1670
+    },
+    {
+      "file": "VN/VN.3DG.json",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "17c71c3f7850617e0910f5ab722ee7abda1cb44b97f309c4033ddb1eaacfbef0",
+      "bytes": 12920
+    },
+    {
+      "file": "VN/VN.3DT.json",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "034983d9c829f92c67255604b12fd2d9f604c1d42be55dcc03368cd0c1e9c194",
+      "bytes": 17504
+    },
+    {
+      "file": "WALL.png",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "29103d389f6a7eb53fb991e91b4e04211b65c2c5d363a5a7c26608157ef0b318",
+      "bytes": 7116
+    },
+    {
+      "file": "assets/flight/radar/boat.png",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "90fbb8ddba4f818d3f48566a9e5be3d40cf9cd608016b9c2784838752f513781",
+      "bytes": 335
+    },
+    {
+      "file": "assets/flight/radar/bullseye.png",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "d146c2f2234d398a004699482ad8ac9a0718223b27ebcc42cd9bb4c3140758c5",
+      "bytes": 919
+    },
+    {
+      "file": "assets/flight/radar/plane-high.png",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "2aa8128a029ab3a086e595496e914eb9c9e9229da0814901d7eda87fa58e087a",
+      "bytes": 469
+    },
+    {
+      "file": "assets/flight/radar/plane-low.png",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "8495235b09ee29e12b0c06a5d3cb918c3cf7134d8ad434e90a6cee1442a113a6",
+      "bytes": 476
+    },
+    {
+      "file": "assets/flight/radar/sam.png",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "356829888c026181ec537668b51c0a86c8db333371e7e35fbe953666f85e59f4",
+      "bytes": 346
+    },
+    {
+      "file": "fonts/font_0.ttf",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "2cb4774f9bc38967abee16560fa03360d99223f2058245e2657779841e941f81",
+      "bytes": 91956
+    },
+    {
+      "file": "VN/shape_080_SVN_Terrain_0.glb",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "2ee75b18ba1bf8754a120eb0268ebc69ffb66fbdd5fb8eddb3f8ef636e17fed7",
+      "bytes": 47516
+    },
+    {
+      "file": "VN/shape_081_SVN_Terrain_1.glb",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "9e8f25cbebf16ada0ccfb09b75212aa96c2a7d6c1a74052e60fc1f3907ee35a8",
+      "bytes": 47584
+    },
+    {
+      "file": "VN/shape_082_SVN_Terrain_2.glb",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "c445810f8dd697de24cb188e821f82e0916d0397234038cff9b0d54c8c96c6ee",
+      "bytes": 47484
+    },
+    {
+      "file": "VN/shape_083_SVN_Terrain_3.glb",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "CC0-1.0",
+      "sha256": "7ec2cdf4bce5b681b81b5957ae494c76000b107f43e2c8e6ab6ac9c0915a5df9",
+      "bytes": 47556
+    },
+    {
+      "file": "geography/osm-bases.json",
+      "role": "generated_free_asset",
+      "source_of_truth": true,
+      "license_status": "ODbL-1.0",
+      "sha256": "ec0b098994b1822588ffa2ceb3678f0b9b485d226760c108bb8c95d0530c60b8",
+      "bytes": 2048
+    },
+    {
+      "file": "VN/placement.json",
+      "role": "model_placement",
+      "source_of_truth": true,
+      "bytes": 51,
+      "sha256": "300c7afb0d998971323ea60067dbcd238ae0f4e76beae1010ece3c494b253a09"
+    },
+    {
+      "file": "geography/land.geojson",
+      "role": "geography_source",
+      "source_of_truth": true,
+      "bytes": 386787,
+      "sha256": "17fa9a0b04ea6b95dc5ee5abf31c71948283444267011e16de2b6bf42b9ca762"
+    },
+    {
+      "file": "VN/shape_100_Coast_00.glb",
+      "role": "terrain_model",
+      "source_of_truth": false,
+      "bytes": 44888,
+      "sha256": "a43f7aaddfeeec5ae9850531ee6052368726d601710f6443732f086b1be83cfe"
+    },
+    {
+      "file": "VN/cache/shape_100_Coast_00.glmesh",
+      "role": "runtime_mesh_cache",
+      "source_of_truth": false,
+      "bytes": 43972,
+      "sha256": "3c41e681d5e276a6b26194f45239bece0b57cd11416f1ac4508d4fca13fbbf64"
+    },
+    {
+      "file": "VN/shape_101_Coast_01.glb",
+      "role": "terrain_model",
+      "source_of_truth": false,
+      "bytes": 29204,
+      "sha256": "df68be0e1c59c42ce45ff4687fbedc005e96f456b307da844107d3e8a00d42d9"
+    },
+    {
+      "file": "VN/cache/shape_101_Coast_01.glmesh",
+      "role": "runtime_mesh_cache",
+      "source_of_truth": false,
+      "bytes": 28276,
+      "sha256": "9b4f0664f1a4db0b650c15e97154008c4c1fe0c8a84795c3e21edbfe1ab85f24"
+    },
+    {
+      "file": "VN/shape_102_Coast_02.glb",
+      "role": "terrain_model",
+      "source_of_truth": false,
+      "bytes": 24376,
+      "sha256": "b5936d8b3e64b1ccc41b2b27327c5a79bca0ade3f436a65b592d211853d516e4"
+    },
+    {
+      "file": "VN/cache/shape_102_Coast_02.glmesh",
+      "role": "runtime_mesh_cache",
+      "source_of_truth": false,
+      "bytes": 23452,
+      "sha256": "cadea781be8a81ae2483a902d1b5b67475b4026859df98bc8cefaaf53982ad4a"
+    },
+    {
+      "file": "VN/shape_103_Coast_03.glb",
+      "role": "terrain_model",
+      "source_of_truth": false,
+      "bytes": 7044,
+      "sha256": "e4f6b410befda93f438c50fdf5e9a195859a9c7a9de573ddf60ac69f4906aa46"
+    },
+    {
+      "file": "VN/cache/shape_103_Coast_03.glmesh",
+      "role": "runtime_mesh_cache",
+      "source_of_truth": false,
+      "bytes": 6100,
+      "sha256": "808399a0f1ecefeae0c6b83d6fed178cf8ecdbc114e5cc25ca0b7756eab97804"
+    },
+    {
+      "file": "VN/shape_104_Coast_04.glb",
+      "role": "terrain_model",
+      "source_of_truth": false,
+      "bytes": 43820,
+      "sha256": "b24b5e49c5b001cd812448550c2a8a1fe223c74d2f6444f6c4be02b34da43764"
+    },
+    {
+      "file": "VN/cache/shape_104_Coast_04.glmesh",
+      "role": "runtime_mesh_cache",
+      "source_of_truth": false,
+      "bytes": 42892,
+      "sha256": "3f73460a206e6b4383678538c117f581c86352e7b95ea00a65c031e02b78b9df"
+    },
+    {
+      "file": "VN/shape_105_Coast_05.glb",
+      "role": "terrain_model",
+      "source_of_truth": false,
+      "bytes": 680,
+      "sha256": "5fb6fadc7b625b15d439ceb4f06ae1f68e4e3727d262ab9d53e6d3df8c3cef4e"
+    },
+    {
+      "file": "VN/cache/shape_105_Coast_05.glmesh",
+      "role": "runtime_mesh_cache",
+      "source_of_truth": false,
+      "bytes": 156,
+      "sha256": "3e751147918bddfa47e28cdc1aa92c797e203a8ddb72f0ce003e904b839cf0a2"
+    },
+    {
+      "file": "VN/shape_106_Coast_06.glb",
+      "role": "terrain_model",
+      "source_of_truth": false,
+      "bytes": 22504,
+      "sha256": "6e4fbd6bd20580ea484f810837f08630661f0d6f5be78d38b62ec59fa2a39db0"
+    },
+    {
+      "file": "VN/cache/shape_106_Coast_06.glmesh",
+      "role": "runtime_mesh_cache",
+      "source_of_truth": false,
+      "bytes": 21580,
+      "sha256": "ca68577a55b91c323a5d79ba0cd3ce787092f6ff8e85cc714a07a52397473501"
+    },
+    {
+      "file": "VN/shape_107_Coast_07.glb",
+      "role": "terrain_model",
+      "source_of_truth": false,
+      "bytes": 19980,
+      "sha256": "f47915e0f455320d50ba3f8fe8f68a8f4f0a8289488bad589c326eeaca219313"
+    },
+    {
+      "file": "VN/cache/shape_107_Coast_07.glmesh",
+      "role": "runtime_mesh_cache",
+      "source_of_truth": false,
+      "bytes": 19060,
+      "sha256": "6c183f0deb1053f3c7b894703115d91c3c821cb01c6ad8d6b637b6b74aaddf91"
+    },
+    {
+      "file": "VN/shape_108_Coast_08.glb",
+      "role": "terrain_model",
+      "source_of_truth": false,
+      "bytes": 27176,
+      "sha256": "dfa39fcf5ba9fe187b1d1695228419b48a344c07b91999f04ae7e324e63f1440"
+    },
+    {
+      "file": "VN/cache/shape_108_Coast_08.glmesh",
+      "role": "runtime_mesh_cache",
+      "source_of_truth": false,
+      "bytes": 26260,
+      "sha256": "a3eb0e84135b18a0635e12b8222991338b32ad36643c53e2027a1d0be20eb51c"
+    },
+    {
+      "file": "VN/shape_109_Coast_09.glb",
+      "role": "terrain_model",
+      "source_of_truth": false,
+      "bytes": 680,
+      "sha256": "5fb6fadc7b625b15d439ceb4f06ae1f68e4e3727d262ab9d53e6d3df8c3cef4e"
+    },
+    {
+      "file": "VN/cache/shape_109_Coast_09.glmesh",
+      "role": "runtime_mesh_cache",
+      "source_of_truth": false,
+      "bytes": 156,
+      "sha256": "3e751147918bddfa47e28cdc1aa92c797e203a8ddb72f0ce003e904b839cf0a2"
+    },
+    {
+      "file": "VN/shape_110_Coast_10.glb",
+      "role": "terrain_model",
+      "source_of_truth": false,
+      "bytes": 16956,
+      "sha256": "55e5fed16c5ba709a2a39da7b68d217ec9e1dc1575a1004518cf4ae5e919b033"
+    },
+    {
+      "file": "VN/cache/shape_110_Coast_10.glmesh",
+      "role": "runtime_mesh_cache",
+      "source_of_truth": false,
+      "bytes": 16036,
+      "sha256": "90694faf8ccb4583a2fc6f7aaddaa971f82252204bb04730a566373739e19461"
+    },
+    {
+      "file": "VN/shape_111_Coast_11.glb",
+      "role": "terrain_model",
+      "source_of_truth": false,
+      "bytes": 46040,
+      "sha256": "52e99f372ac176df0f466749c29f48468c27ee4bd4f2cf8e8f4cf4606ef8c21e"
+    },
+    {
+      "file": "VN/cache/shape_111_Coast_11.glmesh",
+      "role": "runtime_mesh_cache",
+      "source_of_truth": false,
+      "bytes": 45124,
+      "sha256": "8997e1a4ec081a6a5c16921c1366d71667b311821f8ca9cfeaece71cc0e80a30"
+    },
+    {
+      "file": "VN/shape_112_Coast_12.glb",
+      "role": "terrain_model",
+      "source_of_truth": false,
+      "bytes": 2540,
+      "sha256": "423ee8caa9f769649c70a8a7830df9c2b113ff72639bc050a212da0d43dd9fce"
+    },
+    {
+      "file": "VN/cache/shape_112_Coast_12.glmesh",
+      "role": "runtime_mesh_cache",
+      "source_of_truth": false,
+      "bytes": 1636,
+      "sha256": "3eb5fb6701d88988bafb5a52f05e902383526b544a3c55d798ffd64dc17a49b6"
+    },
+    {
+      "file": "VN/shape_113_Coast_13.glb",
+      "role": "terrain_model",
+      "source_of_truth": false,
+      "bytes": 680,
+      "sha256": "2e88c469d77b9c9d45f332e38d50a836a051ddb5a1d2a44126ee5e67186f9d0f"
+    },
+    {
+      "file": "VN/cache/shape_113_Coast_13.glmesh",
+      "role": "runtime_mesh_cache",
+      "source_of_truth": false,
+      "bytes": 156,
+      "sha256": "10979cc1ebb660419b852941e9a2ee8aaad4e6f4fa9615fc390ad3c8906fb576"
+    },
+    {
+      "file": "VN/shape_114_Coast_14.glb",
+      "role": "terrain_model",
+      "source_of_truth": false,
+      "bytes": 3492,
+      "sha256": "eb86809a7f7c9504ae32fdc1e28733696ef4789c213480bae2057523ef532875"
+    },
+    {
+      "file": "VN/cache/shape_114_Coast_14.glmesh",
+      "role": "runtime_mesh_cache",
+      "source_of_truth": false,
+      "bytes": 2572,
+      "sha256": "e2640cb5a2c5d04424ff5ea548366d055a73601e302c0e52b08b4318fd8682e5"
+    },
+    {
+      "file": "VN/shape_115_Coast_15.glb",
+      "role": "terrain_model",
+      "source_of_truth": false,
+      "bytes": 64964,
+      "sha256": "f485abdffc789777b149b19e67ffd521b739dd42c00d105d5318e5dd67fa2958"
+    },
+    {
+      "file": "VN/cache/shape_115_Coast_15.glmesh",
+      "role": "runtime_mesh_cache",
+      "source_of_truth": false,
+      "bytes": 64060,
+      "sha256": "2e565d095cb63b192ba168e42bea8b4855c96b3aa058bdf75c0a1c665bd235f9"
+    },
+    {
+      "file": "VN/cache/shape_080_SVN_Terrain_0.glmesh",
+      "role": "runtime_mesh_cache",
+      "source_of_truth": false,
+      "bytes": 18876,
+      "sha256": "a7b2f633f58ab0e6b29d45e71f4f5331e4c98a77d5d97a04294751ce168d3848"
+    },
+    {
+      "file": "VN/cache/shape_081_SVN_Terrain_1.glmesh",
+      "role": "runtime_mesh_cache",
+      "source_of_truth": false,
+      "bytes": 18876,
+      "sha256": "e07b8dc0d24ee9f01f3bde7a61b77df58e479e0a807a4e5ee36861da46bb781e"
+    },
+    {
+      "file": "VN/cache/shape_082_SVN_Terrain_2.glmesh",
+      "role": "runtime_mesh_cache",
+      "source_of_truth": false,
+      "bytes": 18876,
+      "sha256": "3b1bf28d513bfeb492a633f0123d61ae9e659f1d259b5351b6c710647951d2d3"
+    },
+    {
+      "file": "VN/cache/shape_083_SVN_Terrain_3.glmesh",
+      "role": "runtime_mesh_cache",
+      "source_of_truth": false,
+      "bytes": 18876,
+      "sha256": "d866cfb600273024fa5492ea0761b3cec4970460885f2352e955c2518233b15c"
+    },
+    {
+      "file": "VN/shape_021_SVN_Airbase.glb",
+      "role": "terrain_model",
+      "source_of_truth": false,
+      "bytes": 29388,
+      "sha256": "ae5997a893108888a8c5436cbf8ff3fd23e8b86c70bbe4b9a877742700c09a2e"
+    },
+    {
+      "file": "VN/cache/shape_021_SVN_Airbase.glmesh",
+      "role": "runtime_mesh_cache",
+      "source_of_truth": false,
+      "bytes": 6444,
+      "sha256": "2e5ed8b36aa2b69d18e05b03d3747b163d0da271a2fddbf966530a3f6a47dee4"
+    },
+    {
+      "file": "VN/shape_038_SVN_SAM_Radar.glb",
+      "role": "terrain_model",
+      "source_of_truth": false,
+      "bytes": 13500,
+      "sha256": "1d4f60475161c84044d3c0f30d9f45289df05a5869e6d80b7a866b9b328e78ae"
+    },
+    {
+      "file": "VN/cache/shape_038_SVN_SAM_Radar.glmesh",
+      "role": "runtime_mesh_cache",
+      "source_of_truth": false,
+      "bytes": 3820,
+      "sha256": "ebdd8323bd5589f6844bb15b9837be26d4bb013d6ee2559bce21209c1767c2b0"
+    },
+    {
+      "file": "VN/shape_090_SVN_Carrier.glb",
+      "role": "terrain_model",
+      "source_of_truth": false,
+      "bytes": 37308,
+      "sha256": "5b8ba11838fa1f3bf85392b0c5578d2be349c4dbd2a837d9ff139df858f0f300"
+    },
+    {
+      "file": "VN/cache/shape_090_SVN_Carrier.glmesh",
+      "role": "runtime_mesh_cache",
+      "source_of_truth": false,
+      "bytes": 10900,
+      "sha256": "6131f2e7edead70081e7b366e7494ea833001fcafefe200af619229c4f4262b4"
+    },
+    {
+      "file": "VN/shape_093_SVN_Supply_Dump.glb",
+      "role": "terrain_model",
+      "source_of_truth": false,
+      "bytes": 16536,
+      "sha256": "e02b2a3e18a851cd070da9d3cf1c4b0fb7b54646ae264c298a2adab4820bee13"
+    },
+    {
+      "file": "VN/cache/shape_093_SVN_Supply_Dump.glmesh",
+      "role": "runtime_mesh_cache",
+      "source_of_truth": false,
+      "bytes": 4764,
+      "sha256": "79558ba33f694c590bd8a32e596ae2eaf9b8b3f1243bd380d38c1a82d41f82c6"
+    },
+    {
+      "file": "15FLT/15FLT.3D3.json.runtime",
+      "role": "structured_runtime_cache",
+      "source_of_truth": false,
+      "source": "15FLT/15FLT.3D3.json",
+      "generator": "tools/f15assets/compile_runtime_assets.py",
+      "bytes": 416,
+      "sha256": "f9ea385a4773d64078dd0ece44592d28a0b25be937fdcd2a96e20ebf92ad9f1d"
+    },
+    {
+      "file": "CE/CE.3D3.json.runtime",
+      "role": "structured_runtime_cache",
+      "source_of_truth": false,
+      "source": "CE/CE.3D3.json",
+      "generator": "tools/f15assets/compile_runtime_assets.py",
+      "bytes": 1073,
+      "sha256": "badca8d8da4a1a6b0c9b995ee8322dac389bb3f0c85a8960d6b936de508b7ead"
+    },
+    {
+      "file": "CE/CE.3DG.json.runtime",
+      "role": "structured_runtime_cache",
+      "source_of_truth": false,
+      "source": "CE/CE.3DG.json",
+      "generator": "tools/f15assets/compile_runtime_assets.py",
+      "bytes": 14694,
+      "sha256": "28067f3710572ee15c103c0ec772f32022ce63f98f0db17b02a19d840ff6301f"
+    },
+    {
+      "file": "CE/CE.3DT.json.runtime",
+      "role": "structured_runtime_cache",
+      "source_of_truth": false,
+      "source": "CE/CE.3DT.json",
+      "generator": "tools/f15assets/compile_runtime_assets.py",
+      "bytes": 12716,
+      "sha256": "d53d06b16f7b054966df98f0293b16a1b4e724ec5d2671ce1b410bc0f4e84191"
+    },
+    {
+      "file": "CE.WLD.json.runtime",
+      "role": "structured_runtime_cache",
+      "source_of_truth": false,
+      "source": "CE.WLD.json",
+      "generator": "tools/f15assets/compile_runtime_assets.py",
+      "bytes": 78460,
+      "sha256": "e98d357526adb9b22bbe7f5db7623a46f67086a3ff00d56f44d0fdebde1e4eec"
+    },
+    {
+      "file": "GULF.WLD.json.runtime",
+      "role": "structured_runtime_cache",
+      "source_of_truth": false,
+      "source": "GULF.WLD.json",
+      "generator": "tools/f15assets/compile_runtime_assets.py",
+      "bytes": 78460,
+      "sha256": "e98d357526adb9b22bbe7f5db7623a46f67086a3ff00d56f44d0fdebde1e4eec"
+    },
+    {
+      "file": "JP/JP.3D3.json.runtime",
+      "role": "structured_runtime_cache",
+      "source_of_truth": false,
+      "source": "JP/JP.3D3.json",
+      "generator": "tools/f15assets/compile_runtime_assets.py",
+      "bytes": 1073,
+      "sha256": "badca8d8da4a1a6b0c9b995ee8322dac389bb3f0c85a8960d6b936de508b7ead"
+    },
+    {
+      "file": "JP/JP.3DG.json.runtime",
+      "role": "structured_runtime_cache",
+      "source_of_truth": false,
+      "source": "JP/JP.3DG.json",
+      "generator": "tools/f15assets/compile_runtime_assets.py",
+      "bytes": 14694,
+      "sha256": "28067f3710572ee15c103c0ec772f32022ce63f98f0db17b02a19d840ff6301f"
+    },
+    {
+      "file": "JP/JP.3DT.json.runtime",
+      "role": "structured_runtime_cache",
+      "source_of_truth": false,
+      "source": "JP/JP.3DT.json",
+      "generator": "tools/f15assets/compile_runtime_assets.py",
+      "bytes": 12716,
+      "sha256": "d53d06b16f7b054966df98f0293b16a1b4e724ec5d2671ce1b410bc0f4e84191"
+    },
+    {
+      "file": "JP.WLD.json.runtime",
+      "role": "structured_runtime_cache",
+      "source_of_truth": false,
+      "source": "JP.WLD.json",
+      "generator": "tools/f15assets/compile_runtime_assets.py",
+      "bytes": 78460,
+      "sha256": "e98d357526adb9b22bbe7f5db7623a46f67086a3ff00d56f44d0fdebde1e4eec"
+    },
+    {
+      "file": "LB/LB.3D3.json.runtime",
+      "role": "structured_runtime_cache",
+      "source_of_truth": false,
+      "source": "LB/LB.3D3.json",
+      "generator": "tools/f15assets/compile_runtime_assets.py",
+      "bytes": 1073,
+      "sha256": "badca8d8da4a1a6b0c9b995ee8322dac389bb3f0c85a8960d6b936de508b7ead"
+    },
+    {
+      "file": "LB/LB.3DG.json.runtime",
+      "role": "structured_runtime_cache",
+      "source_of_truth": false,
+      "source": "LB/LB.3DG.json",
+      "generator": "tools/f15assets/compile_runtime_assets.py",
+      "bytes": 14694,
+      "sha256": "28067f3710572ee15c103c0ec772f32022ce63f98f0db17b02a19d840ff6301f"
+    },
+    {
+      "file": "LB/LB.3DT.json.runtime",
+      "role": "structured_runtime_cache",
+      "source_of_truth": false,
+      "source": "LB/LB.3DT.json",
+      "generator": "tools/f15assets/compile_runtime_assets.py",
+      "bytes": 12716,
+      "sha256": "d53d06b16f7b054966df98f0293b16a1b4e724ec5d2671ce1b410bc0f4e84191"
+    },
+    {
+      "file": "LIBYA.WLD.json.runtime",
+      "role": "structured_runtime_cache",
+      "source_of_truth": false,
+      "source": "LIBYA.WLD.json",
+      "generator": "tools/f15assets/compile_runtime_assets.py",
+      "bytes": 78460,
+      "sha256": "e98d357526adb9b22bbe7f5db7623a46f67086a3ff00d56f44d0fdebde1e4eec"
+    },
+    {
+      "file": "ME/ME.3D3.json.runtime",
+      "role": "structured_runtime_cache",
+      "source_of_truth": false,
+      "source": "ME/ME.3D3.json",
+      "generator": "tools/f15assets/compile_runtime_assets.py",
+      "bytes": 1073,
+      "sha256": "badca8d8da4a1a6b0c9b995ee8322dac389bb3f0c85a8960d6b936de508b7ead"
+    },
+    {
+      "file": "ME/ME.3DG.json.runtime",
+      "role": "structured_runtime_cache",
+      "source_of_truth": false,
+      "source": "ME/ME.3DG.json",
+      "generator": "tools/f15assets/compile_runtime_assets.py",
+      "bytes": 14694,
+      "sha256": "28067f3710572ee15c103c0ec772f32022ce63f98f0db17b02a19d840ff6301f"
+    },
+    {
+      "file": "ME/ME.3DT.json.runtime",
+      "role": "structured_runtime_cache",
+      "source_of_truth": false,
+      "source": "ME/ME.3DT.json",
+      "generator": "tools/f15assets/compile_runtime_assets.py",
+      "bytes": 12716,
+      "sha256": "d53d06b16f7b054966df98f0293b16a1b4e724ec5d2671ce1b410bc0f4e84191"
+    },
+    {
+      "file": "ME.WLD.json.runtime",
+      "role": "structured_runtime_cache",
+      "source_of_truth": false,
+      "source": "ME.WLD.json",
+      "generator": "tools/f15assets/compile_runtime_assets.py",
+      "bytes": 78460,
+      "sha256": "e98d357526adb9b22bbe7f5db7623a46f67086a3ff00d56f44d0fdebde1e4eec"
+    },
+    {
+      "file": "NC/NC.3D3.json.runtime",
+      "role": "structured_runtime_cache",
+      "source_of_truth": false,
+      "source": "NC/NC.3D3.json",
+      "generator": "tools/f15assets/compile_runtime_assets.py",
+      "bytes": 1073,
+      "sha256": "badca8d8da4a1a6b0c9b995ee8322dac389bb3f0c85a8960d6b936de508b7ead"
+    },
+    {
+      "file": "NC/NC.3DG.json.runtime",
+      "role": "structured_runtime_cache",
+      "source_of_truth": false,
+      "source": "NC/NC.3DG.json",
+      "generator": "tools/f15assets/compile_runtime_assets.py",
+      "bytes": 14694,
+      "sha256": "28067f3710572ee15c103c0ec772f32022ce63f98f0db17b02a19d840ff6301f"
+    },
+    {
+      "file": "NC/NC.3DT.json.runtime",
+      "role": "structured_runtime_cache",
+      "source_of_truth": false,
+      "source": "NC/NC.3DT.json",
+      "generator": "tools/f15assets/compile_runtime_assets.py",
+      "bytes": 12716,
+      "sha256": "d53d06b16f7b054966df98f0293b16a1b4e724ec5d2671ce1b410bc0f4e84191"
+    },
+    {
+      "file": "NC.WLD.json.runtime",
+      "role": "structured_runtime_cache",
+      "source_of_truth": false,
+      "source": "NC.WLD.json",
+      "generator": "tools/f15assets/compile_runtime_assets.py",
+      "bytes": 78460,
+      "sha256": "e98d357526adb9b22bbe7f5db7623a46f67086a3ff00d56f44d0fdebde1e4eec"
+    },
+    {
+      "file": "PG/PG.3D3.json.runtime",
+      "role": "structured_runtime_cache",
+      "source_of_truth": false,
+      "source": "PG/PG.3D3.json",
+      "generator": "tools/f15assets/compile_runtime_assets.py",
+      "bytes": 1073,
+      "sha256": "badca8d8da4a1a6b0c9b995ee8322dac389bb3f0c85a8960d6b936de508b7ead"
+    },
+    {
+      "file": "PG/PG.3DG.json.runtime",
+      "role": "structured_runtime_cache",
+      "source_of_truth": false,
+      "source": "PG/PG.3DG.json",
+      "generator": "tools/f15assets/compile_runtime_assets.py",
+      "bytes": 14694,
+      "sha256": "28067f3710572ee15c103c0ec772f32022ce63f98f0db17b02a19d840ff6301f"
+    },
+    {
+      "file": "PG/PG.3DT.json.runtime",
+      "role": "structured_runtime_cache",
+      "source_of_truth": false,
+      "source": "PG/PG.3DT.json",
+      "generator": "tools/f15assets/compile_runtime_assets.py",
+      "bytes": 12716,
+      "sha256": "d53d06b16f7b054966df98f0293b16a1b4e724ec5d2671ce1b410bc0f4e84191"
+    },
+    {
+      "file": "PG.WLD.json.runtime",
+      "role": "structured_runtime_cache",
+      "source_of_truth": false,
+      "source": "PG.WLD.json",
+      "generator": "tools/f15assets/compile_runtime_assets.py",
+      "bytes": 78460,
+      "sha256": "e98d357526adb9b22bbe7f5db7623a46f67086a3ff00d56f44d0fdebde1e4eec"
+    },
+    {
+      "file": "PHOTO/PHOTO.3D3.json.runtime",
+      "role": "structured_runtime_cache",
+      "source_of_truth": false,
+      "source": "PHOTO/PHOTO.3D3.json",
+      "generator": "tools/f15assets/compile_runtime_assets.py",
+      "bytes": 326,
+      "sha256": "96bfd7a586604575e9b1162176e7a005948fd0aae86a9594bcacb1253dfdadc1"
+    },
+    {
+      "file": "SVN.WLD.json.runtime",
+      "role": "structured_runtime_cache",
+      "source_of_truth": false,
+      "source": "SVN.WLD.json",
+      "generator": "tools/f15assets/compile_runtime_assets.py",
+      "bytes": 81796,
+      "sha256": "433aeb0ea41f89dad389e540785380b5fb246a82e19b20a39a9f6d5bfeafe729"
+    },
+    {
+      "file": "VN/VN.3D3.json.runtime",
+      "role": "structured_runtime_cache",
+      "source_of_truth": false,
+      "source": "VN/VN.3D3.json",
+      "generator": "tools/f15assets/compile_runtime_assets.py",
+      "bytes": 2072,
+      "sha256": "1dbf27643ebfe6e92f65d67bec984b5920c725ca85f8e54c9f0bf619bc5866e9"
+    },
+    {
+      "file": "VN/VN.3DG.json.runtime",
+      "role": "structured_runtime_cache",
+      "source_of_truth": false,
+      "source": "VN/VN.3DG.json",
+      "generator": "tools/f15assets/compile_runtime_assets.py",
+      "bytes": 14746,
+      "sha256": "0ae5a5e2d975ac439c9d23ddbf6ddc5d7a740c1f781f7f771ab14985e3b1841c"
+    },
+    {
+      "file": "VN/VN.3DT.json.runtime",
+      "role": "structured_runtime_cache",
+      "source_of_truth": false,
+      "source": "VN/VN.3DT.json",
+      "generator": "tools/f15assets/compile_runtime_assets.py",
+      "bytes": 18164,
+      "sha256": "83107d11e8b0686a0478d917ea06846b9ca841a7e82b0c3c445433f85d6768b1"
+    }
+  ]
+}
