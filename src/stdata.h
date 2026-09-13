@@ -129,7 +129,7 @@ extern struct FlightUnit flightUnits[];
 extern uint32 baseXPrecise;
 extern struct NearestTerrain nearestTerrain;
 extern int16 exitCode;
-extern char objectTypeTable[];
+extern char objectTypeTable[BUF7SIZE];
 extern uint32 baseYPrecise;
 extern int readItemSize;
 extern uint8 wldReadBuf8[];

@@ -44,9 +44,10 @@ struct NearestTerrain *findNearestTerrain(int32 worldX, int32 worldY) {
             if (cell != -1) {
                 tileDataPtr = terrainTilePtrs[level].entries[cell];
                 for (cellIdx = 0; terrainTileCounts[level].entries[cell] > cellIdx; cellIdx++) {
-                    /* Placement flags are not part of the model-table index. */
+                    /* Bit 7 enables a per-placement render override; the lower
+                       bits identify the base model used for classification. */
                     const uint8 modelIndex = tileDataPtr->idx & 0x7f;
-                    if (objectTypeTable[modelIndex] != 0) {
+                    if (modelIndex < sizeof(objectTypeTable) && objectTypeTable[modelIndex] != 0) {
                         ty = tileDataPtr->buf3 + sy;
                         offsetY = tileDataPtr->buf4 + tmp;
                         dist = abs(ty) + abs(offsetY);

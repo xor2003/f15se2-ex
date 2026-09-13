@@ -135,10 +135,12 @@ restart_40a8:
     }
     for (idx = 0; idx < 2; idx++) {
         targets[idx].missionType = 0;
+        const unsigned modelIndex = worldObjects[targets[idx].targetIdx].objectIdx & 0x7f;
+        if (modelIndex >= sizeof(objectTypeTable)) goto restart_40a8;
         for (retryCount = 0; retryCount < 2; retryCount++) {
             matchCount = 0;
             for (slot = 0; slot < 56; slot++) {
-                if (objectTypeTable[worldObjects[targets[idx].targetIdx].objectIdx & 0x7f] == missionTable[slot].tensionMask && strcmp(wldOffsets[targets[idx].targetIdx], "POW Camp") != 0) {
+                if (objectTypeTable[modelIndex] == missionTable[slot].tensionMask && strcmp(wldOffsets[targets[idx].targetIdx], "POW Camp") != 0) {
                     if ((retryCount != 0) && (matchCount == randChoice)) {
                         targets[idx].missionType = missionTable[slot].theaterMask;
                         targets[idx].missionNum = slot;
@@ -327,8 +329,10 @@ int16 isUsableCampaignTargetSlot(int16 targetIdx) {
 
     if (targetIdx < FIRST_REAL_ITEM || targetIdx >= readItemSize) return 0;
     if (strcmp(wldOffsets[targetIdx], "POW Camp") == 0) return 0;
+    const unsigned modelIndex = worldObjects[targetIdx].objectIdx & 0x7f;
+    if (modelIndex >= sizeof(objectTypeTable)) return 0;
     for (slot = 0; slot < 56; slot++) {
-        if (objectTypeTable[worldObjects[targetIdx].objectIdx & 0x7f] == missionTable[slot].tensionMask) {
+        if (objectTypeTable[modelIndex] == missionTable[slot].tensionMask) {
             return 1;
         }
     }
