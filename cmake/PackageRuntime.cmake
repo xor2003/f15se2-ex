@@ -15,6 +15,12 @@ if(SDL_RUNTIME_TYPE STREQUAL "SHARED_LIBRARY")
     endif()
 endif()
 install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/assets/" DESTINATION assets COMPONENT Runtime)
+install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/campaigns/SVN" DESTINATION campaigns COMPONENT Runtime
+        PATTERN "person-sources" EXCLUDE
+        PATTERN "sources" EXCLUDE
+        PATTERN ".comments" EXCLUDE
+        PATTERN "*.runtime" EXCLUDE
+        PATTERN "HallFame" EXCLUDE)
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE" DESTINATION . COMPONENT Runtime)
 install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/docs/nightly.md"
         DESTINATION . RENAME README.md COMPONENT Runtime)
