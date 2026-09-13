@@ -1089,6 +1089,10 @@ extern const int16 g_angleLut[260] = {
     0x0000,
 };
 
+void copyTheaterTopLodGrid(uint8 *destination, int theater) {
+    memcpy(destination, g_theaterGrids + ((theater & 7) * 64), 64);
+}
+
 /* g_clipSwapFlag: swap/sign flag in the egseg1 edge interpolator (toggled per edge,
    tested to decide step direction). g_clipDeltaX/g_clipDeltaY/g_clipHalfDeltaX/g_clipHalfDeltaY:
    the edge-stepping working registers (midpoint accumulators, IMUL/IDIV divisor,

@@ -116,6 +116,7 @@ extern size_t size3d3_6;
 extern size_t size3d3_3;
 extern int16 sign3dg;
 extern const uint8 g_theaterGrids[];
+void copyTheaterTopLodGrid(uint8 *destination, int theater);
 extern int16 g_unusedLoadDoneFlag;
 extern const int16 g_mapTileLodTable[];
 extern uint8 g_horizonGroundColor;

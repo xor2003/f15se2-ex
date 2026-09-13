@@ -209,7 +209,7 @@ void load3DG() {
     fileRead(buf3_3dg, 1, childGridBytes, fileHandle);
     fileRead(buf4_3dg, 1, childGridBytes, fileHandle);
     fileClose(fileHandle);
-    memcpy(g_topLodGrid, g_theaterGrids + ((gameData->theater & 7) * 64), 64);
+    copyTheaterTopLodGrid(g_topLodGrid, gameData->theater);
     if (customWorldScenarioBaseTheaterIndex() >= 0) {
         int row;
         for (row = 0; row < 4; ++row) {

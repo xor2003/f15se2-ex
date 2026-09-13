@@ -552,7 +552,6 @@ add_behavior_test(sphere_behavior_tests LINK_CORE)
 add_behavior_test(load_behavior_tests SOURCES
     ${SRC_DIR}/eg3dload.c ${SRC_DIR}/eg3dutil.c ${SRC_DIR}/egmath.c ${SRC_DIR}/egdata.c
     ${SRC_DIR}/egfarbuf.c)
-target_compile_options(load_behavior_tests PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/FAs>)
 add_behavior_test(shared_timer_behavior_tests LINK_CORE)
 add_behavior_test(shared_runtime_behavior_tests SOURCES
     ${SRC_DIR}/shared/cleanup.c ${SRC_DIR}/shared/drawstr.c)
