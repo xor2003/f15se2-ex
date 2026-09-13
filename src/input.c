@@ -960,25 +960,23 @@ int input_flightThrottleValue(int x, int y) {
            (THROTTLE_DRAW_BOTTOM - THROTTLE_DRAW_TOP);
 }
 
-/* Convert either SDL normalized touch coordinates or pixel mouse coordinates
- * through the same square-pixel mapping used by the cockpit artwork. */
+/* Convert either SDL normalized touch coordinates or mouse coordinates through
+ * the same pixel-aspect mapping used to draw the game. */
 static void mapFlightPointer(Uint32 windowID, float x, float y, bool normalized,
                              int *logicalX, int *logicalY) {
     SDL_Window *window = SDL_GetWindowFromID(windowID);
-    R2DMapping mapping;
     int winW = LOGICAL_WIDTH;
     int winH = LOGICAL_HEIGHT;
-    float pixelX = x;
-    float pixelY = y;
 
-    if (window) SDL_GetWindowSizeInPixels(window, &winW, &winH);
+    if (window) SDL_GetWindowSize(window, &winW, &winH);
     if (normalized) {
-        pixelX *= winW;
-        pixelY *= winH;
+        x *= winW;
+        y *= winH;
     }
-    r2d_computeMapping(LOGICAL_WIDTH, LOGICAL_HEIGHT, winW, winH, 1, &mapping);
-    *logicalX = (int)((pixelX - mapping.offX) / mapping.scaleX);
-    *logicalY = (int)((pixelY - mapping.offY) / mapping.scaleY);
+    if (!gfx_windowToLogical(x, y, winW, winH, logicalX, logicalY)) {
+        *logicalX = -1;
+        *logicalY = -1;
+    }
 }
 
 static bool beginFlightThrottlePointer(Uint32 windowID, float x, float y,
