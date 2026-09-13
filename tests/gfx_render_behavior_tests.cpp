@@ -8,6 +8,8 @@
 // are read back here. Verified CI-safe headless (no display/GPU).
 #include "gfx.h"
 #include "gfx_impl.h"
+#include "endata.h"
+#include "enbrief.h"
 #include "struct.h"
 #include "headless.h"
 #include "golden.h"
@@ -27,6 +29,7 @@
 // 0 of the pageDesc is the page index, word 3 the fill colour.
 void clearRect(int16 *pageDesc, int16 x1, int16 y1, int16 x2, int16 y2);
 int loadReplacementPngToPage(const char *filename, int page);
+void drawMenuItem(const MenuItem *items, unsigned int index, int16 *gfxPage);
 
 namespace {
 
@@ -242,6 +245,20 @@ void writeInvalidReplacementBdf(const std::filesystem::path &root, int fontId) {
     out << "STARTFONT 2.1\nFONT invalid\nCHARS 0\nENDFONT\n";
 }
 
+uint32 pageHash(int page) {
+    uint32 hash = 2166136261u;
+    int pitch = 0;
+    const uint8 *pixels = gfx_pagePixels(page, &pitch);
+    for (int y = 0; y < kLogicalHeight; y++) {
+        const uint8 *row = pixels + (size_t)y * pitch;
+        for (int x = 0; x < kLogicalWidth; x++) {
+            hash ^= row[x];
+            hash *= 16777619u;
+        }
+    }
+    return hash;
+}
+
 // ---- gfx_pagePixels + page-1 aliasing -------------------------------------
 void test_pagePixels_and_alias() {
     int pitch0 = 0, pitch1 = 0, pitch2 = 0;
@@ -270,6 +287,55 @@ void test_clearRect() {
     // crash or spill into the next row.
     clearRect(pd, 315, 195, 400, 400);
     require(pagePixel(2, 319, 199) == 0x21, "clearRect clamps x2/y2 to the surface");
+}
+
+// Exercise the actual debrief event rendering path, rather than only its text
+// formatter, so the displayed aircraft name cannot regress at the call site.
+void test_debriefAircraftName() {
+    struct GameComm comm = {};
+    struct Game game = {};
+    MenuItem item = {};
+    int16 pageDesc[7] = {2, 0, 0, 0, 0, 0, 0};
+
+    commData = &comm;
+    gameData = &game;
+    std::memset(flightDataBuf, 0, sizeof(flightDataBuf));
+    curRecordIdx = 0;
+    ejectedFlag = 0;
+    flightRecords[0].status = EVENT_SAM_KILL;
+    flightRecords[0].unitId = 0;
+    item.flags = MENUITEM_HAS_SPRITE | MENUITEM_SPRITE_BLINK;
+    drawMenuItem(&item, 0, pageDesc);
+
+    require(popupVisible == 1,
+            "debrief renderer completes the aircraft-shot-down event path");
+}
+
+void test_debriefPointerButtons() {
+    cursorX = 12;
+    cursorY = 34;
+    inputChanged = 0;
+    enterPressed = 0;
+
+    require(applyDebriefPointer(250, 164, &debriefMenuItems[0]) == 1,
+            "debrief pointer identifies the exit button");
+    require(cursorX == 250 && cursorY == 164 && inputChanged == 1 && enterPressed == 0,
+            "first debrief pointer release selects a different button");
+
+    inputChanged = 0;
+    require(applyDebriefPointer(250, 164, &debriefMenuItems[1]) == 1,
+            "debrief pointer identifies the current button");
+    require(inputChanged == 0 && enterPressed == 1,
+            "second debrief pointer release confirms the current button");
+
+    cursorX = 12;
+    cursorY = 34;
+    inputChanged = 0;
+    enterPressed = 0;
+    require(applyDebriefPointer(100, 100, &debriefMenuItems[0]) == -1,
+            "debrief pointer ignores releases outside its buttons");
+    require(cursorX == 12 && cursorY == 34 && inputChanged == 0 && enterPressed == 0,
+            "an outside debrief release leaves menu state unchanged");
 }
 
 // ---- gfx_switchColor selective recolour -----------------------------------
@@ -462,6 +528,22 @@ void test_setFont() {
             "gfx_drawString lazily installs a PNG atlas replacement font when BDF is absent");
 }
 
+// ---- Bitmap glyph rasterization -------------------------------------------
+void test_drawStringBitmapBits() {
+    static const uint32 kFont1AGoldenHash = 0x1f66d074u;
+    int16 params[11] = {};
+    params[0] = 2;
+    params[2] = 7;
+    params[4] = 10;
+    params[5] = 20;
+    params[6] = 1;
+
+    fillPageRaw(2, 0);
+    gfx_drawString(params, "A");
+    require(pageHash(2) == kFont1AGoldenHash,
+            "font rasterization consumes each packed glyph bit exactly once");
+}
+
 // ---- gfx_calcRowAddr / gfx_getRowOffset / blitOffset round-trip -----------
 void test_rowAddrAndBlitOffset() {
     require(gfx_getRowOffset(0) == 0 && gfx_getRowOffset(5) == 5 * kLogicalWidth,
@@ -594,6 +676,8 @@ int main() {
 
     test_pagePixels_and_alias();
     test_clearRect();
+    test_debriefAircraftName();
+    test_debriefPointerButtons();
     test_switchColor();
     test_copyRect();
     test_blitSprite();
@@ -601,6 +685,7 @@ int main() {
     test_drawLine();
     test_dirtyRect2();
     test_setFont();
+    test_drawStringBitmapBits();
     test_rowAddrAndBlitOffset();
     test_dacPalette();
     test_replacementPngLoader();

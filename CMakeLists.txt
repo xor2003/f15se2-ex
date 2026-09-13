@@ -114,6 +114,7 @@ set(F15SE2_SOURCES
 
     # Shared gfx-slot / timer / misc / pic / overlay basics
     ${SRC_DIR}/input.c
+    ${SRC_DIR}/game_options.c
     ${SRC_DIR}/shared/miscimpl.c
     ${SRC_DIR}/shared/ovlimpl.c
     ${SRC_DIR}/shared/picimpl.c
@@ -138,6 +139,12 @@ set(F15SE2_SOURCES
     ${SRC_DIR}/log.c
     ${SRC_DIR}/gfx_impl.c
     ${SRC_DIR}/joystick.c
+    ${SRC_DIR}/joystick_setup.c
+    ${SRC_DIR}/joystick_calibration.cpp
+    ${SRC_DIR}/joystick_mapping.cpp
+    ${SRC_DIR}/controls.cpp
+    ${SRC_DIR}/controls_mapping.cpp
+    ${SRC_DIR}/menu_pointer.c
     ${SRC_DIR}/hdsprite.c
     ${SRC_DIR}/cockpit3d.cpp
 
@@ -145,6 +152,7 @@ set(F15SE2_SOURCES
     ${SRC_DIR}/stmain.c
     ${SRC_DIR}/stinit.c
     ${SRC_DIR}/stmissn.c
+    ${SRC_DIR}/stoptions.c
     ${SRC_DIR}/stsprit.c
     ${SRC_DIR}/strand.c
     ${SRC_DIR}/stpilot.c
@@ -152,6 +160,7 @@ set(F15SE2_SOURCES
     ${SRC_DIR}/stterr.c
     ${SRC_DIR}/stparse.c
     ${SRC_DIR}/stgen.c
+    ${SRC_DIR}/stmath.c
     ${SRC_DIR}/stdata.c
 )
 
@@ -165,6 +174,7 @@ set(EGAME_SOURCES
     ${SRC_DIR}/eg3dproj.c
     ${SRC_DIR}/eg3dgrid.c
     ${SRC_DIR}/eg3dload.c
+    ${SRC_DIR}/eg3dutil.c
     ${SRC_DIR}/eg3dmap.c
     ${SRC_DIR}/eg3dvp.c
     ${SRC_DIR}/eg3dcam.c
@@ -186,7 +196,6 @@ set(EGAME_SOURCES
     ${SRC_DIR}/eg3drast.c
     ${SRC_DIR}/r3d.c
     ${SRC_DIR}/r3d_sw.c
-    ${SRC_DIR}/r3d_gl.c
     ${SRC_DIR}/r3dmesh.c
     ${SRC_DIR}/r2d.c
     ${SRC_DIR}/egsys.c
@@ -200,6 +209,21 @@ set(EGAME_SOURCES
     ${SRC_DIR}/asound/compressed_audio.c
     ${SRC_DIR}/asound/asound_sdl.c
 )
+
+if(ANDROID)
+    # Android exposes OpenGL ES rather than desktop OpenGL. r3d_gles.c reuses
+    # the renderer's decoded scene path through a small GLES2 compatibility
+    # layer, so geometry ordering and palette semantics stay shared.
+    list(APPEND EGAME_SOURCES
+        ${CMAKE_CURRENT_SOURCE_DIR}/android/app/src/main/cpp/android_ar.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/android/app/src/main/cpp/android_haptics.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/android/app/src/main/cpp/android_joystick.cpp
+        ${SRC_DIR}/r3d_gles.c
+        ${SRC_DIR}/r3d_gles_compat.c
+    )
+else()
+    list(APPEND EGAME_SOURCES ${SRC_DIR}/r3d_gl.c)
+endif()
 
 # end (debrief) module
 set(END_SOURCES
@@ -229,9 +253,12 @@ set_source_files_properties(
     PROPERTIES LANGUAGE CXX
 )
 
-# OpenGL for the GL 3D backend (r3d_gl.c). The immediate-mode 1.x path needs only
-# the base GL library; SDL3 supplies the GL headers and context management.
-find_package(OpenGL REQUIRED)
+# Desktop uses OpenGL 1.x; Android uses the GLES2 compatibility backend.
+if(ANDROID)
+    find_library(GLESV2_LIBRARY GLESv2 REQUIRED)
+else()
+    find_package(OpenGL REQUIRED)
+endif()
 
 # Some tests use std::thread; link a threads library explicitly so it resolves
 # across toolchains (not all fold pthread into libc).
@@ -303,16 +330,26 @@ target_compile_definitions(f15se2_core PUBLIC DEBUG)
 if(AUTOSTART)
     target_compile_definitions(f15se2_core PUBLIC DEBUG_AUTOSTART)
 endif()
-target_link_libraries(f15se2_core PUBLIC SDL3::SDL3 OpenGL::GL)
 target_include_directories(f15se2_core PRIVATE ${dr_libs_SOURCE_DIR} ${stb_SOURCE_DIR})
 if(FREETYPE_FOUND)
     target_compile_definitions(f15se2_core PUBLIC F15_HAVE_FREETYPE=1)
     target_link_libraries(f15se2_core PUBLIC Freetype::Freetype)
 endif()
 
-add_executable(f15se2 ${SRC_DIR}/f15.c)
-set_target_properties(f15se2 PROPERTIES OUTPUT_NAME "f15se2-ex")
-target_link_libraries(f15se2 PRIVATE f15se2_core)
+if(ANDROID)
+    target_compile_definitions(f15se2_core PUBLIC F15_ANDROID_DEFAULT_ASSIST=1)
+    target_link_libraries(f15se2_core PUBLIC SDL3::SDL3 ${GLESV2_LIBRARY})
+    add_library(main SHARED ${SRC_DIR}/f15.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/android/app/src/main/cpp/android_main.cpp)
+    target_link_libraries(main PRIVATE f15se2_core)
+    set(F15SE2_APP_TARGET main)
+else()
+    target_link_libraries(f15se2_core PUBLIC SDL3::SDL3 OpenGL::GL)
+    add_executable(f15se2 ${SRC_DIR}/f15.c)
+    set_target_properties(f15se2 PROPERTIES OUTPUT_NAME "f15se2-ex")
+    target_link_libraries(f15se2 PRIVATE f15se2_core)
+    set(F15SE2_APP_TARGET f15se2)
+endif()
 
 # Autogenerate header file with version string
 add_custom_target(GenerateVersionHeader ALL
@@ -323,12 +360,12 @@ add_custom_target(GenerateVersionHeader ALL
     BYPRODUCTS "${SRC_DIR}/generated/version.h"
 )
 add_dependencies(f15se2_core GenerateVersionHeader)
-add_dependencies(f15se2 GenerateVersionHeader)
+add_dependencies(${F15SE2_APP_TARGET} GenerateVersionHeader)
 
 # Strip symbols from Release builds to shrink the binary (GNU/Clang only; MSVC
 # already keeps debug info in a separate .pdb rather than the exe itself).
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    target_link_options(f15se2 PRIVATE $<$<CONFIG:Release>:-s>)
+    target_link_options(${F15SE2_APP_TARGET} PRIVATE $<$<CONFIG:Release>:-s>)
 endif()
 
 #==============================================================================
@@ -416,16 +453,18 @@ endif()
 # PNG re-copies it on the next build without a relink or `make clean`. CONFIGURE_DEPENDS
 # re-globs at build time, so new files are picked up too; the stamp makes it incremental
 # (the copy runs only when an asset actually changed).
-file(GLOB_RECURSE ASSET_FILES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/assets/*)
-add_custom_command(
-    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/assets.stamp
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-            ${CMAKE_CURRENT_SOURCE_DIR}/assets $<TARGET_FILE_DIR:f15se2>/assets
-    COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_BINARY_DIR}/assets.stamp
-    DEPENDS ${ASSET_FILES}
-    COMMENT "Mirroring assets to the build dir"
-)
-add_custom_target(mirror_assets ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/assets.stamp)
+if(NOT ANDROID)
+    file(GLOB_RECURSE ASSET_FILES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/assets/*)
+    add_custom_command(
+        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/assets.stamp
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                ${CMAKE_CURRENT_SOURCE_DIR}/assets $<TARGET_FILE_DIR:f15se2>/assets
+        COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_BINARY_DIR}/assets.stamp
+        DEPENDS ${ASSET_FILES}
+        COMMENT "Mirroring assets to the build dir"
+    )
+    add_custom_target(mirror_assets ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/assets.stamp)
+endif()
 
 #==============================================================================
 # Behavior tests
@@ -440,6 +479,7 @@ add_custom_target(mirror_assets ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/assets.s
 #                  Not-yet-migrated tests still use this.
 #
 #   add_behavior_test(<name> [LINK_CORE] [SOURCES <.c/.cpp ...>] [DEFS <defs...>])
+if(NOT ANDROID)
 enable_testing()
 
 set(TEST_DIR ${CMAKE_CURRENT_SOURCE_DIR}/tests)
@@ -485,7 +525,7 @@ add_behavior_test(sys_behavior_tests SOURCES
     ${SRC_DIR}/egsys.c ${SRC_DIR}/egdata.c)
 add_behavior_test(sphere_behavior_tests LINK_CORE)
 add_behavior_test(load_behavior_tests SOURCES
-    ${SRC_DIR}/eg3dload.c ${SRC_DIR}/egmath.c ${SRC_DIR}/egdata.c
+    ${SRC_DIR}/eg3dload.c ${SRC_DIR}/eg3dutil.c ${SRC_DIR}/egmath.c ${SRC_DIR}/egdata.c
     ${SRC_DIR}/egfarbuf.c)
 add_behavior_test(shared_timer_behavior_tests LINK_CORE)
 add_behavior_test(shared_runtime_behavior_tests SOURCES
@@ -500,9 +540,22 @@ add_behavior_test(utility_behavior_tests LINK_CORE)
 add_behavior_test(end_runtime_behavior_tests LINK_CORE)
 add_behavior_test(geometry_behavior_tests LINK_CORE)
 add_behavior_test(asset_compare_behavior_tests LINK_CORE)
+add_behavior_test(signed_ratio_behavior_tests LINK_CORE SOURCES ${SRC_DIR}/egflight.c)
+# Compile the real attitude helper with ARM-like char signedness on desktop CI.
+target_compile_options(signed_ratio_behavior_tests PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-funsigned-char>
+    $<$<CXX_COMPILER_ID:MSVC>:/J>)
 add_behavior_test(file_io_behavior_tests LINK_CORE)
 add_behavior_test(gameplay_behavior_tests LINK_CORE)
 add_behavior_test(input_behavior_tests LINK_CORE)
+add_behavior_test(joystick_behavior_tests LINK_CORE)
+add_behavior_test(controls_behavior_tests LINK_CORE)
+set_tests_properties(controls_behavior_tests PROPERTIES TIMEOUT 20)
+set_tests_properties(joystick_behavior_tests PROPERTIES TIMEOUT 20)
+add_behavior_test(menu_pointer_behavior_tests LINK_CORE)
+set_tests_properties(menu_pointer_behavior_tests PROPERTIES TIMEOUT 20)
+add_behavior_test(game_options_behavior_tests LINK_CORE)
+add_behavior_test(stoptions_behavior_tests LINK_CORE)
 add_behavior_test(gfx_render_behavior_tests LINK_CORE)
 add_behavior_test(view_behavior_tests LINK_CORE)
 add_behavior_test(egsys_internal_behavior_tests LINK_CORE)
@@ -607,3 +660,4 @@ if(COVERAGE)
         message(WARNING "COVERAGE=ON but gcovr not found; the `coverage` target is unavailable")
     endif()
 endif()
+endif() # NOT ANDROID

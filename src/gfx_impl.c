@@ -152,7 +152,9 @@ void gfx_videoInit(void) {
 
     /* Enable SDL_EVENT_TEXT_INPUT so the keyboard slots (ovlimpl.c) receive
      * shifted/localised ASCII for pilot-name entry. */
+#if !defined(__ANDROID__)
     SDL_StartTextInput(sdlWindow);
+#endif
 
     if (s_useGL) return;
 
@@ -849,6 +851,28 @@ void FAR CDECL gfx_flipPage(void) {
  * legacy sprites. NULL (the default) restores the plain page re-present. */
 static void (*g_repaintHook)(void);
 void gfx_setRepaintHook(void (*hook)(void)) { g_repaintHook = hook; }
+
+/*
+ * Keep pointer hit testing on the exact mapping used to present the active
+ * backend. OpenGL corrects the DOS page to 4:3, while software mode preserves
+ * square source pixels across the available window.
+ */
+bool gfx_windowToLogical(float windowX, float windowY, int windowWidth,
+                         int windowHeight, int *logicalX, int *logicalY) {
+    R2DMapping mapping;
+    int x;
+    int y;
+
+    if (windowWidth <= 0 || windowHeight <= 0) return false;
+    r2d_computeMapping(LOGICAL_WIDTH, LOGICAL_HEIGHT, windowWidth, windowHeight,
+                       s_useGL ? 0 : 1, &mapping);
+    x = (int)((windowX - mapping.offX) / mapping.scaleX);
+    y = (int)((windowY - mapping.offY) / mapping.scaleY);
+    if (x < 0 || x >= LOGICAL_WIDTH || y < 0 || y >= LOGICAL_HEIGHT) return false;
+    if (logicalX) *logicalX = x;
+    if (logicalY) *logicalY = y;
+    return true;
+}
 
 /* Re-present the current visible frame (page 0, or the hi-res title surface).
  * gfx_presentPage already redirects to the hi-res path when the title is up. */
@@ -2421,20 +2445,22 @@ static void drawStringCore(int16 *params, const char *string,
         if (glyph) {
             for (row = 0; row < height; row++) {
                 int py = y + row;
-                uint8 bits;
+                const uint8 bits = glyph[row];
                 uint8 *dstRow;
                 if (py < clipT || py > clipB) continue; /* row outside window */
                 if (py < 0 || py >= surfH) continue;    /* off the surface */
-                bits = glyph[row];
                 dstRow = base + (size_t)py * pitch;
                 for (col = 0; col < 8; col++) {
                     int px = x + col;
-                    if ((bits & 0x80) && px >= clipL && px <= clipR &&
+                    /* Glyph rows are packed MSB first. Test each source bit
+                     * directly so integer promotion cannot affect later
+                     * columns differently between GCC and MSVC. */
+                    if ((bits & (uint8)(0x80u >> col)) != 0 &&
+                        px >= clipL && px <= clipR &&
                         px >= 0 && px < surfW) {
                         if (submit) r2d_submitPoint(px, py, color);
                         else dstRow[px] = (uint8)color;
                     }
-                    bits <<= 1;
                 }
             }
         }

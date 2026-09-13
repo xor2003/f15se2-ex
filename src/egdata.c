@@ -463,7 +463,14 @@ int32 g_projInterpY[12];
 int16 g_threatScopeRange = 4;
 int16 g_trackedEnemyIdx = -1;
 int16 frameTick = 0;
+#if defined(F15_ANDROID_DEFAULT_ASSIST)
+/* Touch flight controls are intentionally a later feature. Start Android
+ * flights with the existing autopilot engaged so the aircraft remains safe
+ * while the player uses menus or an attached controller. */
+int16 g_autopilotEngaged = 1;
+#else
 int16 g_autopilotEngaged = 0;
+#endif
 int16 g_gearDownArmed = 1;
 int16 g_destroyedCueDeadline = 0;
 
@@ -480,7 +487,13 @@ int16 g_inLandingCorridor = 1;
 int16 g_render3DTiles = 1;
 int16 g_landingDoneFlag = 1;
 uint16 g_frameRateAccum = 0;
+#if defined(F15_ANDROID_DEFAULT_ASSIST)
+/* Android defaults to the existing ALT+A time-compression mode. The normal
+ * control still toggles it, so this changes only the initial state. */
+int16 g_slowMotionMode = 2;
+#else
 int16 g_slowMotionMode = 1;
+#endif
 int16 g_directorEventDeadline = -1;
 int g_directorMode = 0;
 int16 g_resupplyCount = 1;

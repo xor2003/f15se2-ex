@@ -31,3 +31,10 @@ __pycache__/
 
 # Generated replacement asset exports. Keep these out of source commits.
 /converted_assets_all/
+/android/.gradle/
+/android/app/.cxx/
+/android/app/build/
+/android/app/libs/*.aar
+/android/local.properties
+/build-*/
+/_blackbox.rec

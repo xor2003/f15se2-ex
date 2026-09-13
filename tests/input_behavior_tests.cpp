@@ -1,7 +1,9 @@
 #include "egcode.h"
 #include "egdata.h"
 #include "eginput.h"
+#include "egkeys.h"
 #include "headless.h"
+#include "input.h"
 
 #include <SDL3/SDL.h>
 
@@ -11,6 +13,7 @@
 #include <thread>
 
 extern int kbhit(void);
+extern void waitForKeyPress(void);
 
 namespace {
 
@@ -23,6 +26,7 @@ enum InputOriginalConstant : int {
     kBiosShiftR = 0x1352,
     kBiosCtrlR = 0x1312,
     kBiosAltQ = 0x1000,
+    kPauseTimingValue = 1234,
     kBiosA = 0x1E61,
     kBiosB = 0x3062,
     kBiosC = 0x2E63,
@@ -85,10 +89,13 @@ enum InputOriginalConstant : int {
     kBiosF9 = 0x4300,
     kBiosF10 = 0x4400,
     kBiosEscape = 0x011B,
+    kLogicalPointerX = 160,
+    kLogicalPointerY = 50,
     kRingStoredCapacity = 31,
     kRingOverflowAttempts = 40,
     kBlockingPushDelayMs = 5,
     kTestFailureExitCode = 1,
+    kMenuMouseClick = INPUT_MENU_MOUSE_CLICK,
 };
 
 void require(bool condition, const char *message) {
@@ -121,6 +128,37 @@ void pushKey(SDL_Scancode scancode, SDL_Keymod modifiers = SDL_KMOD_NONE) {
 void pushMouseMotion() {
     SDL_Event event = {};
     event.type = SDL_EVENT_MOUSE_MOTION;
+    SDL_PushEvent(&event);
+}
+
+void pushFingerRelease(float x, float y) {
+    SDL_Event event = {};
+    event.type = SDL_EVENT_FINGER_UP;
+    event.tfinger.type = SDL_EVENT_FINGER_UP;
+    event.tfinger.x = x;
+    event.tfinger.y = y;
+    SDL_PushEvent(&event);
+}
+
+void pushMenuClick(float x, float y, Uint8 button = SDL_BUTTON_LEFT,
+                   SDL_MouseID mouse = 0) {
+    SDL_Event event = {};
+    event.type = SDL_EVENT_MOUSE_BUTTON_UP;
+    event.button.x = x;
+    event.button.y = y;
+    event.button.button = button;
+    event.button.which = mouse;
+    SDL_PushEvent(&event);
+}
+
+void pushMouseClick(SDL_Window *window, float x, float y) {
+    SDL_Event event = {};
+    event.type = SDL_EVENT_MOUSE_BUTTON_DOWN;
+    event.button.type = SDL_EVENT_MOUSE_BUTTON_DOWN;
+    event.button.windowID = SDL_GetWindowID(window);
+    event.button.button = SDL_BUTTON_LEFT;
+    event.button.x = x;
+    event.button.y = y;
     SDL_PushEvent(&event);
 }
 
@@ -243,6 +281,114 @@ int main() {
     require(kbhit() == 0,
             "egReadKey ignores non-key SDL events");
 
+    input_setMode(INPUT_MODE_MENU);
+    input_ringReset();
+    pushFingerRelease(0.5f, 0.25f);
+    require(input_keyWaiting() && input_readKey() == INPUT_KEY_MENU_POINTER,
+            "menu touch release queues the pointer event");
+    int pointerX = 0;
+    int pointerY = 0;
+    require(input_takeMenuPointer(&pointerX, &pointerY) &&
+            pointerX == kLogicalPointerX && pointerY == kLogicalPointerY,
+            "menu touch coordinates map into the logical 320x200 layout");
+    require(!input_takeMenuPointer(nullptr, nullptr),
+            "menu pointer coordinates are consumed once");
+
+    input_setMode(INPUT_MODE_FLIGHT);
+    input_ringReset();
+    pushFingerRelease(0.5f, 0.25f);
+    require(input_keyWaiting() && input_readKey() == 0x1c0d,
+            "flight touch in the target area queues missile fire");
+    require(!input_takeMenuPointer(nullptr, nullptr),
+            "flight touch does not leave stale menu coordinates");
+    require(input_flightPointerKey(26, 190) == 0x326d &&
+                input_flightPointerKey(65, 190) == 0x1f73 &&
+                input_flightPointerKey(101, 190) == 0x2267,
+            "cockpit ammo-count taps select all three weapon groups");
+    require(input_flightPointerKey(18, 177) == 0x326d &&
+                input_flightPointerKey(92, 177) == 0x1f73 &&
+                input_flightPointerKey(132, 177) == 0x2267,
+            "cockpit weapon-picture taps select all three weapon groups");
+    require(input_flightPointerKey(205, 190) == 0x266c,
+            "cockpit landing-gear indicator tap queues the L command");
+    require(input_flightPointerKey(171, 190) == 0x2e63 &&
+                input_flightPointerKey(188, 190) == 0x2166,
+            "radar and infrared warning taps release chaff and flare");
+    require(input_flightPointerKey(145, 169) == 0x2e63 &&
+                input_flightPointerKey(173, 199) == 0x2e63 &&
+                input_flightPointerKey(174, 169) == 0x2166 &&
+                input_flightPointerKey(196, 199) == 0x2166 &&
+                input_flightPointerKey(197, 169) == 0x266c,
+            "enlarged countermeasure targets are disjoint from neighboring controls");
+    require(input_flightPointerKey(222, 190) == 0x3062,
+            "cockpit P indicator tap toggles the wheel brake");
+    require(input_flightPointerKey(270, 145) == 0x1474,
+            "right target-display tap queues target designation");
+    require(input_flightPointerKey(250, 112) == 0x1970 &&
+                input_flightPointerKey(272, 112) == INPUT_KEY_TOGGLE_LOOK,
+            "painted right-panel toggles control autopilot and free look");
+    require(input_flightPointerKey(60, 130) == SCAN_MAP_ZOOM_CYCLE &&
+                input_flightPointerKey(160, 130) == SCAN_R,
+            "left and middle MFD taps cycle their respective display scales");
+    require(input_flightPointerKey(5, 150) == 0,
+            "flight taps outside cockpit controls remain neutral");
+    {
+        const auto savedView = g_viewMode;
+        const auto savedAltitude = g_autopilotAltitude;
+        const auto savedAutopilot = g_autopilotEngaged;
+        g_autopilotAltitude = 1000;
+        g_autopilotEngaged = 0;
+        g_viewMode = VIEW_COCKPIT;
+        require(input_flightPointerKey(5, 30) == SCAN_F5 &&
+                    input_flightPointerKey(160, 30) == SCAN_F5 &&
+                    input_flightPointerKey(-10, 150) == SCAN_F5,
+                "autopilot sky and widescreen taps select chase view");
+        require(input_flightPointerKey(205, 190) == 0x266c &&
+                    input_flightThrottleValue(214, 127) == 100,
+                "visible cockpit controls retain their actions");
+        g_viewMode = VIEW_EXT_FOLLOW;
+        require(input_flightPointerKey(205, 190) == SCAN_F6 &&
+                    input_flightThrottleValue(214, 127) == -1,
+                "external view taps cannot activate hidden cockpit controls");
+        g_viewMode = VIEW_EXT_DYNAMIC;
+        require(input_flightPointerKey(5, 30) == SCAN_F7,
+                "trailing view advances to side view");
+        g_viewMode = VIEW_EXT_SIDE;
+        require(input_flightPointerKey(5, 30) == SCAN_SPACEBAR,
+                "last external view returns to cockpit");
+        require(g_autopilotAltitude == 1000,
+                "view selection leaves autopilot enabled");
+        g_autopilotAltitude = 0;
+        require(input_flightPointerKey(5, 30) == 0,
+                "manual flight sky taps do not change views");
+        g_viewMode = savedView;
+        g_autopilotAltitude = savedAltitude;
+        g_autopilotEngaged = savedAutopilot;
+    }
+    require(input_flightThrottleValue(214, 127) == 100 &&
+                input_flightThrottleValue(214, 151) == 50 &&
+                input_flightThrottleValue(214, 175) == 0,
+            "cockpit throttle maps its painted vertical range to 100..0 percent");
+    require(input_flightThrottleValue(190, 151) == -1,
+            "cockpit throttle ignores points outside its touch target");
+    SDL_Window *menuWindow = SDL_CreateWindow(
+        "input behavior menu", 640, 400, SDL_WINDOW_HIDDEN);
+    require(menuWindow != nullptr, "menu mouse test creates a hidden window");
+    input_setMode(INPUT_MODE_MENU);
+    input_ringReset();
+    pushMouseClick(menuWindow, 620.0f, 380.0f);
+    require(input_keyWaiting() && input_readKey() == kMenuMouseClick,
+            "menu click wakes a legacy key-driven menu loop");
+    int mouseX = 0;
+    int mouseY = 0;
+    require(input_takeMenuClick(&mouseX, &mouseY) &&
+                mouseX == 310 && mouseY == 190,
+            "menu click is exposed in logical 320x200 coordinates");
+    require(!input_takeMenuClick(&mouseX, &mouseY),
+            "menu click is consumed exactly once");
+    SDL_DestroyWindow(menuWindow);
+    resetInputState();
+
     resetInputState();
     std::thread delayedKey([] {
         std::this_thread::sleep_for(std::chrono::milliseconds(kBlockingPushDelayMs));
@@ -251,6 +397,47 @@ int main() {
     require(egReadKey() == kBiosEscape,
             "egReadKey blocks until a key is ready, BIOS-read style");
     delayedKey.join();
+
+    resetInputState();
+    input_setMode(INPUT_MODE_MENU);
+    pushMenuClick(30, 40);
+    pushMenuClick(200, 150);
+    require(input_keyWaiting(), "mouse releases queue menu input");
+    int x = 0, y = 0;
+    require(input_readKey() == INPUT_KEY_MENU_POINTER &&
+            input_takeMenuPointer(&x, &y) && x == 30 && y == 40,
+            "first click retains its coordinates when another click is queued");
+    require(!input_takeMenuPointer(&x, &y), "click coordinates are consumed once");
+    require(input_readKey() == INPUT_KEY_MENU_POINTER &&
+            input_takeMenuPointer(&x, &y) && x == 200 && y == 150,
+            "second click retains its own coordinates");
+    pushMenuClick(-1, 40);
+    pushMenuClick(320, 40);
+    pushMenuClick(30, 40, SDL_BUTTON_RIGHT);
+    pushMenuClick(30, 40, SDL_BUTTON_LEFT, SDL_TOUCH_MOUSEID);
+    require(!input_keyWaiting(), "outside, right and synthetic touch clicks are ignored");
+    pushMenuClick(30, 40);
+    require(input_readKey() == INPUT_KEY_MENU_POINTER, "click can be read before reset");
+    input_ringReset();
+    require(!input_takeMenuPointer(&x, &y), "reset discards unconsumed coordinates");
+    input_setMode(INPUT_MODE_FLIGHT);
+    pushMenuClick(160, 50);
+    require(input_keyWaiting() && input_readKey() == SCAN_ENTER,
+            "integrated cockpit mouse release fires the selected missile");
+    require(!input_takeMenuPointer(nullptr, nullptr),
+            "flight mouse release leaves no menu coordinates");
+
+    // The flight pause loop must ignore another Alt-P and block for a real
+    // resume key without advancing simulation timing while paused.
+    resetInputState();
+    g_frameTimingAccum = kPauseTimingValue;
+    pushKey(SDL_SCANCODE_P, SDL_KMOD_ALT);
+    pushKey(SDL_SCANCODE_ESCAPE);
+    waitForKeyPress();
+    require(g_frameTimingAccum == kPauseTimingValue,
+            "waitForKeyPress ignores repeated Alt-P and restores frame timing");
+    require(kbhit() == 0,
+            "waitForKeyPress consumes the resume key after repeated Alt-P");
 
     resetInputState();
     pushKey(SDL_SCANCODE_RETURN, SDL_KMOD_ALT);

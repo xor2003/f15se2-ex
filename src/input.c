@@ -14,10 +14,17 @@
  * the menus, so that part is gated on the mode set by the phase's key readers.
  */
 #include "input.h"
+#include "egdata.h"
 #include "inttype.h"
 #include "const.h"
 #include "gfx.h"
+#include "egkeys.h"
 #include "joystick.h"
+#if defined(__ANDROID__)
+#include "android_ar.h"
+#endif
+#include "r2d.h"
+#include "controls.h"
 #include <SDL3/SDL.h>
 
 /* Game tick clock (timer.c); pumped here so the window stays responsive and the
@@ -35,24 +42,70 @@ static InputMode g_mode = INPUT_MODE_MENU;
 static bool g_quitRequested = false;
 static bool g_hasFocus = true;
 static void (*g_quitHandler)(void) = NULL;
+static bool g_flightThrottlePointerActive = false;
+static bool g_flightThrottlePending = false;
+static int g_flightThrottlePercent = 0;
+#if defined(__ANDROID__)
+static bool g_flightFingerDown = false;
+static bool g_flightLookActive = false;
+static bool g_flightSwipeActive = false;
+static bool g_flightControlPointerActive = false;
+static float g_flightFingerStartY = 0.0f;
+static const float LOOK_SWIPE_GATE = 0.025f;
+#endif
 
 /* Which device was used most recently. Defaults to the device so a connected
  * stick keeps working as before; a key press flips it to the keyboard and stick
  * activity flips it back (see input_preferGamepad / noteGamepadActivity). */
 static bool g_lastWasGamepad = true;
+static bool g_menuClickPending = false;
+static int g_menuClickX = 0;
+static int g_menuClickY = 0;
+
+/* Menu controls have fixed meanings, independent of flight assignments. */
+static int g_rawMenuButton = -1;
+static int g_rawMenuZoneX = 0, g_rawMenuZoneY = 0;
+static Uint64 g_rawMenuRepeatX = 0, g_rawMenuRepeatY = 0;
+static bool g_joystickSetup = false;
+
+/* Flush transitions and remember held buttons so leaving setup cannot confirm
+ * the first game menu with the button just used to assign an action. */
+void input_setJoystickSetup(bool active) {
+    g_joystickSetup = active;
+    input_ringReset();
+}
 
 void input_setMode(InputMode mode) {
     /* Leaving text input on during flight lets a desktop IME intercept editing
      * keys it treats specially (Backspace fires the gun here) and intermittently
      * swallow or delay their auto-repeat. Only the menus need composed text. */
-    if (mode != g_mode) gfx_setTextInputEnabled(mode == INPUT_MODE_MENU);
+    if (mode != g_mode) {
+#if defined(__ANDROID__)
+        /* Menu navigation needs no soft keyboard. Pilot-name entry owns its
+         * lifetime; entering flight still closes any active editor keyboard. */
+        if (mode == INPUT_MODE_FLIGHT) gfx_setTextInputEnabled(false);
+#else
+        gfx_setTextInputEnabled(mode == INPUT_MODE_MENU);
+#endif
+#if defined(__ANDROID__)
+        if (mode == INPUT_MODE_FLIGHT) android_ar_recenterFlight();
+#endif
+        joy_resetFlightInput();
+    }
     g_mode = mode;
 }
 InputMode input_getMode(void) { return g_mode; }
 bool input_quitRequested(void) { return g_quitRequested; }
 bool input_hasFocus(void) { return g_hasFocus; }
 void input_setQuitHandler(void (*handler)(void)) { g_quitHandler = handler; }
-bool input_preferGamepad(void) { return g_lastWasGamepad && joy_connected(); }
+bool input_preferGamepad(void) {
+#if defined(__ANDROID__)
+    /* A connected controller owns flight input even after a cockpit tap. */
+    return joy_connected();
+#else
+    return g_lastWasGamepad && joy_connected();
+#endif
+}
 
 /* --- shared key ring -------------------------------------------------------
  * Each entry is a BIOS key word: AH = scan code, AL = ASCII. The game masks
@@ -60,6 +113,10 @@ bool input_preferGamepad(void) { return g_lastWasGamepad && joy_connected(); }
  * (function keys, arrows), so the layout has to match INT 16h. */
 #define KEY_RING 32
 static uint16 keyRing[KEY_RING];
+/* Coordinates travel with their key-ring slot, not with the latest SDL click. */
+static int pointerX[KEY_RING], pointerY[KEY_RING];
+static int currentPointerX = 0, currentPointerY = 0;
+static bool pointerPending = false;
 static int ringHead = 0, ringTail = 0;
 
 #define TEXT_RING 32
@@ -69,6 +126,10 @@ static int textRingHead = 0, textRingTail = 0;
 static void ringPush(uint16 word) {
     int next = (ringTail + 1) % KEY_RING;
     if (next == ringHead) return; /* full: drop, as the BIOS buffer would */
+    if (word == INPUT_MENU_MOUSE_CLICK) {
+        pointerX[ringTail] = g_menuClickX;
+        pointerY[ringTail] = g_menuClickY;
+    }
     keyRing[ringTail] = word;
     ringTail = next;
 }
@@ -86,8 +147,52 @@ static void textRingPushUtf8(const char *text, int len) {
 void input_ringReset(void) {
     ringHead = ringTail = 0;
     textRingHead = textRingTail = 0;
+    pointerPending = false;
+    g_flightThrottlePointerActive = false;
+    g_flightThrottlePending = false;
+    g_menuClickPending = false;
     g_joyRawX = 0x80;
     g_joyRawY = 0x80;
+    /* A held setup/confirm button must be released before the next screen can
+     * accept it, rather than immediately skipping that screen. */
+    g_rawMenuButton = joy_rawPressedButton();
+    g_rawMenuZoneX = g_rawMenuZoneY = 0;
+#if defined(__ANDROID__)
+    g_flightFingerDown = false;
+    g_flightLookActive = false;
+    g_flightSwipeActive = false;
+    g_flightControlPointerActive = false;
+    android_ar_setLookMode(0);
+#endif
+}
+
+bool input_takeFlightThrottle(int *percent) {
+    if (!g_flightThrottlePending) return false;
+    if (percent) *percent = g_flightThrottlePercent;
+    g_flightThrottlePending = false;
+    return true;
+}
+
+/* Consume one menu click after its synthetic key wakes a legacy menu loop. */
+bool input_takeMenuClick(int *x, int *y) {
+    if (!g_menuClickPending) return false;
+    if (x) *x = g_menuClickX;
+    if (y) *y = g_menuClickY;
+    g_menuClickPending = false;
+    return true;
+}
+
+/* Convert a click through the active renderer's exact presentation mapping. */
+static bool menuPointFromWindow(const SDL_MouseButtonEvent *button, int *x, int *y,
+                                bool normalized = false) {
+    SDL_Window *window = SDL_GetWindowFromID(button->windowID);
+    int width;
+    int height;
+
+    if (!window || !SDL_GetWindowSize(window, &width, &height)) return false;
+    const float windowX = normalized ? button->x * width : button->x;
+    const float windowY = normalized ? button->y * height : button->y;
+    return gfx_windowToLogical(windowX, windowY, width, height, x, y);
 }
 
 bool input_keyWaiting(void) {
@@ -103,6 +208,16 @@ uint16 input_readKey(void) {
         input_pumpEvents();
     }
     word = keyRing[ringHead];
+    g_menuClickPending = word == INPUT_MENU_MOUSE_CLICK;
+    if (g_menuClickPending) {
+        g_menuClickX = pointerX[ringHead];
+        g_menuClickY = pointerY[ringHead];
+    }
+    pointerPending = word == INPUT_KEY_MENU_POINTER;
+    if (pointerPending) {
+        currentPointerX = pointerX[ringHead];
+        currentPointerY = pointerY[ringHead];
+    }
     ringHead = (ringHead + 1) % KEY_RING;
     return word;
 }
@@ -127,6 +242,14 @@ void input_discardNextAsciiKey(uint8 ascii) {
     if (ringHead != ringTail && (keyRing[ringHead] & 0xff) == ascii) {
         ringHead = (ringHead + 1) % KEY_RING;
     }
+}
+
+bool input_takeMenuPointer(int *x, int *y) {
+    if (!pointerPending) return false;
+    if (x) *x = currentPointerX;
+    if (y) *y = currentPointerY;
+    pointerPending = false;
+    return true;
 }
 
 /* --- keyboard translation --------------------------------------------------
@@ -494,9 +617,11 @@ static void menuKeyDown(const SDL_Event *ev) {
     switch (ev->key.key) {
     case SDLK_RETURN:
     case SDLK_KP_ENTER:
+    case SDLK_SELECT: /* Remote OK/select; capture still receives the original key. */
         ringPush(0x1c00 | KEYCODE_ENTER); /* AL = 0x0d */
         break;
     case SDLK_ESCAPE:
+    case SDLK_AC_BACK: /* Remote Back navigates menus, but is bindable in flight. */
         ringPush(0x0100 | KEYCODE_ESC); /* AL = 0x1b */
         break;
     case SDLK_BACKSPACE:
@@ -517,33 +642,11 @@ static void menuKeyDown(const SDL_Event *ev) {
  * reproduces the same axis assignment and gives smooth diagonals for free.
  * Deflection matches the original first-press value (0x5A off centre). */
 static void updateStick(void) {
-    const bool *ks = SDL_GetKeyboardState(NULL);
-    const Uint8 LO = 0x26, HI = 0xDA; /* centre 0x80 -/+ 0x5A */
-    Uint8 x = 0x80;                   /* g_joyRawX = roll  (left = LO, right = HI) */
-    Uint8 y = 0x80;                   /* g_joyRawY = pitch (up   = LO, down  = HI) */
-
-    if (ks[SDL_SCANCODE_UP] || ks[SDL_SCANCODE_KP_8]) y = LO;
-    if (ks[SDL_SCANCODE_DOWN] || ks[SDL_SCANCODE_KP_2]) y = HI;
-    if (ks[SDL_SCANCODE_LEFT] || ks[SDL_SCANCODE_KP_4]) x = LO;
-    if (ks[SDL_SCANCODE_RIGHT] || ks[SDL_SCANCODE_KP_6]) x = HI;
-    /* Keypad diagonals deflect both axes at once. */
-    if (ks[SDL_SCANCODE_KP_7]) {
-        y = LO;
-        x = LO;
-    }
-    if (ks[SDL_SCANCODE_KP_9]) {
-        y = LO;
-        x = HI;
-    }
-    if (ks[SDL_SCANCODE_KP_1]) {
-        y = HI;
-        x = LO;
-    }
-    if (ks[SDL_SCANCODE_KP_3]) {
-        y = HI;
-        x = HI;
-    }
-
+    Uint8 x = 0x80, y = 0x80;
+    controls_applyAxes(&x, &y, false);
+#if defined(__ANDROID__)
+    if (android_ar_controlsActive() && !joy_connected()) android_ar_getFlightAxes(&x, &y);
+#endif
     g_joyRawX = x;
     g_joyRawY = y;
 }
@@ -718,17 +821,226 @@ static void pollGamepadMenu(void) {
     if (!joy_isGamepad()) return;
     if (gamepadActive()) g_lastWasGamepad = true;
 
+#if defined(__ANDROID__)
+    /* Android controller button numbering varies. Menu confirmation must not
+     * depend on flight bindings or on a particular face-button layout. */
+    bool confirm = false;
+    for (int button = 0; button < SDL_GAMEPAD_BUTTON_COUNT; ++button) {
+        const bool navigation = button == SDL_GAMEPAD_BUTTON_DPAD_UP ||
+            button == SDL_GAMEPAD_BUTTON_DPAD_DOWN ||
+            button == SDL_GAMEPAD_BUTTON_DPAD_LEFT ||
+            button == SDL_GAMEPAD_BUTTON_DPAD_RIGHT;
+        if (!navigation) confirm |= gpEdge((SDL_GamepadButton)button);
+    }
+    confirm |= trigEdge(SDL_GAMEPAD_AXIS_RIGHT_TRIGGER, 0);
+    confirm |= trigEdge(SDL_GAMEPAD_AXIS_LEFT_TRIGGER, 1);
+    if (confirm) ringPush(0x1c00 | KEYCODE_ENTER);
+#else
     if (gpEdge(SDL_GAMEPAD_BUTTON_SOUTH) || gpEdge(SDL_GAMEPAD_BUTTON_START) ||
         trigEdge(SDL_GAMEPAD_AXIS_RIGHT_TRIGGER, 0))
         ringPush(0x1c00 | KEYCODE_ENTER);
     if (gpEdge(SDL_GAMEPAD_BUTTON_EAST) || trigEdge(SDL_GAMEPAD_AXIS_LEFT_TRIGGER, 1))
         ringPush(0x0100 | KEYCODE_ESC);
+#endif
     if (gpEdge(SDL_GAMEPAD_BUTTON_DPAD_UP)) ringPush(KEYCODE_UPARROW);
     if (gpEdge(SDL_GAMEPAD_BUTTON_DPAD_DOWN)) ringPush(KEYCODE_DNARROW);
     if (gpEdge(SDL_GAMEPAD_BUTTON_DPAD_LEFT)) ringPush(KEYCODE_LEFTARROW);
     if (gpEdge(SDL_GAMEPAD_BUTTON_DPAD_RIGHT)) ringPush(KEYCODE_RIGHTARROW);
     stickArrowRepeat(joy_axisRaw(SDL_GAMEPAD_AXIS_LEFTX), KEYCODE_LEFTARROW, KEYCODE_RIGHTARROW, &zoneX, &repX);
     stickArrowRepeat(joy_axisRaw(SDL_GAMEPAD_AXIS_LEFTY), KEYCODE_UPARROW, KEYCODE_DNARROW, &zoneY, &repY);
+}
+
+/* Convert a window-space pointer release to the same 320x200 coordinate system
+ * used by all legacy menu layouts. Touch coordinates arrive normalized; mouse
+ * coordinates arrive in window pixels. The shared R2D mapping removes any
+ * letterbox/pillarbox offset so hit boxes stay aligned with the visible menu. */
+static void queueMenuPointer(Uint32 windowID, float x, float y, bool normalized) {
+    SDL_Window *window = SDL_GetWindowFromID(windowID);
+    int width = LOGICAL_WIDTH, height = LOGICAL_HEIGHT;
+    R2DMapping mapping = {};
+    if (window && !SDL_GetWindowSize(window, &width, &height)) return;
+    if (width <= 0 || height <= 0 || (ringTail + 1) % KEY_RING == ringHead) return;
+    if (normalized) { x *= width; y *= height; }
+    r2d_computeMapping(LOGICAL_WIDTH, LOGICAL_HEIGHT, width, height, 1, &mapping);
+    x = (x - mapping.offX) / mapping.scaleX;
+    y = (y - mapping.offY) / mapping.scaleY;
+    if (x < 0 || x >= LOGICAL_WIDTH || y < 0 || y >= LOGICAL_HEIGHT) return;
+    pointerX[ringTail] = (int)x;
+    pointerY[ringTail] = (int)y;
+    ringPush(INPUT_KEY_MENU_POINTER);
+}
+/* Cockpit controls remain in the original 320x200 overlay coordinates. Keep
+ * generous touch targets around the tiny legacy glyphs without changing their
+ * visual layout. */
+static uint16 autopilotViewKey(void) {
+    /* Only unconditional aircraft views: missile/target views need a target. */
+    switch (g_viewMode) {
+    case VIEW_COCKPIT: return SCAN_F5;
+    case VIEW_EXT_FOLLOW: return SCAN_F6;
+    case VIEW_EXT_DYNAMIC: return SCAN_F7;
+    default: return SCAN_SPACEBAR;
+    }
+}
+
+uint16 input_flightPointerKey(int x, int y) {
+    /* No invisible cockpit hit targets in external views. Keep demo's normal
+     * tap-to-dismiss behavior, and leave manual flight controls unchanged. */
+    if (g_autopilotAltitude != 0 && g_autopilotEngaged == 0 &&
+        (g_viewMode != VIEW_COCKPIT || y < 101 ||
+         x < 0 || x >= LOGICAL_WIDTH))
+        return autopilotViewKey();
+    /* The two mechanical toggles painted above the right display would
+     * otherwise fall inside that display's broad target-designation region. */
+    if (y >= 101 && y < 126) {
+        if (x >= 240 && x < 262) return 0x1970; /* left toggle: P, autopilot */
+        if (x >= 262 && x < 284) return INPUT_KEY_TOGGLE_LOOK;
+    }
+    /* R and I are only a few painted pixels wide. Their larger, disjoint
+     * finger targets use the empty panel above and to the left, stopping
+     * before the neighboring landing-gear zone. */
+    if (y >= 169 && y < LOGICAL_HEIGHT) {
+        if (x >= 145 && x < 174) return 0x2e63; /* R: chaff (C) */
+        if (x >= 174 && x < 197) return 0x2166; /* I: flare (F) */
+    }
+    if (y >= 169 && y < LOGICAL_HEIGHT) {
+        /* Cover each complete weapon drawing, not only its small ammo number. */
+        if (x >= 16 && x < 55) return 0x326d;  /* left weapon: M */
+        if (x >= 55 && x < 94) return 0x1f73;  /* middle weapon: S */
+        if (x >= 94 && x < 134) return 0x2267; /* right weapon: G */
+        if (x >= 197 && x < 214) return 0x266c; /* L: landing gear */
+        if (x >= 214 && x < 231) return 0x3062; /* P: wheel brake */
+    }
+    if (x >= 219 && x < LOGICAL_WIDTH && y >= 104 && y < 190)
+        return 0x1474; /* right target display: T designates the next target */
+    if (x >= 24 && x < 97 && y >= 112 && y < 169)
+        return SCAN_MAP_ZOOM_CYCLE; /* left map MFD: cycle map scale */
+    if (x >= 120 && x < 200 && y >= 114 && y < 169)
+        return SCAN_R; /* middle radar MFD: cycle long/medium/short range */
+    if (x >= 110 && x < 211 && y >= 8 && y < 113)
+        return 0x1c0d; /* target/seeker area: Enter fires selected missile */
+    return 0;
+}
+
+enum {
+    THROTTLE_DRAW_TOP = 127,
+    THROTTLE_DRAW_BOTTOM = 175,
+    THROTTLE_TOUCH_LEFT = 204,
+    THROTTLE_TOUCH_RIGHT = 225,
+    THROTTLE_TOUCH_TOP = 120,
+    THROTTLE_TOUCH_BOTTOM = 176,
+};
+
+int input_flightThrottleValue(int x, int y) {
+    int drawY = y;
+
+    if (g_autopilotAltitude != 0 && g_autopilotEngaged == 0 &&
+        g_viewMode != VIEW_COCKPIT)
+        return -1;
+
+    if (x < THROTTLE_TOUCH_LEFT || x >= THROTTLE_TOUCH_RIGHT ||
+        y < THROTTLE_TOUCH_TOP || y >= THROTTLE_TOUCH_BOTTOM)
+        return -1;
+    if (drawY < THROTTLE_DRAW_TOP) drawY = THROTTLE_DRAW_TOP;
+    if (drawY > THROTTLE_DRAW_BOTTOM) drawY = THROTTLE_DRAW_BOTTOM;
+    return (THROTTLE_DRAW_BOTTOM - drawY) * 100 /
+           (THROTTLE_DRAW_BOTTOM - THROTTLE_DRAW_TOP);
+}
+
+/* Convert either SDL normalized touch coordinates or pixel mouse coordinates
+ * through the same square-pixel mapping used by the cockpit artwork. */
+static void mapFlightPointer(Uint32 windowID, float x, float y, bool normalized,
+                             int *logicalX, int *logicalY) {
+    SDL_Window *window = SDL_GetWindowFromID(windowID);
+    R2DMapping mapping;
+    int winW = LOGICAL_WIDTH;
+    int winH = LOGICAL_HEIGHT;
+    float pixelX = x;
+    float pixelY = y;
+
+    if (window) SDL_GetWindowSizeInPixels(window, &winW, &winH);
+    if (normalized) {
+        pixelX *= winW;
+        pixelY *= winH;
+    }
+    r2d_computeMapping(LOGICAL_WIDTH, LOGICAL_HEIGHT, winW, winH, 1, &mapping);
+    *logicalX = (int)((pixelX - mapping.offX) / mapping.scaleX);
+    *logicalY = (int)((pixelY - mapping.offY) / mapping.scaleY);
+}
+
+static bool beginFlightThrottlePointer(Uint32 windowID, float x, float y,
+                                       bool normalized) {
+    int logicalX = 0;
+    int logicalY = 0;
+    int percent = 0;
+
+    mapFlightPointer(windowID, x, y, normalized, &logicalX, &logicalY);
+    percent = input_flightThrottleValue(logicalX, logicalY);
+    if (percent < 0) return false;
+    g_flightThrottlePointerActive = true;
+    g_flightThrottlePercent = percent;
+    g_flightThrottlePending = true;
+    return true;
+}
+
+static void updateFlightThrottlePointer(Uint32 windowID, float x, float y,
+                                        bool normalized) {
+    int logicalX = 0;
+    int logicalY = 0;
+
+    mapFlightPointer(windowID, x, y, normalized, &logicalX, &logicalY);
+    /* Once grabbed, the lever follows vertical motion even if the finger
+     * strays sideways from the narrow original 11-pixel artwork. */
+    if (logicalY < THROTTLE_DRAW_TOP) logicalY = THROTTLE_DRAW_TOP;
+    if (logicalY > THROTTLE_DRAW_BOTTOM) logicalY = THROTTLE_DRAW_BOTTOM;
+    g_flightThrottlePercent =
+        (THROTTLE_DRAW_BOTTOM - logicalY) * 100 /
+        (THROTTLE_DRAW_BOTTOM - THROTTLE_DRAW_TOP);
+    g_flightThrottlePending = true;
+}
+
+/* Map a flight pointer through the same square-pixel overlay transform used to
+ * draw the HUD, then queue the legacy command owned by the touched control. */
+static void queueFlightPointer(Uint32 windowID, float x, float y,
+                               bool normalized) {
+    int logicalX = 0;
+    int logicalY = 0;
+    uint16 key;
+
+    mapFlightPointer(windowID, x, y, normalized, &logicalX, &logicalY);
+    key = input_flightPointerKey(logicalX, logicalY);
+    if (key == INPUT_KEY_TOGGLE_LOOK) {
+#if defined(__ANDROID__)
+        g_flightLookActive = android_ar_toggleLookMode() != 0;
+        ringPush(g_flightLookActive ? INPUT_KEY_LOOK_ON : INPUT_KEY_LOOK_OFF);
+#endif
+    } else {
+        /* Preserve tap-to-dismiss for the original in-engine demo key waits. */
+        ringPush(key ? key : INPUT_KEY_MENU_POINTER);
+    }
+}
+
+/* Raw flight sticks have no SDL gamepad mapping. Feed their primary axes into
+ * the same menu arrow repeater, with physical buttons 1/2 as confirm/back. */
+static void pollRawJoystickMenu(void) {
+    if (!input_hasFocus() || joy_rawButtonCount() <= 0) {
+        g_rawMenuButton = joy_rawPressedButton();
+        g_rawMenuZoneX = g_rawMenuZoneY = 0;
+        return;
+    }
+    const int button = joy_rawPressedButton();
+    if (button >= 0 && g_rawMenuButton < 0) {
+#if defined(__ANDROID__)
+        ringPush(0x1c00 | KEYCODE_ENTER);
+#else
+        if (button == 0) ringPush(0x1c00 | KEYCODE_ENTER);
+        if (button == 1) ringPush(0x0100 | KEYCODE_ESC);
+#endif
+    }
+    g_rawMenuButton = button;
+    stickArrowRepeat(joy_rawMenuAxis(0), KEYCODE_LEFTARROW, KEYCODE_RIGHTARROW,
+                     &g_rawMenuZoneX, &g_rawMenuRepeatX);
+    stickArrowRepeat(joy_rawMenuAxis(1), KEYCODE_UPARROW, KEYCODE_DNARROW,
+                     &g_rawMenuZoneY, &g_rawMenuRepeatY);
 }
 
 /* --- the single event pump ------------------------------------------------- */
@@ -760,6 +1072,7 @@ void input_pumpEvents(void) {
             break;
         case SDL_EVENT_WINDOW_FOCUS_LOST:
             g_hasFocus = false;
+            joy_resetFlightInput();
             break;
         case SDL_EVENT_WINDOW_RESIZED:
         case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
@@ -770,6 +1083,7 @@ void input_pumpEvents(void) {
             gfx_repaint();
             break;
         case SDL_EVENT_KEY_DOWN:
+            if (controls_captureKey(ev.key)) break;
             /* A real key hands flight control back to the keyboard (it stays
              * with the keyboard until the stick is moved again). */
             g_lastWasGamepad = false;
@@ -780,7 +1094,8 @@ void input_pumpEvents(void) {
                 break;
             }
             if (g_mode == INPUT_MODE_FLIGHT) {
-                uint16 word = biosWord(ev.key.scancode, ev.key.mod);
+                uint16 word = controls_translateKey(ev.key.scancode, ev.key.mod,
+                                                     biosWord(ev.key.scancode, ev.key.mod));
                 if (word) ringPush(word);
             } else {
                 menuKeyDown(&ev);
@@ -811,6 +1126,122 @@ void input_pumpEvents(void) {
                 }
             }
             break;
+        case SDL_EVENT_FINGER_UP:
+            if (g_mode == INPUT_MODE_MENU) {
+                queueMenuPointer(ev.tfinger.windowID, ev.tfinger.x, ev.tfinger.y, true);
+            } else {
+#if defined(__ANDROID__)
+                if (g_flightThrottlePointerActive) {
+                    updateFlightThrottlePointer(
+                        ev.tfinger.windowID, ev.tfinger.x, ev.tfinger.y, true);
+                    g_flightThrottlePointerActive = false;
+                } else if (g_flightControlPointerActive) {
+                    queueFlightPointer(
+                        ev.tfinger.windowID, ev.tfinger.x, ev.tfinger.y, true);
+                } else if (!g_flightSwipeActive) {
+                    queueFlightPointer(
+                        ev.tfinger.windowID, ev.tfinger.x, ev.tfinger.y, true);
+                }
+                g_flightFingerDown = false;
+                g_flightControlPointerActive = false;
+                g_flightSwipeActive = false;
+#else
+                queueFlightPointer(
+                    ev.tfinger.windowID, ev.tfinger.x, ev.tfinger.y, true);
+#endif
+            }
+            break;
+        case SDL_EVENT_FINGER_DOWN:
+            if (g_mode == INPUT_MODE_MENU) {
+                /* Options use press events; roster/mission selection uses
+                 * release events. Match the existing mouse path without
+                 * accepting SDL's duplicate synthetic mouse event. */
+                SDL_MouseButtonEvent point = {};
+                point.windowID = ev.tfinger.windowID;
+                point.x = ev.tfinger.x;
+                point.y = ev.tfinger.y;
+                if (menuPointFromWindow(&point, &g_menuClickX, &g_menuClickY, true)) {
+                    g_menuClickPending = true;
+                    ringPush(INPUT_MENU_MOUSE_CLICK);
+                }
+            }
+#if defined(__ANDROID__)
+            if (g_mode == INPUT_MODE_FLIGHT) {
+                if (!beginFlightThrottlePointer(
+                        ev.tfinger.windowID, ev.tfinger.x, ev.tfinger.y, true)) {
+                    int logicalX = 0;
+                    int logicalY = 0;
+                    mapFlightPointer(ev.tfinger.windowID, ev.tfinger.x,
+                                     ev.tfinger.y, true, &logicalX, &logicalY);
+                    g_flightControlPointerActive =
+                        input_flightPointerKey(logicalX, logicalY) != 0;
+                    g_flightFingerDown = !g_flightControlPointerActive;
+                    g_flightSwipeActive = false;
+                    g_flightFingerStartY = ev.tfinger.y;
+                }
+            }
+#endif
+            break;
+#if defined(__ANDROID__)
+        case SDL_EVENT_FINGER_MOTION:
+            if (g_mode == INPUT_MODE_FLIGHT && g_flightThrottlePointerActive) {
+                updateFlightThrottlePointer(
+                    ev.tfinger.windowID, ev.tfinger.x, ev.tfinger.y, true);
+            } else if (g_mode == INPUT_MODE_FLIGHT && g_flightFingerDown &&
+                !g_flightLookActive) {
+                float displacement = ev.tfinger.y - g_flightFingerStartY;
+                if (displacement < 0.0f) displacement = -displacement;
+                if (displacement >= LOOK_SWIPE_GATE)
+                    g_flightSwipeActive = true;
+                if (g_flightSwipeActive)
+                    android_ar_addSwipePitch(ev.tfinger.dy);
+            }
+            break;
+        case SDL_EVENT_FINGER_CANCELED:
+            g_flightThrottlePointerActive = false;
+            g_flightControlPointerActive = false;
+            g_flightFingerDown = false;
+            g_flightSwipeActive = false;
+            break;
+#endif
+        case SDL_EVENT_MOUSE_BUTTON_DOWN:
+            if (g_mode == INPUT_MODE_MENU && ev.button.button == SDL_BUTTON_LEFT &&
+                ev.button.which != SDL_TOUCH_MOUSEID &&
+                menuPointFromWindow(&ev.button, &g_menuClickX, &g_menuClickY)) {
+                g_menuClickPending = true;
+                ringPush(INPUT_MENU_MOUSE_CLICK);
+            }
+            if (ev.button.button == SDL_BUTTON_LEFT &&
+                ev.button.which != SDL_TOUCH_MOUSEID &&
+                g_mode == INPUT_MODE_FLIGHT) {
+                beginFlightThrottlePointer(
+                    ev.button.windowID, ev.button.x, ev.button.y, false);
+            }
+            break;
+        case SDL_EVENT_MOUSE_MOTION:
+            if (ev.motion.which != SDL_TOUCH_MOUSEID &&
+                g_mode == INPUT_MODE_FLIGHT && g_flightThrottlePointerActive) {
+                updateFlightThrottlePointer(
+                    ev.motion.windowID, ev.motion.x, ev.motion.y, false);
+            }
+            break;
+        case SDL_EVENT_MOUSE_BUTTON_UP:
+            /* SDL synthesizes a mouse event after a touch event. Ignore that
+             * duplicate or one tap would activate the following menu too. */
+            if (ev.button.button == SDL_BUTTON_LEFT &&
+                ev.button.which != SDL_TOUCH_MOUSEID) {
+                if (g_mode == INPUT_MODE_MENU) {
+                    queueMenuPointer(ev.button.windowID, ev.button.x, ev.button.y, false);
+                } else if (g_flightThrottlePointerActive) {
+                    updateFlightThrottlePointer(
+                        ev.button.windowID, ev.button.x, ev.button.y, false);
+                    g_flightThrottlePointerActive = false;
+                } else {
+                    queueFlightPointer(
+                        ev.button.windowID, ev.button.x, ev.button.y, false);
+                }
+            }
+            break;
         default:
             break;
         }
@@ -818,8 +1249,12 @@ void input_pumpEvents(void) {
 
     if (g_mode == INPUT_MODE_FLIGHT) {
         updateStick();
+        if (joy_rawActive()) g_lastWasGamepad = true;
         pollGamepadFlight();
     } else {
-        pollGamepadMenu();
+        if (!g_joystickSetup) {
+            pollGamepadMenu();
+            pollRawJoystickMenu();
+        }
     }
 }

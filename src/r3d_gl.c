@@ -24,7 +24,11 @@
  * have no 3D pass and composite the page at present instead.
  */
 #include <SDL3/SDL.h>
-#include <SDL3/SDL_opengl.h>
+#if defined(R3D_GLES_BUILD)
+#include "r3d_gles_platform.h"
+#else
+#include "r3d_gl_platform.h"
+#endif
 
 #include "r3d.h"
 #include "r3d_gl.h"
@@ -95,6 +99,7 @@ static const int GL_MSAA_SAMPLES = 4;
 int r3dgl_msaaSamples(void) { return GL_MSAA_SAMPLES; }
 
 void r3dgl_setGLAttributes(int msaaSamples) {
+    glPlatformSetAttributes();
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
     /* 8-bit stencil (D24S8, universal on GL 1.1) — the shadow pass masks each covered
      * pixel so a self-overlapping silhouette blends exactly once. */
@@ -115,8 +120,11 @@ int r3dgl_initContext(SDL_Window *win) {
     }
     SDL_GL_MakeCurrent(win, s_ctx);
     SDL_GL_SetSwapInterval(1);
-    s_glFogCoordf = (void (*)(GLfloat))SDL_GL_GetProcAddress("glFogCoordf");
-    if (GL_MSAA_SAMPLES > 0) glEnable(GL_MULTISAMPLE); /* no-op if the format has 0 samples */
+    if (!glPlatformInit(&s_glFogCoordf, GL_MSAA_SAMPLES)) {
+        SDL_GL_DestroyContext(s_ctx);
+        s_ctx = NULL;
+        return 0;
+    }
     {
         GLint depthBits = 0, stencilBits = 0, samples = 0;
         glGetIntegerv(GL_DEPTH_BITS, &depthBits);
@@ -187,16 +195,6 @@ static void addShowRect(int x, int y, int w, int h) {
     s_nShowRects++;
 }
 
-/* Is page-space pixel (x,y) inside any show-through rect? */
-static int inShowRect(int x, int y) {
-    int i;
-    for (i = 0; i < s_nShowRects; i++) {
-        const SDL_Rect *r = &s_showRects[i];
-        if (x >= r->x && x < r->x + r->w && y >= r->y && y < r->y + r->h)
-            return 1;
-    }
-    return 0;
-}
 static float s_proj[16];     /* column-major GL projection for the active scene */
 static int s_sceneVp[4];     /* window-px viewport/scissor of the active 3D scene, for
                               * re-establishing the scene state in gl_endScene */
@@ -992,7 +990,9 @@ static void fogVertex(float x, float y, float z) {
     glVertex3f(x, y, z);
 }
 
-static const char *gl_name(void) { return "opengl1"; }
+static const char *gl_name(void) {
+    return glPlatformName();
+}
 
 static int gl_init(void) { return s_active; } /* claims iff the context came up */
 static void gl_shutdown(void) {
@@ -1073,7 +1073,8 @@ static float fmulQ15(float a, float b) { return a * b * (1.0f / 32768.0f); }
  * a flat GL quad filled from that ramp, drawn in an ortho viewport with depth off
  * so the 3D objects always composite in front (matching the original's draw-first,
  * no-Z background). Runs only at detail >= 3; below that a flat clear stands in. */
-static void glDrawSphere(float oLeft, float oRight, float oBottom, float oTop) {
+static void glDrawSphere(float oLeft, float oRight, float oBottom, float oTop,
+                         int drawSky) {
     float rearX[17], rearY[17], foreX[17], foreY[17], facePts[8];
     int ringIx;
     float ringRad, radiusScale, i, j;
@@ -1118,13 +1119,16 @@ static void glDrawSphere(float oLeft, float oRight, float oBottom, float oTop) {
         rearY[ringIx] = -(-(((i + j) * vAspectK) - i) + j) + g_viewCenterY;
         foreY[ringIx] = (((i - j) * vAspectK) + g_viewCenterY) - i + j;
     }
-    for (ringIx = 0; ringIx < 16; ringIx++) {
-        facePts[0] = rearX[ringIx];     facePts[1] = rearY[ringIx];
-        facePts[2] = foreX[ringIx];     facePts[3] = foreY[ringIx];
-        facePts[4] = foreX[ringIx + 1]; facePts[5] = foreY[ringIx + 1];
-        facePts[6] = rearX[ringIx + 1]; facePts[7] = rearY[ringIx + 1];
-        /* sky ramp: blend this band's colour toward the next band's */
-        sphereQuadGrad(facePts, 0x60 + ringIx, 0x60 + (ringIx < 15 ? ringIx + 1 : 15));
+    if (drawSky) {
+        for (ringIx = 0; ringIx < 16; ringIx++) {
+            facePts[0] = rearX[ringIx];     facePts[1] = rearY[ringIx];
+            facePts[2] = foreX[ringIx];     facePts[3] = foreY[ringIx];
+            facePts[4] = foreX[ringIx + 1]; facePts[5] = foreY[ringIx + 1];
+            facePts[6] = rearX[ringIx + 1]; facePts[7] = rearY[ringIx + 1];
+            /* sky ramp: blend this band's colour toward the next band's */
+            sphereQuadGrad(facePts, 0x60 + ringIx,
+                           0x60 + (ringIx < 15 ? ringIx + 1 : 15));
+        }
     }
 
     g_sphereRingRadii[0] = g_viewPosZ / 0x200;
@@ -1254,6 +1258,9 @@ static void gl_beginSubScene(const R3DScene *s) {
 
 static void gl_beginScene(const R3DScene *s) {
     int win_w, win_h, vpTop, vpBot, vpLeft, vpRight, Wv, Hv, lbx, lby;
+    int viewYaw = s->angleX;
+    int viewPitch = s->angleY;
+    int viewRoll = s->angleZ;
     float scaleX, scaleY, fGate, sphOrtho[4];
     int16 skyIdx;
 
@@ -1267,6 +1274,7 @@ static void gl_beginScene(const R3DScene *s) {
      * it. Expire its TTF labels too, including tape labels that moved or vanished. */
     gfx_invalidateTtfTextOverlayRect(s->viewport[9], s->viewport[7],
                                      s->viewport[10], s->viewport[8]);
+    glPlatformAdjustView(&viewYaw, &viewPitch, &viewRoll);
     /* This is a flight 3D frame: its HUD/MFD line & point submissions draw
      * immediately at native resolution. The page backdrop is composited mid-frame
      * at the gl_endScene anchor (after the 3D, before the HUD), so don't compose it
@@ -1286,7 +1294,7 @@ static void gl_beginScene(const R3DScene *s) {
      * (renderScene = 0 here): view matrix + position + viewport + spin advance +
      * sort reset. The GL submit reads g_viewRotMatrix / g_viewPos* indirectly via
      * r3d_objTransformFar. */
-    setup3DTransform(s->viewport, s->angleX, s->angleY, s->angleZ,
+    setup3DTransform(s->viewport, viewYaw, viewPitch, viewRoll,
                      s->posX, s->posY, s->posZ, 0);
 
     vpTop = s->viewport[7];
@@ -1323,7 +1331,7 @@ static void gl_beginScene(const R3DScene *s) {
      * viewport region is re-cleared to the sky colour once scissored below. */
     glViewport(0, 0, win_w, win_h);
     glDisable(GL_SCISSOR_TEST);
-    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glPlatformClearColor(0.0f, 0.0f, 0.0f);
     glDepthMask(GL_TRUE);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
@@ -1400,7 +1408,7 @@ static void gl_beginScene(const R3DScene *s) {
     {
         uint8 r, g, b;
         gfx_paletteRGB((int)(uint8)skyIdx, &r, &g, &b);
-        glClearColor(r / 255.0f, g / 255.0f, b / 255.0f, 1.0f);
+        glPlatformClearColor(r / 255.0f, g / 255.0f, b / 255.0f);
     }
     glDepthMask(GL_TRUE);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
@@ -1409,7 +1417,8 @@ static void gl_beginScene(const R3DScene *s) {
      * depth test off so it stays behind everything; the 3D projection is then
      * restored for the objects. */
     if ((char)g_detailLevel >= 3)
-        glDrawSphere(sphOrtho[0], sphOrtho[1], sphOrtho[2], sphOrtho[3]);
+        glDrawSphere(sphOrtho[0], sphOrtho[1], sphOrtho[2], sphOrtho[3],
+                     glPlatformDrawSky());
     glMatrixMode(GL_PROJECTION);
     glLoadMatrixf(s_proj);
     glMatrixMode(GL_MODELVIEW);
@@ -2873,10 +2882,8 @@ void r3dgl_drawImageWindowBoxX(R2DImage *img, float boxLeftX) {
 }
 
 /* The retained page as a persistent GL texture + the dirty key it was built for.
- * Re-uploaded ONLY when its visible output could have changed (below), so the page
- * is NOT re-converted/re-uploaded every frame — the flight fire-palette cycle bumps
- * the global palette generation every frame but touches only its 9 fire entries, so
- * a cockpit that doesn't use them stays cached. */
+ * Re-uploaded only when the indexed page, palette, show-through rectangles or
+ * dimensions change, rather than being converted and uploaded every frame. */
 static GLuint s_pageTex;
 static unsigned s_pageKey;
 static int s_pageTexW, s_pageTexH;
@@ -2895,6 +2902,16 @@ static unsigned pageHashBytes(unsigned k, const uint8 *src, size_t size) {
     }
     while (size-- != 0) k = (k ^ *src++) * 16777619u;
     return k;
+}
+
+static int inShowRect(int x, int y) {
+    int i;
+    for (i = 0; i < s_nShowRects; i++) {
+        const SDL_Rect *r = &s_showRects[i];
+        if (x >= r->x && x < r->x + r->w && y >= r->y && y < r->y + r->h)
+            return 1;
+    }
+    return 0;
 }
 
 /* Fold the page's visible output: pixels, palette, show-through rectangles and

@@ -2,6 +2,8 @@
 #include "egcode.h"
 #include "egdata.h"
 #include "egflight.h"
+#include "android_ar.h"
+#include "game_options.h"
 #include "egframe.h"
 #include "egkeys.h"
 #include "egmath.h"
@@ -19,6 +21,7 @@
 #include "comm.h"
 #include "eginput.h"
 #include "input.h"
+#include "joystick.h"
 
 #include <dos.h>
 #include <stdio.h>
@@ -57,6 +60,8 @@ void stepFlightModel(void) {
     int16 m;                                // dummy:  bp-0x3a (bucket 13)
     int16 knotsScale;                       // var_3C: bp-0x3c (bucket 14)
     int16 nsSign;                           // var_3E: bp-0x3e (bucket 15)
+    int androidFlightControl = 0;
+    int pointerThrottle = 0;
 
     if (g_initPhase == 0) {
         // (MSC stores chained assignments right-to-left:
@@ -87,6 +92,14 @@ void stepFlightModel(void) {
         g_initPhase = 1;
     }
 
+#if defined(__ANDROID__)
+    /* Publish the aircraft attitude before input sampling. Android uses it as
+     * feedback for target-angle controls, never as an integrated turn rate. */
+    android_ar_setAutopilotActive(g_autopilotAltitude != 0 ||
+                                  g_autopilotEngaged != 0);
+    android_ar_setGameAttitude(g_ourPitch, g_ourRoll);
+#endif
+
     keyScancode = 0;
     if (kbhit()) {
         keyScancode = egReadKey();
@@ -101,8 +114,47 @@ void stepFlightModel(void) {
         egReadKey(); // Flush keyboard buffer
     }
 
+    if (input_takeFlightThrottle(&pointerThrottle) && !joy_hasThrottleAxis()) {
+        /* Touch uses the same target-thrust state and gauge update as the
+         * original +/- keys; only the input device is modern. */
+        g_setThrust = clampRange(pointerThrottle, 0, 100);
+        UpdateThrottleState();
+        *((uint8 *)&g_playerPlaneFlags) &= 0xF7; /* release wheel brakes */
+        if (g_autopilotEngaged == 1) {
+            g_directorMode =
+                g_autopilotEngaged =
+                    g_viewMode = VIEW_COCKPIT;
+        }
+    }
+
+    /* Raw-stick commands bypass the keyboard flush above. Reuse the existing
+     * dispatch so keyboard and joystick actions have identical game effects. */
+    if (keyScancode == 0) {
+        keyScancode = joy_flightCommand(missileSpecIndex, g_viewMode);
+        if (keyScancode != 0 && g_autopilotEngaged == 1) {
+            g_directorMode = g_autopilotEngaged = g_viewMode = VIEW_COCKPIT;
+        }
+    }
+    {
+        const int throttle = joy_throttleChange();
+        if (throttle >= 0 && g_inputDisabled == 0) {
+            g_setThrust = throttle;
+            UpdateThrottleState();
+            if (throttle > 0) g_playerPlaneFlags &= ~8;
+        }
+    }
+
     // Main key dispatch logic
     switch ((uint16)keyScancode) {
+    case INPUT_KEY_LOOK_ON:
+        hudMessage("Look on");
+        goto switch_break;
+    case INPUT_KEY_LOOK_OFF:
+        if (g_autopilotAltitude != 0 || g_autopilotEngaged != 0)
+            hudMessage("Look blocked: autopilot on");
+        else
+            hudMessage("Look off");
+        goto switch_break;
     case SCAN_MINUS:
         g_setThrust = clampRange(g_setThrust - 10, 0, 100);
         UpdateThrottleState();
@@ -158,7 +210,7 @@ void stepFlightModel(void) {
             UpdateThrottleState();
         }
         goto switch_break;
-    case 0x1900: // Alt-P
+    case SCAN_ALT_P:
         waitForKeyPress();
         goto switch_break;
     }
@@ -175,6 +227,13 @@ switch_break:
     if (g_inputDisabled != 0) {
         joyAxes[0] = 0;
         joyAxes[1] = 0;
+#if defined(__ANDROID__)
+    } else if (g_autopilotAltitude != 0 || g_autopilotEngaged != 0) {
+        /* A sensor sample may already be cached when autopilot is toggled.
+         * Neutralize it here so legacy stick input cannot cancel autopilot. */
+        joyAxes[0] = 0x80;
+        joyAxes[1] = 0x80;
+#endif
     } else {
         if (input_preferGamepad()) {
             readCalibratedJoystick();
@@ -197,6 +256,38 @@ switch_break:
     g_pitchInput *= 6;
     if (g_pitchInput < 0) {
         g_pitchInput /= 2;
+    }
+
+    /*
+     * Android attitude control needs corrections smaller than the DOS
+     * joystick's nibble-sized bins. Keep the legacy path intact, then replace
+     * only its final flight inputs while the optional camera controller is on.
+     */
+    /* A deliberately enabled altitude autopilot owns the controls until the
+     * player toggles it off; otherwise handset attitude is authoritative. */
+    /* Direct attitude must not cancel a stall, ground constraint, or forced
+     * crash. Zero thrust alone is not a stall: unpowered gliding remains valid. */
+    const bool attitudeControlAllowed =
+        g_autopilotAltitude == 0 && g_inputDisabled == 0 &&
+        g_ejectState == 0 && g_autoCrashDive == 0 &&
+        (uint16)g_velocity > (uint16)g_stallSpeed &&
+        (g_groundAltitude != g_viewZ || g_knots >= g_cornerSpeed);
+    androidFlightControl = attitudeControlAllowed
+                               ? android_ar_overrideFlightInput(
+                                     &g_rollInput, &g_pitchInput)
+                               : 0;
+    if (androidFlightControl) {
+        g_autopilotAltitude = 0;
+        g_autopilotEngaged = 0;
+        g_directorMode = 0;
+        /*
+         * Phone tilt is a requested attitude, not a virtual stick rate. Build
+         * the legacy matrix from that attitude so its yaw/lift calculations
+         * remain intact without a feedback loop chasing decoded Euler jumps.
+         */
+        if (android_ar_overrideFlightAttitude(&g_ourRoll, &g_ourPitch)) {
+            rebuildOrientation();
+        }
     }
 
     if (g_groundAltitude == g_viewZ && g_pitchInput < 0 && g_ourPitch <= 0) {
@@ -403,7 +494,8 @@ switch_break:
     if (g_setThrust < g_thrust) g_thrust = g_setThrust;
 
     if ((((uint16)frameTick) % ((uint16)(g_frameRateScaling << 1))) == 0 && g_setThrust != 0 && g_autopilotEngaged == 0) {
-        g_fuelRemaining -= ((g_setThrust * g_setThrust) / 750) + 2;
+        if (!gameOptionsEnabled(GAME_OPTION_INFINITE_FUEL))
+            g_fuelRemaining -= ((g_setThrust * g_setThrust) / 750) + 2;
         drawFuelGauge();
     }
 
@@ -478,6 +570,17 @@ switch_break:
 
     yaw = cosMul(g_ourPitch, yaw);
 
+    /*
+     * Turbulence and other legacy assists modify the stick earlier in this
+     * routine. Reapply the phone's target-attitude command at the final normal
+     * flight-control boundary so those later additions cannot shake the
+     * aircraft away from the handset pose. Ground steering and forced crash
+     * behavior below remain authoritative.
+     */
+    if (androidFlightControl) {
+        android_ar_overrideFlightInput(&g_rollInput, &g_pitchInput);
+    }
+
     if (g_groundAltitude == g_viewZ) {
         yaw = (g_rollInput * -1) << 6;
         g_rollInput = 0;
@@ -493,31 +596,50 @@ switch_break:
             g_velocity = 0;
     }
 
-    rollAngle = (((int32)g_rollInput) << 7) / ((int32)g_frameRateScaling);
-    if (rollAngle != 0) {
-        g_rollMatrix[4] = g_rollMatrix[0] = cosine(rollAngle);
-        g_rollMatrix[1] = sine(rollAngle);
-        g_rollMatrix[3] = -g_rollMatrix[1];
-        applyRotationDelta(g_orientMatrix, g_rollMatrix);
-    }
-
-    pitchAngle = (int16)((int32)g_pitchInput << 7) / g_frameRateScaling;
-    if (pitchAngle != 0) {
-        g_pitchMatrix[8] = g_pitchMatrix[4] = cosine(pitchAngle);
-        g_pitchMatrix[7] = sine(pitchAngle);
-        g_pitchMatrix[5] = -g_pitchMatrix[7];
-        applyRotationDelta(g_orientMatrix, g_pitchMatrix);
-    }
+#if defined(__ANDROID__)
+    android_ar_setFlightDebug(g_ourHead, yaw, g_rollInput, g_pitchInput,
+                              g_knots, g_gees, turbulence,
+                              g_autopilotAltitude, g_autopilotEngaged,
+                              g_directorMode, g_frameRateScaling);
+#endif
 
     yawAngle = yaw / g_frameRateScaling;
-    if (yawAngle != 0) {
-        g_yawMatrix[8] = g_yawMatrix[0] = cosine(yawAngle);
-        g_yawMatrix[2] = sine(yawAngle);
-        g_yawMatrix[6] = -g_yawMatrix[2];
-        applyRotationDelta(g_yawMatrix, g_orientMatrix);
-    }
+    if (androidFlightControl) {
+        /*
+         * Phone tilt specifies only bank and pitch. Advance heading from the
+         * original aerodynamic yaw directly; decomposing the fixed-point
+         * matrix back to Euler angles can alternate between equivalent
+         * azimuths and make a banked aircraft shake toward its old heading.
+         */
+        g_ourHead = (int16)(g_ourHead + yawAngle);
+        android_ar_overrideFlightAttitude(&g_ourRoll, &g_ourPitch);
+        g_orientationDirty = 1;
+    } else {
+        rollAngle = (((int32)g_rollInput) << 7) / ((int32)g_frameRateScaling);
+        if (rollAngle != 0) {
+            g_rollMatrix[4] = g_rollMatrix[0] = cosine(rollAngle);
+            g_rollMatrix[1] = sine(rollAngle);
+            g_rollMatrix[3] = -g_rollMatrix[1];
+            applyRotationDelta(g_orientMatrix, g_rollMatrix);
+        }
 
-    computeAttitudeAngles();
+        pitchAngle = (int16)((int32)g_pitchInput << 7) / g_frameRateScaling;
+        if (pitchAngle != 0) {
+            g_pitchMatrix[8] = g_pitchMatrix[4] = cosine(pitchAngle);
+            g_pitchMatrix[7] = sine(pitchAngle);
+            g_pitchMatrix[5] = -g_pitchMatrix[7];
+            applyRotationDelta(g_orientMatrix, g_pitchMatrix);
+        }
+
+        if (yawAngle != 0) {
+            g_yawMatrix[8] = g_yawMatrix[0] = cosine(yawAngle);
+            g_yawMatrix[2] = sine(yawAngle);
+            g_yawMatrix[6] = -g_yawMatrix[2];
+            applyRotationDelta(g_yawMatrix, g_orientMatrix);
+        }
+
+        computeAttitudeAngles();
+    }
 
     if ((uint16)g_stallSpeed > (uint16)g_velocity && (uint16)g_groundAltitude < (uint16)g_viewZ) {
         g_ourPitch -= ((uint16)g_stallSpeed - (uint16)g_velocity) >> ((gameData->unk4 == 2 || g_gunHits > 8) ? 1 : 2);
@@ -543,6 +665,9 @@ switch_break:
     g_autoCrashDive = 0;
 
     g_highGeeFlag[0] = ((abs(g_ourPitch)) - (abs((int16)g_ourRoll) / 2) > 0x1000) ? 1 : 0;
+
+    /* Keep the stall and ground corrections above. Reapplying handset attitude
+     * here would erase their nose drop and permit flight below stall speed. */
 
     if (g_orientationDirty) {
         rebuildOrientation();
@@ -577,10 +702,12 @@ switch_break:
             makeSound(12, 2);
             // temp_bx = g_closestThreatIndex << 4;
 
-            if (((((g_planeTable.planes[g_closestThreatIndex].flags & 0x200) ? 0x100 : 0x80) < ((int16)(-g_climbRate * g_missionStatus) / 2))) ||
+            if (!android_ar_preventCrashes() &&
+                !gameOptionsEnabled(GAME_OPTION_NO_DAMAGE) &&
+                (((((g_planeTable.planes[g_closestThreatIndex].flags & 0x200) ? 0x100 : 0x80) < ((int16)(-g_climbRate * g_missionStatus) / 2))) ||
                 ((gameData->unk4 != 0 &&
                   (((g_playerPlaneFlags & 1) != 0) ||
-                   (((int16)abs(g_ourRoll)) > (int16)((0x30 / (g_missionStatus + 1)) << 8)))))) {
+                   (((int16)abs(g_ourRoll)) > (int16)((0x30 / (g_missionStatus + 1)) << 8))))))) {
                 makeSound(0, 2);
                 waitFrameSync(60);
                 finalizeMission(5);
@@ -696,8 +823,9 @@ void rebuildOrientation() {
 }
 
 uint16 signedRatio16(int16 numerator, int16 denominator) { /* Original: IntDiv(A,B). Divide two signed 15-bit fractions. */
-    char numeratorSign = 1;
-    char denominatorSign = 1;
+    /* Plain char is unsigned on Android ARM; sign factors must preserve -1. */
+    int numeratorSign = 1;
+    int denominatorSign = 1;
     int32 absNumerator;
     int32 absDenominator;
 
@@ -782,9 +910,25 @@ static int32 eyeFromQ8(long q8, int16 *frac) {
     return (int32)(q8 >> 8);
 }
 
+void computeTrackingCameraAngles(int32 targetX, int32 targetY, int16 targetAlt,
+                                 int32 viewX, int32 viewY, int16 viewAlt,
+                                 int16 *heading, int16 *pitch) {
+    enum { WORLD_Y_EXTENT = 0x100000 };
+    int32 dx = targetX - viewX;
+    /* Target Y is a world coordinate, while viewY is the renderer's inverted
+     * coordinate. Convert them to the same space before taking the delta. */
+    int32 dy = targetY - (WORLD_Y_EXTENT - viewY);
+    int32 range = rangeApprox32(dx, dy);
+
+    /* Fine world deltas exceed int16 on normal maps. computeBearing32 scales
+     * both components equally, preserving the angle without truncation. */
+    *heading = computeBearing32(dx, -dy);
+    *pitch = -computeBearing32((int32)targetAlt - viewAlt, range);
+}
+
 // something to do with view switching?
 void renderFrame() {
-    int16 camDist, savedCamDist, range, camOffset, dx, dy, tmp;
+    int16 camDist, savedCamDist, camOffset, tmp;
     g_camEyeX = g_viewTargetX = g_ViewX;
     g_camEyeY = g_ViewY;
     g_viewTargetY = 0x100000 - g_ViewY;
@@ -905,23 +1049,9 @@ void renderFrame() {
             if (g_autopilotEngaged != 0 && g_directorEventDeadline == -1) camDist = 6;
         }
         if (g_directorMode == 0) camDist = savedCamDist;
-        /* Derive the tracking-camera heading and pitch from FINE world coords —
-         * both the fine target position and the fine player position (g_ViewX/Y),
-         * not the coarse map coords (g_viewX_/g_viewY_) which step 32 fine units
-         * at a time and made the whole world "earthquake" around a tracked target.
-         * computeBearing is scale-invariant, so the angles are identical to the
-         * original coarse formula but with ~32x less quantization jitter. range is
-         * computed inline (rangeApprox would saturate its 0x7fff cap on fine
-         * deltas) and kept in the same scale as the altitude delta so the pitch
-         * ratio is unchanged. */
-        dx = (int)(g_viewTargetX - g_ViewX);
-        dy = (int)(g_viewTargetY - g_ViewY);
-        {
-            int adx = dx < 0 ? -dx : dx, ady = dy < 0 ? -dy : dy;
-            range = adx > ady ? adx + (ady >> 1) : ady + (adx >> 1);
-        }
-        g_viewHeading = computeBearing(dx, -dy);
-        g_viewPitch = -computeBearing(g_viewTargetAlt - g_viewZ, range);
+        computeTrackingCameraAngles((int32)g_viewTargetX, (int32)g_viewTargetY,
+                                    g_viewTargetAlt, g_ViewX, g_ViewY, g_viewZ,
+                                    &g_viewHeading, &g_viewPitch);
         g_viewRoll = 0;
         camOffset = cosMul(g_viewPitch, 0x18 << camDist);
         if (g_viewTargetObj & 0x60 || g_directorMode != 0) {
@@ -1132,13 +1262,16 @@ void drawVectorShape(const int16 *shapeData) {
 
 void waitForKeyPress(void) {
     int16 savedTiming;
+    int key;
 
     audio_engineDroneOff();
     savedTiming = g_frameTimingAccum;
-loop:
-    while (kbhit() == 0);
-    if (egReadKey() == 0x1900)
-        goto loop;
+    /* The DOS version busy-polled BIOS kbhit(). The native blocking reader
+     * pumps SDL/blackbox input and yields between polls, keeping pause from
+     * consuming a CPU core while preserving Alt+P's wait-for-another-key rule. */
+    do {
+        key = egReadKey();
+    } while (key == SCAN_ALT_P);
     updateEngineSound();
     g_frameTimingAccum = savedTiming;
 }

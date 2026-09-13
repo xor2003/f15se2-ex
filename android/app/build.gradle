@@ -1,0 +1,76 @@
+plugins {
+    id "com.android.application"
+}
+
+android {
+    namespace "org.f15se2.ex"
+    compileSdk 35
+    ndkVersion "28.2.13676358"
+
+    // CI uses a persistent key so downloaded APKs can update in place.
+    // Local builds without these variables retain Android's usual debug key.
+    def signingPath = System.getenv("F15_ANDROID_KEYSTORE")
+    if (signingPath) {
+        def signingPassword = System.getenv("F15_ANDROID_KEYSTORE_PASSWORD")
+        if (!signingPassword) throw new GradleException("Missing Android signing password")
+        signingConfigs {
+            persistent {
+                storeFile file(signingPath)
+                storePassword signingPassword
+                keyAlias "f15se2"
+                keyPassword signingPassword
+            }
+        }
+        buildTypes.debug.signingConfig = signingConfigs.persistent
+    }
+
+    defaultConfig {
+        applicationId "org.f15se2.ex"
+        minSdk 21
+        targetSdk 35
+        versionCode 1
+        versionName "0.1"
+
+        externalNativeBuild {
+            cmake {
+                arguments "-DANDROID_PLATFORM=android-21", "-DANDROID_STL=c++_static"
+                abiFilters "arm64-v8a", "armeabi-v7a"
+            }
+        }
+    }
+
+    buildFeatures {
+        prefab true
+    }
+
+    externalNativeBuild {
+        cmake {
+            path file("../../CMakeLists.txt")
+            version "3.22.1"
+        }
+    }
+
+    // Derive importer checks from the native validator so supported files and
+    // checksums cannot drift between Java and C++. No game data is packaged.
+    def manifestDir = layout.buildDirectory.dir("generated/asset-manifest")
+    sourceSets.main.assets.srcDir(manifestDir)
+    tasks.register("generateAssetManifest") {
+        def source = file("../../src/shared/file_io.c")
+        inputs.file(source)
+        outputs.dir(manifestDir)
+        doLast {
+            def matches = source.text =~ /\{\s*"([0-9a-f]{32})",\s*"([^"\r\n]+)"\s*\}/
+            def lines = matches.collect { item -> "${item[1]} ${item[2].toLowerCase(Locale.ROOT)}" }
+            if (lines.isEmpty()) throw new GradleException("Native asset manifest not found")
+            def output = new File(manifestDir.get().asFile, "game-assets.md5")
+            output.parentFile.mkdirs()
+            output.setText(lines.join("\n") + "\n", "UTF-8")
+        }
+    }
+    preBuild.dependsOn("generateAssetManifest")
+
+}
+
+dependencies {
+    implementation files("libs/SDL3-3.4.10.aar")
+}

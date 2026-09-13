@@ -163,6 +163,7 @@ int main(int argc, char *argv[]) {
     game_init(showIntro);
     joy_init();
     input_setQuitHandler(app_quit);
+    joy_showSetup();
 
     while (true) {
         int err;

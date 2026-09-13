@@ -365,16 +365,22 @@ int main() {
                     "\"mission_objectives\":["
                     "{\"id\":\"primary_one\",\"object_slot\":3},"
                     "{\"id\":\"secondary_one\",\"object_slot\":4}],"
-                    "\"sortie_sequence\":[{\"primary_objective_ids\":[\"primary_one\"],"
+                    "\"sortie_sequence\":[{\"id\":\"first\",\"primary_objective_ids\":[\"primary_one\"],"
                     "\"secondary_objective_ids\":[\"secondary_one\"]}]}\n");
     require(setCustomWorldCampaign("SVN") != 0,
             "setCustomWorldCampaign selects scenario/base from campaign manifest");
     setCustomWorldCampaign(nullptr);
     require(setCustomWorldCampaign("SVN/campaign.json") != 0,
             "setCustomWorldCampaign accepts the documented campaign manifest path form");
+    require(customCampaignPrimaryWorldObjectSlot() == -1 &&
+                customCampaignSecondaryWorldObjectSlot() == -1,
+            "campaign without an explicit sortie leaves targets to the mission generator");
+    setCustomCampaignSortie("first");
+    require(setCustomWorldCampaign("SVN") != 0,
+            "campaign reload accepts an explicit sortie");
     require(customCampaignPrimaryWorldObjectSlot() == 3 &&
                 customCampaignSecondaryWorldObjectSlot() == 4,
-            "setCustomWorldCampaign loads first-sortie mission target slots from campaign manifest");
+            "explicit sortie loads its target slots from the campaign manifest");
     require(findReplacementAssetPath("title.pic", ".png", replacementPath, sizeof(replacementPath)) &&
                 std::filesystem::path(replacementPath).parent_path().filename() == "SVN",
             "campaign-local PNG replacement overrides global PNG while campaign is selected");
@@ -433,6 +439,7 @@ int main() {
     require(customCampaignPrimaryWorldObjectSlot() == -1 &&
                 customCampaignSecondaryWorldObjectSlot() == -1,
             "clearing campaign selection clears mission target hints");
+    setCustomCampaignSortie(nullptr);
 
     writeBinaryFile(convertedRoot / "ALT" / "ALT.WLD.json", "{\"format\":\"WLD\",\"campaign\":{\"id\":\"ALT\"}}\n");
     writeBinaryFile(convertedRoot / "ALT" / "campaign.json",

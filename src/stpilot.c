@@ -3,6 +3,7 @@
 #include "stdata.h"
 #include "stgen.h"
 #include "stmissn.h"
+#include "stoptions.h"
 #include "stpilot.h"
 #include "stsprit.h"
 #include "sttypes.h"
@@ -15,6 +16,8 @@
 #include "offsets.h"
 #include "shared/common.h"
 #include "log.h"
+#include "input.h"
+#include "menu_pointer.h"
 
 #include <stdio.h>
 #include <dos.h>
@@ -155,6 +158,7 @@ void displayPilots(void) {
         printPilot(pilotIdx);
     } while (++pilotIdx < HALLFAME_SLOTS);
     redrawPilotSelectorPrompt(screenBuf);
+    stOptionsDrawGear(screenBuf);
     commitPilotPage();
 }
 
@@ -183,13 +187,19 @@ void printPilot(int pilotIdx) {
 
 /* ---- merged from stpinp.c ---- */
 void processPilotInput() {
+    int action = 0;
     int prevIdx;
+    int pointerSelection = -1;
     int xPos;
     int shiftIdx;
     int yPos;
     pilotSelectFlag = 1;
     setTimerIrqHandler();
-    while (prevIdx = selectedPilotIdx, true) switch (pollMenuInput()) {
+    while (true) {
+        prevIdx = selectedPilotIdx;
+        action = menu_pilotPointerInput(pollMenuInput(), &pointerSelection);
+        if (!action) continue;
+        switch (action) {
         case KEYCODE_ENTER:
             if ((hallfameBuf[selectedPilotIdx].medals & 0x60) == 0) {
                 restoreTimerIrqHandler();
@@ -236,7 +246,20 @@ void processPilotInput() {
             xPos = (selectedPilotIdx < PILOTS_PER_COLUMN) ? PILOT_COL_LEFT : PILOT_COL_RIGHT;
             yPos = ((selectedPilotIdx & (PILOTS_PER_COLUMN - 1)) * PILOT_ROW_HEIGHT) + PILOT_TOP_MARGIN;
             gfx_switchColor(screenBuf, xPos, yPos, xPos + PILOT_ENTRY_WIDTH, yPos + PILOT_NAME_HEIGHT, COLOR_LIGHTGRAY, COLOR_WHITE);
+            break;
+        case INPUT_MENU_MOUSE_CLICK: {
+            int mouseX;
+            int mouseY;
+            if (input_takeMenuClick(&mouseX, &mouseY) &&
+                stOptionsGearHit(mouseX, mouseY)) {
+                pilotSelectFlag = 0;
+                stOptionsShow(hallfameBuf[selectedPilotIdx].name);
+                pilotSelectFlag = 1;
+            }
+            break;
         }
+        }
+    }
 }
 
 void blinkPilot() {
@@ -287,6 +310,9 @@ void pilotToGameData(const uint8 *pilotData) {
 }
 
 void pilotNameInput(int16 *page, int a, int b, int c, struct Pilot *pilot) {
+#if defined(__ANDROID__)
+    gfx_setTextInputEnabled(true);
+#endif
     int blinkToggle;
     int xPos, yPos;
     int nameLen = 0;
@@ -372,6 +398,9 @@ void pilotNameInput(int16 *page, int a, int b, int c, struct Pilot *pilot) {
             keyCode &= 0xff;
         }
         if (keyCode == KEYCODE_ENTER) {
+#if defined(__ANDROID__)
+            gfx_setTextInputEnabled(false);
+#endif
             screenBuf[3] = 0;
             clearRect(page, 15, 192, 303, 197);
             gfx_invalidateTtfTextOverlayRect(0, 188, SCREEN_MAXX, SCREEN_MAXY);
