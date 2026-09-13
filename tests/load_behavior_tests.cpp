@@ -834,3 +834,8 @@ int main() {
     std::cout << "load_behavior_tests passed\n";
     return 0;
 }
+
+// Exercise the legacy loader without custom campaign or model replacements.
+int findReplacementShapeModelPath(const char *, int, const char *, char *, size_t) { return 0; }
+int customWorldScenarioIs(const char *) { return 0; }
+void log_info(const char *, ...) {}

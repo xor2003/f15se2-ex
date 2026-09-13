@@ -24,13 +24,16 @@
  * have no 3D pass and composite the page at present instead.
  */
 #include <SDL3/SDL.h>
-#if defined(R3D_GLES_BUILD) || defined(__EMSCRIPTEN__)
+#if defined(__EMSCRIPTEN__)
+#include "r3d_web_platform.h"
+#elif defined(R3D_GLES_BUILD)
 #include "r3d_gles_platform.h"
 #else
 #include "r3d_gl_platform.h"
 #endif
 
 #include "r3d.h"
+#include "shared/host_pipe.h"
 #include "r3d_gl.h"
 #include "cockpit3d.h"
 #include "r3d_replacement.h"
@@ -526,7 +529,7 @@ static uint8 *buildGlmeshBytesFromGlb(const char *glbPath, size_t *outSize) {
     snprintf(command, sizeof(command), "%s build-glmesh %s",
              toolCommand.c_str(),
              glbShellQuote(glbPath));
-    pipe = popen(command, "r");
+    pipe = openBinaryImportPipe(command);
     if (!pipe) return NULL;
     while ((got = fread(chunk, 1, sizeof(chunk), pipe)) > 0) {
         if (size + got > cap) {
@@ -536,7 +539,7 @@ static uint8 *buildGlmeshBytesFromGlb(const char *glbPath, size_t *outSize) {
             newData = (uint8 *)SDL_realloc(data, newCap);
             if (!newData) {
                 SDL_free(data);
-                pclose(pipe);
+                closeImportPipe(pipe);
                 return NULL;
             }
             data = newData;
@@ -545,7 +548,7 @@ static uint8 *buildGlmeshBytesFromGlb(const char *glbPath, size_t *outSize) {
         memcpy(data + size, chunk, got);
         size += got;
     }
-    if (pclose(pipe) != 0 || size == 0) {
+    if (closeImportPipe(pipe) != 0 || size == 0) {
         SDL_free(data);
         return NULL;
     }

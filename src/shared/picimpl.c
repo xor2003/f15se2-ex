@@ -31,7 +31,7 @@ extern void gfx_setHiResReplacementSurface(SDL_Surface *surface);
 extern void gfx_setPageReplacementSurface(SDL_Surface *surface);
 extern void gfx_setPageReplacementIndexedBase(SDL_Surface *surface);
 extern void gfx_presentHiRes(void);
-extern void gfx_clearTtfTextOverlay(void) __attribute__((weak));
+extern void gfx_clearTtfTextOverlay(void);
 
 /* Pic decode work data */
 extern uint8 picDecodedRowBuf[320];
@@ -700,7 +700,7 @@ int loadReplacementPngToPage(const char *filename, int page) {
     const int loaded = loadReplacementPngToSurface(filename, gfx_getCurPageSurface(), 1);
     /* Match showPicFile: replacing a page also replaces its retained text.
      * Failed replacement attempts must leave the current screen untouched. */
-    if (loaded && gfx_clearTtfTextOverlay) gfx_clearTtfTextOverlay();
+    if (loaded) gfx_clearTtfTextOverlay();
     return loaded;
 }
 
@@ -789,7 +789,7 @@ int loadReplacementPngToSprite(const char *filename, int segment) {
 void showPicFile(SDL_IOStream *handle, int page) {
     if (!handle) return;
     (void)page; /* all pages are the single back buffer */
-    if (gfx_clearTtfTextOverlay) gfx_clearTtfTextOverlay();
+    gfx_clearTtfTextOverlay();
     gfx_setPageReplacementSurface(NULL);
     /* Decode straight into the back buffer; the decoder overwrites every row. */
     picDecodeToSurface(handle, gfx_getCurPageSurface());

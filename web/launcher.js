@@ -48,6 +48,7 @@ async function importFiles(files) {
     for (const [name, data] of contents) runtime.FS.writeFile('/game/' + name, data);
     await saveStorage();
     status('Game files imported. Ready to fly.');
+    element('campaign').value = 'original';
     element('start').disabled = false;
 }
 
@@ -115,7 +116,8 @@ createF15Game({
     const imported = runtime.FS.analyzePath('/game/15FLT.3D3').exists;
     const bundled = runtime.FS.analyzePath('/campaigns/SVN/campaign.json').exists;
     element('campaign').onchange = () => {
-        element('start').disabled = element('campaign').value === 'svn' ? !bundled : !imported;
+        element('start').disabled = element('campaign').value === 'svn' ? !bundled :
+            !runtime.FS.analyzePath('/game/15FLT.3D3').exists;
     };
     element('start').disabled = !bundled;
     status(bundled ? 'SVN campaign ready. Original game files are optional.' : 'Choose your original game folder.');

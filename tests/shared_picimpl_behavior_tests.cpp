@@ -363,3 +363,6 @@ int main() {
     std::cout << "shared_picimpl_behavior_tests passed\n";
     return 0;
 }
+
+// This decoder fixture has no retained text renderer.
+void gfx_clearTtfTextOverlay(void) {}

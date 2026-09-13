@@ -5,6 +5,7 @@
 #include "inttype.h"
 #include "asset_compare.h"
 #include "structured_asset_cache.h"
+#include "host_pipe.h"
 #include "log.h"
 #include <SDL3/SDL.h>
 #include <quickdigest5.hpp>
@@ -1080,7 +1081,7 @@ static SDL_IOStream *openStructuredJsonReplacement(const char *filename) {
     command += " --format ";
     command += fmt;
 
-    pipe = popen(command.c_str(), "r");
+    pipe = openBinaryImportPipe(command.c_str());
     if (!pipe) {
         LogWarn(("asset replacement: failed to run JSON importer for %s; using legacy binary", filename));
         return NULL;
@@ -1091,11 +1092,11 @@ static SDL_IOStream *openStructuredJsonReplacement(const char *filename) {
         data->insert(data->end(), chunk, chunk + got);
         if (data->size() > 1024 * 1024) {
             LogWarn(("asset replacement: JSON importer output too large for %s; using legacy binary", filename));
-            pclose(pipe);
+            closeImportPipe(pipe);
             return NULL;
         }
     }
-    status = pclose(pipe);
+    status = closeImportPipe(pipe);
     if (status != 0 || data->empty()) {
         LogWarn(("asset replacement: JSON importer failed for %s from %s; using legacy binary", filename, replacementPath));
         return NULL;
@@ -1233,6 +1234,31 @@ void errorAndExit(const char *msg) {
     exit(1);
 }
 
+// A selected custom theater does not need the other theaters' terrain files.
+static bool campaignNeedsAsset(const string &filename) {
+    if (g_customWorldScenario.empty() || g_customWorldScenarioBase.empty()) return true;
+    const string stem = upperString(fs::path(filename).stem().string());
+    const char *theaterStems[][4] = {
+        {"LB", "LIBYA", nullptr, nullptr},
+        {"PG", "GULF", "PERSIAN", nullptr},
+        {"VN", "VIETNAM", nullptr, nullptr},
+        {"CE", "CEUROPE", nullptr, nullptr},
+        {"ME", nullptr, nullptr, nullptr},
+        {"NC", "NCAPE", nullptr, nullptr},
+        {"JP", nullptr, nullptr, nullptr},
+    };
+    for (const auto &group : theaterStems) {
+        bool matchesAsset = false, matchesBase = false;
+        for (const char *name : group) {
+            if (!name) continue;
+            matchesAsset |= stem == name;
+            matchesBase |= g_customWorldScenarioBase == name;
+        }
+        if (matchesAsset) return matchesBase;
+    }
+    return true;
+}
+
 bool verifyGameAssets() {
     struct Asset {
         string md5, filename;
@@ -1303,6 +1329,7 @@ bool verifyGameAssets() {
         { "0839cb62142b5d3e5058b596ad36fb32", "wall.pic" },
     };
     for (const Asset &a : assets) {
+        if (!campaignNeedsAsset(a.filename)) continue;
         const string pathStr = resolveCasePath(a.filename.c_str(), true);
         if (pathStr.empty()) {
             if (hasRequiredModernReplacement(a.filename.c_str())) {
