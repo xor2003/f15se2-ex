@@ -107,7 +107,7 @@ static void drawOptionsPanel(const char *pilotName, int selected) {
     screenBuf[6] = FONT_SMALL;
     screenBuf[2] = COLOR_WHITE;
     snprintf(title, sizeof(title), "OPTIONS - %s", pilotName && *pilotName ? pilotName : "PILOT");
-    drawStringCentered(screenBuf, title, PANEL_LEFT, TITLE_Y, PANEL_RIGHT);
+    drawStringCentered(screenBuf, title, PANEL_LEFT, TITLE_Y, PANEL_RIGHT - PANEL_LEFT);
 
     for (int option = 0; option < GAME_OPTION_COUNT; option++) {
         int y = OPTION_FIRST_Y + option * OPTION_ROW_HEIGHT;
@@ -124,10 +124,10 @@ static void drawOptionsPanel(const char *pilotName, int selected) {
     drawLine(screenBuf, CLOSE_RIGHT, CLOSE_TOP, CLOSE_RIGHT, CLOSE_BOTTOM, COLOR_LIGHTGRAY);
     drawLine(screenBuf, CLOSE_RIGHT, CLOSE_BOTTOM, CLOSE_LEFT, CLOSE_BOTTOM, COLOR_LIGHTGRAY);
     drawLine(screenBuf, CLOSE_LEFT, CLOSE_BOTTOM, CLOSE_LEFT, CLOSE_TOP, COLOR_LIGHTGRAY);
-    drawStringCentered(screenBuf, "CLOSE", CLOSE_LEFT, CLOSE_TEXT_Y, CLOSE_RIGHT);
+    drawStringCentered(screenBuf, "CLOSE", CLOSE_LEFT, CLOSE_TEXT_Y, CLOSE_RIGHT - CLOSE_LEFT);
     screenBuf[2] = COLOR_LIGHTGRAY;
     drawStringCentered(screenBuf, "ARROWS SELECT  SPACE/CLICK TOGGLE  ESC CLOSE",
-                       PANEL_LEFT, HELP_Y, PANEL_RIGHT);
+                       PANEL_LEFT, HELP_Y, PANEL_RIGHT - PANEL_LEFT);
     screenBuf[2] = oldColor;
     screenBuf[6] = oldFont;
     gfx_commitPage();
