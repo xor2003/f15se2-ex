@@ -39,7 +39,8 @@ function(f15_configure_browser target)
         "-sFORCE_FILESYSTEM=1"
         "-sMODULARIZE=1"
         "-sEXPORT_NAME=createF15Game"
-        "-sEXPORTED_RUNTIME_METHODS=['FS','ENV','callMain']"
+        "-sEXPORTED_FUNCTIONS=['_main','_setenv','_unsetenv']"
+        "-sEXPORTED_RUNTIME_METHODS=['FS','ccall','callMain']"
         "-sEXIT_RUNTIME=1"
         "-lidbfs.js"
         "--pre-js=${PROJECT_SOURCE_DIR}/web/storage.js")

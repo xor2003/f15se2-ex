@@ -68,9 +68,15 @@ element('start').onclick = () => {
     element('canvas').focus();
     status('Flight running. Saves are synchronized every five seconds.');
     const bundled = element('campaign').value === 'svn';
+    // libc has already initialized environ by the time the player clicks Start.
     if (bundled) {
-        runtime.ENV.F15_REPLACEMENT_ROOT = '/campaigns';
-        runtime.ENV.F15_REPLACEMENT_ROOT_ONLY = '1';
+        runtime.ccall('setenv', 'number', ['string', 'string', 'number'],
+            ['F15_REPLACEMENT_ROOT', '/campaigns', 1]);
+        runtime.ccall('setenv', 'number', ['string', 'string', 'number'],
+            ['F15_REPLACEMENT_ROOT_ONLY', '1', 1]);
+    } else {
+        runtime.ccall('unsetenv', 'number', ['string'], ['F15_REPLACEMENT_ROOT']);
+        runtime.ccall('unsetenv', 'number', ['string'], ['F15_REPLACEMENT_ROOT_ONLY']);
     }
     runtime.callMain(bundled ? ['--game', '/game', '--campaign', 'SVN'] : ['--game', '/game']);
 };
