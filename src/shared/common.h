@@ -44,6 +44,7 @@ SDL_IOStream *openFile(const char *filename, int mode);
 SDL_IOStream *createFile(const char *filename, int attr);
 void setCustomWorldScenario(const char *scenario);
 int customWorldScenarioIs(const char *scenario);
+int customCampaignAircraftFriendly(int flightSlot, int baseSlot);
 void setCustomWorldScenarioBase(const char *base);
 void setCustomCampaignSortie(const char *sortie);
 int setCustomWorldCampaign(const char *campaign);

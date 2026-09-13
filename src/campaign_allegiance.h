@@ -2,13 +2,8 @@
 
 #include "shared/common.h"
 
-static inline int svnFriendlyAircraft(int aircraftType) {
-    if (!customWorldScenarioIs("SVN")) return 0;
-    switch (aircraftType) {
-    case 0: case 1: case 2: case 4: case 5: case 9:
-    case 11: case 14: case 15: case 16:
-        return 1;
-    default:
-        return 0;
-    }
+/* The final four flight slots are populated from the nearby base at runtime. */
+static inline int campaignFriendlyAircraft(int flightSlot, int flightCount, int baseSlot) {
+    const int baseSpawned = flightCount >= 4 && flightSlot >= flightCount - 4;
+    return customCampaignAircraftFriendly(flightSlot, baseSpawned ? baseSlot : -1);
 }

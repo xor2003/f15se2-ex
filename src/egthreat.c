@@ -240,7 +240,8 @@ void updateObjects(void) {
             if ((g_simObjects[objIdx].flags.b[0] & 2) && g_simObjects[objIdx].speed != 0) {
                 mode = 0;
                 if (!(g_simObjects[objIdx].flags.b[0] & 4)) {
-                    if (!svnFriendlyAircraft(g_threatSpec) && g_threatActiveTimer != 0 && (!((g_simObjects[objIdx].flags.w) & 0x140) || g_threatActiveTimer > g_threatDisplayTtl)) {
+                    const int friendlyAircraft = campaignFriendlyAircraft(objIdx, g_groundUnitCount, g_simObjects[objIdx].objType);
+                    if (!friendlyAircraft && g_threatActiveTimer != 0 && (!((g_simObjects[objIdx].flags.w) & 0x140) || g_threatActiveTimer > g_threatDisplayTtl)) {
                         tgtX = g_threatRefX;
                         tgtY = g_threatRefY;
                         tgtZ = g_threatRefZ;

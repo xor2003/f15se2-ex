@@ -34,6 +34,49 @@ static int g_customCampaignPrimaryTargetSlot = -1;
 static int g_customCampaignSecondaryTargetSlot = -1;
 static string g_customCampaignSortieTitle;
 static string g_customCampaignSortieBriefing;
+static vector<int> g_friendlyFlightSlots;
+static vector<int> g_friendlyBaseSlots;
+static string g_allegianceScenario;
+
+int customCampaignAircraftFriendly(int flightSlot, int baseSlot) {
+    if (g_allegianceScenario.empty() || g_allegianceScenario != g_customWorldScenario) return 0;
+    const vector<int> &slots = baseSlot >= 0 ? g_friendlyBaseSlots : g_friendlyFlightSlots;
+    const int slot = baseSlot >= 0 ? baseSlot : flightSlot;
+    return std::find(slots.begin(), slots.end(), slot) != slots.end();
+}
+
+/* Read a nonnegative slot list without accepting a partially malformed list. */
+static vector<int> campaignSlotList(const string &json, const char *field) {
+    const size_t key = json.find(string("\"") + field + "\"");
+    if (key == string::npos) return {};
+    size_t pos = json.find(':', key);
+    if (pos == string::npos) return {};
+    auto skipSpace = [&]() {
+        while (pos < json.size() && isspace((unsigned char)json[pos])) ++pos;
+    };
+    ++pos;
+    skipSpace();
+    if (pos == json.size() || json[pos++] != '[') return {};
+    skipSpace();
+    vector<int> slots;
+    if (pos < json.size() && json[pos] == ']') return slots;
+    while (pos < json.size()) {
+        if (!isdigit((unsigned char)json[pos])) break;
+        int slot = 0;
+        while (pos < json.size() && isdigit((unsigned char)json[pos])) {
+            const int digit = json[pos++] - '0';
+            if (slot > (std::numeric_limits<int>::max() - digit) / 10) return {};
+            slot = slot * 10 + digit;
+        }
+        slots.push_back(slot);
+        skipSpace();
+        if (pos < json.size() && json[pos] == ']') return slots;
+        if (pos == json.size() || json[pos++] != ',') break;
+        skipSpace();
+    }
+    LogWarn(("asset replacement: invalid campaign slot list: %s", field));
+    return {};
+}
 
 static string normalizeScenarioStem(const char *value) {
     if (!value || !value[0]) return "";
@@ -551,6 +594,9 @@ static void loadCustomCampaignMissionHints(const string &json) {
 }
 
 int setCustomWorldCampaign(const char *campaign) {
+    g_friendlyFlightSlots.clear();
+    g_friendlyBaseSlots.clear();
+    g_allegianceScenario.clear();
     const string campaignId = normalizeCampaignId(campaign);
     if (campaignId.empty()) {
         setCustomWorldScenario(nullptr);
@@ -584,6 +630,9 @@ int setCustomWorldCampaign(const char *campaign) {
         setCustomWorldScenario(scenario.c_str());
         setCustomWorldScenarioBase(scenarioBase.c_str());
         loadCustomCampaignMissionHints(json);
+        g_friendlyFlightSlots = campaignSlotList(json, "friendly_flight_slots");
+        g_friendlyBaseSlots = campaignSlotList(json, "friendly_base_slots");
+        g_allegianceScenario = g_customWorldScenario;
         LogInfo(("asset replacement: selected campaign %s from %s (scenario=%s base=%s)",
                  campaignId.c_str(), candidate.string().c_str(), scenario.c_str(), scenarioBase.c_str()));
         return 1;
