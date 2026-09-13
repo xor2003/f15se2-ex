@@ -1,4 +1,5 @@
 #include "shared/common.h"
+#include "test_environment.h"
 #include "r3d_gl.h"
 
 #include <filesystem>
@@ -229,9 +230,7 @@ int main() {
     const auto replacementRoot = testDir / "replacement_pack";
     const auto convertedRoot = replacementRoot / "converted_assets_all";
     std::filesystem::create_directories(convertedRoot);
-#if !defined(_WIN32)
-    setenv("F15_REPLACEMENT_ROOT", replacementRoot.string().c_str(), 1);
-#endif
+    testSetEnvironment("F15_REPLACEMENT_ROOT", replacementRoot.string().c_str());
 
     writeBinaryFile(convertedRoot / "TITLE.png", "PNG");
     writeBinaryFile(convertedRoot / "GLOBAL_ONLY.png", "GLOBAL_PNG");
@@ -535,11 +534,9 @@ int main() {
 #endif
 
     std::filesystem::current_path(oldCwd);
-#if !defined(_WIN32)
-    unsetenv("F15_REPLACEMENT_ROOT");
-    unsetenv("F15_REPLACEMENT_ROOT_ONLY");
-    unsetenv("F15_ASSET_TOOL");
-#endif
+    testSetEnvironment("F15_REPLACEMENT_ROOT", nullptr);
+    testSetEnvironment("F15_REPLACEMENT_ROOT_ONLY", nullptr);
+    testSetEnvironment("F15_ASSET_TOOL", nullptr);
     std::filesystem::remove_all(testDir);
 
     std::cout << "file_io_behavior_tests passed\n";

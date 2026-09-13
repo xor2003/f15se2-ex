@@ -1,3 +1,4 @@
+#include "test_environment.h"
 // LINK_CORE + headless. Exercises the real MISC/audio "overlay slot" wrappers
 // (slot.h): the menu keyboard slots now forward to the single SDL event pump in
 // input.c, the joystick fire-button slot lives in joystick.c, and audio_* front
@@ -79,9 +80,7 @@ int main() {
     const auto replacementRoot = std::filesystem::temp_directory_path() / "f15se2-ex-audio-replacements";
     std::filesystem::remove_all(replacementRoot);
     writePcm8Wav(replacementRoot / "converted_assets_all" / "sounds" / "voice_cue_000_sample0.wav");
-#if !defined(_WIN32)
-    setenv("F15_REPLACEMENT_ROOT", replacementRoot.string().c_str(), 1);
-#endif
+    testSetEnvironment("F15_REPLACEMENT_ROOT", replacementRoot.string().c_str());
 
     test_headless_init();
     require(SDL_Init(SDL_INIT_EVENTS),
@@ -231,9 +230,7 @@ int main() {
 
     SDL_QuitSubSystem(SDL_INIT_EVENTS);
 
-#if !defined(_WIN32)
-    unsetenv("F15_REPLACEMENT_ROOT");
-#endif
+    testSetEnvironment("F15_REPLACEMENT_ROOT", nullptr);
     std::filesystem::remove_all(replacementRoot);
 
     std::cout << "shared_overlay_behavior_tests passed\n";

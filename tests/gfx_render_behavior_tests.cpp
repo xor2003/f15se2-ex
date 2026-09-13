@@ -1,3 +1,4 @@
+#include "test_environment.h"
 // LINK_CORE + headless. Exercises the real 2D render engine (gfx_impl.c + the
 // r2d software backend) against the current API. Everything here is observable
 // by reading page pixels back after a draw — no draw-capture spy hook is needed.
@@ -664,9 +665,7 @@ int main() {
     writeReplacementFontPng(replacementRoot, 5);
     writeInvalidReplacementBdf(replacementRoot, 5);
     writeReplacementPng(replacementRoot);
-#if !defined(_WIN32)
-    setenv("F15_REPLACEMENT_ROOT", replacementRoot.string().c_str(), 1);
-#endif
+    testSetEnvironment("F15_REPLACEMENT_ROOT", replacementRoot.string().c_str());
 
     test_headless_init();
     gfx_videoInit();
@@ -692,9 +691,7 @@ int main() {
     test_goldenComposedScene();
     test_goldenInitialStateInjection();
 
-#if !defined(_WIN32)
-    unsetenv("F15_REPLACEMENT_ROOT");
-#endif
+    testSetEnvironment("F15_REPLACEMENT_ROOT", nullptr);
     std::filesystem::remove_all(replacementRoot);
 
     std::cout << "gfx_render_behavior_tests passed\n";

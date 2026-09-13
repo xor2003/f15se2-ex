@@ -606,6 +606,15 @@ int main() {
                 buf3_3dg[0] == 0x40 &&
                 buf4_3dg[0] == 0x50,
             "load3DG stores the original grid buffers after the discarded 16-byte header");
+    if (std::memcmp(g_topLodGrid, g_theaterGrids + kTheaterIndex * kGridCopyBytes,
+                    kGridCopyBytes) != 0) {
+        std::cerr << "theater=" << gameData->theater
+                  << " campaign=" << customWorldScenarioBaseTheaterIndex() << '\n';
+        for (int i = 0; i < kGridCopyBytes; ++i)
+            if (g_topLodGrid[i] != g_theaterGrids[kTheaterIndex * kGridCopyBytes + i])
+                std::cerr << "grid[" << i << "]=" << int(g_topLodGrid[i])
+                          << " expected=" << int(g_theaterGrids[kTheaterIndex * kGridCopyBytes + i]) << '\n';
+    }
     require(std::memcmp(g_topLodGrid,
                         g_theaterGrids + kTheaterIndex * kGridCopyBytes,
                         kGridCopyBytes) == 0,
