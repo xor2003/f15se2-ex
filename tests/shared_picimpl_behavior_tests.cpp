@@ -366,3 +366,18 @@ int main() {
 
 // This decoder fixture has no retained text renderer.
 void gfx_clearTtfTextOverlay(void) {}
+
+// Legacy decoder tests do not load replacement assets or compare their palettes.
+int assetCompareEnabled(void) { return 0; }
+void assetCompareIndexedPixels2D(const char *, const uint8 *, int,
+                                const uint8 *, int, int, int, const char *) {}
+void assetCompareRgbPalettes(const char *, const uint8 *, int,
+                            const uint8 *, int, const char *) {}
+SDL_IOStream *openFile(const char *, int) { return nullptr; }
+void fileClose(SDL_IOStream *) {}
+int findReplacementAssetPath(const char *, const char *, char *, size_t) { return 0; }
+void gfx_setSpriteReplacementPng(int, const char *) {}
+void gfx_setDacRange(uint16, uint16, const uint8 *) {}
+SDL_Palette *gfx_getPalette(void) { return nullptr; }
+void log_info(const char *, ...) {}
+void log_warn(const char *, ...) {}
