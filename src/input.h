@@ -16,6 +16,7 @@
 
 typedef enum {
     INPUT_MODE_MENU,   /* splash / menus / briefing / debrief */
+    INPUT_MODE_SPLASH, /* any keyboard, pointer, or controller button skips */
     INPUT_MODE_FLIGHT, /* egame in-flight loop */
 } InputMode;
 

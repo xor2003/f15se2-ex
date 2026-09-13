@@ -23,7 +23,7 @@ extern int16 fileHandle;
 
 /* Original MISC.EXE slot 0x5a: 0 if a key is waiting, 0xFFFF if empty. */
 int far cdecl misc_checkKeyBuf(void) {
-    input_setMode(INPUT_MODE_MENU);
+    if (input_getMode() != INPUT_MODE_SPLASH) input_setMode(INPUT_MODE_MENU);
     /* Callers poll this in tight wait loops; yield a sub-tick slice so those
      * waits advance the clock (via the pump) without pegging a core. egame's
      * per-frame loop uses INPUT_MODE_FLIGHT, so it is unaffected. */
@@ -34,7 +34,7 @@ int far cdecl misc_checkKeyBuf(void) {
 
 /* Original: GetKey. Blocking read: scan code in AH, ASCII in AL. */
 int far cdecl misc_getKey(void) {
-    input_setMode(INPUT_MODE_MENU);
+    if (input_getMode() != INPUT_MODE_SPLASH) input_setMode(INPUT_MODE_MENU);
     return input_readKey();
 }
 

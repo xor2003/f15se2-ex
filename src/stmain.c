@@ -3,6 +3,7 @@
 #include "offsets.h"
 #include "comm.h"
 #include "gfx.h"
+#include "input.h"
 #include "slot.h"
 #include "const.h"
 #include "log.h"
@@ -32,6 +33,7 @@ int start_main(void) {
     audio_setup(0, 0);
 #ifndef DEBUG_AUTOSTART
     if (commData->needSplash == 1) {
+        input_setMode(INPUT_MODE_SPLASH);
         gameData->campaignProgress = 1;
         gameData->difficulty = 0xffff;
         gameData->theater = 0xffff;
@@ -82,6 +84,7 @@ int start_main(void) {
         misc_getKey();
         gfx_waitRetrace();
         gfx_setMode13();
+        input_setMode(INPUT_MODE_MENU);
     }
 #endif /* !DEBUG_AUTOSTART */
 

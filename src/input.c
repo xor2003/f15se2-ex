@@ -821,6 +821,16 @@ static void pollGamepadMenu(void) {
     if (!joy_isGamepad()) return;
     if (gamepadActive()) g_lastWasGamepad = true;
 
+    if (g_mode == INPUT_MODE_SPLASH) {
+        bool pressed = false;
+        for (int button = 0; button < SDL_GAMEPAD_BUTTON_COUNT; ++button)
+            pressed |= gpEdge((SDL_GamepadButton)button);
+        pressed |= trigEdge(SDL_GAMEPAD_AXIS_RIGHT_TRIGGER, 0);
+        pressed |= trigEdge(SDL_GAMEPAD_AXIS_LEFT_TRIGGER, 1);
+        if (pressed) ringPush(0x1c00 | KEYCODE_ENTER);
+        return;
+    }
+
 #if defined(__ANDROID__)
     /* Android controller button numbering varies. Menu confirmation must not
      * depend on flight bindings or on a particular face-button layout. */
@@ -1029,6 +1039,11 @@ static void pollRawJoystickMenu(void) {
     }
     const int button = joy_rawPressedButton();
     if (button >= 0 && g_rawMenuButton < 0) {
+        if (g_mode == INPUT_MODE_SPLASH) {
+            ringPush(0x1c00 | KEYCODE_ENTER);
+            g_rawMenuButton = button;
+            return;
+        }
 #if defined(__ANDROID__)
         ringPush(0x1c00 | KEYCODE_ENTER);
 #else
@@ -1093,6 +1108,10 @@ void input_pumpEvents(void) {
                 gfx_toggleFullscreen();
                 break;
             }
+            if (g_mode == INPUT_MODE_SPLASH) {
+                ringPush(0x1c00 | KEYCODE_ENTER);
+                break;
+            }
             if (g_mode == INPUT_MODE_FLIGHT) {
                 uint16 word = controls_translateKey(ev.key.scancode, ev.key.mod,
                                                      biosWord(ev.key.scancode, ev.key.mod));
@@ -1106,7 +1125,9 @@ void input_pumpEvents(void) {
              * shifted/localized. The BIOS key ring remains byte-oriented for
              * legacy menu code; the text ring preserves full UTF-8 characters
              * for modern text entry such as pilot names. */
-            if (g_mode == INPUT_MODE_MENU) {
+            if (g_mode == INPUT_MODE_SPLASH) {
+                ringPush(0x1c00 | KEYCODE_ENTER);
+            } else if (g_mode == INPUT_MODE_MENU) {
                 const char *p = ev.text.text;
                 for (; *p; ++p) {
                     unsigned char c = (unsigned char)*p;
@@ -1205,7 +1226,9 @@ void input_pumpEvents(void) {
             break;
 #endif
         case SDL_EVENT_MOUSE_BUTTON_DOWN:
-            if (g_mode == INPUT_MODE_MENU && ev.button.button == SDL_BUTTON_LEFT &&
+            if (g_mode == INPUT_MODE_SPLASH && ev.button.which != SDL_TOUCH_MOUSEID) {
+                ringPush(0x1c00 | KEYCODE_ENTER);
+            } else if (g_mode == INPUT_MODE_MENU && ev.button.button == SDL_BUTTON_LEFT &&
                 ev.button.which != SDL_TOUCH_MOUSEID &&
                 menuPointFromWindow(&ev.button, &g_menuClickX, &g_menuClickY)) {
                 g_menuClickPending = true;
