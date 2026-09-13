@@ -466,6 +466,8 @@ if(NOT ANDROID)
     add_custom_target(mirror_assets ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/assets.stamp)
 endif()
 
+include(cmake/PackageRuntime.cmake)
+
 #==============================================================================
 # Behavior tests
 #==============================================================================
