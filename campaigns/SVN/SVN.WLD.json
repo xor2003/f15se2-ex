@@ -402,7 +402,7 @@
     {
       "unitRef": 7,
       "unitType": 0,
-      "objectIdx": 277,
+      "objectIdx": 350,
       "x_coord": 27364,
       "y_coord": 4788,
       "targetFlags": 1025,
@@ -418,7 +418,7 @@
     {
       "unitRef": 8,
       "unitType": 0,
-      "objectIdx": 277,
+      "objectIdx": 350,
       "x_coord": 27571,
       "y_coord": 4234,
       "targetFlags": 1025,
@@ -434,7 +434,7 @@
     {
       "unitRef": 9,
       "unitType": 0,
-      "objectIdx": 277,
+      "objectIdx": 350,
       "x_coord": 28468,
       "y_coord": 7052,
       "targetFlags": 1025,
@@ -450,7 +450,7 @@
     {
       "unitRef": 10,
       "unitType": 0,
-      "objectIdx": 277,
+      "objectIdx": 350,
       "x_coord": 22257,
       "y_coord": 9095,
       "targetFlags": 1025,
@@ -466,7 +466,7 @@
     {
       "unitRef": 11,
       "unitType": 0,
-      "objectIdx": 277,
+      "objectIdx": 350,
       "x_coord": 21306,
       "y_coord": 18305,
       "targetFlags": 1025,
@@ -482,7 +482,7 @@
     {
       "unitRef": 12,
       "unitType": 0,
-      "objectIdx": 277,
+      "objectIdx": 350,
       "x_coord": 21506,
       "y_coord": 20102,
       "targetFlags": 1025,
@@ -498,7 +498,7 @@
     {
       "unitRef": 13,
       "unitType": 0,
-      "objectIdx": 277,
+      "objectIdx": 350,
       "x_coord": 8751,
       "y_coord": 27478,
       "targetFlags": 1025,
@@ -514,7 +514,7 @@
     {
       "unitRef": 14,
       "unitType": 0,
-      "objectIdx": 277,
+      "objectIdx": 350,
       "x_coord": 15263,
       "y_coord": 30577,
       "targetFlags": 1025,
@@ -530,7 +530,7 @@
     {
       "unitRef": 91,
       "unitType": 0,
-      "objectIdx": 346,
+      "objectIdx": 351,
       "x_coord": 29952,
       "y_coord": 13568,
       "targetFlags": 1537,
@@ -540,7 +540,7 @@
     {
       "unitRef": 92,
       "unitType": 0,
-      "objectIdx": 346,
+      "objectIdx": 351,
       "x_coord": 27904,
       "y_coord": 19712,
       "targetFlags": 1537,
@@ -1075,7 +1075,7 @@
           "voice_cue_000_sample0",
           "voice_cue_001_sample4"
         ],
-        "briefing": "Suppress the Hanoi radar, then strike Haiphong logistics before recovery."
+        "briefing": "Destroy or suppress the Hanoi radar net so Lisicin can move deeper into the theater."
       },
       {
         "id": "carrier_strike",
@@ -1425,21 +1425,21 @@
         "coordinate_source": "world_object"
       },
       {
-        "id": "wp_start",
-        "kind": "start",
-        "object_slot": 30,
         "label": "Vinh International Airport",
         "x_coord": 22257,
         "y_coord": 9095,
+        "id": "wp_start",
+        "kind": "start",
+        "object_slot": 30,
         "coordinate_source": "world_object"
       },
       {
-        "id": "wp_end",
-        "kind": "end",
-        "object_slot": 27,
         "label": "Gia Lam Airport",
         "x_coord": 27364,
         "y_coord": 4788,
+        "id": "wp_end",
+        "kind": "end",
+        "object_slot": 27,
         "coordinate_source": "world_object"
       }
     ],

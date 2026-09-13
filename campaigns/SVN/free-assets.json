@@ -404,6 +404,13 @@
       "generator": "tools/f15assets/generate_svn_ground.py"
     },
     {
+      "file": "VN/shape_094_SVN_Recovery_Airbase.glb",
+      "bytes": 29388,
+      "sha256": "ae5997a893108888a8c5436cbf8ff3fd23e8b86c70bbe4b9a877742700c09a2e",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/generate_svn_ground.py"
+    },
+    {
       "file": "VN/shape_038_SVN_SAM_Radar.glb",
       "bytes": 13500,
       "sha256": "1d4f60475161c84044d3c0f30d9f45289df05a5869e6d80b7a866b9b328e78ae",
@@ -412,6 +419,13 @@
     },
     {
       "file": "VN/shape_090_SVN_Carrier.glb",
+      "bytes": 37308,
+      "sha256": "5b8ba11838fa1f3bf85392b0c5578d2be349c4dbd2a837d9ff139df858f0f300",
+      "license": "CC0-1.0",
+      "generator": "tools/f15assets/generate_svn_ground.py"
+    },
+    {
+      "file": "VN/shape_095_SVN_Recovery_Carrier.glb",
       "bytes": 37308,
       "sha256": "5b8ba11838fa1f3bf85392b0c5578d2be349c4dbd2a837d9ff139df858f0f300",
       "license": "CC0-1.0",
