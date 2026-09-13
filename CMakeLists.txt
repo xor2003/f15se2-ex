@@ -4,6 +4,10 @@ project(F15SE2-EX
     LANGUAGES C CXX
 )
 
+if(EMSCRIPTEN)
+    include(cmake/wasm.cmake)
+endif()
+
 #==============================================================================
 # Options
 #==============================================================================
@@ -64,6 +68,9 @@ else()
             UPDATE_DISCONNECTED TRUE
         )
         FetchContent_MakeAvailable(SDL3)
+        if(EMSCRIPTEN)
+            f15_patch_sdl_missing_axes("${sdl3_SOURCE_DIR}")
+        endif()
     else()
         # DOWNLOAD_DEPENDENCIES is off: a system SDL3 is mandatory.
         find_package(SDL3 3.4.0 REQUIRED CONFIG COMPONENTS SDL3)
@@ -239,6 +246,10 @@ set(END_SOURCES
     ${SRC_DIR}/endata.c
 )
 
+if(EMSCRIPTEN)
+    list(APPEND EGAME_SOURCES ${SRC_DIR}/r3d_gles_compat.c ${SRC_DIR}/web_runtime.c)
+endif()
+
 list(APPEND F15SE2_SOURCES ${EGAME_SOURCES})
 list(APPEND F15SE2_SOURCES ${END_SOURCES})
 
@@ -256,13 +267,15 @@ set_source_files_properties(
 # Desktop uses OpenGL 1.x; Android uses the GLES2 compatibility backend.
 if(ANDROID)
     find_library(GLESV2_LIBRARY GLESv2 REQUIRED)
-else()
+elseif(NOT EMSCRIPTEN)
     find_package(OpenGL REQUIRED)
 endif()
 
 # Some tests use std::thread; link a threads library explicitly so it resolves
 # across toolchains (not all fold pthread into libc).
-find_package(Threads REQUIRED)
+if(NOT EMSCRIPTEN)
+    find_package(Threads REQUIRED)
+endif()
 
 # TrueType/OpenType font replacements are optional. When FreeType is available,
 # fonts/font_<id>.ttf and .otf are loaded directly by the runtime; otherwise the
@@ -344,7 +357,10 @@ if(ANDROID)
     target_link_libraries(main PRIVATE f15se2_core)
     set(F15SE2_APP_TARGET main)
 else()
-    target_link_libraries(f15se2_core PUBLIC SDL3::SDL3 OpenGL::GL)
+    target_link_libraries(f15se2_core PUBLIC SDL3::SDL3)
+    if(NOT EMSCRIPTEN)
+        target_link_libraries(f15se2_core PUBLIC OpenGL::GL)
+    endif()
     add_executable(f15se2 ${SRC_DIR}/f15.c)
     set_target_properties(f15se2 PROPERTIES OUTPUT_NAME "f15se2-ex")
     target_link_libraries(f15se2 PRIVATE f15se2_core)
@@ -447,6 +463,11 @@ if(WIN32)
     endif()
 endif()
 
+if(EMSCRIPTEN)
+    f15_configure_browser(f15se2)
+    return() # Browser assets are imported locally; native tests stay below.
+endif()
+
 # HD assets (optional high-res sprite art, GPU backends only) live in assets/ and are
 # mirrored next to the binary so the runtime finds them relative to the working dir.
 # Driven by the asset files themselves (not the f15se2 target) so editing or adding a
@@ -466,7 +487,9 @@ if(NOT ANDROID)
     add_custom_target(mirror_assets ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/assets.stamp)
 endif()
 
-include(cmake/PackageRuntime.cmake)
+if(NOT ANDROID)
+    include(cmake/PackageRuntime.cmake)
+endif()
 
 #==============================================================================
 # Behavior tests

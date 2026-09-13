@@ -24,7 +24,7 @@
  * have no 3D pass and composite the page at present instead.
  */
 #include <SDL3/SDL.h>
-#if defined(R3D_GLES_BUILD)
+#if defined(R3D_GLES_BUILD) || defined(__EMSCRIPTEN__)
 #include "r3d_gles_platform.h"
 #else
 #include "r3d_gl_platform.h"
