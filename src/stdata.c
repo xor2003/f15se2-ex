@@ -503,7 +503,7 @@ uint8 missionStrTrunc;
 uint8 missionStrTruncEnd[1];
 int16 exitCode;
 struct NearestTerrain *nearestTerrainResult;
-char objectTypeTable[0x64];
+char objectTypeTable[BUF7SIZE];
 uint8 wldReadBuf8[0x64];
 uint8 wldReadBuf7[0x64];
 char *wldOffsets[0x64];
