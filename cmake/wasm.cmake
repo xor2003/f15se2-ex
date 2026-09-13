@@ -44,9 +44,10 @@ function(f15_configure_browser target)
         "-sEXIT_RUNTIME=1"
         "-lidbfs.js"
         "--pre-js=${PROJECT_SOURCE_DIR}/web/storage.js")
+    string(TIMESTAMP F15_WEB_BUILD_ID "%Y%m%d%H%M%S" UTC)
     foreach(file index.html launcher.js)
         configure_file("${PROJECT_SOURCE_DIR}/web/${file}"
-            "${CMAKE_CURRENT_BINARY_DIR}/${file}" COPYONLY)
+            "${CMAKE_CURRENT_BINARY_DIR}/${file}" @ONLY)
     endforeach()
     if(EXISTS "${CMAKE_BINARY_DIR}/campaigns/SVN/campaign.json")
         target_link_options(${target} PRIVATE

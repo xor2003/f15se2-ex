@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-build="@F15_WEB_BUILD_ID@">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>F-15 Strike Eagle II | Browser flight</title>
@@ -34,10 +34,11 @@ small { display:block; line-height:1.6; max-width:80ch; }
 <button id="fullscreen">Fullscreen</button>
 </div>
 <p id="status" role="status">Loading browser runtime...</p>
+<details id="diagnostics"><summary>Startup log (build @F15_WEB_BUILD_ID@)</summary><pre id="runtime-log" style="white-space:pre-wrap;overflow-wrap:anywhere"></pre></details>
 <div id="screen"><canvas id="canvas" tabindex="0" width="960" height="720"></canvas></div>
 <p><small>Select the folder containing your original DOS game files. Files stay on this device; nothing is uploaded. ZIP archives must be extracted first. Keyboard, mouse and browser-supported gamepads use the game's controls. Click the canvas to focus it.</small></p>
 <small>Saves belong to this browser and website address. Private browsing, clearing site data or storage eviction can remove them. Export your pilot file as a backup. Reload this page to restart.</small>
 </main>
-<script src="f15se2-ex.js"></script>
-<script src="launcher.js"></script>
+<script src="f15se2-ex.js?v=@F15_WEB_BUILD_ID@"></script>
+<script src="launcher.js?v=@F15_WEB_BUILD_ID@"></script>
 </html>

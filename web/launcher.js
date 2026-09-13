@@ -5,7 +5,15 @@ const status = message => { element('status').textContent = message; };
 let runtime = null;
 let started = false;
 let saving = false;
+let exited = false;
+const runtimeLog = [];
 const MAX_IMPORT_BYTES = 128 * 1024 * 1024;
+
+function recordRuntimeLog(message) {
+    runtimeLog.push(String(message));
+    if (runtimeLog.length > 80) runtimeLog.shift();
+    element('runtime-log').textContent = runtimeLog.join('\n');
+}
 
 function saveStorage() {
     if (saving) return Promise.reject(new Error('A save is already in progress.'));
@@ -106,11 +114,24 @@ element('fullscreen').onclick = async () => {
 createF15Game({
     canvas: element('canvas'),
     noInitialRun: true,
-    print: message => console.log(message),
-    printErr: message => console.error(message),
-    onAbort: message => status('Runtime stopped: ' + message),
-    onExit: () => {
-        saveStorage().then(() => status('Game closed and saved. Reload to play again.'))
+    locateFile: (path, prefix) => {
+        const url = new URL(path, new URL(prefix || './', location.href));
+        url.searchParams.set('v', document.documentElement.dataset.build);
+        return url.href;
+    },
+    print: message => { console.log(message); recordRuntimeLog(message); },
+    printErr: message => { console.error(message); recordRuntimeLog(message); },
+    onAbort: message => {
+        exited = true;
+        recordRuntimeLog('Runtime aborted: ' + message);
+        element('diagnostics').open = true;
+        status('Runtime stopped: ' + message);
+    },
+    onExit: code => {
+        exited = true;
+        recordRuntimeLog('Game exited with status ' + code);
+        element('diagnostics').open = true;
+        saveStorage().then(() => status('Game exited (status ' + code + '). Saved. See startup log below.'))
             .catch(error => status('Game closed; save failed: ' + error.message));
     }
 }).then(module => {
@@ -128,6 +149,6 @@ createF15Game({
     element('start').disabled = !bundled;
     status(bundled ? 'SVN campaign ready. Original game files are optional.' : 'Choose your original game folder.');
     setInterval(() => {
-        if (started && !saving) saveStorage().catch(error => status('Autosave failed: ' + error.message));
+        if (started && !exited && !saving) saveStorage().catch(error => status('Autosave failed: ' + error.message));
     }, 5000);
 }).catch(error => status('Unable to start: ' + error.message));
