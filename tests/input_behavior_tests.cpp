@@ -354,13 +354,25 @@ int main() {
         g_autopilotAltitude = 1000;
         g_autopilotEngaged = 0;
         g_viewMode = VIEW_COCKPIT;
-        require(input_flightPointerKey(5, 30) == SCAN_F5 &&
-                    input_flightPointerKey(160, 30) == SCAN_F5 &&
-                    input_flightPointerKey(-10, 150) == SCAN_F5,
-                "autopilot sky and widescreen taps select chase view");
+        require(input_flightPointerKey(5, 30) == SCAN_F1 &&
+                    input_flightPointerKey(160, 30) == SCAN_F1 &&
+                    input_flightPointerKey(-10, 150) == SCAN_F1,
+                "autopilot sky and widescreen taps select forward view");
         require(input_flightPointerKey(205, 190) == 0x266c &&
                     input_flightThrottleValue(214, 127) == 100,
                 "visible cockpit controls retain their actions");
+        g_viewMode = VIEW_FORWARD;
+        require(input_flightPointerKey(5, 30) == SCAN_F2,
+                "forward view advances to left view");
+        g_viewMode = VIEW_LEFT;
+        require(input_flightPointerKey(5, 30) == SCAN_F4,
+                "left view advances to rear view");
+        g_viewMode = VIEW_REAR;
+        require(input_flightPointerKey(5, 30) == SCAN_F3,
+                "rear view advances to right view");
+        g_viewMode = VIEW_RIGHT;
+        require(input_flightPointerKey(5, 30) == SCAN_F5,
+                "right view advances to external follow view");
         g_viewMode = VIEW_EXT_FOLLOW;
         require(input_flightPointerKey(205, 190) == SCAN_F6 &&
                     input_flightThrottleValue(214, 127) == -1,

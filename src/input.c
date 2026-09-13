@@ -885,7 +885,11 @@ static void queueMenuPointer(Uint32 windowID, float x, float y, bool normalized)
 static uint16 autopilotViewKey(void) {
     /* Only unconditional aircraft views: missile/target views need a target. */
     switch (g_viewMode) {
-    case VIEW_COCKPIT: return SCAN_F5;
+    case VIEW_COCKPIT: return SCAN_F1;
+    case VIEW_FORWARD: return SCAN_F2;
+    case VIEW_LEFT: return SCAN_F4;
+    case VIEW_REAR: return SCAN_F3;
+    case VIEW_RIGHT: return SCAN_F5;
     case VIEW_EXT_FOLLOW: return SCAN_F6;
     case VIEW_EXT_DYNAMIC: return SCAN_F7;
     default: return SCAN_SPACEBAR;

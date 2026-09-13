@@ -21,6 +21,13 @@ canvas { display:block; width:100%; height:auto; aspect-ratio:4/3; outline:none;
 #screen:fullscreen canvas { width:auto; height:100%; max-width:100%; }
 #status { min-height:1.5em; color:var(--accent); }
 small { display:block; line-height:1.6; max-width:80ch; }
+.controls { margin-top:24px; padding:18px; background:rgba(10,24,21,.78); border:1px solid #486359; }
+.controls h2 { margin:0 0 12px; color:var(--accent); font-size:20px; font-weight:normal; }
+.controls-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:18px; }
+.controls h3 { margin:0 0 8px; font-size:16px; }
+.controls dl { display:grid; grid-template-columns:max-content 1fr; gap:5px 12px; margin:0; }
+.controls dt { color:var(--accent); font-family:monospace; }
+.controls dd { margin:0; }
 </style>
 <main>
 <p class="eyebrow">BROWSER FLIGHT / LOCAL ASSETS</p>
@@ -38,6 +45,29 @@ small { display:block; line-height:1.6; max-width:80ch; }
 <div id="screen"><canvas id="canvas" tabindex="0" width="960" height="720"></canvas></div>
 <p><small>Select the folder containing your original DOS game files. Files stay on this device; nothing is uploaded. ZIP archives must be extracted first. Keyboard, mouse and browser-supported gamepads use the game's controls. Click the canvas to focus it.</small></p>
 <small>Saves belong to this browser and website address. Private browsing, clearing site data or storage eviction can remove them. Export your pilot file as a backup. Reload this page to restart.</small>
+<section class="controls" aria-labelledby="controls-title">
+<h2 id="controls-title">Default controls</h2>
+<div class="controls-grid">
+<div><h3>Flight</h3><dl>
+<dt>Arrows</dt><dd>Pitch and roll</dd><dt>Enter</dt><dd>Fire missile</dd>
+<dt>Backspace</dt><dd>Fire cannon</dd><dt>+ / -</dt><dd>Increase / decrease thrust</dd>
+<dt>Shift + / -</dt><dd>Full / idle thrust</dd><dt>A</dt><dd>Afterburner</dd>
+<dt>S / M / G</dt><dd>Select Sidewinder / medium missile / Maverick</dd>
+</dl></div>
+<div><h3>Systems</h3><dl>
+<dt>T</dt><dd>Next target</dd><dt>C / F</dt><dd>Chaff / flare</dd>
+<dt>L</dt><dd>Landing gear</dd><dt>B</dt><dd>Wheel brake</dd>
+<dt>P</dt><dd>Autopilot</dd><dt>R</dt><dd>Radar range</dd>
+<dt>Z / X</dt><dd>Map zoom in / out</dd><dt>W</dt><dd>Next waypoint</dd>
+</dl></div>
+<div><h3>Views and pointer</h3><dl>
+<dt>Space</dt><dd>Cockpit</dd><dt>F1-F4</dt><dd>Forward, left, right, rear</dd>
+<dt>F5-F7</dt><dd>External views</dd><dt>F8-F10</dt><dd>Missile and target views</dd>
+<dt>Mouse / touch</dt><dd>Use cockpit controls; tap outside while autopilot is active to cycle views</dd>
+<dt>Gamepad</dt><dd>Use the in-game Controls screen to review or change bindings</dd>
+</dl></div>
+</div>
+</section>
 </main>
 <script src="f15se2-ex.js?v=@F15_WEB_BUILD_ID@"></script>
 <script src="launcher.js?v=@F15_WEB_BUILD_ID@"></script>

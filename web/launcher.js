@@ -111,6 +111,8 @@ element('fullscreen').onclick = async () => {
     catch (error) { status('Fullscreen unavailable: ' + error.message); }
 };
 
+element('canvas').addEventListener('pointerdown', () => element('canvas').focus());
+
 createF15Game({
     canvas: element('canvas'),
     noInitialRun: true,
