@@ -9,9 +9,7 @@
 #include <SDL3/SDL.h>
 
 #include <cstdlib>
-#include <chrono>
 #include <iostream>
-#include <thread>
 
 namespace {
 
@@ -75,24 +73,18 @@ int main() {
     stOptionsDrawGear(screenBuf);
 
     gameOptionsReset();
-    std::thread keyboardInput([] {
-        const SDL_Scancode keys[] = {
-            SDL_SCANCODE_SPACE, SDL_SCANCODE_DOWN, SDL_SCANCODE_RIGHT,
-            SDL_SCANCODE_DOWN, SDL_SCANCODE_SPACE, SDL_SCANCODE_UP,
-            SDL_SCANCODE_LEFT, SDL_SCANCODE_ESCAPE};
-
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        pushExpose();
-        for (SDL_Scancode key : keys) {
-            if (key == SDL_SCANCODE_SPACE)
-                pushSpaceText();
-            else
-                pushKey(key);
-            std::this_thread::sleep_for(std::chrono::milliseconds(5));
-        }
-    });
+    const SDL_Scancode keys[] = {
+        SDL_SCANCODE_SPACE, SDL_SCANCODE_DOWN, SDL_SCANCODE_RIGHT,
+        SDL_SCANCODE_DOWN, SDL_SCANCODE_SPACE, SDL_SCANCODE_UP,
+        SDL_SCANCODE_LEFT, SDL_SCANCODE_ESCAPE};
+    pushExpose();
+    for (SDL_Scancode key : keys) {
+        if (key == SDL_SCANCODE_SPACE)
+            pushSpaceText();
+        else
+            pushKey(key);
+    }
     stOptionsShow("TEST PILOT");
-    keyboardInput.join();
     require(gameOptionsEnabled(GAME_OPTION_INFINITE_WEAPONS),
             "Space toggles the selected weapons option");
     require(!gameOptionsEnabled(GAME_OPTION_INFINITE_FUEL),
@@ -105,28 +97,19 @@ int main() {
     require(mouseWindow != nullptr, "mouse behavior test creates a hidden window");
     gameOptionsReset();
     input_ringReset();
-    std::thread mouseInput([mouseWindow] {
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        pushMouseClick(mouseWindow, 300.0f, 140.0f);
-        std::this_thread::sleep_for(std::chrono::milliseconds(5));
-        pushMouseClick(mouseWindow, 320.0f, 248.0f);
-    });
+    pushMouseClick(mouseWindow, 300.0f, 140.0f);
+    pushMouseClick(mouseWindow, 320.0f, 248.0f);
     stOptionsShow("MOUSE PILOT");
-    mouseInput.join();
     require(gameOptionsEnabled(GAME_OPTION_INFINITE_WEAPONS),
             "clicking an option row toggles it");
     input_ringReset();
-    std::thread touchInput([mouseWindow] {
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        SDL_Event event = {};
-        event.type = SDL_EVENT_FINGER_DOWN;
-        event.tfinger.windowID = SDL_GetWindowID(mouseWindow);
-        event.tfinger.x = 0.5f;
-        event.tfinger.y = 124.0f / 200.0f;
-        SDL_PushEvent(&event);
-    });
+    SDL_Event event = {};
+    event.type = SDL_EVENT_FINGER_DOWN;
+    event.tfinger.windowID = SDL_GetWindowID(mouseWindow);
+    event.tfinger.x = 0.5f;
+    event.tfinger.y = 124.0f / 200.0f;
+    SDL_PushEvent(&event);
     stOptionsShow("TOUCH PILOT");
-    touchInput.join();
     SDL_DestroyWindow(mouseWindow);
 
     gfx_videoShutdown();
