@@ -13,6 +13,7 @@
 #include "log.h"
 #include "const.h"
 #include "comm.h"
+#include "campaign_allegiance.h"
 
 #include <dos.h>
 #include <stdio.h>
@@ -234,7 +235,7 @@ void updateObjects(void) {
             if ((g_simObjects[objIdx].flags.b[0] & 2) && g_simObjects[objIdx].speed != 0) {
                 mode = 0;
                 if (!(g_simObjects[objIdx].flags.b[0] & 4)) {
-                    if (g_threatActiveTimer != 0 && (!((g_simObjects[objIdx].flags.w) & 0x140) || g_threatActiveTimer > g_threatDisplayTtl)) {
+                    if (!svnFriendlyAircraft(g_threatSpec) && g_threatActiveTimer != 0 && (!((g_simObjects[objIdx].flags.w) & 0x140) || g_threatActiveTimer > g_threatDisplayTtl)) {
                         tgtX = g_threatRefX;
                         tgtY = g_threatRefY;
                         tgtZ = g_threatRefZ;

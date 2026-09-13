@@ -234,7 +234,9 @@ int main() {
 #endif
 
     writeBinaryFile(convertedRoot / "TITLE.png", "PNG");
+    writeBinaryFile(convertedRoot / "GLOBAL_ONLY.png", "GLOBAL_PNG");
     writeBinaryFile(convertedRoot / "fonts" / "font_3.bdf", "BDF");
+    writeBinaryFile(convertedRoot / "fonts" / "font_1.ttf", "GLOBAL_TTF");
     writeBinaryFile(convertedRoot / "sounds" / "voice_cue_000_sample0.wav", "WAV");
     writeBinaryFile(convertedRoot / "VN" / "shape_049_SAM_Radar.glb", "GLB");
     writeBinaryFile(convertedRoot / "VN" / "cache" / "shape_050.glmesh", minimalGlmeshFixture());
@@ -246,6 +248,9 @@ int main() {
     require(findReplacementAssetPath("font_3", ".bdf", replacementPath, sizeof(replacementPath)) &&
                 std::filesystem::path(replacementPath).filename() == "font_3.bdf",
             "findReplacementAssetPath resolves BDF font replacements");
+    require(findReplacementAssetPath("font_1", ".ttf", replacementPath, sizeof(replacementPath)) &&
+                std::filesystem::path(replacementPath).filename() == "font_1.ttf",
+            "findReplacementAssetPath resolves TTF font replacements");
     require(findReplacementAssetPath("voice_cue_000_sample0", ".wav", replacementPath, sizeof(replacementPath)) &&
                 std::filesystem::path(replacementPath).filename() == "voice_cue_000_sample0.wav",
             "findReplacementAssetPath resolves separate WAV cue replacements");
@@ -342,6 +347,111 @@ int main() {
             "openFile prefers WLD JSON replacement over legacy file");
     fileClose(input);
 
+    writeBinaryFile("VN.WLD", "LEGACYVN");
+    writeBinaryFile("CE.WLD", "LEGACYCE");
+    writeBinaryFile(convertedRoot / "SVN" / "TITLE.png", "CAMPAIGN_PNG");
+    writeBinaryFile(convertedRoot / "SVN" / "TITLE640.png", "CAMPAIGN_TITLE640_PNG");
+    writeBinaryFile(convertedRoot / "SVN" / "DESK.png", "CAMPAIGN_DESK_PNG");
+    writeBinaryFile(convertedRoot / "SVN" / "SVN.WLD.json", "{\"format\":\"WLD\",\"campaign\":{\"id\":\"SVN\"}}\n");
+    writeBinaryFile(convertedRoot / "SVN" / "fonts" / "font_1.ttf", "CAMPAIGN_TTF");
+    writeBinaryFile(convertedRoot / "SVN" / "sounds" / "voice_cue_000_sample0.wav", "CAMPAIGN_WAV");
+    writeBinaryFile(convertedRoot / "15FLT" / "shape_010_Global.glb", "GLOBAL_AIRCRAFT_GLB");
+    writeBinaryFile(convertedRoot / "15FLT" / "shape_011.glb", "GLOBAL_EXACT_AIRCRAFT_GLB");
+    writeBinaryFile(convertedRoot / "SVN" / "15FLT" / "shape_010_Campaign.glb", "CAMPAIGN_AIRCRAFT_GLB");
+    writeBinaryFile(convertedRoot / "SVN" / "15FLT" / "shape_011_Campaign.glb", "CAMPAIGN_NAMED_AIRCRAFT_GLB");
+    writeBinaryFile(convertedRoot / "SVN" / "campaign.json",
+                    "{\"format\":\"F15SE2_CAMPAIGN\",\"id\":\"SVN\","
+                    "\"runtime_selection\":{\"scenario\":\"SVN\",\"scenario_base\":\"VN\"},"
+                    "\"mission_objectives\":["
+                    "{\"id\":\"primary_one\",\"object_slot\":3},"
+                    "{\"id\":\"secondary_one\",\"object_slot\":4}],"
+                    "\"sortie_sequence\":[{\"primary_objective_ids\":[\"primary_one\"],"
+                    "\"secondary_objective_ids\":[\"secondary_one\"]}]}\n");
+    require(setCustomWorldCampaign("SVN") != 0,
+            "setCustomWorldCampaign selects scenario/base from campaign manifest");
+    setCustomWorldCampaign(nullptr);
+    require(setCustomWorldCampaign("SVN/campaign.json") != 0,
+            "setCustomWorldCampaign accepts the documented campaign manifest path form");
+    require(customCampaignPrimaryWorldObjectSlot() == 3 &&
+                customCampaignSecondaryWorldObjectSlot() == 4,
+            "setCustomWorldCampaign loads first-sortie mission target slots from campaign manifest");
+    require(findReplacementAssetPath("title.pic", ".png", replacementPath, sizeof(replacementPath)) &&
+                std::filesystem::path(replacementPath).parent_path().filename() == "SVN",
+            "campaign-local PNG replacement overrides global PNG while campaign is selected");
+    require(findReplacementAssetPath("TITLE640.PIC", ".png", replacementPath, sizeof(replacementPath)) &&
+                std::filesystem::path(replacementPath).filename() == "TITLE640.png" &&
+                std::filesystem::path(replacementPath).parent_path().filename() == "SVN",
+            "campaign-local high-resolution TITLE640 PNG replacement resolves while campaign is selected");
+    require(findReplacementAssetPath("Desk.Pic", ".png", replacementPath, sizeof(replacementPath)) &&
+                std::filesystem::path(replacementPath).filename() == "DESK.png" &&
+                std::filesystem::path(replacementPath).parent_path().filename() == "SVN",
+            "campaign-local full-page PIC PNG replacement resolves case-insensitively while campaign is selected");
+    require(findReplacementAssetPath("font_1", ".ttf", replacementPath, sizeof(replacementPath)) &&
+                std::filesystem::path(replacementPath).parent_path().filename() == "fonts" &&
+                std::filesystem::path(replacementPath).parent_path().parent_path().filename() == "SVN",
+            "campaign-local TTF font replacement overrides global font while campaign is selected");
+    require(findReplacementAssetPath("voice_cue_000_sample0", ".wav", replacementPath, sizeof(replacementPath)) &&
+                std::filesystem::path(replacementPath).parent_path().filename() == "sounds" &&
+                std::filesystem::path(replacementPath).parent_path().parent_path().filename() == "SVN",
+            "campaign-local WAV cue replacement overrides global cue while campaign is selected");
+    require(findReplacementShapeModelPath("15FLT.3D3", 10, ".glb", replacementPath, sizeof(replacementPath)) &&
+                std::filesystem::path(replacementPath).filename() == "shape_010_Campaign.glb" &&
+                std::filesystem::path(replacementPath).parent_path().parent_path().filename() == "SVN",
+            "campaign-local aircraft GLB replacement overrides shared aircraft GLB while campaign is selected");
+    require(findReplacementShapeModelPath("15FLT.3D3", 11, ".glb", replacementPath, sizeof(replacementPath)) &&
+                std::filesystem::path(replacementPath).filename() == "shape_011_Campaign.glb",
+            "campaign-local named aircraft GLB overrides a shared exact-name GLB");
+
+    setenv("F15_REPLACEMENT_ROOT_ONLY", "1", 1);
+    require(findReplacementAssetPath("title.pic", ".png", replacementPath, sizeof(replacementPath)) &&
+                std::filesystem::path(replacementPath).parent_path().filename() == "SVN",
+            "root-only campaign mode resolves campaign-local assets");
+    require(!findReplacementAssetPath("GLOBAL_ONLY.PIC", ".png", replacementPath, sizeof(replacementPath)),
+            "root-only campaign mode does not fall back outside the campaign directory");
+    input = openFile("VN.WLD", kDosReadMode);
+    require(input != nullptr, "openFile opens selected custom WLD scenario JSON stream");
+    std::memset(jsonBridgeBuf, 0, sizeof(jsonBridgeBuf));
+    require(fileReadRaw(input, jsonBridgeBuf, kReadWholeRemainingStream) == 10,
+            "openFile reads rebuilt selected custom WLD scenario bytes");
+    require(std::string(jsonBridgeBuf, 10) == "JSONBRIDGE",
+            "custom WLD scenario redirects legacy theater WLD to selected scenario JSON");
+    fileClose(input);
+
+    input = openFile("CE.WLD", kDosReadMode);
+    require(input != nullptr, "openFile still opens non-base WLD legacy stream");
+    char legacyWorldBuf[16] = {};
+    require(fileReadRaw(input, legacyWorldBuf, kReadWholeRemainingStream) == 8,
+            "non-base WLD is not redirected to selected custom scenario");
+    require(std::string(legacyWorldBuf, 8) == "LEGACYCE",
+            "custom WLD scenario base limits redirect to the selected theater");
+    fileClose(input);
+    setCustomWorldScenario(nullptr);
+    setCustomWorldScenarioBase(nullptr);
+    require(customCampaignPrimaryWorldObjectSlot() == 3,
+            "direct scenario reset leaves campaign mission hints untouched until campaign reset");
+    setCustomWorldCampaign(nullptr);
+    require(customCampaignPrimaryWorldObjectSlot() == -1 &&
+                customCampaignSecondaryWorldObjectSlot() == -1,
+            "clearing campaign selection clears mission target hints");
+
+    writeBinaryFile(convertedRoot / "ALT" / "ALT.WLD.json", "{\"format\":\"WLD\",\"campaign\":{\"id\":\"ALT\"}}\n");
+    writeBinaryFile(convertedRoot / "ALT" / "campaign.json",
+                    "{\"format\":\"F15SE2_CAMPAIGN\",\"id\":\"ALT\",\"base_theater\":\"VN\"}\n");
+    require(setCustomWorldCampaign("ALT") != 0,
+            "setCustomWorldCampaign accepts top-level id/base_theater manifest fields");
+    input = openFile("VN.WLD", kDosReadMode);
+    require(input != nullptr, "openFile opens fallback-field selected campaign WLD stream");
+    std::memset(jsonBridgeBuf, 0, sizeof(jsonBridgeBuf));
+    require(fileReadRaw(input, jsonBridgeBuf, kReadWholeRemainingStream) == 10,
+            "fallback-field campaign manifest still redirects WLD loads");
+    require(std::string(jsonBridgeBuf, 10) == "JSONBRIDGE",
+            "fallback-field campaign manifest selects scenario and base theater");
+    fileClose(input);
+    setCustomWorldCampaign(nullptr);
+
+    require(setCustomWorldCampaign("MISSING") == 0,
+            "setCustomWorldCampaign reports missing campaign manifest");
+
     writeBinaryFile("VN.3DT", "LEGACY3DT");
     writeBinaryFile(convertedRoot / "VN" / "VN.3DT.json", "{\"format\":\"3DT\"}\n");
     input = openFile("VN.3DT", kDosReadMode);
@@ -420,6 +530,7 @@ int main() {
     std::filesystem::current_path(oldCwd);
 #if !defined(_WIN32)
     unsetenv("F15_REPLACEMENT_ROOT");
+    unsetenv("F15_REPLACEMENT_ROOT_ONLY");
     unsetenv("F15_ASSET_TOOL");
 #endif
     std::filesystem::remove_all(testDir);

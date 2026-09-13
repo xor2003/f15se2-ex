@@ -48,6 +48,7 @@ int r3dgl_flightLive(void);
 /* Composite the software 2D page over the rendered GL 3D and swap the window.
  * `shakeOffset` is the explosion screen-shake (pixels, 320-space). */
 void r3dgl_present(struct SDL_Surface *page, int shakeOffset);
+void r3dgl_presentVirtual(struct SDL_Surface *page, int virtW, int virtH, int shakeOffset);
 
 /*
  * Immediate 2D overlay primitives.

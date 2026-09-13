@@ -5,6 +5,8 @@ The overlapping MicroProse formats used by F-117A are partially supported too,
 including external `.PAL` palettes for `PIC` images.
 
 For a step-by-step editing workflow, see `CUSTOMIZATION.md` in this directory.
+For extracting and rebuilding F15, ARMPIECE and DBICONS sprites, see
+[SPRITE_EDITING.md](SPRITE_EDITING.md).
 
 These tools are forward-conversion first. They are meant to make original game assets inspectable, editable, and eventually loadable by a modernized game runtime when replacement assets are present. They do not currently promise full backward conversion into original binary formats.
 
@@ -17,7 +19,7 @@ needed for unsupported or incomplete replacement paths.
 When both a modern media file and JSON mention the same property, the media file
 wins. JSON is supplemental index/metadata only. For example, PNG dimensions and
 palette override JSON image metadata, GLB geometry/extras override `.3D3.json`,
-WAV headers/data override sound JSON, and BDF/PNG font data overrides font JSON.
+OGG/MP3/WAV audio overrides sound JSON, and BDF/PNG font data overrides font JSON.
 
 Validation invariant: loading an unmodified converted asset should produce the
 same in-memory game data as loading the original asset. For formats that pass
@@ -30,7 +32,7 @@ validation/tests or explicit diagnostics, not in normal runtime loading.
 Typical source assets:
 
 ```text
-/home/xor/games/f15
+/path/to/F15_GAME
 ```
 
 Recommended output folder:
@@ -54,12 +56,39 @@ GLB bridge loaders can rebuild legacy byte streams and GLMESH caches.
 
 ## Commands
 
+## One-command Soviet Vietnam custom pack
+
+From the `f15se2-ex` repository root:
+
+```bash
+python3 -m tools.f15assets.cli build-soviet-vietnam-pack /path/to/F15_GAME converted_assets_all
+```
+
+This converts the original assets with customization-friendly defaults, then
+generates `converted_assets_all/SVN/SVN.WLD.json`,
+`converted_assets_all/SVN/campaign.json`, high-resolution truecolor starter
+PNG art, editable Markdown sortie briefings, Russian radio cue
+scripts/placeholders, `SVN/SUMMARY.md`, `SVN/inventory.json`, and launch metadata for
+`--campaign SVN`. If `espeak-ng` or `espeak` is installed, the starter Russian
+cue WAVs are generated automatically and normalized to mono unsigned 8-bit PCM
+at the project radio rate.
+
+Add `--package` to write `converted_assets_all/SVN.zip`; package validation
+runs by default and records package evidence in `SVN/campaign.json`. Use
+`--skip-package-validation` only when intentionally creating a draft ZIP.
+
+Optional additions:
+
+```bash
+python3 -m tools.f15assets.cli build-soviet-vietnam-pack /path/to/F15_GAME converted_assets_all --font /path/to/cyrillic.ttf --aircraft-glb 10=/path/to/mig21.glb --radio-tts-command 'espeak-ng -v ru -s 145 -p 35 -w "{output}" "{text}"' --validate
+```
+
 ## Convert all game assets
 
 From the `f15se2-ex` repository root, run:
 
 ```bash
-python3 -m tools.f15assets.cli convert-all /home/xor/games/f15 converted_assets_all
+python3 -m tools.f15assets.cli convert-all /path/to/F15_GAME converted_assets_all
 ```
 
 This produces:
@@ -73,12 +102,16 @@ This produces:
 - combined `.3D3.glb` and per-shape `shape_###*.glb` for supported 3D assets.
   Generated `cache/shape_###*.glmesh` runtime caches are optional and can be
   rebuilt by the game from GLB.
+- aircraft visuals are per-shape GLBs in `15FLT/`; replace selected
+  `15FLT/shape_###*.glb` files to swap plane models while keeping the
+  `shape_###` slot prefix stable.
 - `fonts/font_<id>.bdf`.
-- driver-backed `sounds/voice_cue_*.wav` files. Sound metadata JSON and the
-  full digitized sound blob are not exported by default.
+- driver-backed `sounds/voice_cue_*.wav` files. Runtime customizers may replace
+  a cue with the same basename and an `.ogg` or `.mp3` extension. Sound metadata
+  JSON and the full digitized sound blob are not exported by default.
 
 Use a different source path if your original DOS game files are not in
-`/home/xor/games/f15`.
+`/path/to/F15_GAME`.
 
 For F-117A CD assets, use the F-117A game folder as the source:
 
@@ -100,7 +133,7 @@ Optional flags:
 Convert a whole asset tree:
 
 ```bash
-python3 -m tools.f15assets.cli convert-tree /home/xor/games/f15 converted_assets_all
+python3 -m tools.f15assets.cli convert-tree /path/to/F15_GAME converted_assets_all
 ```
 
 Use `convert-tree --include-image-json` only when you need lossless PIC/SPR
@@ -109,7 +142,7 @@ decoder diagnostics such as compressed payloads and decoded pixel base64.
 Decode one asset:
 
 ```bash
-python3 -m tools.f15assets.cli decode /home/xor/games/f15/VN.WLD converted_assets_all/VN/VN.WLD.json --format WLD
+python3 -m tools.f15assets.cli decode /path/to/F15_GAME/VN.WLD converted_assets_all/VN/VN.WLD.json --format WLD
 ```
 
 Export fonts:
@@ -129,7 +162,7 @@ with a single face, copy it as `font_1.ttf`, `font_3.ttf`, `font_4.ttf`, and
 Export digitized cue WAVs:
 
 ```bash
-python3 -m tools.f15assets.cli --pretty export-sounds /home/xor/games/f15 converted_assets_all/sounds --sample-rate 7850
+python3 -m tools.f15assets.cli --pretty export-sounds /path/to/F15_GAME converted_assets_all/sounds --sample-rate 7850
 ```
 
 Add `--include-raw-blob` only when you also want the full `f15dgtl_raw.wav`
@@ -145,7 +178,100 @@ WAV authoring files.
 Validate modern replacements against original loader output outside normal runtime:
 
 ```bash
-python3 -m tools.f15assets.cli validate-replacements /home/xor/games/f15 converted_assets_all
+python3 -m tools.f15assets.cli validate-replacements /path/to/F15_GAME converted_assets_all
+```
+
+List available modern campaign manifests for a launcher or for quick inspection:
+
+```bash
+python3 -m tools.f15assets.cli list-campaigns converted_assets_all
+```
+
+The human output includes runtime-launch and full-asset-replacement validation
+status columns, so launchers and reviewers can see whether final validation has
+been recorded or is still `not_recorded_by_generator`.
+
+Write the same discovery result as JSON:
+
+```bash
+python3 -m tools.f15assets.cli list-campaigns converted_assets_all --json /tmp/f15_campaigns.json
+```
+
+After editing campaign PNGs, WAVs, fonts, or briefing text, refresh inventory
+hashes:
+
+```bash
+python3 -m tools.f15assets.cli refresh-campaign-inventory converted_assets_all/SVN
+```
+
+Create a distributable ZIP from the inventory:
+
+```bash
+python3 -m tools.f15assets.cli package-campaign converted_assets_all/SVN SVN.zip
+```
+
+The ZIP includes `SVN/package.json`, which records whether shared external
+assets were included or intentionally left external.
+
+Inspect a ZIP before installing:
+
+```bash
+python3 -m tools.f15assets.cli inspect-campaign-package SVN.zip
+```
+
+Inspection validates required manifests, inventory hashes, byte sizes, and
+included shared-asset references before you install the package. JSON inspection
+also includes `verification_summary` with runtime-launch, source-free replacement
+loadability, and full replacement validation status plus recorded timestamps
+when present.
+
+For scripts, use the verification-only command:
+
+```bash
+python3 -m tools.f15assets.cli verify-campaign-package SVN.zip
+```
+
+If the campaign manifest references shared assets outside `SVN/`, such as
+`15FLT/shape_###*.glb` aircraft replacements, packaging fails by default so the
+ZIP is not silently incomplete. Use `--include-external-assets` to include those
+shared files in the ZIP. Use `--allow-external-assets` only when you
+intentionally want a campaign-directory-only ZIP and will distribute shared
+assets separately.
+
+Install a packaged campaign ZIP into another converted asset root:
+
+```bash
+python3 -m tools.f15assets.cli install-campaign-package SVN.zip converted_assets_all
+```
+
+Preview installation without extracting files:
+
+```bash
+python3 -m tools.f15assets.cli install-campaign-package SVN.zip converted_assets_all --dry-run
+```
+
+Dry-run reports existing campaign directories or shared `15FLT/` assets that
+would require `--replace`; it never extracts or overwrites files.
+
+Installation validates `campaign.json`, `inventory.json`, and any referenced
+shared aircraft files. A campaign-only ZIP that references shared `15FLT/`
+assets will fail to install unless those shared files are already present in the
+target converted asset root. Installation restores executable mode on
+`run_campaign.sh`.
+
+If that campaign id is already installed, the command fails instead of merging
+files. If the package includes shared `15FLT/` assets that already exist, the
+command also fails instead of overwriting them. Use `--replace` when you
+intentionally want to overwrite the campaign directory and included shared
+assets.
+
+For a custom campaign pack without the original asset folder, use loadability
+validation. This also checks `campaign.json`, referenced WLD JSON, starter PNGs,
+WAV cues, font entries, installed aircraft files, and sortie/objective
+references:
+
+```bash
+python3 -m tools.f15assets.cli validate-replacements /missing/original/path converted_assets_all --loadability-only
 ```
 
 Rebuild full structured JSON to the original runtime binary byte stream:
@@ -153,6 +279,149 @@ Rebuild full structured JSON to the original runtime binary byte stream:
 ```bash
 python3 -m tools.f15assets.cli build-binary converted_assets_all/VN/VN.WLD.json --format WLD > /tmp/VN.WLD
 ```
+
+Scaffold a custom Soviet-in-Vietnam campaign from an existing Vietnam WLD JSON:
+
+```bash
+python3 -m tools.f15assets.cli new-campaign converted_assets_all/VN/VN.WLD.json converted_assets_all
+```
+
+If you already have a Cyrillic-capable font, install it into the campaign font
+override slots while generating the pack:
+
+```bash
+python3 -m tools.f15assets.cli new-campaign converted_assets_all/VN/VN.WLD.json converted_assets_all --font /path/to/cyrillic-font.ttf
+```
+
+Install custom aircraft visuals at the same time by copying a GLB into a stable
+`15FLT` shape slot:
+
+```bash
+python3 -m tools.f15assets.cli new-campaign converted_assets_all/VN/VN.WLD.json converted_assets_all --aircraft-glb 10=/path/to/mig21.glb
+```
+
+Install recorded or TTS-generated Russian radio cue WAVs at the same time by
+placing files named like `voice_cue_000_sample0.wav` in a folder and passing:
+
+```bash
+python3 -m tools.f15assets.cli new-campaign converted_assets_all/VN/VN.WLD.json converted_assets_all --radio-dir /path/to/russian-radio-wavs
+```
+
+Or let an installed TTS tool generate the cue WAVs directly. The command
+template receives `{text}`, `{output}`, `{cue}`, and `{script}` placeholders:
+
+```bash
+python3 -m tools.f15assets.cli new-campaign converted_assets_all/VN/VN.WLD.json converted_assets_all --radio-tts-command 'espeak-ng -v ru -s 145 -p 35 -w "{output}" "{text}"'
+```
+
+That `espeak-ng` example is the same command template used for the generated
+`SVN` pack in this workspace. When the TTS command emits a readable WAV, the
+tool rewrites it to mono unsigned 8-bit PCM at 7850 Hz with light deterministic
+radio static. Replace it with a higher-quality Russian TTS engine or
+hand-recorded `--radio-dir` WAVs when you want final campaign audio.
+
+This writes `converted_assets_all/SVN/SVN.WLD.json`,
+`converted_assets_all/SVN/campaign.json`, and `converted_assets_all/SVN/README.md`.
+The manifest is the modern custom-pack entry point for launchers/editor tooling;
+its `launch` block gives the user-facing `--campaign SVN` invocation, while
+`runtime_selection` stores the lower-level WLD redirect details. The WLD JSON
+remains the authoritative editable world/scenario data; the
+per-campaign README summarizes replaceable art, sound, font, and aircraft files.
+The generator also writes `SVN/run_campaign.sh`; run
+`converted_assets_all/SVN/run_campaign.sh /path/to/F15_GAME` or set
+`F15_GAME_DIR=/path/to/F15_GAME` and `F15_EXE=/path/to/f15se2-ex`.
+Both files carry `F15SE2_MODERN_CAMPAIGN_WLD` schema version `1` so tools can
+distinguish scenario-authoring fields from raw converted WLD fields.
+`SVN/inventory.json` lists the files that belong to the campaign pack, their
+roles, source-of-truth status, license-review status where relevant, byte size,
+and SHA-256 hashes. Loadability validation checks those hashes when present.
+`SVN/SUMMARY.md` is the short human-readable overview for quick review.
+The generator also writes `SVN/briefings/*.md` files for the starter sortie
+sequence. Edit those Markdown files for human-facing mission text while keeping
+objective ids aligned with `campaign.json` and `SVN.WLD.json`.
+The generated WLD preserves the binary tables so the JSON remains
+rebuild/loadability-checkable, adds custom campaign metadata for Soviet spy
+pilot Lisicin, known to Vietnamese allies as Li Si Cin after stealing an F-15
+plane, annotates mission targets for map-editor work, and renames the first
+editable target strings for a campaign against USA carrier, airbase, radar,
+logistics, and patrol targets. Use selected `15FLT/shape_###*.glb` aircraft swaps
+for visuals; WLD/mission data still controls scenario placement.
+By default it also writes campaign-local starter graphics and radio cues:
+`SVN/TITLE640.png`, `SVN/TITLE.png`, `SVN/DESK.png`, `SVN/WALL.png`,
+`SVN/HISCORE.png`, `SVN/ARMPIECE.png`, `SVN/sounds/voice_cue_*.wav`, and
+matching `SVN/sounds/voice_cue_*.txt` scripts. `TITLE640.png` is the actual
+main title replacement for `Title640.Pic`; `TITLE.png` is kept as a generic
+title/menu alias. The PNGs are high-resolution truecolor art for title/menu,
+briefing-room, and pilot screens. The dedicated hi-res `TITLE640.png` path
+preserves truecolor RGBA; the other legacy PIC/SPR targets are scaled into the
+original indexed game buffers and palette-mapped by the runtime.
+Generated `TITLE640.png` uses a 1280x700 source so it matches the original
+640x350 title aspect.
+The WAV files are generated radio-style PCM placeholders; the `.txt` files
+contain Russian radio-style cue lines plus English glosses so you can record
+real voice later and replace the WAVs while keeping the same filenames. Use
+`--radio-dir` to install recorded/TTS WAV files over those placeholders during
+generation, or `--radio-tts-command` to ask an external TTS command to create
+them from the Russian script text. Use `--no-starter-art` or
+`--no-starter-radio` to skip generated assets.
+The manifest also lists optional campaign font override slots
+`SVN/fonts/font_1.ttf`, `SVN/fonts/font_3.ttf`, and `SVN/fonts/font_4.ttf` for
+Cyrillic-capable scalable fonts. TTF/OTF are preferred for full Unicode work;
+BDF or PNG atlas files with the same `font_<id>` stem are still supported for
+bitmap workflows. No font file is bundled by default; `--font` copies your local
+TTF/OTF into the generated campaign folder.
+If `--aircraft-glb SLOT=PATH` is used, the manifest records the installed
+aircraft slot and copied `15FLT/shape_###*.glb` path. Aircraft GLBs live in the
+shared `15FLT` container, so they are visual slot replacements rather than
+WLD-local objects.
+The generated `mission_plan.objectives[]` entries are the starter scenario
+contract for custom tooling: each objective has a stable id, target role,
+priority, faction, domain, action, intent, and starter `object_slot`. Matching
+`world_objects[]` and `target_annotations[]` entries copy the objective id and
+structured category fields so the map editor can move, copy, delete, or replace
+those targets without guessing their campaign meaning.
+The generated `mission_plan.sortie_sequence[]` and matching manifest
+`sortie_sequence` provide a first-pass campaign flow: SEAD around Hanoi, carrier
+strike over the Gulf of Tonkin, then Da Nang/Haiphong interdiction. These fields
+are modern scenario-authoring data; edit them freely without needing to rebuild
+legacy binary campaign tables.
+The generator also stores `campaign.base_theater` and `runtime_selection` in the
+JSON. By default the base theater is inferred from the template filename
+(`VN.WLD.json` -> `VN`); use `--base-theater` if you intentionally derive the
+scenario from a different legacy WLD stem.
+
+Run the game with a selected custom WLD scenario from the replacement pack:
+
+```bash
+F15_REPLACEMENT_ROOT=converted_assets_all ./f15se2-ex --game /path/to/F15_GAME --campaign SVN
+```
+
+`--campaign SVN` reads `converted_assets_all/SVN/campaign.json`, then redirects
+the manifest's base WLD (`VN.WLD` for this campaign) to
+`converted_assets_all/SVN/SVN.WLD.json`. The same selection can be made with
+`F15_CAMPAIGN=SVN`. For manual/debug use, `--scenario SVN --scenario-base VN`
+or `F15_WORLD_SCENARIO=SVN F15_WORLD_SCENARIO_BASE=VN` bypasses the manifest.
+Other WLD files and related theater assets such as `VN.3DT`, `VN.3DG`, and
+model files still resolve through the normal replacement/original lookup path.
+While a campaign is selected, campaign-local replacements such as `SVN/TITLE.png`
+and `SVN/sounds/voice_cue_000_sample0.wav` are preferred over global
+replacements with the same logical asset name.
+
+Campaign intro music is loaded from `sounds/intro_music.ogg` or
+`sounds/intro_music.mp3`, in that order. Cue files use the same OGG, MP3, WAV
+precedence. Compressed audio needs no JSON sidecar; the existing ASOUND intro
+and WAV cue paths remain fallbacks.
+
+Install a custom aircraft model into a stable aircraft slot and clear stale
+generated runtime caches:
+
+```bash
+python3 -m tools.f15assets.cli install-aircraft-glb my_mig21.glb converted_assets_all --slot 10 --label MiG21
+```
+
+The command keeps the `shape_###` slot prefix, so game lookup stays stable. It
+validates the GLB by converting it to the runtime GLMESH stream unless
+`--skip-validate` is used.
 
 Full `.3D3.json` files with `model_data` can also be rebuilt for the old loader
 bridge. Default minimized `.3D3.json` omits `model_data`, so it is validation
@@ -252,7 +521,7 @@ not customized asset loadability. It also supersedes
 | --- | --- | --- |
 | `*.PIC`, `*.SPR` | indexed PNG, optional decode JSON | PNG is authoritative for pixels, dimensions, and palette. `convert-tree --include-image-json` writes bulky decode/index metadata for diagnostics. |
 | F-117A `*.PIC` + `*.PAL` | indexed PNG, optional decode JSON | PNG is authoritative after palette application. Same-stem `.PAL` is used first; known aliases handle files such as `256LEFT.PIC` using `FLIGHT.PAL` and `CLIMBIN.PIC` using `ADV.PAL`; otherwise `PALETTES.PAL` chunk 0 is used as an F-117A fallback. |
-| `TITLE640.PIC` | `640x350` PNG, optional decode JSON | Stored as alternating left/right rows by the original 640-mode loader; runtime loads the PNG into the hi-res title surface when present. |
+| `TITLE640.PIC` | `640x350` PNG, optional decode JSON | Stored as alternating left/right rows by the original 640-mode loader; runtime loads the PNG through the hi-res title path when present. Indexed PNGs update the active palette; truecolor PNGs are scaled to 640x350 and presented as RGBA. |
 | `1.PIC`..`4.PIC` | VGA-style PNG, optional decode JSON | Demo-only images use a different byte-indexed loader path. |
 | `*.3D3` | asset/world directory with combined `.glb`, per-shape `.glb`, optional `cache/*.glmesh` runtime caches, and lightweight JSON index | GLB is authoritative for OpenGL geometry and model metadata; `.glmesh` is generated from GLB for OpenGL runtime loading and stores the source GLB checksum. Default JSON keeps only lightweight ids and lookup metadata. Full JSON with `model_data` can be rebuilt into legacy `.3D3` bytes for the old loader bridge, but default minimized JSON cannot. Use `convert-tree --include-3d3-model-data` only for full reverse-engineering or bridge dumps, and `--include-glmesh-cache` only if you want prebuilt caches. |
 | `*.3DT` | ordered JSON sidecar in the related world directory | Terrain object placement tables. |
@@ -466,11 +735,13 @@ Current runtime implementation status:
 - PIC/SPR screen and sprite loads now prefer matching PNG replacements when
   present. Indexed PNGs are copied as palette indices and their embedded palette
   is required and applied to the active DAC; truecolor PNGs are accepted by
-  mapping pixels to the current game palette. Palette-less indexed PNGs are
-  rejected and fall back to legacy PIC/SPR. Replacement PNGs are sampled into
-  the existing game target rectangle, so higher-resolution source images do not
-  enlarge menus, cockpits, or sprite sheets. Pixel and palette equivalence is
-  checked by `validate-replacements` and CTest, not by normal gameplay.
+  mapping pixels to the current game palette. `TITLE640.png` is the exception:
+  truecolor replacements are scaled to the 640x350 hi-res title surface and
+  presented as RGBA. Palette-less indexed PNGs are rejected and fall back to
+  legacy PIC/SPR. Replacement PNGs are sampled into the existing game target
+  rectangle, so higher-resolution source images do not enlarge menus, cockpits,
+  or sprite sheets. Pixel and palette equivalence is checked by
+  `validate-replacements` and CTest, not by normal gameplay.
   Menu/debrief disk-presence gates for sprite sheets also accept matching PNG
   replacements before prompting for original disks.
 - WLD/3DT/3DG loads now prefer matching JSON replacements when present. Runtime

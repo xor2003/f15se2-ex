@@ -518,9 +518,9 @@ int16 groundUnitCount;
 uint8 wldReadBuf1[2];
 uint8 gridBuf1[17];
 uint8 gridBuf2[0x100];
-uint8 gridBuf3[0x200];
-uint8 gridBuf4[0x200];
-uint8 gridBuf5[0x200];
+uint8 gridBuf3[TERRAIN_CHILD_GRID_BYTES];
+uint8 gridBuf4[TERRAIN_CHILD_GRID_BYTES];
+uint8 gridBuf5[TERRAIN_CHILD_GRID_BYTES];
 struct Target targets[2];
 uint16 terrainBuf1[5] = {0x20, 0x20, 0x20, 0x20, 0x20};
 struct TerrainCountTable terrainTileCounts[5] = {{0}};
@@ -528,6 +528,6 @@ struct TerrainCountTable terrainTileCounts[5] = {{0}};
 /* terrainBuf3, terrainBuf4, terrainBuf5, terrainIdxBuf must be contiguous.
  * Code indexes them with stride 7: terrainBuf3+off(2), terrainBuf4+off(2),
  * terrainBuf5+off(2), terrainIdxBuf+off(1) per tile entry.
- * Max entries: 0xDAC/7 = 0x1F8 (504) tiles.
+ * Storage capacity is shared with the flight terrain loader.
  */
-struct TerrainTile terrainTileBlock[0x1F8];
+struct TerrainTile terrainTileBlock[TERRAIN_PLACEMENT_STORAGE_BYTES / sizeof(struct TerrainTile)];

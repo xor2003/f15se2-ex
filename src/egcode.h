@@ -88,6 +88,15 @@ void timerYield(void);
 uint64 timerNowNs(void);
 int getTimeOfDay();
 SDL_IOStream *openFile(const char *path, int mode);
+void setCustomWorldScenario(const char *scenario);
+void setCustomWorldScenarioBase(const char *base);
+void setCustomCampaignSortie(const char *sortie);
+int setCustomWorldCampaign(const char *campaign);
+int customWorldScenarioBaseTheaterIndex(void);
+int customCampaignPrimaryWorldObjectSlot(void);
+int customCampaignSecondaryWorldObjectSlot(void);
+const char *customCampaignSortieTitle(void);
+const char *customCampaignSortieBriefing(void);
 int findReplacementAssetPath(const char *legacyFilename, const char *modernExt,
                              char *outPath, size_t outPathSize);
 int findReplacementShapeModelPath(const char *containerLegacyFilename, int shapeId,

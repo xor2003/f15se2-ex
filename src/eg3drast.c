@@ -142,21 +142,8 @@ static unsigned udiv32by16(unsigned long num, unsigned den) {
  * downstream Cohen-Sutherland clip works in 32-bit), so a near-plane vertex
  * projects to a large off-screen coord rather than a clamped ±0x7f00. */
 static unsigned long udiv32by16_full(unsigned long num, unsigned den) {
-    unsigned long rem = 0;
-    unsigned long q = 0;
-    int i;
     if (den == 0) return 0xffffffffUL;
-    for (i = 0; i < 32; i++) {
-        rem = rem << 1;
-        if (num & 0x80000000UL) rem |= 1;
-        num = num << 1;
-        q = q << 1;
-        if (rem >= (unsigned long)den) {
-            rem -= den;
-            q |= 1;
-        }
-    }
-    return q;
+    return (unsigned long)((uint32)num / (uint32)den);
 }
 
 /* Signed full-precision 32/16 divide (no saturation). */
@@ -200,27 +187,11 @@ static int sdiv32by16(long num, int den) {
  * word. Combined with HI16(p<<1) this reproduces fixedMulQ14's Q15 rounding. */
 #define LOCARRY(v) ((((uint16)(v)) & 0x8000u) ? 1 : 0)
 
-/* signed 16x16 -> 32 multiply, shift-add (no __aNlmul). */
+/* Signed 16x16 -> 32 multiply. The DOS build needed a shift-add helper to avoid
+ * its runtime long-multiply routine; native targets have a single-cycle-class
+ * integer multiply and `long` can represent every int16 product exactly. */
 static long imul16(int a, int b) {
-    unsigned long aa, p = 0;
-    unsigned ub;
-    int neg = 0, i;
-    if (a < 0) {
-        neg ^= 1;
-        a = -a;
-    }
-    if (b < 0) {
-        neg ^= 1;
-        b = -b;
-    }
-    aa = (unsigned)a;
-    ub = (unsigned)b;
-    for (i = 0; i < 16; i++) {
-        if (ub & 1) p += aa;
-        ub >>= 1;
-        aa = aa << 1;
-    }
-    return neg ? -(long)p : (long)p;
+    return (long)(int16)a * (long)(int16)b;
 }
 
 /* arithmetic right shift of a long by n (only >>1 is inline in MSC 5.1). */
@@ -233,8 +204,8 @@ static long lshr_s(long v, int n) {
 /* seg000 lookupSine/lookupCosine — far-segment-local sin/cos. Identical */
 /* to eg3dmath.c's sine()/cosine() (g_angleLut + linear interpolation),  */
 /* re-stated here because that TU lives in _TEXT and a near call to it   */
-/* from EG3D_TEXT would be a link fixup overflow. Uses imul16/lshr_s so no  */
-/* long runtime helper is pulled.                                        */
+/* from EG3D_TEXT would be a link fixup overflow. Uses the local native   */
+/* fixed-point helpers.                                                   */
 /* ===================================================================== */
 static int16 hsine(int angle) {
     unsigned a = (unsigned)angle;
@@ -402,12 +373,12 @@ static void projectVertexToScreen(int vtx) /* BX = vtx*4 in the asm */
     }
     /* The asm divides camX>>8 by the depth before the IDIV. */
     camX = g_vtxCamX[vtx];
-    vtxScratch.vproj.x.v[vtx] = sdivFull(lshr_s(camX, 8), cx) + g_viewCenterX;
     /* camera Y: (camY>>8) scaled by 3/4 (the (v>>2 - v) aspect term) then /depth */
     camY = g_vtxCamY[vtx];
     {
         long n = lshr_s(camY, 8);
         long scaled = lshr_s(n, 2) - n; /* = -(n*3/4) */
+        vtxScratch.vproj.x.v[vtx] = sdivFull(lshr_s(camX, 8), cx) + g_viewCenterX;
         vtxScratch.vproj.y.v[vtx] = sdivFull(scaled, cx) + g_viewCenterY;
     }
 }
@@ -1019,6 +990,15 @@ static void rasterizeEdgeSpan(void) {
         int row = g_lineY1;  /* DI = y1*2 in the asm; here row index */
         int rstep = bp >> 1; /* +1 / -1 row */
         int ax = g_lineX1;
+        /* A horizontal edge cannot change rows. The original Bresenham loop
+         * visits every X merely to leave the two endpoints in this row's span;
+         * update those extents directly. Wide horizon/polygon edges make this
+         * common enough to show up prominently in the software profile. */
+        if (dyv == 0) {
+            if ((uint16)g_lineX1 < (uint16)minB[row]) minB[row] = g_lineX1;
+            if ((uint16)g_lineX2 > (uint16)maxB[row]) maxB[row] = g_lineX2;
+            return;
+        }
         if (dyv < dxv) {
             /* shallow (dx > |dy|): step X each iteration, step row on carry */
             int cx = dxv, bx = -((dxv + 1) >> 1), si = dyv;

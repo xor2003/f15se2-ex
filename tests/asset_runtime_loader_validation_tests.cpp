@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -21,7 +22,9 @@
 extern bool setGamePath(const char *path);
 extern void decodePic(SDL_IOStream *handle, int segment);
 extern void picBlit(SDL_IOStream *handle, int pageIndex);
+extern int loadReplacementPngToPage(const char *filename, int page);
 extern int loadReplacementPngToSprite(const char *filename, int segment);
+extern int loadReplacementPngToHiResTitle(const char *filename);
 extern int asound_testCompareReplacementCues(void);
 extern int asound_testCompareReplacementIntroMusic(void);
 
@@ -152,6 +155,191 @@ void clearSurface(SDL_Surface *surface) {
     if (SDL_MUSTLOCK(surface)) SDL_LockSurface(surface);
     std::memset(surface->pixels, 0, (size_t)surface->pitch * surface->h);
     if (SDL_MUSTLOCK(surface)) SDL_UnlockSurface(surface);
+}
+
+uint32_t pngCrc32(const unsigned char *data, size_t size) {
+    uint32_t crc = 0xffffffffu;
+    for (size_t i = 0; i < size; i++) {
+        crc ^= data[i];
+        for (int bit = 0; bit < 8; bit++) {
+            crc = (crc >> 1) ^ (0xedb88320u & (0u - (crc & 1u)));
+        }
+    }
+    return crc ^ 0xffffffffu;
+}
+
+uint32_t pngAdler32(const std::vector<unsigned char> &data) {
+    uint32_t a = 1;
+    uint32_t b = 0;
+    for (unsigned char value : data) {
+        a = (a + value) % 65521u;
+        b = (b + a) % 65521u;
+    }
+    return (b << 16) | a;
+}
+
+void pngAppendU32(std::vector<unsigned char> &out, uint32_t value) {
+    out.push_back((unsigned char)((value >> 24) & 0xff));
+    out.push_back((unsigned char)((value >> 16) & 0xff));
+    out.push_back((unsigned char)((value >> 8) & 0xff));
+    out.push_back((unsigned char)(value & 0xff));
+}
+
+void pngAppendChunk(std::vector<unsigned char> &out, const char type[4], const std::vector<unsigned char> &payload) {
+    pngAppendU32(out, (uint32_t)payload.size());
+    const size_t typePos = out.size();
+    out.insert(out.end(), type, type + 4);
+    out.insert(out.end(), payload.begin(), payload.end());
+    pngAppendU32(out, pngCrc32(out.data() + typePos, 4 + payload.size()));
+}
+
+void writeTinyRgbaPng(const std::filesystem::path &path) {
+    const unsigned width = 2;
+    const unsigned height = 2;
+    std::vector<unsigned char> raw = {
+        0, 255, 0, 0, 255, 0, 255, 0, 255,   /* filter + red, green */
+        0, 0, 0, 255, 255, 255, 255, 0, 255, /* filter + blue, yellow */
+    };
+    std::vector<unsigned char> idat = {0x78, 0x01, 0x01};
+    const uint16_t len = (uint16_t)raw.size();
+    idat.push_back((unsigned char)(len & 0xff));
+    idat.push_back((unsigned char)((len >> 8) & 0xff));
+    idat.push_back((unsigned char)((~len) & 0xff));
+    idat.push_back((unsigned char)(((~len) >> 8) & 0xff));
+    idat.insert(idat.end(), raw.begin(), raw.end());
+    pngAppendU32(idat, pngAdler32(raw));
+
+    std::vector<unsigned char> ihdr;
+    pngAppendU32(ihdr, width);
+    pngAppendU32(ihdr, height);
+    ihdr.insert(ihdr.end(), {8, 6, 0, 0, 0});
+
+    std::vector<unsigned char> png = {137, 80, 78, 71, 13, 10, 26, 10};
+    pngAppendChunk(png, "IHDR", ihdr);
+    pngAppendChunk(png, "IDAT", idat);
+    pngAppendChunk(png, "IEND", {});
+
+    std::filesystem::create_directories(path.parent_path());
+    std::ofstream out(path, std::ios::binary);
+    out.write(reinterpret_cast<const char *>(png.data()), (std::streamsize)png.size());
+}
+
+void writeTinyIndexedPng(const std::filesystem::path &path) {
+    std::vector<unsigned char> raw = {0, 1}; /* filter + one palette index */
+    std::vector<unsigned char> idat = {0x78, 0x01, 0x01};
+    const uint16_t len = (uint16_t)raw.size();
+    idat.push_back((unsigned char)(len & 0xff));
+    idat.push_back((unsigned char)((len >> 8) & 0xff));
+    idat.push_back((unsigned char)((~len) & 0xff));
+    idat.push_back((unsigned char)(((~len) >> 8) & 0xff));
+    idat.insert(idat.end(), raw.begin(), raw.end());
+    pngAppendU32(idat, pngAdler32(raw));
+
+    std::vector<unsigned char> ihdr;
+    pngAppendU32(ihdr, 1);
+    pngAppendU32(ihdr, 1);
+    ihdr.insert(ihdr.end(), {8, 3, 0, 0, 0});
+    std::vector<unsigned char> plte = {0, 0, 0, 255, 255, 255};
+
+    std::vector<unsigned char> png = {137, 80, 78, 71, 13, 10, 26, 10};
+    pngAppendChunk(png, "IHDR", ihdr);
+    pngAppendChunk(png, "PLTE", plte);
+    pngAppendChunk(png, "IDAT", idat);
+    pngAppendChunk(png, "IEND", {});
+
+    std::ofstream out(path, std::ios::binary);
+    out.write(reinterpret_cast<const char *>(png.data()), (std::streamsize)png.size());
+}
+
+void writeTinyPaletteLessIndexedPng(const std::filesystem::path &path) {
+    std::vector<unsigned char> raw = {0, 1}; /* filter + one palette index */
+    std::vector<unsigned char> idat = {0x78, 0x01, 0x01};
+    const uint16_t len = (uint16_t)raw.size();
+    idat.push_back((unsigned char)(len & 0xff));
+    idat.push_back((unsigned char)((len >> 8) & 0xff));
+    idat.push_back((unsigned char)((~len) & 0xff));
+    idat.push_back((unsigned char)(((~len) >> 8) & 0xff));
+    idat.insert(idat.end(), raw.begin(), raw.end());
+    pngAppendU32(idat, pngAdler32(raw));
+
+    std::vector<unsigned char> ihdr;
+    pngAppendU32(ihdr, 1);
+    pngAppendU32(ihdr, 1);
+    ihdr.insert(ihdr.end(), {8, 3, 0, 0, 0});
+
+    std::vector<unsigned char> png = {137, 80, 78, 71, 13, 10, 26, 10};
+    pngAppendChunk(png, "IHDR", ihdr);
+    pngAppendChunk(png, "IDAT", idat);
+    pngAppendChunk(png, "IEND", {});
+
+    std::ofstream out(path, std::ios::binary);
+    out.write(reinterpret_cast<const char *>(png.data()), (std::streamsize)png.size());
+}
+
+void compareTruecolorTitle640ReplacementPath(Counts &counts) {
+    const std::filesystem::path root =
+        std::filesystem::temp_directory_path() / ("f15-title640-rgba-" + std::to_string((long long)SDL_GetTicks()));
+    const std::filesystem::path titlePath = root / "TITLE640.png";
+    writeTinyRgbaPng(titlePath);
+    setReplacementRoot(&root);
+    require(loadReplacementPngToHiResTitle("TITLE640.PIC") != 0,
+            "truecolor TITLE640 PNG replacement should load");
+    SDL_Surface *present = gfx_testGetHiResPresentSurface();
+    require(present != nullptr, "truecolor TITLE640 replacement should install a hi-res present surface");
+    require(present != gfx_getHiResSurface(), "truecolor TITLE640 replacement should not present the indexed fallback surface");
+    require(present->format == SDL_PIXELFORMAT_RGBA32, "truecolor TITLE640 replacement should preserve RGBA present format");
+    require(present->w == 2 && present->h == 2,
+            "truecolor TITLE640 replacement should preserve source resolution while presenting in the hi-res title rectangle");
+    writeTinyIndexedPng(titlePath);
+    require(loadReplacementPngToHiResTitle("TITLE640.PIC") != 0,
+            "indexed TITLE640 PNG replacement should load after truecolor replacement");
+    present = gfx_testGetHiResPresentSurface();
+    require(present == gfx_getHiResSurface(),
+            "indexed TITLE640 replacement should clear stale truecolor present surface");
+    require(present->format == SDL_PIXELFORMAT_INDEX8,
+            "indexed TITLE640 replacement should present the indexed hi-res surface");
+
+    writeTinyRgbaPng(titlePath);
+    require(loadReplacementPngToHiResTitle("TITLE640.PIC") != 0,
+            "second truecolor TITLE640 PNG replacement should load");
+    require(gfx_testGetHiResPresentSurface() != gfx_getHiResSurface(),
+            "second truecolor TITLE640 replacement should reinstall an RGBA present surface");
+    writeTinyPaletteLessIndexedPng(titlePath);
+    require(loadReplacementPngToHiResTitle("TITLE640.PIC") == 0,
+            "palette-less indexed TITLE640 PNG should be rejected");
+    require(gfx_testGetHiResPresentSurface() == gfx_getHiResSurface(),
+            "rejected indexed TITLE640 replacement should clear stale truecolor present surface");
+
+    gfx_setHiResReplacementSurface(NULL);
+    setReplacementRoot(nullptr);
+    std::filesystem::remove_all(root);
+    counts.images++;
+}
+
+void compareTruecolorPageReplacementDoesNotHijackTitleSurface(Counts &counts) {
+    const std::filesystem::path root =
+        std::filesystem::temp_directory_path() / ("f15-page-rgba-" + std::to_string((long long)SDL_GetTicks()));
+    const std::filesystem::path picPath = root / "DESK.png";
+    writeTinyRgbaPng(picPath);
+
+    gfx_setHiResReplacementSurface(NULL);
+    setReplacementRoot(&root);
+    require(loadReplacementPngToPage("DESK.PIC", 0) != 0,
+            "truecolor normal PIC PNG replacement should load");
+    SDL_Surface *pageReplacement = gfx_testGetPageReplacementSurface();
+    require(pageReplacement != nullptr,
+            "truecolor normal PIC PNG replacement should install a truecolor page background");
+    require(pageReplacement->format == SDL_PIXELFORMAT_RGBA32,
+            "truecolor normal PIC PNG replacement should preserve RGBA page background format");
+    require(pageReplacement->w == 2 && pageReplacement->h == 2,
+            "truecolor normal PIC PNG replacement should preserve source resolution");
+    require(gfx_testGetHiResPresentSurface() == gfx_getHiResSurface(),
+            "truecolor normal PIC PNG replacement must not install the TITLE640 present surface");
+    gfx_setPageReplacementSurface(NULL);
+
+    setReplacementRoot(nullptr);
+    std::filesystem::remove_all(root);
+    counts.images++;
 }
 
 void compareStructuredAssets(const std::filesystem::path &originalRoot,
@@ -346,6 +534,8 @@ int main() {
 #endif
 
     Counts counts;
+    compareTruecolorTitle640ReplacementPath(counts);
+    compareTruecolorPageReplacementDoesNotHijackTitleSurface(counts);
     compareStructuredAssets(originalRoot, convertedRoot, counts);
     compareImages(originalRoot, convertedRoot, counts);
     compareFonts(convertedRoot, counts);

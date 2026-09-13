@@ -43,7 +43,20 @@ bool video_setHiRes(void);
 /* Hi-res (640x350) title surface and its present. picBlit decodes the planar
  * Title640.pic into this surface; gfx_presentHiRes pushes it to the renderer. */
 struct SDL_Surface *gfx_getHiResSurface(void);
+/* Optional owned truecolor replacement for the hi-res title screen. Passing NULL
+ * clears it. The graphics layer owns and destroys any non-NULL surface. */
+void gfx_setHiResReplacementSurface(struct SDL_Surface *surface);
 void gfx_presentHiRes(void);
+
+/* Optional owned truecolor replacement for the normal 320x200 page backdrop.
+ * Later legacy indexed drawing is composited over it with palette index 0
+ * treated as transparent. Passing NULL clears it. */
+void gfx_setPageReplacementSurface(struct SDL_Surface *surface);
+int gfx_hasPageReplacement(void);
+/* Borrowed original artwork, without legacy page/sprite overlays. */
+struct SDL_Surface *gfx_getPageReplacementSurface(void);
+void gfx_setPageReplacementIndexedBase(struct SDL_Surface *surface);
+struct SDL_Surface *gfx_getPagePresentSurface(struct SDL_Surface *page);
 
 /* ---- Off-buffer save/restore images ----
  * A save-under is an owned r2d image: capture a page region into it, draw it back
@@ -70,6 +83,10 @@ void gfx_drawSpriteOpaque(int handle, int srcX, int srcY, int dstPage,
 /* The R2DImage behind sprite-buffer `handle` (1-based; 0 = none), or NULL. Lets
  * game code submit a sheet sprite through the renderer's float image path. */
 struct R2DImage *gfx_spriteBufImage(int handle);
+/* Retain a replacement sprite sheet at source resolution for native-overlay
+ * rendering. The indexed 320x200 sprite buffer remains the software fallback. */
+void gfx_setSpriteReplacementPng(int handle, const char *path);
+int gfx_hasSpriteReplacement(int handle);
 
 /* ---- graphics slots (the public draw API, first slot 0, 84 used) ---- */
 /* dseg:0xab8 */

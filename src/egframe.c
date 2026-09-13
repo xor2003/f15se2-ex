@@ -19,6 +19,8 @@
 #include "r2d.h"
 #include "const.h"
 #include "comm.h"
+#include "shared/common.h"
+#include "replacement_terrain_collision.h"
 
 #include <dos.h>
 #include <stdio.h>
@@ -210,16 +212,27 @@ void updateFrame(void) {
             }
         }
     }
-    if (g_prevThreatIndex != g_closestThreatIndex) {
-        g_targetSlots[1].viewIndex = g_closestThreatIndex;
-        waypoints[3].mapX = g_planeTable.planes[g_closestThreatIndex].mapX;
-        waypoints[3].mapY = g_planeTable.planes[g_closestThreatIndex].mapY;
+    /* Do not move the destination while the autopilot is flying its approach.
+     * Nearest-base tracking still serves ground contact and nearby aircraft. */
+    {
+        const int autopilotLanding = g_autopilotAltitude != 0 && waypointIndex == 3;
+        const int recoveryBaseChanged = g_prevThreatIndex != g_closestThreatIndex ||
+            g_targetSlots[1].viewIndex != g_closestThreatIndex;
+        if (recoveryBaseChanged && !autopilotLanding) {
+            g_targetSlots[1].viewIndex = g_closestThreatIndex;
+            waypoints[3].mapX = g_planeTable.planes[g_closestThreatIndex].mapX;
+            waypoints[3].mapY = g_planeTable.planes[g_closestThreatIndex].mapY;
+        }
     }
 
     if (g_prevThreatIndex != g_closestThreatIndex && (g_planeTable.planes[g_closestThreatIndex].flags & 0x800) == 0) {
         for (i = 1; i <= 2; i++) {
             g_simObjects[g_groundUnitCount - i].flags.b[0] &= ~2;
             g_simObjects[g_groundUnitCount - i].spec = g_planeTable.planes[g_closestThreatIndex].flags & 0x400 ? 13 : 0;
+            if (customWorldScenarioIs("SVN")) {
+                g_simObjects[g_groundUnitCount - i].spec =
+                    g_planeTable.planes[g_closestThreatIndex].flags & 0x400 ? 14 : 6;
+            }
             if (g_planeTable.planes[g_closestThreatIndex].flags & 0x100) {
                 g_simObjects[g_groundUnitCount - i].spec = 18;
             }
@@ -243,6 +256,10 @@ void updateFrame(void) {
             g_simObjects[objIdx].worldY = (int32)g_simObjects[objIdx].posY << 5;
             g_simObjects[objIdx].heading.w = -randomRange(0x4000);
             g_simObjects[objIdx].spec = g_planeTable.planes[g_closestThreatIndex].flags & 0x400 ? 8 : 11;
+            if (customWorldScenarioIs("SVN")) {
+                g_simObjects[objIdx].spec =
+                    g_planeTable.planes[g_closestThreatIndex].flags & 0x400 ? 0 : 7;
+            }
             if (g_planeTable.planes[g_closestThreatIndex].flags & 0x100) {
                 g_simObjects[objIdx].spec = 9;
             }
@@ -368,7 +385,7 @@ skip_autopilot:
         }
     }
 
-    if (g_savedPosVisible != 0 && (g_viewMode & 0x80) == 0) {
+    if ((g_savedPosVisible != 0 || aircraftInsideReplacementTerrain()) && (g_viewMode & 0x80) == 0) {
         if (gameData->unk4 != 0 && g_altitude != 0) {
             makeSound(0, 2);
             gfx_waitRetrace();
@@ -431,7 +448,7 @@ void dispatchKeyScancode(void) {
 
 // ==== seg000:0x14fc ====
 void countermeasures(int16 eventType) {
-    const char *name;
+    const char *name = "Countermeasure";
     int16 i, slot;
 
     slot = -1;
@@ -738,7 +755,7 @@ void initMissionStrings() {
     g_targetNameTable[0] = g_stringPool;
     nameIdx = 1;
     for (i = 0; i < 750; ++i) {
-        if (g_stringPool[i] == 0 && nameIdx < 100) {
+        if (g_stringPool[i] == 0 && nameIdx < MODEL_SLOT_CAPACITY) {
             g_targetNameTable[nameIdx++] = &g_stringPool[i + 1];
         }
     }

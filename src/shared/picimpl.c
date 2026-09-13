@@ -27,6 +27,9 @@ extern void fileClose(SDL_IOStream *io);
 
 /* Hi-res title surface + present (gfx_impl.c). */
 extern SDL_Surface *gfx_getHiResSurface(void);
+extern void gfx_setHiResReplacementSurface(SDL_Surface *surface);
+extern void gfx_setPageReplacementSurface(SDL_Surface *surface);
+extern void gfx_setPageReplacementIndexedBase(SDL_Surface *surface);
 extern void gfx_presentHiRes(void);
 extern void gfx_clearTtfTextOverlay(void) __attribute__((weak));
 
@@ -135,13 +138,12 @@ static uint16 decodeLZWStep(void) {
     }
 
     /* Traverse dictionary chain */
-    while (dictParent[code] != 0xFFFF && code < 2048 && stackTop < 4096) {
+    while (code < 2048 && dictParent[code] != 0xFFFF && stackTop < 4096) {
         lzwOutBuf[stackTop++] = dictChar[code];
         code = dictParent[code];
     }
-    if (code < 2048) {
-        lzwOutBuf[stackTop++] = dictChar[code];
-    }
+    if (code >= 2048 || stackTop >= 4096) return 0;
+    lzwOutBuf[stackTop++] = dictChar[code];
 
     /* Root character = first char of this string */
     picFirstChar = dictChar[code];
@@ -421,13 +423,45 @@ static int pngCopyTruecolor(SDL_Surface *src, SDL_Surface *dst) {
         for (x = 0; x < dst->w; x++) {
             const int sx = (int)(((int64)x * rgba->w) / dst->w);
             const uint8 *px = srcRow + sx * 4;
-            dstRow[x] = (uint8)pngNearestPaletteIndex(px[0], px[1], px[2]);
+            /* Transparent PNG pixels can retain arbitrary RGB, including white. */
+            dstRow[x] = px[3] < 128 ? 0 : (uint8)pngNearestPaletteIndex(px[0], px[1], px[2]);
         }
     }
     if (SDL_MUSTLOCK(dst)) SDL_UnlockSurface(dst);
     if (SDL_MUSTLOCK(rgba)) SDL_UnlockSurface(rgba);
     SDL_DestroySurface(rgba);
     return 1;
+}
+
+static SDL_Surface *pngScaleTruecolor(SDL_Surface *src, int width, int height) {
+    SDL_Surface *rgba = SDL_ConvertSurface(src, SDL_PIXELFORMAT_RGBA32);
+    SDL_Surface *scaled = NULL;
+    int x, y;
+
+    if (!rgba || width <= 0 || height <= 0) {
+        if (rgba) SDL_DestroySurface(rgba);
+        return NULL;
+    }
+    scaled = SDL_CreateSurface(width, height, SDL_PIXELFORMAT_RGBA32);
+    if (!scaled) {
+        SDL_DestroySurface(rgba);
+        return NULL;
+    }
+    if (SDL_MUSTLOCK(rgba)) SDL_LockSurface(rgba);
+    if (SDL_MUSTLOCK(scaled)) SDL_LockSurface(scaled);
+    for (y = 0; y < scaled->h; y++) {
+        const int sy = (int)(((int64)y * rgba->h) / scaled->h);
+        const uint8 *srcRow = (const uint8 *)rgba->pixels + (size_t)sy * rgba->pitch;
+        uint8 *dstRow = (uint8 *)scaled->pixels + (size_t)y * scaled->pitch;
+        for (x = 0; x < scaled->w; x++) {
+            const int sx = (int)(((int64)x * rgba->w) / scaled->w);
+            SDL_memcpy(dstRow + (size_t)x * 4u, srcRow + (size_t)sx * 4u, 4);
+        }
+    }
+    if (SDL_MUSTLOCK(scaled)) SDL_UnlockSurface(scaled);
+    if (SDL_MUSTLOCK(rgba)) SDL_UnlockSurface(rgba);
+    SDL_DestroySurface(rgba);
+    return scaled;
 }
 
 static uint8 dac6ToRgb8(uint8 v) {
@@ -584,7 +618,7 @@ static void compareReplacementTitle640PngWithLegacy(const char *filename,
     SDL_DestroySurface(legacySurface);
 }
 
-static int loadReplacementPngToSurface(const char *filename, SDL_Surface *dst) {
+static int loadReplacementPngToSurface(const char *filename, SDL_Surface *dst, int pageBackground) {
     char replacementPath[512];
     SDL_Surface *src;
     SDL_Color legacyColors[256];
@@ -619,6 +653,7 @@ static int loadReplacementPngToSurface(const char *filename, SDL_Surface *dst) {
             SDL_DestroySurface(src);
             return 0;
         }
+        if (pageBackground) gfx_setPageReplacementSurface(NULL);
         if (SDL_MUSTLOCK(src)) SDL_LockSurface(src);
         if (SDL_MUSTLOCK(dst)) SDL_LockSurface(dst);
         pngApplyEmbeddedPalette(src);
@@ -627,7 +662,27 @@ static int loadReplacementPngToSurface(const char *filename, SDL_Surface *dst) {
         if (SDL_MUSTLOCK(src)) SDL_UnlockSurface(src);
         ok = 1;
     } else {
-        ok = pngCopyTruecolor(src, dst);
+        if (pageBackground) {
+            SDL_Surface *pageTruecolor = SDL_ConvertSurface(src, SDL_PIXELFORMAT_RGBA32);
+            if (pageTruecolor) {
+                /* Legacy cockpit save-unders still operate on the indexed page.
+                 * Populate it without replacing the VGA palette, while retaining
+                 * the source-resolution truecolor image for presentation. */
+                if (pngCopyTruecolor(src, dst)) {
+                    gfx_setPageReplacementSurface(pageTruecolor);
+                    gfx_setPageReplacementIndexedBase(dst);
+                    ok = 1;
+                } else {
+                    SDL_DestroySurface(pageTruecolor);
+                }
+            }
+        } else {
+            /* Sprite PIC replacements still draw through fixed-size indexed
+             * legacy surfaces. Source PNGs may be larger and truecolor, but
+             * they are sampled into the sprite buffer so legacy blits keep
+             * their transparency and save/restore behavior. */
+            ok = pngCopyTruecolor(src, dst);
+        }
     }
 
     if (ok) {
@@ -642,7 +697,11 @@ static int loadReplacementPngToSurface(const char *filename, SDL_Surface *dst) {
 
 int loadReplacementPngToPage(const char *filename, int page) {
     (void)page;
-    return loadReplacementPngToSurface(filename, gfx_getCurPageSurface());
+    const int loaded = loadReplacementPngToSurface(filename, gfx_getCurPageSurface(), 1);
+    /* Match showPicFile: replacing a page also replaces its retained text.
+     * Failed replacement attempts must leave the current screen untouched. */
+    if (loaded && gfx_clearTtfTextOverlay) gfx_clearTtfTextOverlay();
+    return loaded;
 }
 
 int loadReplacementPngToHiResTitle(const char *filename) {
@@ -661,6 +720,7 @@ int loadReplacementPngToHiResTitle(const char *filename) {
 
     src = SDL_LoadPNG(replacementPath);
     if (!src) {
+        gfx_setHiResReplacementSurface(NULL);
         LogWarn(("asset replacement: failed to load hi-res title PNG %s (%s); using legacy PIC", replacementPath, SDL_GetError()));
         return 0;
     }
@@ -674,10 +734,15 @@ int loadReplacementPngToHiResTitle(const char *filename) {
     if (src->format == SDL_PIXELFORMAT_INDEX8) {
         SDL_Palette *srcPalette = SDL_GetSurfacePalette(src);
         if (!srcPalette || srcPalette->ncolors <= 0) {
+            gfx_setHiResReplacementSurface(NULL);
             LogWarn(("asset replacement: rejected indexed hi-res title PNG %s without embedded palette; using legacy PIC", replacementPath));
             SDL_DestroySurface(src);
             return 0;
         }
+        /* Indexed TITLE640 replacements intentionally use the legacy indexed
+         * hi-res surface. Clear any previous truecolor title replacement so
+         * gfx_presentHiRes does not keep presenting stale RGBA art. */
+        gfx_setHiResReplacementSurface(NULL);
         if (SDL_MUSTLOCK(src)) SDL_LockSurface(src);
         if (SDL_MUSTLOCK(dst)) SDL_LockSurface(dst);
         pngApplyEmbeddedPalette(src);
@@ -686,7 +751,16 @@ int loadReplacementPngToHiResTitle(const char *filename) {
         if (SDL_MUSTLOCK(src)) SDL_UnlockSurface(src);
         ok = 1;
     } else {
+        SDL_Surface *truecolorTitle = SDL_ConvertSurface(src, SDL_PIXELFORMAT_RGBA32);
         ok = pngCopyTruecolor(src, dst);
+        if (ok && truecolorTitle) {
+            /* TITLE640 is presented directly, so preserve truecolor source art
+             * for display while also filling the indexed surface as fallback
+             * and comparison data. */
+            gfx_setHiResReplacementSurface(truecolorTitle);
+            truecolorTitle = NULL;
+        }
+        if (truecolorTitle) SDL_DestroySurface(truecolorTitle);
     }
 
     if (ok) {
@@ -701,14 +775,22 @@ int loadReplacementPngToHiResTitle(const char *filename) {
 }
 
 int loadReplacementPngToSprite(const char *filename, int segment) {
+    char replacementPath[512];
     SDL_Surface *dst = gfx_getSpriteSurface(segment);
-    return dst ? loadReplacementPngToSurface(filename, dst) : 0;
+    int loaded = dst ? loadReplacementPngToSurface(filename, dst, 0) : 0;
+
+    if (loaded && findReplacementAssetPath(filename, ".png", replacementPath,
+                                           sizeof(replacementPath))) {
+        gfx_setSpriteReplacementPng(segment, replacementPath);
+    }
+    return loaded;
 }
 
 void showPicFile(SDL_IOStream *handle, int page) {
     if (!handle) return;
     (void)page; /* all pages are the single back buffer */
     if (gfx_clearTtfTextOverlay) gfx_clearTtfTextOverlay();
+    gfx_setPageReplacementSurface(NULL);
     /* Decode straight into the back buffer; the decoder overwrites every row. */
     picDecodeToSurface(handle, gfx_getCurPageSurface());
 }
@@ -749,6 +831,7 @@ void picBlit(SDL_IOStream *handle, int pageIndex) {
     if (!handle) return;
 
     if (gfx_clearTtfTextOverlay) gfx_clearTtfTextOverlay();
+    gfx_setHiResReplacementSurface(NULL);
     dst = gfx_getHiResSurface();
     if (!dst) return;
     base = (uint8 *)dst->pixels;

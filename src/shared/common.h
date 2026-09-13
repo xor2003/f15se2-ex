@@ -42,6 +42,16 @@ int loadReplacementPngToHiResTitle(const char *filename);
 /* functions provided by file_io.c / file_*.inc - case-insensitive asset I/O */
 SDL_IOStream *openFile(const char *filename, int mode);
 SDL_IOStream *createFile(const char *filename, int attr);
+void setCustomWorldScenario(const char *scenario);
+int customWorldScenarioIs(const char *scenario);
+void setCustomWorldScenarioBase(const char *base);
+void setCustomCampaignSortie(const char *sortie);
+int setCustomWorldCampaign(const char *campaign);
+int customWorldScenarioBaseTheaterIndex(void);
+int customCampaignPrimaryWorldObjectSlot(void);
+int customCampaignSecondaryWorldObjectSlot(void);
+const char *customCampaignSortieTitle(void);
+const char *customCampaignSortieBriefing(void);
 int findReplacementAssetPath(const char *legacyFilename, const char *modernExt,
                              char *outPath, size_t outPathSize);
 int findReplacementShapeModelPath(const char *containerLegacyFilename, int shapeId,

@@ -21,6 +21,8 @@
 
 /* Private helpers for this translation unit. */
 void runGenerator();
+int16 isUsableCampaignTargetSlot(int16 targetIdx);
+static int16 findCampaignFallbackTargetSlot(int16 primaryTargetIdx);
 int16 findOrPlaceItem(int16, int16, int16);
 int16 itemDistance(int16, int16);
 void positionUnit(int16, int16);
@@ -45,9 +47,25 @@ void runGenerator() {
     int16 swapTmp, maxRange, minDist, unitType, randIdx;
     int16 baseDist[4];
     int16 randY, idx, matchCount, slot, retryCount;
+    int16 customPrimaryTarget, customSecondaryTarget, customFallbackTarget;
 
     attempt = missionDistAccum = 0;
     minDist = 250;
+    customPrimaryTarget = (int16)customCampaignPrimaryWorldObjectSlot();
+    customSecondaryTarget = (int16)customCampaignSecondaryWorldObjectSlot();
+    /* Campaign hints must satisfy the same pair constraints as random targets.
+     * Reject an incompatible hint before retrying the same pair 1000 times. */
+    if (isUsableCampaignTargetSlot(customPrimaryTarget) &&
+        isUsableCampaignTargetSlot(customSecondaryTarget)) {
+        const int sameTarget = customPrimaryTarget == customSecondaryTarget;
+        const int tooFar = (itemDistance(customPrimaryTarget, customSecondaryTarget) >> 6) > 200;
+        const int sameModel = gameData->theater != THEATER_DS &&
+            worldObjects[customPrimaryTarget].objectIdx == worldObjects[customSecondaryTarget].objectIdx;
+        if (sameTarget || tooFar || sameModel) customSecondaryTarget = -1;
+    }
+    customFallbackTarget = isUsableCampaignTargetSlot(customPrimaryTarget)
+                               ? findCampaignFallbackTargetSlot(customPrimaryTarget)
+                               : -1;
 restart_40a8:
     do {
         attempt = attempt + 1;
@@ -57,6 +75,8 @@ restart_40a8:
                 randIdx = randMul(targetCoordsCount[missionPick]);
                 targets[0].targetIdx = findOrPlaceItem(targetCoordsXPtrs[missionPick][randIdx],
                                                        targetCoordsYPtrs[missionPick][randIdx], 1);
+            } else if (isUsableCampaignTargetSlot(customPrimaryTarget)) {
+                targets[0].targetIdx = customPrimaryTarget;
             } else {
                 do {
                     do {
@@ -74,6 +94,10 @@ restart_40a8:
             } else if (missionPick == 6) {
                 randIdx = (randMul(6) + randIdx + 1) & 7;
                 targets[1].targetIdx = findOrPlaceItem(targetCoordsX6[randIdx], targetCoordsY6[randIdx], 2);
+            } else if (isUsableCampaignTargetSlot(customSecondaryTarget) && customSecondaryTarget != targets[0].targetIdx) {
+                targets[1].targetIdx = customSecondaryTarget;
+            } else if (customFallbackTarget != -1) {
+                targets[1].targetIdx = customFallbackTarget;
             } else {
                 do {
                     do {
@@ -298,6 +322,33 @@ counterMore1k:
         nightMissionFlag = 1;
     }
     missionDistAccum -= (missionBits + missionDistAccum) % 150;
+}
+
+int16 isUsableCampaignTargetSlot(int16 targetIdx) {
+    int16 slot;
+
+    if (targetIdx < FIRST_REAL_ITEM || targetIdx >= readItemSize) return 0;
+    if (strcmp(wldOffsets[targetIdx], "POW Camp") == 0) return 0;
+    for (slot = 0; slot < 56; slot++) {
+        if (objectTypeTable[worldObjects[targetIdx].objectIdx & 0x7f] == missionTable[slot].tensionMask) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int16 findCampaignFallbackTargetSlot(int16 primaryTargetIdx) {
+    int16 targetIdx;
+
+    for (targetIdx = FIRST_REAL_ITEM; targetIdx < readItemSize; targetIdx++) {
+        if (targetIdx != primaryTargetIdx &&
+            worldObjects[targetIdx].objectIdx != worldObjects[primaryTargetIdx].objectIdx &&
+            (itemDistance(primaryTargetIdx, targetIdx) >> 6) <= 200 &&
+            isUsableCampaignTargetSlot(targetIdx)) {
+            return targetIdx;
+        }
+    }
+    return -1;
 }
 
 int16 findOrPlaceItem(int16 wx, int16 wy, int16 slot) {

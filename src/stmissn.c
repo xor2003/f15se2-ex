@@ -19,6 +19,7 @@
 #include "r2d.h"
 
 #include <stdio.h>
+#include <string.h>
 #include <dos.h>
 
 /* Private helpers for this translation unit. */
@@ -91,7 +92,7 @@ static void briefingSceneBegin(void) {
  * menu text (native-res points on top of the room, the selected row's description
  * recoloured to the highlight), then the pointer arm for the current position. */
 static void briefingScenePresent(void) {
-    int i, hlRow;
+    int i, hlRow, spriteIdx;
     hlRow = (enableHighlight != 0 && armPosition >= 0 && armPosition < 5) ? armPosition : -1;
     r2d_vectorBeginFrame(R2D_COMPOSE_SELF);
     hdsprite_drawBriefingWall();
@@ -113,8 +114,14 @@ static void briefingScenePresent(void) {
         page1NumPtr[5] = g_briefStr[i].y;
         gfx_drawString(page1NumPtr, g_briefStr[i].text);
     }
-    if (armPosition >= 0 && armPosition <= 6)
-        hdsprite_drawBriefingArm(armPosition);
+    if (!hdsprite_drawBriefingPerson(armPosition) && armPosition >= 0 && armPosition <= 6) {
+        /* Use the same ARMPIECE atlas and source rectangles as the legacy path.
+         * gfx_blitSprite keeps an HD replacement at native resolution. */
+        spriteIdx = armSpriteIndex[armPosition];
+        showSprite(*page1NumPtr, armBlitX[spriteIdx], armBlitY[spriteIdx],
+                   armSrcX[spriteIdx], armSrcY[spriteIdx],
+                   armBlitW[spriteIdx], armBlitH[spriteIdx]);
+    }
     gfx_commitPage();
 }
 
@@ -190,6 +197,7 @@ void showPic640(const char *filename) {
 /* ---- merged from stmissn.c ---- */
 void missionSelect() {
     int index, count;
+    int forcedTheater;
     gfx_setDac(1);
     gfx_setFadeSteps(0);
     openShowPic("Wall.Pic", *page1NumPtr);
@@ -197,6 +205,16 @@ void missionSelect() {
     clearBriefing();
     nearmemset(scenarioFoundArr, 0, 5);
     gameData->difficulty = missionMenuSelect(missDiffLevels, missDiffDesc, "DIFFICULTY", gameData->difficulty);
+    forcedTheater = customWorldScenarioBaseTheaterIndex();
+    if (forcedTheater >= 0) {
+        /* A selected modern campaign/scenario already names the legacy theater
+         * whose WLD it replaces. Skip the theater picker so `--campaign SVN`
+         * deterministically loads VN -> SVN.WLD.json instead of depending on
+         * the user's last/default theater selection. */
+        gameData->theater = (uint16)forcedTheater;
+        checkDiskA();
+        goto theaterSelected;
+    }
 selectTheater:
     if (gameData->theater > 4)
         gameData->theater = 4;
@@ -227,6 +245,7 @@ selectTheater:
         }
     }
 
+theaterSelected:
     // show mission type dialog for desert storm
     if (gameData->theater == THEATER_DS && gameData->difficulty != DIFFICULTY_DEMO) {
         scenarioFoundArr[0] = scenarioFoundArr[1] = 0;
@@ -394,11 +413,58 @@ void missionDecode() {
     animateArm(armPosition, armPosition);
 }
 
+static void drawCampaignBriefingText(const char *briefing) {
+    char line[2][72];
+    int lineNo, lineLen, wordLen, y;
+    const char *p, *wordStart;
+
+    if (!briefing || !*briefing) return;
+
+    line[0][0] = 0;
+    line[1][0] = 0;
+    lineNo = 0;
+    lineLen = 0;
+    p = briefing;
+    while (*p && lineNo < 2) {
+        while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n') p++;
+        if (!*p) break;
+        wordStart = p;
+        wordLen = 0;
+        while (p[wordLen] && p[wordLen] != ' ' && p[wordLen] != '\t' && p[wordLen] != '\r' && p[wordLen] != '\n') wordLen++;
+        if (wordLen > 34) wordLen = 34;
+        if (lineLen && lineLen + 1 + wordLen > 38) {
+            lineNo++;
+            lineLen = 0;
+            if (lineNo >= 2) break;
+        }
+        if (lineLen) line[lineNo][lineLen++] = ' ';
+        memcpy(line[lineNo] + lineLen, wordStart, wordLen);
+        lineLen += wordLen;
+        line[lineNo][lineLen] = 0;
+        p = wordStart + wordLen;
+        while (*p && *p != ' ' && *p != '\t' && *p != '\r' && *p != '\n') p++;
+    }
+
+    /* Custom campaigns can provide free-form Markdown elsewhere, but the START
+     * board is tiny. Keep this as a short sortie intent hint below the legacy
+     * target list so primary/secondary target rendering remains unchanged. */
+    page1Desc.font = FONT_SMALL;
+    page1Desc.color = COLOR_CYAN;
+    for (lineNo = 0, y = 128; lineNo < 2; lineNo++, y += 8) {
+        if (line[lineNo][0])
+            drawStringCentered(page1NumPtr, line[lineNo], 113, y, 185);
+    }
+    page1Desc.font = FONT_NORMAL;
+}
+
 void printMission() {
     int armStep;
+    const char *campaignTitle;
+    const char *campaignBriefing;
     clearBriefing();
     page1Desc.color = COLOR_BLUE;
-    drawStringCentered(page1NumPtr, "TODAY'S MISSION", 113, 14, 185);
+    campaignTitle = customCampaignSortieTitle();
+    drawStringCentered(page1NumPtr, campaignTitle ? campaignTitle : "TODAY'S MISSION", 113, 14, 185);
     drawLine(page1NumPtr, 160, 22, 249, 22, 1);
     drawStringAt(page1NumPtr, "Takeoff from:", 130, 32);
     page1Desc.color = COLOR_BRIEF_DESC_HL;
@@ -432,6 +498,8 @@ void printMission() {
     mystrcat(todayMissStrBuf, targets[1].coord);
     drawStringCentered(page1NumPtr, todayMissStrBuf, 113, 116, 185);
     page1Desc.font = FONT_NORMAL;
+    campaignBriefing = customCampaignSortieBriefing();
+    drawCampaignBriefingText(campaignBriefing);
     enableHighlight = 0;
     setTimerIrqHandler();
     timerCounter3 = 6;
@@ -464,7 +532,7 @@ printMissionAgain:
 }
 
 int16 pollMenuInput() {
-    uint16 key;
+    uint16 key = 0;
     char repeatHold;
     int joy1;
     int joy0;

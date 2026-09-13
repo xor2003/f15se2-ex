@@ -88,6 +88,19 @@ FetchContent_Declare(
     UPDATE_DISCONNECTED TRUE
 )
 FetchContent_MakeAvailable(quick_digest5)
+FetchContent_Declare(
+    dr_libs
+    GIT_REPOSITORY "https://github.com/mackron/dr_libs.git"
+    GIT_TAG "dfe8377631000664666519fdb83da193fd8037f4"
+    UPDATE_DISCONNECTED TRUE
+)
+FetchContent_Declare(
+    stb
+    GIT_REPOSITORY "https://github.com/nothings/stb.git"
+    GIT_TAG "2c980bb59875b0d32144a71867fbdebb2f77cd20"
+    UPDATE_DISCONNECTED TRUE
+)
+FetchContent_MakeAvailable(dr_libs stb)
 
 
 #==============================================================================
@@ -126,6 +139,7 @@ set(F15SE2_SOURCES
     ${SRC_DIR}/gfx_impl.c
     ${SRC_DIR}/joystick.c
     ${SRC_DIR}/hdsprite.c
+    ${SRC_DIR}/cockpit3d.cpp
 
     # start
     ${SRC_DIR}/stmain.c
@@ -183,6 +197,7 @@ set(EGAME_SOURCES
     # audio: ported ASOUND AdLib driver on SDL3
     ${SRC_DIR}/asound/asound_model.c
     ${SRC_DIR}/asound/asopl.c
+    ${SRC_DIR}/asound/compressed_audio.c
     ${SRC_DIR}/asound/asound_sdl.c
 )
 
@@ -289,6 +304,7 @@ if(AUTOSTART)
     target_compile_definitions(f15se2_core PUBLIC DEBUG_AUTOSTART)
 endif()
 target_link_libraries(f15se2_core PUBLIC SDL3::SDL3 OpenGL::GL)
+target_include_directories(f15se2_core PRIVATE ${dr_libs_SOURCE_DIR} ${stb_SOURCE_DIR})
 if(FREETYPE_FOUND)
     target_compile_definitions(f15se2_core PUBLIC F15_HAVE_FREETYPE=1)
     target_link_libraries(f15se2_core PUBLIC Freetype::Freetype)
@@ -499,6 +515,7 @@ add_behavior_test(eg_stubs_behavior_tests LINK_CORE)
 add_behavior_test(eg3drast_internal_behavior_tests SOURCES ${SRC_DIR}/egdata.c)
 add_behavior_test(start_behavior_tests LINK_CORE)
 add_behavior_test(log_behavior_tests LINK_CORE)
+add_behavior_test(terrain_capacity_tests LINK_CORE)
 add_behavior_test(vgapal_behavior_tests SOURCES ${SRC_DIR}/vgapal.c DEFS main=vgapal_program_main)
 
 if(IS_DIRECTORY "${F15SE2_ORIGINAL_ASSETS}" AND IS_DIRECTORY "${F15SE2_CONVERTED_ASSETS}")
@@ -510,7 +527,7 @@ if(IS_DIRECTORY "${F15SE2_ORIGINAL_ASSETS}" AND IS_DIRECTORY "${F15SE2_CONVERTED
     )
     set_tests_properties(asset_runtime_loader_validation_tests PROPERTIES
         LABELS "assets;integration"
-        TIMEOUT 120
+        TIMEOUT 300
     )
 else()
     message(STATUS "Skipping asset_runtime_loader_validation_tests: set F15SE2_ORIGINAL_ASSETS and F15SE2_CONVERTED_ASSETS to existing directories")

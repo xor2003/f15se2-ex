@@ -3,6 +3,13 @@
 
 #include "inttype.h"
 
+/* Optional glTF f15_surface metadata, preserved in the runtime primitive flags. */
+enum {
+    R3D_SURFACE_LAND = 0x100,
+    R3D_SURFACE_WATER = 0x200,
+    R3D_SURFACE_RUNWAY = 0x400
+};
+
 typedef struct R3DReplacementPrim {
     int mode; /* GL-style primitive mode: 4 triangles, 1 lines, 0 points. */
     int nVerts;

@@ -4,6 +4,7 @@
 
 #include "inttype.h"
 #include "asset_compare.h"
+#include "structured_asset_cache.h"
 #include "log.h"
 #include <SDL3/SDL.h>
 #include <quickdigest5.hpp>
@@ -18,11 +19,118 @@
 #include <cstdio>
 #include <memory>
 #include <system_error>
+#include <fstream>
+#include <unordered_map>
+#include <limits>
 
 using namespace std;
 namespace fs = std::filesystem;
 fs::path gamePath = ".";
 static vector<unique_ptr<vector<uint8>>> g_replacementIoBuffers;
+static string g_customWorldScenario;
+static string g_customWorldScenarioBase;
+static string g_customCampaignSortieSelector;
+static int g_customCampaignPrimaryTargetSlot = -1;
+static int g_customCampaignSecondaryTargetSlot = -1;
+static string g_customCampaignSortieTitle;
+static string g_customCampaignSortieBriefing;
+
+static string normalizeScenarioStem(const char *value) {
+    if (!value || !value[0]) return "";
+    fs::path scenarioPath{value};
+    string stem;
+    string ext = scenarioPath.extension().string();
+    std::transform(ext.begin(), ext.end(), ext.begin(),
+        [](unsigned char c){ return std::toupper(c); });
+    if (ext == ".JSON") {
+        stem = scenarioPath.stem().stem().string();
+    } else if (ext == ".WLD") {
+        stem = scenarioPath.stem().string();
+    } else if (scenarioPath.has_filename()) {
+        stem = scenarioPath.filename().string();
+    }
+    std::transform(stem.begin(), stem.end(), stem.begin(),
+        [](unsigned char c){ return std::toupper(c); });
+    return stem;
+}
+
+static string normalizeCampaignId(const char *value) {
+    if (!value || !value[0]) return "";
+    fs::path campaignPath{value};
+    string id;
+    string filename = campaignPath.filename().string();
+    std::transform(filename.begin(), filename.end(), filename.begin(),
+        [](unsigned char c){ return (char)std::toupper(c); });
+
+    /* The public launcher/docs allow both `SVN` and `SVN/campaign.json`.
+     * Scenario normalization deliberately strips double extensions such as
+     * SVN.WLD.json; campaign normalization is different because campaign.json
+     * is a manifest filename and the campaign id is its parent directory. */
+    if (filename == "CAMPAIGN.JSON" && campaignPath.has_parent_path()) {
+        id = campaignPath.parent_path().filename().string();
+    } else if (campaignPath.has_stem()) {
+        id = campaignPath.stem().string();
+    } else if (campaignPath.has_filename()) {
+        id = campaignPath.filename().string();
+    }
+    std::transform(id.begin(), id.end(), id.begin(),
+        [](unsigned char c){ return (char)std::toupper(c); });
+    return id;
+}
+
+void setCustomWorldScenario(const char *scenario) {
+    g_customWorldScenario = normalizeScenarioStem(scenario);
+}
+
+int customWorldScenarioIs(const char *scenario) {
+    return g_customWorldScenario == normalizeScenarioStem(scenario);
+}
+
+void setCustomWorldScenarioBase(const char *base) {
+    g_customWorldScenarioBase = normalizeScenarioStem(base);
+}
+
+void setCustomCampaignSortie(const char *sortie) {
+    g_customCampaignSortieSelector = sortie && sortie[0] ? string(sortie) : string();
+}
+
+static void clearCustomCampaignMissionHints(void) {
+    g_customCampaignPrimaryTargetSlot = -1;
+    g_customCampaignSecondaryTargetSlot = -1;
+    g_customCampaignSortieTitle.clear();
+    g_customCampaignSortieBriefing.clear();
+}
+
+int customCampaignPrimaryWorldObjectSlot(void) {
+    return g_customCampaignPrimaryTargetSlot;
+}
+
+int customCampaignSecondaryWorldObjectSlot(void) {
+    return g_customCampaignSecondaryTargetSlot;
+}
+
+const char *customCampaignSortieTitle(void) {
+    return g_customCampaignSortieTitle.empty() ? NULL : g_customCampaignSortieTitle.c_str();
+}
+
+const char *customCampaignSortieBriefing(void) {
+    return g_customCampaignSortieBriefing.empty() ? NULL : g_customCampaignSortieBriefing.c_str();
+}
+
+int customWorldScenarioBaseTheaterIndex(void) {
+    const string base = g_customWorldScenarioBase;
+    if (base.empty()) return -1;
+    if (base == "LIBYA" || base == "LB") return 0;
+    if (base == "GULF" || base == "PG" || base == "PERSIAN") return 1;
+    if (base == "VN" || base == "VIETNAM") return 2;
+    if (base == "ME") return 3;
+    if (base == "NC" || base == "NCAPE") return 4;
+    if (base == "CE" || base == "CEUROPE") return 5;
+    if (base == "DS" || base == "DESERT") return 6;
+    if (base == "JP") return 6;
+    if (base == "NA") return 7;
+    return -1;
+}
 
 /* Sets the directory to read game assets from, default is current dir */
 bool setGamePath(const char* path) {
@@ -148,6 +256,7 @@ static string defaultAssetToolCommand(const fs::path &assetHint) {
 static vector<fs::path> replacementSearchRoots(void) {
     vector<fs::path> roots;
     const char *replacementRootEnv = getenv("F15_REPLACEMENT_ROOT");
+    const bool rootOnly = getenv("F15_REPLACEMENT_ROOT_ONLY") != nullptr;
     static int warnedInvalidReplacementRoot = 0;
     /* Explicit custom-pack root. This keeps original DOS assets in gamePath
      * while loading modern replacements from an external converted tree. The
@@ -161,12 +270,15 @@ static vector<fs::path> replacementSearchRoots(void) {
         std::error_code ec;
         int addedExplicitRoot = 0;
         if (fs::is_directory(replacementRoot, ec)) {
-            addReplacementCandidate(roots, replacementRoot);
+            addReplacementCandidate(roots, rootOnly && !g_customWorldScenario.empty()
+                ? replacementRoot / g_customWorldScenario : replacementRoot);
             addedExplicitRoot = 1;
         }
         ec.clear();
         if (fs::is_directory(replacementRoot / "converted_assets_all", ec)) {
-            addReplacementCandidate(roots, replacementRoot / "converted_assets_all");
+            const fs::path convertedRoot = replacementRoot / "converted_assets_all";
+            addReplacementCandidate(roots, rootOnly && !g_customWorldScenario.empty()
+                ? convertedRoot / g_customWorldScenario : convertedRoot);
             addedExplicitRoot = 1;
         }
         if (!addedExplicitRoot && !warnedInvalidReplacementRoot) {
@@ -174,6 +286,7 @@ static vector<fs::path> replacementSearchRoots(void) {
             LogWarn(("asset replacement: F15_REPLACEMENT_ROOT does not name an existing replacement directory: %s", replacementRootEnv));
         }
     }
+    if (rootOnly) return roots;
     addReplacementCandidate(roots, gamePath / "converted_assets_all");
     addReplacementCandidate(roots, fs::path{"converted_assets_all"});
     addReplacementCandidate(roots, gamePath);
@@ -184,6 +297,7 @@ static vector<fs::path> replacementSearchRoots(void) {
 static vector<fs::path> recursiveReplacementSearchRoots(void) {
     vector<fs::path> roots;
     const char *replacementRootEnv = getenv("F15_REPLACEMENT_ROOT");
+    const bool rootOnly = getenv("F15_REPLACEMENT_ROOT_ONLY") != nullptr;
 
     /* Recursive fallback is useful for converted asset trees that preserve
      * campaign/theater subdirectories, but it must not walk arbitrary gamePath
@@ -193,16 +307,290 @@ static vector<fs::path> recursiveReplacementSearchRoots(void) {
         fs::path replacementRoot{replacementRootEnv};
         std::error_code ec;
         if (fs::is_directory(replacementRoot, ec)) {
-            addReplacementCandidate(roots, replacementRoot);
+            addReplacementCandidate(roots, rootOnly && !g_customWorldScenario.empty()
+                ? replacementRoot / g_customWorldScenario : replacementRoot);
         }
         ec.clear();
         if (fs::is_directory(replacementRoot / "converted_assets_all", ec)) {
-            addReplacementCandidate(roots, replacementRoot / "converted_assets_all");
+            const fs::path convertedRoot = replacementRoot / "converted_assets_all";
+            addReplacementCandidate(roots, rootOnly && !g_customWorldScenario.empty()
+                ? convertedRoot / g_customWorldScenario : convertedRoot);
         }
     }
+    if (rootOnly) return roots;
     addReplacementCandidate(roots, gamePath / "converted_assets_all");
     addReplacementCandidate(roots, fs::path{"converted_assets_all"});
     return roots;
+}
+
+static string jsonStringField(const string &json, const string &key) {
+    const string needle = string("\"") + key + "\"";
+    size_t pos = json.find(needle);
+    if (pos == string::npos) return "";
+    pos = json.find(':', pos + needle.size());
+    if (pos == string::npos) return "";
+    pos = json.find('"', pos + 1);
+    if (pos == string::npos) return "";
+    size_t end = pos + 1;
+    string out;
+    int escaped = 0;
+    for (; end < json.size(); end++) {
+        const char c = json[end];
+        if (escaped) {
+            out.push_back(c);
+            escaped = 0;
+            continue;
+        }
+        if (c == '\\') {
+            escaped = 1;
+            continue;
+        }
+        if (c == '"') return out;
+        out.push_back(c);
+    }
+    return "";
+}
+
+static int jsonFirstStringInArrayField(const string &json, const string &key, string &out) {
+    const string needle = string("\"") + key + "\"";
+    size_t pos = json.find(needle);
+    size_t scan;
+
+    out.clear();
+    if (pos == string::npos) return 0;
+    pos = json.find(':', pos + needle.size());
+    if (pos == string::npos) return 0;
+    pos = json.find('[', pos + 1);
+    if (pos == string::npos) return 0;
+    scan = json.find('"', pos + 1);
+    if (scan == string::npos) return 0;
+    scan++;
+    for (; scan < json.size(); scan++) {
+        const char c = json[scan];
+        if (c == '"') return !out.empty();
+        if (c == '\\' && scan + 1 < json.size()) {
+            scan++;
+            out.push_back(json[scan]);
+        } else {
+            out.push_back(c);
+        }
+    }
+    return 0;
+}
+
+static int jsonFirstStringInArrayFieldAfter(const string &json, size_t start, const string &key, string &out) {
+    const string needle = string("\"") + key + "\"";
+    size_t pos = json.find(needle, start);
+    size_t scan;
+
+    out.clear();
+    if (pos == string::npos) return 0;
+    pos = json.find(':', pos + needle.size());
+    if (pos == string::npos) return 0;
+    pos = json.find('[', pos + 1);
+    if (pos == string::npos) return 0;
+    scan = json.find('"', pos + 1);
+    if (scan == string::npos) return 0;
+    scan++;
+    for (; scan < json.size(); scan++) {
+        const char c = json[scan];
+        if (c == '"') return !out.empty();
+        if (c == '\\' && scan + 1 < json.size()) {
+            scan++;
+            out.push_back(json[scan]);
+        } else {
+            out.push_back(c);
+        }
+    }
+    return 0;
+}
+
+static string jsonStringFieldAfter(const string &json, size_t start, const string &key) {
+    const string needle = string("\"") + key + "\"";
+    size_t pos = json.find(needle, start);
+    size_t end;
+    string out;
+    int escaped = 0;
+
+    if (pos == string::npos) return "";
+    pos = json.find(':', pos + needle.size());
+    if (pos == string::npos) return "";
+    pos = json.find('"', pos + 1);
+    if (pos == string::npos) return "";
+    for (end = pos + 1; end < json.size(); end++) {
+        const char c = json[end];
+        if (escaped) {
+            out.push_back(c);
+            escaped = 0;
+            continue;
+        }
+        if (c == '\\') {
+            escaped = 1;
+            continue;
+        }
+        if (c == '"') return out;
+        out.push_back(c);
+    }
+    return "";
+}
+
+static int jsonIntFieldAfter(const string &json, size_t start, const string &key, int fallback) {
+    const string needle = string("\"") + key + "\"";
+    size_t pos = json.find(needle, start);
+    int sign = 1;
+    int value = 0;
+    int gotDigit = 0;
+
+    if (pos == string::npos) return fallback;
+    pos = json.find(':', pos + needle.size());
+    if (pos == string::npos) return fallback;
+    pos++;
+    while (pos < json.size() && isspace((unsigned char)json[pos])) pos++;
+    if (pos < json.size() && json[pos] == '-') {
+        sign = -1;
+        pos++;
+    }
+    while (pos < json.size() && isdigit((unsigned char)json[pos])) {
+        const int digit = json[pos] - '0';
+        if (value > (std::numeric_limits<int>::max() - digit) / 10) return fallback;
+        gotDigit = 1;
+        value = value * 10 + digit;
+        pos++;
+    }
+    return gotDigit ? value * sign : fallback;
+}
+
+static int campaignObjectiveObjectSlot(const string &json, const string &objectiveId) {
+    const size_t objectivesPos = json.find("\"mission_objectives\"");
+    size_t idPos;
+
+    if (objectiveId.empty() || objectivesPos == string::npos) return -1;
+    idPos = objectivesPos;
+    while ((idPos = json.find("\"id\"", idPos)) != string::npos) {
+        string id;
+        size_t valuePos = json.find(':', idPos + 4);
+        if (valuePos == string::npos) return -1;
+        valuePos = json.find('"', valuePos + 1);
+        if (valuePos == string::npos) return -1;
+        valuePos++;
+        for (; valuePos < json.size(); valuePos++) {
+            const char c = json[valuePos];
+            if (c == '"') break;
+            if (c == '\\' && valuePos + 1 < json.size()) {
+                valuePos++;
+                id.push_back(json[valuePos]);
+            } else {
+                id.push_back(c);
+            }
+        }
+        if (id == objectiveId) return jsonIntFieldAfter(json, idPos, "object_slot", -1);
+        idPos++;
+    }
+    return -1;
+}
+
+static size_t customCampaignSelectedSortiePos(const string &json) {
+    const size_t sequencePos = json.find("\"sortie_sequence\"");
+    const string selector = g_customCampaignSortieSelector;
+    size_t pos;
+    int numericSelector = 1;
+
+    if (sequencePos == string::npos) return string::npos;
+    /* Without an explicit sortie, let the original generator choose targets and bases. */
+    if (selector.empty()) return string::npos;
+    for (char c : selector) {
+        if (!isdigit((unsigned char)c)) {
+            numericSelector = 0;
+            break;
+        }
+    }
+    if (numericSelector) {
+        pos = sequencePos;
+        while ((pos = json.find("\"phase\"", pos)) != string::npos) {
+            if (jsonIntFieldAfter(json, pos, "phase", -1) == atoi(selector.c_str())) {
+                return pos;
+            }
+            pos++;
+        }
+    } else {
+        pos = sequencePos;
+        while ((pos = json.find("\"id\"", pos)) != string::npos) {
+            if (jsonStringFieldAfter(json, pos, "id") == selector) {
+                return pos;
+            }
+            pos++;
+        }
+    }
+    LogWarn(("asset replacement: campaign sortie selector did not match any sortie: %s", selector.c_str()));
+    return json.find('{', sequencePos);
+}
+
+static void loadCustomCampaignMissionHints(const string &json) {
+    string primaryObjective;
+    string secondaryObjective;
+    size_t sortiePos;
+
+    clearCustomCampaignMissionHints();
+    /* Campaign WLD JSON is generated/packaged by tools/f15assets. The game
+     * only needs the selected sortie's object slots as hints; the legacy
+     * generator still validates object type, bases, range, and mission-table
+     * compatibility before accepting them. */
+    sortiePos = customCampaignSelectedSortiePos(json);
+    if (sortiePos == string::npos) return;
+    if (jsonFirstStringInArrayFieldAfter(json, sortiePos, "primary_objective_ids", primaryObjective)) {
+        g_customCampaignPrimaryTargetSlot = campaignObjectiveObjectSlot(json, primaryObjective);
+    }
+    if (jsonFirstStringInArrayFieldAfter(json, sortiePos, "secondary_objective_ids", secondaryObjective)) {
+        g_customCampaignSecondaryTargetSlot = campaignObjectiveObjectSlot(json, secondaryObjective);
+    }
+    /* The START briefing board is very small. package-campaign syncs edited
+     * briefing Markdown files back into these WLD sortie fields so authors can customize
+     * the visible title/briefing without hand-editing duplicated JSON. */
+    g_customCampaignSortieTitle = jsonStringFieldAfter(json, sortiePos, "title");
+    g_customCampaignSortieBriefing = jsonStringFieldAfter(json, sortiePos, "briefing");
+}
+
+int setCustomWorldCampaign(const char *campaign) {
+    const string campaignId = normalizeCampaignId(campaign);
+    if (campaignId.empty()) {
+        setCustomWorldScenario(nullptr);
+        setCustomWorldScenarioBase(nullptr);
+        clearCustomCampaignMissionHints();
+        return 1;
+    }
+
+    const string lowerCampaign = lowerString(campaignId);
+    vector<fs::path> candidates;
+
+    clearCustomCampaignMissionHints();
+    for (const fs::path &root : replacementSearchRoots()) {
+        addReplacementCandidate(candidates, root / campaignId / "campaign.json");
+        addReplacementCandidate(candidates, root / lowerCampaign / "campaign.json");
+    }
+
+    for (const fs::path &candidate : candidates) {
+        if (!fs::exists(candidate)) continue;
+        std::ifstream in(candidate);
+        if (!in) continue;
+        const string json((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+        string scenario = jsonStringField(json, "scenario");
+        string scenarioBase = jsonStringField(json, "scenario_base");
+        if (scenario.empty()) scenario = jsonStringField(json, "id");
+        if (scenarioBase.empty()) scenarioBase = jsonStringField(json, "base_theater");
+        if (scenario.empty() || scenarioBase.empty()) {
+            LogWarn(("asset replacement: campaign manifest missing scenario/base fields: %s", candidate.string().c_str()));
+            return 0;
+        }
+        setCustomWorldScenario(scenario.c_str());
+        setCustomWorldScenarioBase(scenarioBase.c_str());
+        loadCustomCampaignMissionHints(json);
+        LogInfo(("asset replacement: selected campaign %s from %s (scenario=%s base=%s)",
+                 campaignId.c_str(), candidate.string().c_str(), scenario.c_str(), scenarioBase.c_str()));
+        return 1;
+    }
+
+    LogWarn(("asset replacement: campaign manifest not found for %s", campaignId.c_str()));
+    return 0;
 }
 
 static void addRecursiveReplacementCandidates(vector<fs::path> &candidates,
@@ -250,6 +638,68 @@ int findReplacementAssetPath(const char *legacyFilename, const char *modernExt,
     const string lowerNameWithLegacyExt = lowerString(nameWithLegacyExt);
     const string lowerNameWithoutLegacyExt = lowerString(nameWithoutLegacyExt);
 
+    /* Custom scenario selection is a WLD-only redirect. START/EGAME can keep
+     * asking for the normal theater WLD while the replacement layer supplies a
+     * modern scenario JSON such as converted_assets_all/SVN/SVN.WLD.json. Other
+     * theater files remain tied to the selected base theater. */
+    if (ext == ".WLD" && modern == ".json" && !g_customWorldScenario.empty() &&
+        (g_customWorldScenarioBase.empty() || stem == g_customWorldScenarioBase)) {
+        const string scenario = g_customWorldScenario;
+        const string lowerScenario = lowerString(scenario);
+        for (const fs::path &root : replacementRoots) {
+            addReplacementCandidate(candidates, root / (scenario + ".WLD.json"));
+            addReplacementCandidate(candidates, root / (lowerScenario + ".wld.json"));
+            addReplacementCandidate(candidates, root / scenario / (scenario + ".WLD.json"));
+            addReplacementCandidate(candidates, root / lowerScenario / (lowerScenario + ".wld.json"));
+            addReplacementCandidate(candidates, root / scenario / (scenario + ".json"));
+            addReplacementCandidate(candidates, root / lowerScenario / (lowerScenario + ".json"));
+        }
+    }
+    if (ext != ".WLD" && !g_customWorldScenario.empty()) {
+        const string scenario = g_customWorldScenario;
+        const string lowerScenario = lowerString(scenario);
+        for (const fs::path &root : replacementRoots) {
+            if (!legacyParent.empty()) {
+                vector<fs::path> scopedParents;
+                addReplacementCandidate(scopedParents, legacyParent);
+                addReplacementCandidate(scopedParents, caseMappedPath(legacyParent, upperString));
+                addReplacementCandidate(scopedParents, caseMappedPath(legacyParent, lowerString));
+                for (const fs::path &scopedParent : scopedParents) {
+                    const fs::path scenarioScopedRoot = root / scenario / scopedParent;
+                    const fs::path lowerScenarioScopedRoot = root / lowerScenario / scopedParent;
+                    /* Campaign packs may carry structured modern assets such
+                     * as sounds/intro_music.asound.json. Prefer the selected
+                     * campaign's scoped file directly instead of relying on
+                     * recursive fallback over the entire converted tree. */
+                    addReplacementCandidate(candidates, scenarioScopedRoot / nameWithLegacyExt);
+                    addReplacementCandidate(candidates, scenarioScopedRoot / lowerNameWithLegacyExt);
+                    addReplacementCandidate(candidates, scenarioScopedRoot / nameWithoutLegacyExt);
+                    addReplacementCandidate(candidates, scenarioScopedRoot / lowerNameWithoutLegacyExt);
+                    addReplacementCandidate(candidates, lowerScenarioScopedRoot / nameWithLegacyExt);
+                    addReplacementCandidate(candidates, lowerScenarioScopedRoot / lowerNameWithLegacyExt);
+                    addReplacementCandidate(candidates, lowerScenarioScopedRoot / nameWithoutLegacyExt);
+                    addReplacementCandidate(candidates, lowerScenarioScopedRoot / lowerNameWithoutLegacyExt);
+                }
+            }
+            if (stem.rfind("VOICE_CUE_", 0) == 0 && modern == ".wav") {
+                addReplacementCandidate(candidates, root / scenario / "sounds" / (lowerString(stem) + ".wav"));
+                addReplacementCandidate(candidates, root / lowerScenario / "sounds" / (lowerString(stem) + ".wav"));
+            }
+            if (stem.rfind("FONT_", 0) == 0 && (modern == ".ttf" || modern == ".otf" || modern == ".bdf" || modern == ".png")) {
+                addReplacementCandidate(candidates, root / scenario / "fonts" / (lowerString(stem) + modern));
+                addReplacementCandidate(candidates, root / lowerScenario / "fonts" / (lowerString(stem) + modern));
+            }
+            addReplacementCandidate(candidates, root / scenario / nameWithLegacyExt);
+            addReplacementCandidate(candidates, root / scenario / lowerNameWithLegacyExt);
+            addReplacementCandidate(candidates, root / scenario / nameWithoutLegacyExt);
+            addReplacementCandidate(candidates, root / scenario / lowerNameWithoutLegacyExt);
+            addReplacementCandidate(candidates, root / lowerScenario / nameWithLegacyExt);
+            addReplacementCandidate(candidates, root / lowerScenario / lowerNameWithLegacyExt);
+            addReplacementCandidate(candidates, root / lowerScenario / nameWithoutLegacyExt);
+            addReplacementCandidate(candidates, root / lowerScenario / lowerNameWithoutLegacyExt);
+        }
+    }
+
     if (!legacyParent.empty()) {
         vector<fs::path> scopedParents;
         addReplacementCandidate(scopedParents, legacyParent);
@@ -261,7 +711,7 @@ int findReplacementAssetPath(const char *legacyFilename, const char *modernExt,
                 if (stem.rfind("VOICE_CUE_", 0) == 0 && modern == ".wav") {
                     addReplacementCandidate(candidates, scopedRoot / "sounds" / (lowerString(stem) + ".wav"));
                 }
-                if (stem.rfind("FONT_", 0) == 0 && (modern == ".bdf" || modern == ".png")) {
+                if (stem.rfind("FONT_", 0) == 0 && (modern == ".ttf" || modern == ".otf" || modern == ".bdf" || modern == ".png")) {
                     addReplacementCandidate(candidates, scopedRoot / "fonts" / (lowerString(stem) + modern));
                 }
                 addReplacementCandidate(candidates, scopedRoot / dir / nameWithLegacyExt);
@@ -279,7 +729,7 @@ int findReplacementAssetPath(const char *legacyFilename, const char *modernExt,
         if (stem.rfind("VOICE_CUE_", 0) == 0 && modern == ".wav") {
             addReplacementCandidate(candidates, root / "sounds" / (lowerString(stem) + ".wav"));
         }
-        if (stem.rfind("FONT_", 0) == 0 && (modern == ".bdf" || modern == ".png")) {
+        if (stem.rfind("FONT_", 0) == 0 && (modern == ".ttf" || modern == ".otf" || modern == ".bdf" || modern == ".png")) {
             addReplacementCandidate(candidates, root / "fonts" / (lowerString(stem) + modern));
         }
         addReplacementCandidate(candidates, root / dir / nameWithLegacyExt);
@@ -317,8 +767,37 @@ int findReplacementAssetPath(const char *legacyFilename, const char *modernExt,
 int findReplacementShapeModelPath(const char *containerLegacyFilename, int shapeId,
                                   const char *modernExt, char *outPath,
                                   size_t outPathSize) {
+    static unordered_map<string, string> resultCache;
     if (!containerLegacyFilename || !modernExt || !outPath || outPathSize == 0) return 0;
     if (shapeId < 0 || shapeId > 999) return 0;
+
+    const char *replacementRootEnv = getenv("F15_REPLACEMENT_ROOT");
+    const char *replacementRootOnlyEnv = getenv("F15_REPLACEMENT_ROOT_ONLY");
+    const string cacheKey = string(containerLegacyFilename) + '\n' +
+        std::to_string(shapeId) + '\n' + modernExt + '\n' +
+        gamePath.string() + '\n' + g_customWorldScenario + '\n' +
+        g_customWorldScenarioBase + '\n' +
+        (replacementRootEnv ? replacementRootEnv : "") + '\n' +
+        (replacementRootOnlyEnv ? replacementRootOnlyEnv : "");
+    const auto cached = resultCache.find(cacheKey);
+    if (cached != resultCache.end()) {
+        if (cached->second.empty() || cached->second.size() >= outPathSize) {
+            outPath[0] = 0;
+            return 0;
+        }
+        std::snprintf(outPath, outPathSize, "%s", cached->second.c_str());
+        return 1;
+    }
+    const auto found = [&](const fs::path &path) {
+        const string resolved = path.string();
+        resultCache.emplace(cacheKey, resolved);
+        if (resolved.size() >= outPathSize) {
+            outPath[0] = 0;
+            return 0;
+        }
+        std::snprintf(outPath, outPathSize, "%s", resolved.c_str());
+        return 1;
+    };
 
     fs::path legacy{containerLegacyFilename};
     const string dir = replacementDirForLegacy(legacy);
@@ -335,6 +814,16 @@ int findReplacementShapeModelPath(const char *containerLegacyFilename, int shape
     vector<fs::path> recursiveRoots = recursiveReplacementSearchRoots();
 
     vector<fs::path> roots;
+    if (!g_customWorldScenario.empty()) {
+        const string scenario = g_customWorldScenario;
+        const string lowerScenario = lowerString(scenario);
+        for (const fs::path &root : replacementRoots) {
+            addReplacementCandidate(roots, root / scenario / dir);
+            addReplacementCandidate(roots, root / scenario / lowerDir);
+            addReplacementCandidate(roots, root / lowerScenario / dir);
+            addReplacementCandidate(roots, root / lowerScenario / lowerDir);
+        }
+    }
     if (!legacyParent.empty()) {
         vector<fs::path> scopedParents;
         addReplacementCandidate(scopedParents, legacyParent);
@@ -369,26 +858,17 @@ int findReplacementShapeModelPath(const char *containerLegacyFilename, int shape
         if (modern == ".glmesh") {
             const fs::path cached = root / "cache" / exactName;
             if (fs::exists(cached)) {
-                const string resolved = cached.string();
-                std::snprintf(outPath, outPathSize, "%s", resolved.c_str());
-                return 1;
+                return found(cached);
             }
         }
         const fs::path exact = root / exactName;
         if (fs::exists(exact)) {
-            const string resolved = exact.string();
-            std::snprintf(outPath, outPathSize, "%s", resolved.c_str());
-            return 1;
+            return found(exact);
         }
         const fs::path lowerExact = root / lowerExactName;
         if (fs::exists(lowerExact)) {
-            const string resolved = lowerExact.string();
-            std::snprintf(outPath, outPathSize, "%s", resolved.c_str());
-            return 1;
+            return found(lowerExact);
         }
-    }
-
-    for (const fs::path &root : roots) {
         std::error_code ec;
         vector<fs::path> scanRoots;
         addReplacementCandidate(scanRoots, root);
@@ -403,13 +883,12 @@ int findReplacementShapeModelPath(const char *containerLegacyFilename, int shape
                 const string lowerFilename = lowerString(filename);
                 if (lowerFilename != lowerExactName && lowerFilename.rfind(lowerString(prefix), 0) != 0) continue;
                 if (lowerString(path.extension().string()) != lowerString(modern)) continue;
-                const string resolved = path.string();
-                std::snprintf(outPath, outPathSize, "%s", resolved.c_str());
-                return 1;
+                return found(path);
             }
         }
     }
 
+    resultCache.emplace(cacheKey, string());
     outPath[0] = 0;
     return 0;
 }
@@ -530,6 +1009,16 @@ static SDL_IOStream *openStructuredJsonReplacement(const char *filename) {
             replacementPath
         ));
         return NULL;
+    }
+
+    data = make_unique<vector<uint8>>();
+    if (f15assets::loadStructuredCache(replacementPath, *data)) {
+        compareStructuredReplacementWithLegacy(filename, *data, replacementPath);
+        SDL_IOStream *io = SDL_IOFromConstMem(data->data(), data->size());
+        if (!io) return NULL;
+        g_replacementIoBuffers.push_back(std::move(data));
+        LogInfo(("asset replacement: loaded %s from compiled JSON cache %s", filename, replacementPath));
+        return io;
     }
 
     /* WLD/3DT/3DG and full .3D3 dumps are structured legacy byte streams, not

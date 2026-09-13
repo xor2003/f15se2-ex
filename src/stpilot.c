@@ -8,6 +8,7 @@
 #include "sttypes.h"
 #include "const.h"
 #include "gfx.h"
+#include "r2d.h"
 #include "input.h"
 #include "slot.h"
 #include "comm.h"
@@ -32,6 +33,38 @@ void loadHallfame(void);
 void saveHallfame();
 int getJoyKey();
 int readInputKey();
+
+static void drawPilotMedals(int pilotIdx) {
+    const struct Pilot *pilot = &hallfameBuf[pilotIdx];
+    int xPos = (pilotIdx < PILOTS_PER_COLUMN) ? PILOT_COL_LEFT : PILOT_COL_RIGHT;
+    int yPos = ((pilotIdx & (PILOTS_PER_COLUMN - 1)) * PILOT_ROW_HEIGHT) +
+               PILOT_TOP_MARGIN + 17;
+    int medalIdx;
+    int totalMedalWidth = 0;
+
+    for (medalIdx = 0; medalIdx < 7; medalIdx++) {
+        if (pilot->medals & (1 << medalIdx)) totalMedalWidth += medalWidth[medalIdx] + 4;
+    }
+    xPos += (144 - totalMedalWidth) / 2;
+    for (medalIdx = 0; medalIdx < 7; medalIdx++) {
+        if ((pilot->medals & (1 << medalIdx)) == 0) continue;
+        showSprite(screenBuf[0], xPos, yPos, medalSpriteX[medalIdx],
+                   medalSpriteY[medalIdx], medalWidth[medalIdx], 16);
+        xPos += medalWidth[medalIdx] + 4;
+    }
+}
+
+static void commitPilotPage(void) {
+    int pilotIdx;
+
+    if (gfx_hasSpriteReplacement(menuSprites) && r2d_hasNativeOverlay()) {
+        r2d_vectorBeginFrame(R2D_COMPOSE_PAGE);
+        for (pilotIdx = 0; pilotIdx < HALLFAME_SLOTS; pilotIdx++) {
+            drawPilotMedals(pilotIdx);
+        }
+    }
+    gfx_commitPage();
+}
 
 static void redrawPilotSelectorPrompt(int16 *page) {
     int oldBg = page[3];
@@ -122,15 +155,13 @@ void displayPilots(void) {
         printPilot(pilotIdx);
     } while (++pilotIdx < HALLFAME_SLOTS);
     redrawPilotSelectorPrompt(screenBuf);
-    gfx_commitPage();
+    commitPilotPage();
 }
 
 void printPilot(int pilotIdx) {
     struct Pilot *pilot;
     int xPos;
     int yPos;
-    int medalIdx;
-    int totalMedalWidth;
     pilot = &hallfameBuf[pilotIdx];
     xPos = (pilotIdx < PILOTS_PER_COLUMN) ? PILOT_COL_LEFT : PILOT_COL_RIGHT;
     yPos = ((pilotIdx & (PILOTS_PER_COLUMN - 1)) * PILOT_ROW_HEIGHT) + PILOT_TOP_MARGIN;
@@ -147,19 +178,7 @@ void printPilot(int pilotIdx) {
     mystrcat(todayMissStrBuf, ")");
     drawStringCentered(screenBuf, todayMissStrBuf, xPos, yPos + 9, 144);
     screenDesc.font = 1;
-    for (medalIdx = 0, totalMedalWidth = 0; medalIdx < 7; medalIdx++) {
-        if ((pilot->medals & (1 << medalIdx)) == 0) continue;
-        totalMedalWidth += medalWidth[medalIdx] + 4;
-    }
-    xPos += (144 - totalMedalWidth) / 2;
-    yPos += 17;
-    medalIdx = 0;
-    // display medals
-    do {
-        if ((pilot->medals & (1 << medalIdx)) == 0) continue;
-        showSprite(screenBuf[0], xPos, yPos, medalSpriteX[medalIdx], medalSpriteY[medalIdx], medalWidth[medalIdx], 16);
-        xPos += medalWidth[medalIdx] + 4;
-    } while (++medalIdx < 7);
+    if (!gfx_hasSpriteReplacement(menuSprites)) drawPilotMedals(pilotIdx);
 }
 
 /* ---- merged from stpinp.c ---- */
@@ -195,7 +214,7 @@ void processPilotInput() {
                 saveHallfame();
             }
             redrawPilotSelectorPrompt(screenBuf);
-            gfx_commitPage();
+            commitPilotPage();
             continue;
         case KEYCODE_UPARROW:
             selectedPilotIdx--;
@@ -228,14 +247,18 @@ void blinkPilot() {
     yPos = ((selectedPilotIdx & (PILOTS_PER_COLUMN - 1)) * PILOT_ROW_HEIGHT) + PILOT_TOP_MARGIN;
     gfx_switchColor(screenBuf, xPos, yPos, xPos + PILOT_ENTRY_WIDTH, yPos + PILOT_NAME_HEIGHT, blinkColors[blinkColorIdx], blinkColors[blinkColorIdx ^ 1]);
     blinkColorIdx ^= 1;
-    gfx_commitPage();
+    commitPilotPage();
 }
 
 void gameDataToPilot(struct Pilot *pilot) {
     // uint16 var_4;
     int charIdx;
-    for (charIdx = 0; (pilot->name[charIdx] = gameData->pilotName[charIdx]); charIdx++) {
+    for (charIdx = 0; charIdx < (int)sizeof(pilot->name) - 1 &&
+                      charIdx < (int)sizeof(gameData->pilotName) - 1 &&
+                      gameData->pilotName[charIdx] != '\0'; charIdx++) {
+        pilot->name[charIdx] = gameData->pilotName[charIdx];
     }
+    pilot->name[charIdx] = '\0';
     pilot->total_score = gameData->totalScore;
     pilot->last_score = gameData->lastScore;
     pilot->theater = gameData->theater;
@@ -247,9 +270,11 @@ void gameDataToPilot(struct Pilot *pilot) {
 // TODO: change argument to struct Pilot
 void pilotToGameData(const uint8 *pilotData) {
     int charIdx;
-    for (charIdx = 0; 1; charIdx++) {
-        if ((gameData->pilotName[charIdx] = pilotData[charIdx]) == '\0') break;
+    for (charIdx = 0; charIdx < (int)sizeof(gameData->pilotName) - 1 &&
+                      pilotData[charIdx] != '\0'; charIdx++) {
+        gameData->pilotName[charIdx] = pilotData[charIdx];
     }
+    gameData->pilotName[charIdx] = '\0';
     gameData->totalScore = rdU32(pilotData + ROSTER_SCORE_LO);
     gameData->lastScore = rdU16(pilotData + ROSTER_LASTSCORE);
     gameData->theater = *(pilotData + ROSTER_THEATER);
@@ -332,7 +357,7 @@ void pilotNameInput(int16 *page, int a, int b, int c, struct Pilot *pilot) {
             break;
         }
         redrawPilotNamePrompt(page);
-        gfx_commitPage();
+        commitPilotPage();
         while (getJoyKey() == 0) {
             waitMdaCgaStatus(3);
             gfx_switchColor(page, xPos, yPos - 1, xPos + rankWidth, yPos + c,
@@ -340,7 +365,7 @@ void pilotNameInput(int16 *page, int a, int b, int c, struct Pilot *pilot) {
             blinkToggle ^= 1;
             page[3] = pilotNameInputColors[blinkToggle];
             redrawPilotNamePrompt(page);
-            gfx_commitPage();
+            commitPilotPage();
         }
         keyCode = readInputKey();
         if ((keyCode & 0xff) != 0) {

@@ -17,6 +17,7 @@
 #include "../shared/asset_compare.h"
 #include "asound_model.h"
 #include "asopl.h"
+#include "compressed_audio.h"
 /* opl3.h has no extern "C" guard of its own; this TU compiles as C++ but opl3.c
  * is built as C, so the declarations must use C linkage to match. */
 extern "C" {
@@ -83,6 +84,10 @@ typedef struct ReplacementMusic {
 } ReplacementMusic;
 
 static ReplacementMusic g_replacementMusic;
+static CompressedAudio g_compressedIntro;
+static double g_compressedIntroPos;
+static bool g_compressedIntroActive;
+static bool g_compressedIntroTried;
 
 /* Fractional countdown (in output frames) to the next sequencer tick. */
 static double g_tickAccum;
@@ -182,7 +187,7 @@ static ReplacementCue *findCueForRange(AsoundU16 start, AsoundU16 endInclusive) 
     return NULL;
 }
 
-static int loadReplacementCueWavs(const AsoundU8 *legacyBlob, int legacyBlobSize) {
+static int loadReplacementCueAudio(const AsoundU8 *legacyBlob, int legacyBlobSize) {
     int i;
     int loaded = 0;
     for (i = 0; i < (int)(sizeof(g_replacementCues) / sizeof(g_replacementCues[0])); i++) {
@@ -200,20 +205,47 @@ static int loadReplacementCueWavs(const AsoundU8 *legacyBlob, int legacyBlobSize
         cue->size = 0;
         cue->sampleRate = 0;
 
-        if (!findReplacementAssetPath(cue->id, ".wav", replacementPath, sizeof(replacementPath))) {
+        const char *extension = NULL;
+        if (findReplacementAssetPath(cue->id, ".ogg", replacementPath, sizeof(replacementPath))) {
+            extension = ".ogg";
+        } else if (findReplacementAssetPath(cue->id, ".mp3", replacementPath, sizeof(replacementPath))) {
+            extension = ".mp3";
+        } else if (findReplacementAssetPath(cue->id, ".wav", replacementPath, sizeof(replacementPath))) {
+            extension = ".wav";
+        }
+        if (!extension) {
             continue;
         }
 
-        wavIo = SDL_IOFromFile(replacementPath, "rb");
-        wavData = readEntireIo(wavIo, &wavSize);
-        if (wavIo) SDL_CloseIO(wavIo);
-        if (wavData) {
-            sampleSize = decodePcm8Wav(wavData, wavSize, &samples, &sampleRate);
-            SDL_free(wavData);
+        if (!strcmp(extension, ".wav")) {
+            wavIo = SDL_IOFromFile(replacementPath, "rb");
+            wavData = readEntireIo(wavIo, &wavSize);
+            if (wavIo) SDL_CloseIO(wavIo);
+            if (wavData) {
+                sampleSize = decodePcm8Wav(wavData, wavSize, &samples, &sampleRate);
+                SDL_free(wavData);
+            }
+        } else {
+            CompressedAudio decoded;
+            if (compressedAudioLoad(replacementPath, &decoded) && decoded.frames <= INT32_MAX) {
+                sampleSize = (int)decoded.frames;
+                sampleRate = decoded.sampleRate;
+                samples = (AsoundU8 *)SDL_malloc((size_t)sampleSize);
+                if (samples) {
+                    for (int frame = 0; frame < sampleSize; frame++) {
+                        int mixed = 0;
+                        for (int channel = 0; channel < decoded.channels; channel++) {
+                            mixed += decoded.samples[(size_t)frame * decoded.channels + channel];
+                        }
+                        samples[frame] = (AsoundU8)((mixed / decoded.channels >> 8) + 128);
+                    }
+                }
+            }
+            compressedAudioFree(&decoded);
         }
         if (!samples || sampleSize <= 0) {
             SDL_free(samples);
-            LogWarn(("asset replacement: failed to decode non-empty cue WAV %s; legacy sample range remains fallback", replacementPath));
+            LogWarn(("asset replacement: failed to decode sound cue %s; legacy sample range remains fallback", replacementPath));
             continue;
         }
 
@@ -242,6 +274,22 @@ static int loadReplacementCueWavs(const AsoundU8 *legacyBlob, int legacyBlobSize
         ));
     }
     return loaded;
+}
+
+static int loadCompressedIntro(void) {
+    char path[512];
+    if (g_compressedIntroTried) return g_compressedIntro.samples != NULL;
+    g_compressedIntroTried = true;
+    if (!findReplacementAssetPath("sounds/intro_music", ".ogg", path, sizeof(path)) &&
+        !findReplacementAssetPath("sounds/intro_music", ".mp3", path, sizeof(path))) {
+        return 0;
+    }
+    if (!compressedAudioLoad(path, &g_compressedIntro)) {
+        LogWarn(("asset replacement: failed to decode intro music %s; using ASOUND", path));
+        return 0;
+    }
+    LogInfo(("asset replacement: loaded compressed intro music from %s", path));
+    return 1;
 }
 
 static const char *jsonFindAfter(const char *text, const char *needle) {
@@ -472,6 +520,35 @@ static void asnd_mixSample(Sint16 *buf, int frames) {
     }
 }
 
+static void asnd_mixCompressedIntro(Sint16 *buf, int frames) {
+    const double step = g_compressedIntro.sampleRate > 0
+        ? (double)g_compressedIntro.sampleRate / (double)ASND_OUT_RATE : 1.0;
+    if (!g_compressedIntroActive) return;
+    for (int frame = 0; frame < frames; frame++) {
+        uint64_t sourceFrame = (uint64_t)g_compressedIntroPos;
+        if (sourceFrame >= g_compressedIntro.frames) {
+            g_compressedIntroActive = false;
+            break;
+        }
+        for (int outputChannel = 0; outputChannel < 2; outputChannel++) {
+            int sourceChannel = g_compressedIntro.channels == 1 ? 0 : outputChannel;
+            int sample = g_compressedIntro.samples[sourceFrame * g_compressedIntro.channels + sourceChannel];
+            int mixed = buf[frame * 2 + outputChannel] + sample * 3 / 4;
+            buf[frame * 2 + outputChannel] = (Sint16)(mixed < -32768 ? -32768 : mixed > 32767 ? 32767 : mixed);
+        }
+        g_compressedIntroPos += step;
+    }
+}
+
+static bool asnd_compressedIntroIsActive(void) {
+    bool active;
+
+    SDL_LockMutex(g_lock);
+    active = g_compressedIntroActive;
+    SDL_UnlockMutex(g_lock);
+    return active;
+}
+
 static void SDLCALL asnd_callback(void *user, SDL_AudioStream *stream,
                                   int additional, int total) {
     (void)user;
@@ -495,6 +572,7 @@ static void SDLCALL asnd_callback(void *user, SDL_AudioStream *stream,
 
         OPL3_GenerateStream(&g_chip, buf, (uint32_t)chunk);
         asnd_mixSample(buf, chunk);
+        asnd_mixCompressedIntro(buf, chunk);
         g_tickAccum -= chunk;
         SDL_UnlockMutex(g_lock);
 
@@ -506,7 +584,9 @@ static void SDLCALL asnd_callback(void *user, SDL_AudioStream *stream,
 /* ---- device lifecycle ----------------------------------------------------- */
 
 static void asnd_openDevice(void) {
+    const char *audio = SDL_getenv("F15_AUDIO");
     if (g_ready) return;
+    if (audio && (!SDL_strcasecmp(audio, "off") || !SDL_strcmp(audio, "0"))) return;
     if (!SDL_InitSubSystem(SDL_INIT_AUDIO)) {
         LogError(("asound: SDL_INIT_AUDIO failed: %s", SDL_GetError()));
         return;
@@ -545,6 +625,7 @@ static void asnd_resetSynth(AsoundU16 setupValue) {
     asnd_invalidateHwShadow();
     asnd_syncChip();
     g_smpActive = false;
+    g_compressedIntroActive = false;
 }
 
 /* ---- game-facing slot ABI (slot.h) --------------------------------------- */
@@ -601,6 +682,23 @@ int FAR CDECL audio_playIntro(void) {
     asnd_openDevice();
     if (!g_ready) {
         LogWarn(("asound: intro music skipped because no audio device is ready"));
+        return 0;
+    }
+
+    if (loadCompressedIntro()) {
+        LogInfo(("asound: playing compressed intro music"));
+        SDL_LockMutex(g_lock);
+        g_compressedIntroPos = 0;
+        g_compressedIntroActive = true;
+        SDL_UnlockMutex(g_lock);
+        input_setMode(INPUT_MODE_MENU);
+        while (asnd_compressedIntroIsActive() && !input_keyWaiting()) {
+            SDL_DelayNS(2 * SDL_NS_PER_MS);
+        }
+        SDL_LockMutex(g_lock);
+        g_compressedIntroActive = false;
+        SDL_UnlockMutex(g_lock);
+        LogInfo(("asound: compressed intro music finished"));
         return 0;
     }
 
@@ -697,7 +795,7 @@ int loadF15DgtlBin(void) {
     int replacementCueCount;
 
     data = loadLegacyDigitizedBlob(&size);
-    replacementCueCount = loadReplacementCueWavs(data, size);
+    replacementCueCount = loadReplacementCueAudio(data, size);
     if ((!data || size <= 0) && replacementCueCount <= 0) {
         LogError(("asound: cannot open F15DGTL.BIN or replacement cue WAVs"));
         return 0;
@@ -725,7 +823,7 @@ int asound_testCompareReplacementCues(void) {
         SDL_free(legacyBlob);
         return 0;
     }
-    loaded = loadReplacementCueWavs(legacyBlob, legacySize);
+    loaded = loadReplacementCueAudio(legacyBlob, legacySize);
     if (loaded != (int)(sizeof(g_replacementCues) / sizeof(g_replacementCues[0]))) {
         SDL_free(legacyBlob);
         return 0;

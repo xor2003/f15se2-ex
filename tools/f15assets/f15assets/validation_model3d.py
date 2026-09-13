@@ -143,12 +143,32 @@ def _source_primitive_meta(prim: Dict[str, Any]) -> tuple[int, int, int, int]:
     return (kind_id, source_index, source_color, flags)
 
 
+def _surface_flags(doc, mesh, primitive):
+    # Matches R3D_SURFACE_* in r3d_replacement.h; bit zero remains provenance.
+    surface_flags = {"land": 0x100, "water": 0x200, "runway": 0x400}
+    extras = dict(mesh.get("extras") or {})
+    material_index = primitive.get("material")
+    if material_index is not None:
+        extras.update(doc["materials"][material_index].get("extras") or {})
+    extras.update(primitive.get("extras") or {})
+    surface = extras.get("f15_surface")
+    if surface is None:
+        return 0
+    if surface not in surface_flags:
+        raise ValueError(f"Unknown f15_surface: {surface!r}")
+    if primitive.get("mode", 4) != 4:
+        raise ValueError("f15_surface requires triangle geometry")
+    return surface_flags[surface]
+
+
 def glb_to_glmesh_bytes(path: Path) -> bytes:
+    from .gltf_scene import mesh_instances, mirrored, transform_position
+
     source = path.read_bytes()
     source_md5 = hashlib.md5(source).hexdigest().encode("ascii")
     doc, blob = _read_glb_doc_and_bin(path)
     primitives: list[tuple[int, int, int, int, int, tuple[float, float, float, float], list[tuple[float, float, float]]]] = []
-    for mesh in doc.get("meshes", []):
+    for mesh, world_matrix in mesh_instances(doc):
         if not isinstance(mesh, dict):
             continue
         for prim in mesh.get("primitives", []):
@@ -169,8 +189,12 @@ def glb_to_glmesh_bytes(path: Path) -> bytes:
             verts = []
             for index in indices:
                 pos = positions[int(index)]
-                verts.append((float(pos[0]), float(pos[1]), float(pos[2])))
+                verts.append(transform_position(world_matrix, pos))
+            if mode == 4 and mirrored(world_matrix):
+                for triangle in range(0, len(verts) - 2, 3):
+                    verts[triangle + 1], verts[triangle + 2] = verts[triangle + 2], verts[triangle + 1]
             kind_id, source_index, source_color, source_flags = _source_primitive_meta(prim)
+            source_flags |= _surface_flags(doc, mesh, prim)
             primitives.append((mode, kind_id, source_index, source_color, source_flags, _material_rgba(doc, prim.get("material")), verts))
 
     out = bytearray()

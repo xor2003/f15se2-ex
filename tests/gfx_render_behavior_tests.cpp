@@ -14,11 +14,13 @@
 
 #include <SDL3/SDL.h>
 
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <vector>
 
 // clearRect is declared per-program (endcode.h/stcode.h) with differing arg
 // names; declare it locally to avoid pulling in a program-specific header. Word
@@ -124,16 +126,96 @@ void writeReplacementBdf(const std::filesystem::path &root, int fontId) {
     out << "ENDFONT\n";
 }
 
+uint32_t pngCrc32(const unsigned char *data, size_t size) {
+    uint32_t crc = 0xffffffffu;
+    for (size_t i = 0; i < size; i++) {
+        crc ^= data[i];
+        for (int bit = 0; bit < 8; bit++)
+            crc = (crc >> 1) ^ (0xedb88320u & (0u - (crc & 1u)));
+    }
+    return crc ^ 0xffffffffu;
+}
+
+uint32_t pngAdler32(const std::vector<unsigned char> &data) {
+    uint32_t a = 1;
+    uint32_t b = 0;
+    for (unsigned char value : data) {
+        a = (a + value) % 65521u;
+        b = (b + a) % 65521u;
+    }
+    return (b << 16) | a;
+}
+
+void pngAppendU32(std::vector<unsigned char> &out, uint32_t value) {
+    out.push_back((unsigned char)((value >> 24) & 0xff));
+    out.push_back((unsigned char)((value >> 16) & 0xff));
+    out.push_back((unsigned char)((value >> 8) & 0xff));
+    out.push_back((unsigned char)(value & 0xff));
+}
+
+void pngAppendChunk(std::vector<unsigned char> &out, const char type[4], const std::vector<unsigned char> &payload) {
+    pngAppendU32(out, (uint32_t)payload.size());
+    const size_t typePos = out.size();
+    out.insert(out.end(), type, type + 4);
+    out.insert(out.end(), payload.begin(), payload.end());
+    pngAppendU32(out, pngCrc32(out.data() + typePos, 4 + payload.size()));
+}
+
+void zlibAppendStoredBlocks(std::vector<unsigned char> &out, const std::vector<unsigned char> &raw) {
+    out.push_back(0x78);
+    out.push_back(0x01);
+    for (size_t pos = 0; pos < raw.size();) {
+        const size_t chunk = std::min<size_t>(65535, raw.size() - pos);
+        const bool finalBlock = pos + chunk == raw.size();
+        out.push_back(finalBlock ? 0x01 : 0x00);
+        out.push_back((unsigned char)(chunk & 0xff));
+        out.push_back((unsigned char)((chunk >> 8) & 0xff));
+        const uint16_t nlen = (uint16_t)~(uint16_t)chunk;
+        out.push_back((unsigned char)(nlen & 0xff));
+        out.push_back((unsigned char)((nlen >> 8) & 0xff));
+        out.insert(out.end(), raw.begin() + (ptrdiff_t)pos, raw.begin() + (ptrdiff_t)(pos + chunk));
+        pos += chunk;
+    }
+    pngAppendU32(out, pngAdler32(raw));
+}
+
 void writeReplacementPng(const std::filesystem::path &root) {
-    static const unsigned char kRedPng[] = {
-        137,80,78,71,13,10,26,10,0,0,0,13,73,72,68,82,0,0,0,2,0,0,0,2,8,6,0,0,0,114,182,13,36,0,0,0,17,73,68,65,84,120,156,99,248,207,192,240,31,132,25,96,12,0,71,202,7,249,103,89,110,183,0,0,0,0,73,69,78,68,174,66,96,130
-    };
+    // 640x400 RGBA fixture, left half red and right half green. This is
+    // deliberately larger and truecolor so the runtime replacement path proves
+    // custom images are scaled into the fixed 320x200 game page and palette-mapped.
+    const unsigned width = 640;
+    const unsigned height = 400;
+    std::vector<unsigned char> raw;
+    raw.reserve((size_t)(1 + width * 4) * height);
+    for (unsigned y = 0; y < height; y++) {
+        raw.push_back(0); // no PNG row filter
+        for (unsigned x = 0; x < width; x++) {
+            const bool left = x < width / 2;
+            raw.push_back(left ? 255 : 0);
+            raw.push_back(left ? 0 : 255);
+            raw.push_back(0);
+            raw.push_back(255);
+        }
+    }
+
+    std::vector<unsigned char> ihdr;
+    pngAppendU32(ihdr, width);
+    pngAppendU32(ihdr, height);
+    ihdr.insert(ihdr.end(), {8, 6, 0, 0, 0});
+
+    std::vector<unsigned char> idat;
+    zlibAppendStoredBlocks(idat, raw);
+
+    std::vector<unsigned char> png = {137, 80, 78, 71, 13, 10, 26, 10};
+    pngAppendChunk(png, "IHDR", ihdr);
+    pngAppendChunk(png, "IDAT", idat);
+    pngAppendChunk(png, "IEND", {});
+
     const auto pngPath = root / "converted_assets_all" / "TITLE.png";
     std::filesystem::create_directories(pngPath.parent_path());
     std::ofstream out(pngPath, std::ios::binary);
-    out.write(reinterpret_cast<const char *>(kRedPng), sizeof(kRedPng));
+    out.write(reinterpret_cast<const char *>(png.data()), (std::streamsize)png.size());
 }
-
 void writeReplacementFontPng(const std::filesystem::path &root, int fontId) {
     static const unsigned char kFontAtlasPng[] = {
         137,80,78,71,13,10,26,10,0,0,0,13,73,72,68,82,0,0,0,111,
@@ -412,13 +494,23 @@ void test_dacPalette() {
 }
 
 void test_replacementPngLoader() {
-    uint8 redDac[3] = {0x3f, 0x00, 0x00};
-    gfx_setDacRange(12, 1, redDac);
+    uint8 dac[256 * 3] = {};
+    dac[12 * 3] = 0x3f;
+    dac[13 * 3 + 1] = 0x3f;
+    gfx_setDacRange(0, 256, dac);
     fillPageRaw(0, 0);
     require(loadReplacementPngToPage("TITLE.PIC", 0) != 0,
             "loadReplacementPngToPage loads a modern PNG replacement");
-    require(pagePixel(0, 0, 0) != 0 && pagePixel(0, 1, 1) != 0,
-            "loadReplacementPngToPage writes decoded PNG pixels into the page surface");
+    SDL_Surface *replacement = gfx_testGetPageReplacementSurface();
+    require(replacement != nullptr,
+            "truecolor high-resolution PNG installs a native page background surface");
+    require(replacement->format == SDL_PIXELFORMAT_RGBA32,
+            "truecolor high-resolution PNG keeps RGBA source format for presentation");
+    require(replacement->w == 640 && replacement->h == 400,
+            "truecolor high-resolution PNG keeps source resolution and is scaled at presentation time");
+    require(pagePixel(0, 0, 0) != pagePixel(0, 319, 199),
+            "truecolor page replacement supplies an indexed backing page for legacy save-under operations");
+    gfx_setPageReplacementSurface(NULL);
 }
 
 // Deterministically compose a small scene into `page` using the primitives

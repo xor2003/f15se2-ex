@@ -1,0 +1,21 @@
+#ifndef F15_MODEL_LIMITS_H
+#define F15_MODEL_LIMITS_H
+
+/* Tile shape IDs occupy seven bits; the high bit marks a dynamic replacement. */
+enum {
+    /* Grid entries store tile-pattern IDs in one byte. */
+    TERRAIN_TILE_PATTERN_CAPACITY = 256,
+    TERRAIN_CHILDREN_PER_PATTERN = 16,
+    TERRAIN_CHILD_GRID_BYTES = TERRAIN_TILE_PATTERN_CAPACITY * TERRAIN_CHILDREN_PER_PATTERN,
+    LEGACY_TERRAIN_CHILD_GRID_BYTES = 512,
+    EXTENDED_TERRAIN_GRID_SIGNATURE = 0x3247, /* "G2", little endian. */
+    TERRAIN_PLACEMENT_STORAGE_BYTES = 64 * 1024,
+    MODEL_SLOT_CAPACITY = 128,
+    MISSION_MODEL_SLOTS = 2,
+    MAX_IMPORTED_MODEL_SLOTS = MODEL_SLOT_CAPACITY - MISSION_MODEL_SLOTS,
+    PHOTO_MODEL_SLOT_CAPACITY = MODEL_SLOT_CAPACITY,
+    /* Vertex-reference counts are stored in one byte in .3D3 files. */
+    MODEL_VERTEX_REFERENCE_CAPACITY = 255
+};
+
+#endif

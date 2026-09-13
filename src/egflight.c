@@ -234,6 +234,8 @@ switch_break:
         if (waypointIndex == 3) {
             nsSign = g_northSouthSign;
             tgtIdx = g_targetSlots[1].viewIndex;
+            const int inRecoveryCorridor = g_inLandingCorridor != 0 &&
+                g_closestThreatIndex == tgtIdx;
 
             dx = g_planeTable.planes[tgtIdx].mapX - g_viewX_;
             dy = g_planeTable.planes[tgtIdx].mapY - g_viewY_;
@@ -260,7 +262,7 @@ switch_break:
                 tmpVal += 100;
             }
 
-            if (g_inLandingCorridor != 0 && abs(headingErr) < 0x200) {
+            if (inRecoveryCorridor && abs(headingErr) < 0x200) {
                 tmpVal = -20;
             }
 
@@ -285,7 +287,7 @@ switch_break:
 
             headingErr = egClampValue((int16)(bearing - g_ourHead), (-knotsScale) << 8, knotsScale << 8) * 2;
 
-            if (g_inLandingCorridor != 0) {
+            if (inRecoveryCorridor) {
                 headingErr = 0;
             }
 
@@ -1025,7 +1027,7 @@ void renderFrame() {
     render3DView(-g_viewHeading, g_viewPitch, g_viewRoll, g_camEyeX, g_camEyeY, (int32)g_camEyeZ, 0, 0, 320, g_pageFront[8] + 1);
     g_extraScaleShift = 0;
     g_savedPosVisible = g_posVisibleFlag;
-    if (g_viewMode == VIEW_REAR) {
+    if (g_viewMode == VIEW_REAR && !gfx_hasPageReplacement()) {
         // draw vertical stabilizers in rear view
         drawVectorShape(g_rearViewShape);
         gfx_setColor(0xf);

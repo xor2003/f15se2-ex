@@ -8,6 +8,7 @@
 #include "egdata.h"
 #include "inttype.h"
 #include "gfx.h"
+#include "shared/common.h"
 
 /* per-frame work reconstructed in their own TUs (egflight/egtacmap/egframe),
  * not surfaced in a header; declared here for the game loop below. */
@@ -409,4 +410,24 @@ void setupDac(void) {
             dacValues[0x30 + i] = g_dacGroundPaletteSrc[i];
     }
     gfx_setDacRange(0x60, 0xA0, g_nightMode != 0 ? otherDacValues : dacValues);
+    if (customWorldScenarioIs("SVN")) {
+        enum { GROUND_RAMP_START = 112, GROUND_RAMP_COLORS = 16 };
+        /* Six-bit VGA RGB: distant haze fades into subdued forest colors. */
+        const uint8 dayHorizon[3] = {29, 33, 29};
+        const uint8 dayNear[3] = {12, 17, 9};
+        const uint8 nightHorizon[3] = {6, 8, 10};
+        const uint8 nightNear[3] = {2, 4, 3};
+        const uint8 *horizon = g_nightMode ? nightHorizon : dayHorizon;
+        const uint8 *nearGround = g_nightMode ? nightNear : dayNear;
+        uint8 groundRamp[GROUND_RAMP_COLORS * 3];
+        for (i = 0; i < GROUND_RAMP_COLORS; ++i) {
+            int channel;
+            for (channel = 0; channel < 3; ++channel) {
+                groundRamp[i * 3 + channel] =
+                    (horizon[channel] * (GROUND_RAMP_COLORS - 1 - i) +
+                     nearGround[channel] * i) / (GROUND_RAMP_COLORS - 1);
+            }
+        }
+        gfx_setDacRange(GROUND_RAMP_START, GROUND_RAMP_COLORS, groundRamp);
+    }
 }

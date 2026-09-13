@@ -18,6 +18,13 @@
 
 struct SDL_Surface;
 
+/* Negative modes are opaque; nonnegative modes blend transparency. Atlas crops
+ * fill their legacy destination rectangle rather than preserving square pixels. */
+enum R2DImageMode {
+    R2D_IMAGE_ATLAS_OPAQUE = -2,
+    R2D_IMAGE_ATLAS_TRANSPARENT = 1
+};
+
 /*
  * Virtual-vs-real resolution.
  *
@@ -272,6 +279,7 @@ void r2d_registerImageDestroy(void (*hook)(R2DImage *img));
  * through the active backend. shakeOffset is the explosion screen-shake in
  * virtual pixels (0-3), applied as a horizontal present offset. */
 void r2d_present(struct SDL_Surface *page, int shakeOffset);
+void r2d_presentVirtual(struct SDL_Surface *page, int virtW, int virtH, int shakeOffset);
 
 /* Name of the active 2D backend ("opengl1" or "software"); follows the 3D
  * backend. */
@@ -280,6 +288,6 @@ const char *r2d_backendName(void);
 /* The software path's SDL_Renderer present lives in gfx_impl.c (it owns the
  * renderer); gfx_impl registers it here at video init so r2d_present can dispatch
  * to it without the renderer leaking into this module. */
-void r2d_registerSoftwarePresent(void (*present)(struct SDL_Surface *page, int shakeOffset));
+void r2d_registerSoftwarePresent(void (*present)(struct SDL_Surface *page, int virtW, int virtH, int shakeOffset));
 
 #endif /* R2D_H */

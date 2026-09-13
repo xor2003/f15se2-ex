@@ -14,6 +14,7 @@
 #include "log.h"
 #include "slot.h"
 #include "const.h"
+#include "shared/common.h"
 #include "r3d.h"
 
 #include <dos.h>
@@ -395,7 +396,10 @@ void drawTargetView(int shapeId, int32 worldX, int32 worldY, int altitude, int o
         if (categoryLow == 12 || categoryLow == 9 || categoryLow == 11) {
             colorIdx = 1;
         }
-        *(g_targetViewParams + 2) = colorLut[colorIdx];
+        /* Match SVN's horizon ground ramp without recoloring water or targets. */
+        const int svnForestGround = colorIdx == 2 && customWorldScenarioIs("SVN");
+        const int groundRampNearColor = 127;
+        *(g_targetViewParams + 2) = svnForestGround ? groundRampNearColor : colorLut[colorIdx];
         if (horizonY != 184) {
             fillSpanRectImmediate(g_targetViewParams, 232, horizonY, 304, 184);
         }

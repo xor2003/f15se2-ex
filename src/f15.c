@@ -21,6 +21,7 @@
 #include "joystick.h"
 #include "r3d.h"
 #include "input.h"
+#include "shared/common.h"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -74,15 +75,33 @@ static void app_quit(void) {
 }
 
 void usage(int errcode) {
-    printf("Usage: f15se2-ex [--help] [--nointro] [--game path]\n"
+    printf("Usage: f15se2-ex [--help] [--nointro] [--game path] [--campaign id] [--campaign-sortie id-or-phase] [--scenario id] [--scenario-base stem]\n"
            "--nointro      Skip intro sequence\n"
            "--game path    Path to directory containing game assets, can also use\n"
-           "               F15SE2_DIR env var, default is current directory\n");
+           "               F15SE2_DIR env var, default is current directory\n"
+           "--campaign id  Load campaign.json from replacement assets, for example\n"
+           "               SVN/campaign.json; can also use F15_CAMPAIGN env var\n"
+           "--campaign-sortie id-or-phase\n"
+           "               Select campaign sortie by sortie id or numeric phase; can\n"
+           "               also use F15_CAMPAIGN_SORTIE env var\n"
+           "--scenario id  Load a custom WLD JSON scenario from replacement assets,\n"
+           "               for example SVN/SVN.WLD.json; can also use\n"
+           "               F15_WORLD_SCENARIO env var\n"
+           "--scenario-base stem\n"
+           "               Only redirect this legacy WLD stem, for example VN; can\n"
+           "               also use F15_WORLD_SCENARIO_BASE env var\n");
     exit(errcode);
 }
 
 int main(int argc, char *argv[]) {
     int16 showIntro = 1;
+    int campaignSet = 0;
+    int scenarioSet = 0;
+    int scenarioBaseSet = 0;
+    const char *campaignArg = NULL;
+    const char *campaignSortieArg = NULL;
+    const char *scenarioArg = NULL;
+    const char *scenarioBaseArg = NULL;
     log_set_app("f15");
     if (!setGamePath(getenv("F15SE2_DIR"))) goto shutdown;
     /* process cmdline args */
@@ -95,11 +114,49 @@ int main(int argc, char *argv[]) {
             if (!setGamePath(argv[i + 1])) goto shutdown;
             i++;
         }
+        else if (strcmp(optStr, "--campaign") == 0) {
+            if (i + 1 >= argc) { printf("Option requires an argument: --campaign\n"); usage(1); }
+            campaignArg = argv[i + 1];
+            campaignSet = 1;
+            i++;
+        }
+        else if (strcmp(optStr, "--campaign-sortie") == 0) {
+            if (i + 1 >= argc) { printf("Option requires an argument: --campaign-sortie\n"); usage(1); }
+            campaignSortieArg = argv[i + 1];
+            i++;
+        }
+        else if (strcmp(optStr, "--scenario") == 0) {
+            if (i + 1 >= argc) { printf("Option requires an argument: --scenario\n"); usage(1); }
+            scenarioArg = argv[i + 1];
+            scenarioSet = 1;
+            i++;
+        }
+        else if (strcmp(optStr, "--scenario-base") == 0) {
+            if (i + 1 >= argc) { printf("Option requires an argument: --scenario-base\n"); usage(1); }
+            scenarioBaseArg = argv[i + 1];
+            scenarioBaseSet = 1;
+            i++;
+        }
         else {
             printf("Unrecognized option: '%s'\n", optStr);
             usage(1);
         }
     }
+
+    /* Resolve env defaults after --game has selected the asset directory.
+     * Explicit CLI values win over environment. Explicit scenario/base values
+     * also intentionally override values loaded from a campaign manifest. */
+    if (campaignSortieArg) setCustomCampaignSortie(campaignSortieArg);
+    else if (getenv("F15_CAMPAIGN_SORTIE")) setCustomCampaignSortie(getenv("F15_CAMPAIGN_SORTIE"));
+    if (campaignSet) {
+        if (!setCustomWorldCampaign(campaignArg)) goto shutdown;
+    } else if (getenv("F15_CAMPAIGN") && !setCustomWorldCampaign(getenv("F15_CAMPAIGN"))) {
+        goto shutdown;
+    }
+    if (scenarioSet) setCustomWorldScenario(scenarioArg);
+    else if (getenv("F15_WORLD_SCENARIO")) setCustomWorldScenario(getenv("F15_WORLD_SCENARIO"));
+    if (scenarioBaseSet) setCustomWorldScenarioBase(scenarioBaseArg);
+    else if (getenv("F15_WORLD_SCENARIO_BASE")) setCustomWorldScenarioBase(getenv("F15_WORLD_SCENARIO_BASE"));
 
     if (!verifyGameAssets()) goto shutdown;
     gfx_videoInit();

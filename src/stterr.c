@@ -44,7 +44,9 @@ struct NearestTerrain *findNearestTerrain(int32 worldX, int32 worldY) {
             if (cell != -1) {
                 tileDataPtr = terrainTilePtrs[level].entries[cell];
                 for (cellIdx = 0; terrainTileCounts[level].entries[cell] > cellIdx; cellIdx++) {
-                    if (objectTypeTable[tileDataPtr->idx] != 0) {
+                    /* Placement flags are not part of the model-table index. */
+                    const uint8 modelIndex = tileDataPtr->idx & 0x7f;
+                    if (objectTypeTable[modelIndex] != 0) {
                         ty = tileDataPtr->buf3 + sy;
                         offsetY = tileDataPtr->buf4 + tmp;
                         dist = abs(ty) + abs(offsetY);
@@ -60,7 +62,7 @@ struct NearestTerrain *findNearestTerrain(int32 worldX, int32 worldY) {
                             nearestTerrain.gridX = (int8)gridX;
                             nearestTerrain.gridY = (int8)y1;
                             nearestTerrain.tilePtr = tileDataPtr;
-                            nearestTerrain.objectType = nearestTerrain.tilePtr->idx;
+                            nearestTerrain.objectType = modelIndex;
                             nearestTerrain.dist = dist;
                             nearestTerrain.worldX = ty + worldX;
                             nearestTerrain.worldY = offsetY + worldY;

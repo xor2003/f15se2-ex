@@ -140,9 +140,9 @@ void r2d_computeMapping(int virtW, int virtH, int winW, int winH,
     out->offY = (int)((winH - virtH * out->scaleY) * 0.5f);
 }
 
-static void (*s_swPresent)(struct SDL_Surface *page, int shakeOffset);
+static void (*s_swPresent)(struct SDL_Surface *page, int virtW, int virtH, int shakeOffset);
 
-void r2d_registerSoftwarePresent(void (*present)(struct SDL_Surface *page, int shakeOffset)) {
+void r2d_registerSoftwarePresent(void (*present)(struct SDL_Surface *page, int virtW, int virtH, int shakeOffset)) {
     s_swPresent = present;
 }
 
@@ -308,11 +308,16 @@ void r2d_vectorMarkPresented(void) {
 }
 
 void r2d_present(struct SDL_Surface *page, int shakeOffset) {
+    if (!page) return;
+    r2d_presentVirtual(page, page->w, page->h, shakeOffset);
+}
+
+void r2d_presentVirtual(struct SDL_Surface *page, int virtW, int virtH, int shakeOffset) {
     if (r3dgl_active()) {
-        r3dgl_present(page, shakeOffset);
+        r3dgl_presentVirtual(page, virtW, virtH, shakeOffset);
         return;
     }
-    if (s_swPresent) s_swPresent(page, shakeOffset);
+    if (s_swPresent) s_swPresent(page, virtW, virtH, shakeOffset);
 }
 
 const char *r2d_backendName(void) {

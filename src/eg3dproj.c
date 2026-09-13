@@ -70,6 +70,16 @@ static int gridTileInBounds(int lod, int col, int row) {
     return col >= 0 && row >= 0 && col < g_lodGridDim[lod] && row < g_lodGridDim[lod];
 }
 
+static void submitTileObject(void) {
+    int shape = g_curTileEntry->shape & 0x7f;
+    int originalModel = g_modelStreamPtr == g_world3dData + buf3d3[shape];
+    /* A destroyed object's replacement stream must not restore its intact GLB. */
+    R3DSubmit object = {g_modelStreamPtr, originalModel ? shape : -1,
+                       originalModel ? regnStr : NULL, 0, 0, 0,
+                       g_curTileEntry->x, g_curTileEntry->y, g_curTileEntry->z};
+    r3d_submit(&object);
+}
+
 /* Render every scene object in one grid tile at (tileX+gridX, tileY+gridY).
    Mirrors the full-detail tile branch of projectObjects' main loop; used only by
    the extended-radius sampling below. Tiles whose camera-space distance would
@@ -106,11 +116,7 @@ static void renderGridTile(int lod, int tileX, int tileY, int gridX, int gridY, 
         } else {
             g_modelStreamPtr = g_world3dData + buf3d3[g_curTileEntry->shape];
         }
-        {
-            R3DSubmit obj = {g_modelStreamPtr, -1, NULL, 0, 0, 0,
-                             g_curTileEntry->x, g_curTileEntry->y, g_curTileEntry->z};
-            r3d_submit(&obj);
-        }
+        submitTileObject();
         g_curTileEntry++;
         g_objColorBase++;
     }
@@ -218,11 +224,7 @@ void projectObjects(int16 heading, int16 rangeGate, int32 worldX, int32 worldY, 
                         } else {
                             g_modelStreamPtr = g_world3dData + buf3d3[g_curTileEntry->shape];
                         }
-                        {
-                            R3DSubmit obj = {g_modelStreamPtr, -1, NULL, 0, 0, 0,
-                                             g_curTileEntry->x, g_curTileEntry->y, g_curTileEntry->z};
-                            r3d_submit(&obj);
-                        }
+                        submitTileObject();
                         g_curTileEntry++;
                         g_objColorBase++;
                     }
@@ -231,11 +233,7 @@ void projectObjects(int16 heading, int16 rangeGate, int32 worldX, int32 worldY, 
                         g_curTileEntry = matrix3dt_2[g_curLod][cell];
                         g_modelStreamPtr = g_world3dData + buf3d3[g_curTileEntry->shape];
                         g_objColorBase = 0x400;
-                        {
-                            R3DSubmit obj = {g_modelStreamPtr, -1, NULL, 0, 0, 0,
-                                             g_curTileEntry->x, g_curTileEntry->y, g_curTileEntry->z};
-                            r3d_submit(&obj);
-                        }
+                        submitTileObject();
                     }
                 }
             next_iter:;

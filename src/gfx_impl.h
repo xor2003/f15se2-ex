@@ -84,6 +84,8 @@ int gfx_testCopyEffectiveFont(uint16 fontIdx, uint8 *bitmapOut, size_t bitmapOut
 int gfx_testCopyBuiltinFont(uint16 fontIdx, uint8 *bitmapOut, size_t bitmapOutSize,
                             uint8 *widthsOut, size_t widthsOutSize,
                             int *heightOut, int *maxWidthOut);
+struct SDL_Surface *gfx_testGetHiResPresentSurface(void);
+struct SDL_Surface *gfx_testGetPageReplacementSurface(void);
 #endif
 
 /*

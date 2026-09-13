@@ -28,6 +28,7 @@
 
 #include "r3d.h"
 #include "r3d_gl.h"
+#include "cockpit3d.h"
 #include "r3d_replacement.h"
 #include "r2d.h"
 #include "r3dmesh.h"
@@ -55,6 +56,12 @@ namespace fs = std::filesystem;
 static SDL_Window *s_win;
 static SDL_GLContext s_ctx;
 static int s_active;
+
+static bool hasCustomSideOrRearArtwork(void) {
+    const bool sideOrRearView = g_viewMode == VIEW_LEFT ||
+        g_viewMode == VIEW_RIGHT || g_viewMode == VIEW_REAR;
+    return sideOrRearView && gfx_hasPageReplacement();
+}
 
 /* glFogCoordf (core GL 1.4) lets us drive fog from an explicit per-vertex distance
  * instead of GL's eye-space distance. We must: the "eye" coords we submit are
@@ -989,6 +996,7 @@ static const char *gl_name(void) { return "opengl1"; }
 
 static int gl_init(void) { return s_active; } /* claims iff the context came up */
 static void gl_shutdown(void) {
+    cockpit3d_shutdown();
     int i, j;
     for (i = 0; i < s_glbCacheN; i++) {
         GlbMesh *mesh = s_glbCache[i];
@@ -1255,6 +1263,10 @@ static void gl_beginScene(const R3DScene *s) {
         gl_beginSubScene(s);
         return;
     }
+    /* The main viewport is redrawn every frame, unlike the retained panel below
+     * it. Expire its TTF labels too, including tape labels that moved or vanished. */
+    gfx_invalidateTtfTextOverlayRect(s->viewport[9], s->viewport[7],
+                                     s->viewport[10], s->viewport[8]);
     /* This is a flight 3D frame: its HUD/MFD line & point submissions draw
      * immediately at native resolution. The page backdrop is composited mid-frame
      * at the gl_endScene anchor (after the 3D, before the HUD), so don't compose it
@@ -1303,6 +1315,10 @@ static void gl_beginScene(const R3DScene *s) {
     }
     s_pixelScale = scaleX;
 
+    /* Transparent custom artwork needs a world behind its entire silhouette,
+     * including the area below the original 97-line windscreen. */
+    const bool expandWorldViewport = s_wide || hasCustomSideOrRearArtwork();
+
     /* Clear the whole window (including the letterbox bars) to black; the 3D
      * viewport region is re-cleared to the sky colour once scissored below. */
     glViewport(0, 0, win_w, win_h);
@@ -1319,7 +1335,7 @@ static void gl_beginScene(const R3DScene *s) {
         int gw = (int)(Wv * scaleX);
         int gh = (int)(Hv * scaleY);
         int gy = win_h - (lby + (int)(vpTop * scaleY)) - gh;
-        if (s_wide) {
+        if (expandWorldViewport) {
             /* Render the 3D across the WHOLE window and remap the projection so the
              * central 320-space region still lands on exactly the gx/gw/gy/gh pixels
              * (px = C0 + C1*camX/depth preserved, extended linearly outside). The
@@ -1357,7 +1373,7 @@ static void gl_beginScene(const R3DScene *s) {
             sphOrtho[0] = 0.0f; sphOrtho[1] = (float)Wv;
             sphOrtho[2] = (float)Hv; sphOrtho[3] = 0.0f;
         }
-        if (s_wide) {
+        if (expandWorldViewport) {
             s_sceneVp[0] = 0; s_sceneVp[1] = 0;
             s_sceneVp[2] = win_w; s_sceneVp[3] = win_h;
         } else {
@@ -2669,8 +2685,9 @@ void r3dgl_drawImage(R2DImage *img, int srcX, int srcY, int imgW, int imgH,
     v0 = (float)srcY / (float)surf->h;
     u1 = (float)(srcX + imgW) / (float)surf->w;
     v1 = (float)(srcY + imgH) / (float)surf->h;
-    if (surf->format != SDL_PIXELFORMAT_INDEX8) {
-        /* HD (RGBA) art: place in the footprint region, don't stretch the art. */
+    const bool atlasLayout = key == R2D_IMAGE_ATLAS_OPAQUE || key == R2D_IMAGE_ATLAS_TRANSPARENT;
+    if (surf->format != SDL_PIXELFORMAT_INDEX8 && !atlasLayout) {
+        /* Standalone HD art preserves its aspect; atlas crops use the game grid. */
         x0 = ovMapX((float)dstX);
         y0 = ovMapY((float)dstY);
         x1q = x0 + (float)dstW * s_ov.scaleX;
@@ -2730,8 +2747,9 @@ void r3dgl_drawImageF(R2DImage *img, int srcX, int srcY, int imgW, int imgH,
     y0 = ovMapY(dstY);
     x1q = x0 + dstW * s_ov.scaleX;
     y1q = y0 + dstH * s_ov.scaleY;
-    /* HD art keeps square pixels; the fractional (unsnapped) quad glides smoothly. */
-    if (surf->format != SDL_PIXELFORMAT_INDEX8)
+    /* Atlas crops must cover the same rectangle as their indexed counterparts. */
+    const bool atlasLayout = key == R2D_IMAGE_ATLAS_OPAQUE || key == R2D_IMAGE_ATLAS_TRANSPARENT;
+    if (surf->format != SDL_PIXELFORMAT_INDEX8 && !atlasLayout)
         fitContainSquare(&x0, &y0, &x1q, &y1q, imgW, imgH);
     glBegin(GL_QUADS);
     glTexCoord2f(u0, v0); glVertex2f(x0, y0);
@@ -2863,25 +2881,54 @@ static GLuint s_pageTex;
 static unsigned s_pageKey;
 static int s_pageTexW, s_pageTexH;
 
-/* FNV-1a fold of the page's exact visible output: the pixel indices, the palette
- * RGB of ONLY the indices actually present (so fire-cycle changes to unused entries
- * don't force a re-upload), the show-through rects (they set the alpha), and the
- * page size. A change in any of these — and nothing else — re-uploads the texture. */
+/* Fast cache-key fold for framebuffer rows. The old byte-at-a-time FNV loop ran
+ * over all 64,000 page bytes at render frequency even when the texture stayed
+ * cached. Fold eight bytes per iteration; memcpy keeps unaligned reads portable. */
+static unsigned pageHashBytes(unsigned k, const uint8 *src, size_t size) {
+    while (size >= sizeof(uint64)) {
+        uint64 chunk;
+        SDL_memcpy(&chunk, src, sizeof(chunk));
+        k = (k ^ (unsigned)chunk) * 16777619u;
+        k = (k ^ (unsigned)(chunk >> 32)) * 2246822519u;
+        src += sizeof(chunk);
+        size -= sizeof(chunk);
+    }
+    while (size-- != 0) k = (k ^ *src++) * 16777619u;
+    return k;
+}
+
+/* Fold the page's visible output: pixels, palette, show-through rectangles and
+ * dimensions. Hashing all 256 palette entries is cheap relative to the page and
+ * avoids a random-access used-colour bitset update for every indexed pixel. */
 static unsigned pageOutputKey(SDL_Surface *page, SDL_Palette *pal) {
     unsigned k = 2166136261u;
-    unsigned used[8] = {0, 0, 0, 0, 0, 0, 0, 0};
     const uint8 *src = (const uint8 *)page->pixels;
-    int pitch = page->pitch, x, y, i;
+    int pitch = page->pitch, y, i;
+
+    if (page->format != SDL_PIXELFORMAT_INDEX8) {
+        const int bytesPerPixel = 4; /* Non-index page inputs are converted to RGBA32 before present. */
+        for (y = 0; y < page->h; y++) {
+            const uint8 *row = src + (size_t)y * pitch;
+            k = pageHashBytes(k, row, (size_t)page->w * bytesPerPixel);
+        }
+        for (i = 0; i < s_nShowRects; i++) {
+            const SDL_Rect *r = &s_showRects[i];
+            k = (k ^ (unsigned)r->x) * 16777619u;
+            k = (k ^ (unsigned)r->y) * 16777619u;
+            k = (k ^ (unsigned)r->w) * 16777619u;
+            k = (k ^ (unsigned)r->h) * 16777619u;
+        }
+        k = (k ^ (unsigned)page->w) * 16777619u;
+        k = (k ^ (unsigned)page->h) * 16777619u;
+        k = (k ^ (unsigned)page->format) * 16777619u;
+        return k;
+    }
+
     for (y = 0; y < page->h; y++) {
         const uint8 *row = src + (size_t)y * pitch;
-        for (x = 0; x < page->w; x++) {
-            uint8 idx = row[x];
-            k = (k ^ idx) * 16777619u;
-            used[idx >> 5] |= 1u << (idx & 31);
-        }
+        k = pageHashBytes(k, row, (size_t)page->w);
     }
     for (i = 0; i < 256 && i < pal->ncolors; i++) {
-        if (!(used[i >> 5] & (1u << (i & 31)))) continue;
         k = (k ^ (unsigned)pal->colors[i].r) * 16777619u;
         k = (k ^ (unsigned)pal->colors[i].g) * 16777619u;
         k = (k ^ (unsigned)pal->colors[i].b) * 16777619u;
@@ -2906,38 +2953,84 @@ static unsigned pageOutputKey(SDL_Surface *page, SDL_Palette *pal) {
  * clear when a 3D scene is live. The RGBA convert + texture upload happen only when
  * the page's visible output changed (pageOutputKey); the quad itself draws every
  * frame (cheap, and the screen-shake offset applies here without a re-upload). */
-static void composePageBackdrop(SDL_Surface *page, int shakeOffset) {
+static void composePageBackdropVirtual(SDL_Surface *page, int virtW, int virtH, int shakeOffset) {
     int win_w, win_h, w, h, lbx, lby, qw, qh;
     SDL_Palette *pal;
     float shake, scaleX, scaleY;
     unsigned key;
 
     if (!page) return;
+    const bool fullViewArtwork = s_sceneRendered && hasCustomSideOrRearArtwork();
+    if (fullViewArtwork) {
+        /* Use the PNG alpha, not the opaque indexed page or legacy view holes. */
+        page = gfx_getPageReplacementSurface();
+        virtW = page->w;
+        virtH = page->h;
+        s_nShowRects = 0;
+    }
     w = page->w;
     h = page->h;
+    if (w <= 0 || h <= 0 || w > SDL_MAX_SINT32 / 4 / h) return;
+    if (virtW <= 0) virtW = w;
+    if (virtH <= 0) virtH = h;
     pal = gfx_getPalette();
-    if (!pal) return;
+    if (page->format == SDL_PIXELFORMAT_INDEX8 && !pal) return;
 
     key = pageOutputKey(page, pal);
+    key = (key ^ (unsigned)virtW) * 16777619u;
+    key = (key ^ (unsigned)virtH) * 16777619u;
     if (!s_pageTex || key != s_pageKey || w != s_pageTexW || h != s_pageTexH) {
         int x, y, pitch;
         const uint8 *src;
         if (!ensureRgbaScratch(w * h * 4)) { s_nShowRects = 0; return; }
         src = (const uint8 *)page->pixels;
         pitch = page->pitch;
-        for (y = 0; y < h; y++) {
-            const uint8 *row = src + (size_t)y * pitch;
-            uint8 *out = s_rgba + (size_t)y * w * 4;
-            for (x = 0; x < w; x++) {
-                uint8 idx = row[x];
-                SDL_Color c = pal->colors[idx];
-                out[x * 4 + 0] = c.r;
-                out[x * 4 + 1] = c.g;
-                out[x * 4 + 2] = c.b;
-                /* Transparent inside the 3D viewport rect(s) so the GL 3D beneath
-                 * shows; opaque everywhere else (cockpit/panel). */
-                out[x * 4 + 3] = inShowRect(x, y) ? 0 : 255;
+        if (page->format == SDL_PIXELFORMAT_INDEX8) {
+            uint32 packedPalette[256] = {};
+            int i;
+            for (i = 0; i < 256 && i < pal->ncolors; i++) {
+                SDL_Color c = pal->colors[i];
+                uint8 *rgba = (uint8 *)&packedPalette[i];
+                rgba[0] = c.r;
+                rgba[1] = c.g;
+                rgba[2] = c.b;
+                rgba[3] = 255;
             }
+            for (y = 0; y < h; y++) {
+                const uint8 *row = src + (size_t)y * pitch;
+                uint32 *out = (uint32 *)(s_rgba + (size_t)y * w * 4);
+                for (x = 0; x < w; x++) out[x] = packedPalette[row[x]];
+            }
+            /* The page is opaque except for the few rectangular windows where
+             * the already-rendered GL scene must show through. Clearing alpha by
+             * rectangle avoids testing every page pixel against every rectangle. */
+            for (i = 0; i < s_nShowRects; i++) {
+                const SDL_Rect *r = &s_showRects[i];
+                int x0 = r->x < 0 ? 0 : r->x;
+                int y0 = r->y < 0 ? 0 : r->y;
+                int x1 = r->x + r->w > w ? w : r->x + r->w;
+                int y1 = r->y + r->h > h ? h : r->y + r->h;
+                for (y = y0; y < y1; y++) {
+                    uint8 *alpha = s_rgba + ((size_t)y * w + x0) * 4 + 3;
+                    for (x = x0; x < x1; x++, alpha += 4) *alpha = 0;
+                }
+            }
+        } else {
+            SDL_Surface *rgba = SDL_ConvertSurface(page, SDL_PIXELFORMAT_RGBA32);
+            if (!rgba) { s_nShowRects = 0; return; }
+            if (SDL_MUSTLOCK(rgba)) SDL_LockSurface(rgba);
+            for (y = 0; y < h; y++) {
+                const uint8 *row = (const uint8 *)rgba->pixels + (size_t)y * rgba->pitch;
+                uint8 *out = s_rgba + (size_t)y * w * 4;
+                SDL_memcpy(out, row, (size_t)w * 4u);
+                for (x = 0; x < w; x++) {
+                    int vx = (int)(((int64)x * virtW) / w);
+                    int vy = (int)(((int64)y * virtH) / h);
+                    if (inShowRect(vx, vy)) out[x * 4 + 3] = 0;
+                }
+            }
+            if (SDL_MUSTLOCK(rgba)) SDL_UnlockSurface(rgba);
+            SDL_DestroySurface(rgba);
         }
         if (!s_pageTex) glGenTextures(1, &s_pageTex);
         glBindTexture(GL_TEXTURE_2D, s_pageTex);
@@ -2951,18 +3044,27 @@ static void composePageBackdrop(SDL_Surface *page, int shakeOffset) {
 
     SDL_GetWindowSizeInPixels(s_win, &win_w, &win_h);
     /* Letterbox the page into the window through the shared r2d mapping (deriving
-     * the virtual size from the page itself, so the 320x200 overlay and the
-     * 640x350 hi-res title both map correctly) — matches the 3D viewport's
-     * letterbox so the overlay stays aligned and unstretched. */
+     * the virtual size from the caller, so a high-resolution replacement
+     * backdrop can retain source pixels while text/UI coordinates remain in the
+     * original 320x200 authoring space. */
     {
         R2DMapping m;
-        r2d_computeMapping(w, h, win_w, win_h, 0, &m);
-        scaleX = m.scaleX;
-        scaleY = m.scaleY;
-        qw = (int)(w * scaleX);
-        qh = (int)(h * scaleY);
-        lbx = m.offX;
-        lby = m.offY;
+        if (fullViewArtwork) {
+            // Square PNG pixels: fit the complete artwork, anchored at the bottom.
+            scaleX = scaleY = std::min((float)win_w / virtW, (float)win_h / virtH);
+            qw = (int)(virtW * scaleX);
+            qh = (int)(virtH * scaleY);
+            lbx = (win_w - qw) / 2;
+            lby = win_h - qh;
+        } else {
+            r2d_computeMapping(virtW, virtH, win_w, win_h, 0, &m);
+            scaleX = m.scaleX;
+            scaleY = m.scaleY;
+            qw = (int)(virtW * scaleX);
+            qh = (int)(virtH * scaleY);
+            lbx = m.offX;
+            lby = m.offY;
+        }
     }
     glViewport(0, 0, win_w, win_h);
     glDisable(GL_SCISSOR_TEST);
@@ -2971,6 +3073,9 @@ static void composePageBackdrop(SDL_Surface *page, int shakeOffset) {
     glDisable(GL_CULL_FACE);
     glDisable(GL_LIGHTING);
     glShadeModel(GL_FLAT);
+
+    if (s_sceneRendered && g_halfScaleRender == 0 && g_viewMode == VIEW_COCKPIT)
+        cockpit3d_captureScene(win_w, win_h);
 
     /* On flight frames the GL 3D is already in the framebuffer (bars cleared black
      * by gl_beginScene) and the viewport rect reveals it, so we must not clear. On
@@ -2993,7 +3098,7 @@ static void composePageBackdrop(SDL_Surface *page, int shakeOffset) {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    shake = shakeOffset * scaleX;
+    shake = shakeOffset * (fullViewArtwork ? (float)qw / LOGICAL_WIDTH : scaleX);
     {
         float x0 = lbx - shake, y0 = (float)lby;
         float x1 = lbx + qw - shake, y1 = (float)(lby + qh);
@@ -3009,28 +3114,43 @@ static void composePageBackdrop(SDL_Surface *page, int shakeOffset) {
     glDisable(GL_BLEND);
 }
 
+static void composePageBackdrop(SDL_Surface *page, int shakeOffset) {
+    SDL_Surface *presentPage;
+    if (!page) return;
+    presentPage = gfx_getPagePresentSurface(page);
+    composePageBackdropVirtual(presentPage, page->w, page->h, shakeOffset);
+}
+
 void r3dgl_present(SDL_Surface *page, int shakeOffset) {
+    if (!page) return;
+    r3dgl_presentVirtual(page, page->w, page->h, shakeOffset);
+}
+
+void r3dgl_presentVirtual(SDL_Surface *page, int virtW, int virtH, int shakeOffset) {
     int win_w = 0, win_h = 0;
     if (!page || !s_active) return;
     /* Flight frames composed the page backdrop at the main-scene anchor (before the
      * frame's immediate HUD/MFD draws); only pure-2D screens (no 3D pass) compose it
      * here, on top of the black-cleared window. */
-    if (!s_sceneRendered && !s_pageComposited) composePageBackdrop(page, shakeOffset);
+    if (!s_sceneRendered && !s_pageComposited) composePageBackdropVirtual(page, virtW, virtH, shakeOffset);
     SDL_GetWindowSizeInPixels(s_win, &win_w, &win_h);
     if (!s_sceneRendered) {
-        gfx_renderTtfTextOverlayOpenGL(page->w, page->h, win_w, win_h);
+        gfx_renderTtfTextOverlayOpenGL(virtW, virtH, win_w, win_h);
     }
     /* Runtime TTF/OTF text is deliberately kept out of the 320x200 page. Draw it
      * after both pure-2D and live-3D frames so HUD/menu glyphs are rasterized at
      * final window resolution instead of being baked tiny and scaled up. */
-    if (s_sceneRendered) {
-        gfx_renderTtfTextOverlayOpenGL(page->w, page->h, win_w, win_h);
+    if (s_sceneRendered && !hasCustomSideOrRearArtwork()) {
+        gfx_renderTtfTextOverlayOpenGL(virtW, virtH, win_w, win_h);
     }
     /* Remember whether THIS present carried a live 3D view. gfx_repaint (window
      * expose/resize) re-presents only the page — which would blank the GL 3D (it
      * lives in the framebuffer, not the page) — so on a flight frame it must instead
      * leave the last composited frame alone (r3dgl_flightLive). */
     s_glFlightLive = s_sceneRendered;
+    if (s_sceneRendered && g_halfScaleRender == 0 && g_viewMode == VIEW_COCKPIT) {
+        cockpit3d_present(win_w, win_h, shakeOffset, 0);
+    }
     s_sceneRendered = 0;
     s_pageComposited = 0;
     r2d_vectorMarkPresented();

@@ -22,6 +22,9 @@ void renderHudFrame(int) {}
 void stepFlightModel(void) {}
 void updateFrame(void) {}
 
+// These cases exercise the stock palette, without a custom campaign.
+int customWorldScenarioIs(const char *) { return 0; }
+
 namespace {
 
 // Behavior-sensitive constants are named here or explained at the use site.

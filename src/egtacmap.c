@@ -71,6 +71,12 @@ void renderHudFrame(int unused) {
         }
         g_hudDrawnFlag = 1;
         if (g_viewMode == VIEW_COCKPIT && g_halfScaleRender == 0) {
+            if (gfx_hasPageReplacement()) {
+                for (int indicator = 0; indicator < 4; indicator++) {
+                    const int16 *light = g_tacmapIndicators + 3 + indicator * 5;
+                    hdsprite_drawCockpitIndicator(indicator, light[0], light[1], light[4]);
+                }
+            }
             // draw stick position indicator
             setDrawColor(COLOR_BLACK);
             drawViewportLine(277, 83, 293, 83);
@@ -257,6 +263,10 @@ static void renderTacMapContent(int centerX, int centerY) {
     idx = (56 << (9 - g_mapZoomLevel)) / 3 * 4;
     g_mapCenterY = clampRange(centerY - cosMul(g_ourHead, 0x4000 >> g_mapZoomLevel), idx, 0x7fff - idx);
     loadColorPalette(0);
+    setDrawColor(g_horizonGroundColor);
+    fillRectBoth(24, 112, 96, 168);
+    hdsprite_drawTacticalMapBackground(gameData->theater, g_mapCenterX, g_mapCenterY,
+                                        g_mapZoomLevel);
     gfx_setFadeSteps(19);
     renderMapTerrain(g_mapTerrainMode, g_mapCenterX / 2, -(g_mapCenterY / 2 - 0x4000), 9 - g_mapZoomLevel);
     if (gameData->theater < 2) {
@@ -573,7 +583,8 @@ void drawMapPoint(int x, int y, int color) {
 void switchIndicatorColor(int indicatorIdx, int color) {
     if (g_hudVisible == 0) goto done;
     if (*(g_tacmapIndicators + indicatorIdx * 5 + 7) != color) {
-        gfx_switchColor(g_pageFront, *(g_tacmapIndicators + indicatorIdx * 5 + 3), *(g_tacmapIndicators + indicatorIdx * 5 + 4), *(g_tacmapIndicators + indicatorIdx * 5 + 5), *(g_tacmapIndicators + indicatorIdx * 5 + 6), *(g_tacmapIndicators + indicatorIdx * 5 + 7), color);
+        if (!gfx_hasPageReplacement())
+            gfx_switchColor(g_pageFront, *(g_tacmapIndicators + indicatorIdx * 5 + 3), *(g_tacmapIndicators + indicatorIdx * 5 + 4), *(g_tacmapIndicators + indicatorIdx * 5 + 5), *(g_tacmapIndicators + indicatorIdx * 5 + 6), *(g_tacmapIndicators + indicatorIdx * 5 + 7), color);
         *(g_tacmapIndicators + indicatorIdx * 5 + 7) = color;
     }
 done:;

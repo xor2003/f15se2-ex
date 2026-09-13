@@ -548,17 +548,17 @@ size_t size3d3 = 1;
 /* 3D-loader buffers/sizes. buf3d3: shape->offset table, fread up to size3d3
  * words. sizes3dt: per-LOD vertex counts (5 entries, each <=0x20). matrix3dt:
  * 5 LODs x 32 vertex words. */
-uint16 buf3d3[100] = {0};
+uint16 buf3d3[MODEL_SLOT_CAPACITY] = {0};
 unsigned int size3d3_2 = 0;
 int16 sign3dt = 0x3131;
 uint16 sizes3dt[5] = {32, 32, 32, 32, 32};
-uint16 matrix3dt[5][32] = {{0}};
+uint16 matrix3dt[5][TERRAIN_TILE_PATTERN_CAPACITY] = {{0}};
 
-/* g_modelOffsetTable: 32-word scratch buffer for the secondary photo/3D model loader
+/* g_modelOffsetTable: scratch buffer for the secondary photo/3D model loader
    (eg3dload.c). fread fills g_modelOffsetTable[0..size3d3_7-1] with per-section offsets,
    then g_modelOffsetTable[size3d3_7] gets the terminating size; section sizes are the
    successive differences g_modelOffsetTable[i+1] - g_modelOffsetTable[i]. */
-int16 g_modelOffsetTable[32];
+int16 g_modelOffsetTable[PHOTO_MODEL_SLOT_CAPACITY + 1];
 size_t size3d3_4 = 0;
 size_t size3d3_5 = 0;
 size_t size3d3_6 = 0;
@@ -2078,15 +2078,15 @@ int16 g_finalThreatScore;
 int16 g_tileEntryCount;
 int16 g_targetEntityCount;
 int16 g_attackRangeX;
-uint8 buf4_3dg[0x200];
-uint8 buf_3dt[4000];
+uint8 buf4_3dg[TERRAIN_CHILD_GRID_BYTES];
+uint8 buf_3dt[MAX_TILE_DATA];
 int16 g_playerPlaneFlags;
 int16 g_attackRangeY;
-uint8 buf3_3dg[0x200];
+uint8 buf3_3dg[TERRAIN_CHILD_GRID_BYTES];
 int16 g_targetInHudFlag;
 int16 g_lockedTargetKilled;
 int g_hitEffectTimer;
-uint8 buf2_3dg[0x200];
+uint8 buf2_3dg[TERRAIN_CHILD_GRID_BYTES];
 /* g_nearestTileObj: nearest-tile-object pointer; result of findNearestTileObject(),
    pointing at the nearestTile scratch record below. */
 struct TileObject *g_nearestTileObj;
@@ -2113,14 +2113,14 @@ struct GroundTargetTable g_planeTable;
 /* g_unusedViewXSnap/g_unusedViewYSnap: per-frame snapshots of g_viewX_/g_viewY_;
    written but never read (dead). */
 int16 g_unusedViewXSnap;
-uint8 buf3d3_1[0x96];
+uint8 buf3d3_1[MODEL_VERTEX_REFERENCE_CAPACITY];
 int16 g_bulletTrackCount;
 int16 g_northSouthSign;
 int16 g_unusedViewYSnap;
 uint8 g_mapCellFlags[0x100];
 int16 g_threatTimerInit;
-uint8 buf3d3_2[0x96];
-uint8 buf3d3_3[0x96];
+uint8 buf3d3_2[MODEL_VERTEX_REFERENCE_CAPACITY];
+uint8 buf3d3_3[MODEL_VERTEX_REFERENCE_CAPACITY];
 int32 g_camEyeX;
 struct SimObject g_simObjects[20];
 
@@ -2256,7 +2256,7 @@ int16 g_mapMode;
 int16 g_enemyAlertFlag;
 int16 g_activePanelMode;
 int16 g_targetLeadAngle;
-char *g_targetNameTable[100];
+char *g_targetNameTable[MODEL_SLOT_CAPACITY];
 int16 g_closestThreatIndex;
 int16 g_curLod;
 /* g_stringPool: 0x2ee-byte buffer holding the region label strings; g_targetNameTable[]
@@ -2265,7 +2265,7 @@ char g_stringPool[0x2EE];
 int16 g_currentWeaponType;
 int16 g_scopeClipRight;
 /* matrix3dt_2: per-LOD x per-vertex model-data pointers (parallels matrix3dt). */
-struct TileSceneObject *matrix3dt_2[5][32];
+struct TileSceneObject *matrix3dt_2[5][TERRAIN_TILE_PATTERN_CAPACITY];
 int16 g_scopeClipBottom;
 int16 g_pitchInput;
 int16 g_cornerSpeed;

@@ -134,18 +134,16 @@ struct SamDataEntry {
 };
 STATIC_ASSERT(sizeof(struct SamDataEntry) == 32);
 
+#include "model_limits.h"
 struct TerrainPtrTable {
-    struct TerrainTile *entries[32];
+    struct TerrainTile *entries[TERRAIN_TILE_PATTERN_CAPACITY];
 };
-STATIC_ASSERT(sizeof(struct TerrainPtrTable) == sizeof(void *) * 32);
-// 64 with 16bit ptr
-// 128 with far/32bit ptr
-// 256 with 64bit ptr
+STATIC_ASSERT(sizeof(struct TerrainPtrTable) == sizeof(void *) * TERRAIN_TILE_PATTERN_CAPACITY);
 
 struct TerrainCountTable {
-    uint16 entries[32];
+    uint16 entries[TERRAIN_TILE_PATTERN_CAPACITY];
 };
-STATIC_ASSERT(sizeof(struct TerrainCountTable) == 64);
+STATIC_ASSERT(sizeof(struct TerrainCountTable) == sizeof(uint16) * TERRAIN_TILE_PATTERN_CAPACITY);
 
 // used in egame.exe renderFrame, 16 bytes
 struct ViewSnapshot {

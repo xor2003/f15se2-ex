@@ -14,6 +14,7 @@
 #include "egui.h"
 #include "offsets.h"
 #include "log.h"
+#include "gfx.h"
 #include "r2d.h"
 #include "r3dmesh.h"
 #include "const.h"
@@ -25,6 +26,37 @@
 #include <stdlib.h>
 #include <string.h>
 #include <memory.h>
+
+/* Runtime TTF labels are retained outside the 320x200 page. Threat/city labels
+ * drawn by drawTargetLabel() are dynamic annotations; the original bitmap path
+ * erased their old pixels through normal HUD repaint when they moved or went
+ * off-screen. Track the previous TTF label rects and invalidate only those, so
+ * persistent HUD text such as speed/altitude and ammo is not disturbed. */
+#define TARGET_LABEL_TTF_HEIGHT 8
+#define TARGET_LABEL_TTF_MAX_RECTS 8
+static int s_targetLabelTtfRectCount;
+static int s_targetLabelTtfRects[TARGET_LABEL_TTF_MAX_RECTS][4];
+
+static void clearTargetLabelTtfRects(void) {
+    int i;
+    for (i = 0; i < s_targetLabelTtfRectCount; i++) {
+        gfx_invalidateTtfTextOverlayRect(s_targetLabelTtfRects[i][0],
+                                         s_targetLabelTtfRects[i][1],
+                                         s_targetLabelTtfRects[i][2],
+                                         s_targetLabelTtfRects[i][3]);
+    }
+    s_targetLabelTtfRectCount = 0;
+}
+
+static void rememberTargetLabelTtfRect(int x1, int y1, int x2, int y2) {
+    int i;
+    if (s_targetLabelTtfRectCount >= TARGET_LABEL_TTF_MAX_RECTS) return;
+    i = s_targetLabelTtfRectCount++;
+    s_targetLabelTtfRects[i][0] = x1;
+    s_targetLabelTtfRects[i][1] = y1;
+    s_targetLabelTtfRects[i][2] = x2;
+    s_targetLabelTtfRects[i][3] = y2;
+}
 
 /* Private helpers for this translation unit. */
 void drawTargetBox(int16, int16, int16, int16);
@@ -351,7 +383,7 @@ static const int GROUND_HIT_MIN_MAP = 6;
  * constant 15FLT.3D3, world (ground/tile) shapes from the per-theater region, so
  * both are refilled each mission by computeHitRadii(). */
 static int16 s_aircraftModelRadius[19];
-static int16 s_worldShapeRadius[100]; /* indexed by (nameIndex & 0x7f), cf. buf3d3[] */
+static int16 s_worldShapeRadius[MODEL_SLOT_CAPACITY]; /* indexed by nameIndex & 0x7f */
 
 void computeHitRadii(void) {
     const uint8 *base = (const uint8 *)g_world3dData;
@@ -363,7 +395,7 @@ void computeHitRadii(void) {
     /* Cover the appended photo/target models too: they sit at buf3d3[size3d3]
      * and [size3d3+1] (eg3dload.c), past the main region shapes, and ground
      * targets reference them by nameIndex. */
-    for (i = 0; i <= (int)size3d3 + 1 && i < 100; i++)
+    for (i = 0; i <= (int)size3d3 + 1 && i < MODEL_SLOT_CAPACITY; i++)
         s_worldShapeRadius[i] = (int16)r3dmesh_boundRadius(base + buf3d3[i], limit);
 }
 
@@ -375,7 +407,7 @@ int aircraftModelRadius(int spec) {
 }
 int groundModelRadius(int nameIndex) {
     int s = nameIndex & 0x7f;
-    return (s >= 0 && s < 100) ? s_worldShapeRadius[s] : 0;
+    return (s >= 0 && s < MODEL_SLOT_CAPACITY) ? s_worldShapeRadius[s] : 0;
 }
 
 /* Ground target gun/impact radius in map units, Q8-scaled and difficulty-tightened. */
@@ -593,6 +625,9 @@ void drawWorldEffects(void) {
 void drawHudWorldOverlay(void) {
     int p, lockFlag, r, wpEntry, tmp, t, missileSpecD, loftDist, e, missileSpec, marker, idx, g, radius, objIdx, pointY, pointX, dist, wpIdx, prevX, compat, prevY;
 
+    /* The target panel is redrawn each frame; its native text lives outside the page. */
+    gfx_invalidateTtfTextOverlayRect(240, 128, 319, 184);
+
     g_prevKillMarker = g_targetInHudFlag;
     g_targetInHudFlag = 0;
 
@@ -611,6 +646,8 @@ void drawHudWorldOverlay(void) {
     if (g_unusedHudFlag != 0) {
         g_unusedHudFlag = 0;
     }
+
+    clearTargetLabelTtfRects();
 
     loadColorPalette(g_nightMode != 0 ? 2 : g_nightMode);
     setDrawColor(COLOR_WHITE);;
@@ -962,7 +999,10 @@ void drawTargetLabel(const char *text, int16 color, int16 size) {
     }
     if (vtxScratch.vproj.x.lo > 20 && vtxScratch.vproj.x.lo < 280 &&
         vtxScratch.vproj.y.lo > 0 && vtxScratch.vproj.y.lo < 82) {
-        drawStringActivePage(text, vtxScratch.vproj.x.lo - (int16)strlen(text) * 2, vtxScratch.vproj.y.lo + 5, g_scopeArcColor);
+        int x = vtxScratch.vproj.x.lo - (int16)strlen(text) * 2;
+        int y = vtxScratch.vproj.y.lo + 5;
+        drawStringActivePage(text, x, y, g_scopeArcColor);
+        rememberTargetLabelTtfRect(x, y, x + (int)strlen(text) * 4, y + TARGET_LABEL_TTF_HEIGHT);
     }
 }
 

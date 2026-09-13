@@ -14,6 +14,7 @@
 #include "log.h"
 #include "const.h"
 #include "comm.h"
+#include "campaign_allegiance.h"
 
 #include <dos.h>
 #include <memory.h>
@@ -33,6 +34,7 @@ int16 markTargetReached(int16 targetIdx);
 static const int MISSILE_PROX_SCALE_Q8 = 176;
 
 void fireAirThreat(int16 objIdx) {
+    if (svnFriendlyAircraft(g_simObjects[objIdx].spec)) return;
     int16 p, a, b, c, bearing, e, f;
     uint16 acqRange;
     int16 h, idx, slot, k, l, range, n;

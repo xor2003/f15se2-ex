@@ -21,6 +21,8 @@
       --base: #7fd18b;
       --sam: #f26d5b;
       --ship: #6db8f2;
+      --route-primary: #ffcf5a;
+      --route-secondary: #65d6ff;
     }
 
     * { box-sizing: border-box; }
@@ -214,13 +216,20 @@
       font-size: 13px;
     }
 
-    input, select {
+    input, select, textarea {
       width: 100%;
       border: 1px solid rgba(236, 231, 213, 0.16);
       background: #11170f;
       color: var(--ink);
       border-radius: 9px;
       padding: 8px;
+    }
+
+    textarea {
+      min-height: 58px;
+      resize: vertical;
+      font-family: "Cascadia Mono", "DejaVu Sans Mono", monospace;
+      font-size: 12px;
     }
 
     .list {
@@ -253,6 +262,38 @@
       font-size: 12px;
       font-weight: 700;
     }
+    .sortie-card {
+      display: grid;
+      gap: 3px;
+      padding: 8px;
+      border: 1px solid rgba(215, 168, 79, 0.24);
+      border-radius: 10px;
+      background: rgba(17, 23, 15, 0.58);
+    }
+    .sortie-card strong { color: var(--accent); }
+    .sortie-card small {
+      color: var(--muted);
+      line-height: 1.35;
+    }
+    .target-package {
+      display: grid;
+      gap: 3px;
+      padding: 8px;
+      border: 1px solid rgba(101, 214, 255, 0.22);
+      border-radius: 10px;
+      background: rgba(17, 23, 15, 0.58);
+    }
+    .target-package strong { color: #fff0bd; }
+    .target-package small {
+      color: var(--muted);
+      line-height: 1.35;
+    }
+    .target-package label {
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
 
     @media (max-width: 900px) {
       main { grid-template-columns: 1fr; }
@@ -269,9 +310,10 @@
       <div class="hint">Load exported <code>*.WLD.json</code>, drag objects, edit fields, export JSON.</div>
     </div>
     <div class="toolbar">
-      <label class="file">Load WLD JSON<input id="file" type="file" accept=".wld.json"></label>
+      <label class="file">Load WLD/campaign JSON<input id="file" type="file" accept=".wld.json,.json"></label>
       <button id="toggle-osm">Background off</button>
       <button id="toggle-grid">Grid on</button>
+      <button id="toggle-routes">Routes on</button>
       <button id="toggle-glb">Object labels off</button>
       <a class="button" href="model_viewer.html">3D model viewer</a>
       <button id="duplicate">Duplicate</button>
@@ -349,6 +391,7 @@
     let dragging = false;
     let dragCandidate = null;
     let showGrid = true;
+    let showRoutes = true;
     let objectOverlayMode = "off";
     let showOsm = false;
     let backgroundMode = "off";
@@ -427,6 +470,111 @@
     function objects() { return world?.world_objects || []; }
     function flights() { return world?.flight_units || []; }
     function names() { return world?.name_strings || []; }
+    function missionObjectives() { return world?.mission_plan?.objectives || []; }
+    function routePlan() { return world?.campaign_route_plan || null; }
+    function routeWaypoints() { return Array.isArray(routePlan()?.waypoints) ? routePlan().waypoints : []; }
+    function missionTargetSets() { return world?.mission_plan?.mission_target_sets || world?.campaign_manifest?.mission_target_sets || []; }
+    function routeWaypointByObjective(objectiveId) {
+      if (!objectiveId) return null;
+      return routeWaypoints().find(item => item?.objective_id === objectiveId) || null;
+    }
+    function ensureMissionPlan() {
+      if (!world.mission_plan || typeof world.mission_plan !== "object") {
+        world.mission_plan = { format_version: 1, objectives: [], sortie_sequence: [] };
+      }
+      if (!Array.isArray(world.mission_plan.objectives)) world.mission_plan.objectives = [];
+      if (!Array.isArray(world.mission_plan.sortie_sequence)) world.mission_plan.sortie_sequence = [];
+      return world.mission_plan;
+    }
+    function sortieSequence() { return world?.mission_plan?.sortie_sequence || world?.campaign_manifest?.sortie_sequence || []; }
+    function missionObjectiveFor(obj, idx) {
+      const id = obj?.scenario_objective_id || "";
+      const objectives = missionObjectives();
+      if (id) {
+        const byId = objectives.find(item => item?.id === id);
+        if (byId) return byId;
+      }
+      return objectives.find(item => Number(item?.object_slot) === idx) || null;
+    }
+    function ensureMissionObjectiveFor(obj, idx) {
+      const plan = ensureMissionPlan();
+      let objective = missionObjectiveFor(obj, idx);
+      if (objective) return objective;
+      const id = obj?.scenario_objective_id || `object_${idx}_objective`;
+      objective = {
+        id,
+        name: objectName(obj) || `Object ${idx}`,
+        object_slot: idx,
+        role: obj?.scenario_role || "custom_target",
+        priority: obj?.scenario_priority || "custom",
+        faction: obj?.scenario_faction || "",
+        domain: obj?.scenario_domain || "",
+        action: obj?.scenario_action || "",
+        target_type: obj?.scenario_target_type || "",
+        threat_level: obj?.scenario_threat_level || "",
+        desired_effect: obj?.scenario_desired_effect || "",
+        suggested_loadout: "",
+        success_criteria: [],
+        radio_cue_ids: [],
+        intent: obj?.scenario_objective || "",
+      };
+      plan.objectives.push(objective);
+      obj.scenario_objective_id = id;
+      return objective;
+    }
+    function missionObjectiveLabel(obj, idx) {
+      const objective = missionObjectiveFor(obj, idx);
+      if (!objective) return "";
+      return objective.id || objective.name || "";
+    }
+    function sortiesForObjective(objective) {
+      const id = objective?.id || "";
+      if (!id) return [];
+      return sortieSequence().filter(item => Array.isArray(item?.objective_ids) && item.objective_ids.includes(id));
+    }
+    function briefingForSortie(sortie) {
+      const sortieId = sortie?.id || "";
+      if (!sortieId) return null;
+      const briefings = world?.campaign_manifest?.briefings || [];
+      return briefings.find(item => item?.sortie_id === sortieId) || null;
+    }
+    function renderSortieCards(sorties) {
+      if (!sorties.length) {
+        return '<div class="hint">No sortie phase references this objective yet.</div>';
+      }
+      return sorties.map(item => {
+        const objectiveIds = Array.isArray(item.objective_ids) ? item.objective_ids.join(", ") : "";
+        const briefing = briefingForSortie(item);
+        const briefingLine = briefing?.file ? `<small>briefing: ${escapeHtml(briefing.file)}</small>` : "";
+        return `<div class="sortie-card"><strong>${escapeHtml(item.id || "sortie")}: ${escapeHtml(item.title || "")}</strong><small>${escapeHtml(objectiveIds)}</small>${briefingLine}<small>${escapeHtml(item.briefing || "")}</small></div>`;
+      }).join("");
+    }
+    function targetSetsForObjective(objective) {
+      const id = objective?.id || "";
+      if (!id) return [];
+      return missionTargetSets().filter(item => Array.isArray(item?.objective_ids) && item.objective_ids.includes(id));
+    }
+    function renderTargetPackages(targetSets) {
+      if (!targetSets.length) {
+        return '<div class="hint">No target package references this objective yet.</div>';
+      }
+      return targetSets.map(item => {
+        const order = Array.isArray(item.attack_order) ? item.attack_order.join(" -> ") : "";
+        const elements = Array.isArray(item.target_elements) ? item.target_elements : [];
+        const elementText = elements.map(element => `${element.element_id || "?"} [${element.role || "?"}]`).join(", ");
+        const victory = item.victory_logic ? JSON.stringify(item.victory_logic) : "";
+        return `<div class="target-package" data-target-set-id="${escapeHtml(item.id || "")}">
+          <strong>${escapeHtml(item.id || "target_set")}: ${escapeHtml(item.title || "")}</strong>
+          <label>Package role</label>
+          <input data-tp="package_role" data-target-set-id="${escapeHtml(item.id || "")}" value="${escapeHtml(item.package_role || "")}">
+          <label>Attack order</label>
+          <input data-tp="attack_order" data-target-set-id="${escapeHtml(item.id || "")}" value="${escapeHtml(order)}">
+          <small>elements: ${escapeHtml(elementText || "none")}</small>
+          <label>Victory JSON</label>
+          <textarea data-tp="victory_logic" data-target-set-id="${escapeHtml(item.id || "")}">${escapeHtml(victory || "{}")}</textarea>
+        </div>`;
+      }).join("");
+    }
     function objectTypeTable() {
       if (!world?.mission_object_type_table) return null;
       try {
@@ -487,6 +635,9 @@
       return labels;
     }
     function roleFor(obj, idx) {
+      if (obj?.scenario_role) return obj.scenario_role;
+      const objective = missionObjectiveFor(obj, idx);
+      if (objective?.role) return objective.role;
       const f = Number(obj.targetFlags || 0);
       if ((f & 0x800) !== 0) return "disabled";
       if (idx >= Number(world?.world_object_count || 0) && (f & 0x500) && (f & 0x201)) return "takeoff/landing base candidate";
@@ -494,6 +645,53 @@
       if (idx < Number(world?.ground_unit_count || 0) && Number(obj.unitType || 0) !== 0) return "ground unit";
       if ((f & 0x400) !== 0) return "waypoint/reference point";
       return "map object";
+    }
+    function refreshTargetAnnotations() {
+      if (!world || (!Array.isArray(world.target_annotations) && !world.mission_plan)) return;
+      world.target_annotations = objects().map((obj, idx) => {
+        const objective = missionObjectiveFor(obj, idx) || {};
+        const waypoint = routeWaypointByObjective(objective.id || obj?.scenario_objective_id || "");
+        return {
+          object_index: idx,
+          name: objectName(obj),
+          role: roleFor(obj, idx),
+          scenario_objective_id: objective.id || obj?.scenario_objective_id || "",
+          scenario_objective: objective.intent || obj?.scenario_objective || "",
+          scenario_faction: objective.faction || obj?.scenario_faction || "",
+          scenario_domain: objective.domain || obj?.scenario_domain || "",
+          scenario_action: objective.action || obj?.scenario_action || "",
+          scenario_target_type: objective.target_type || obj?.scenario_target_type || "",
+          scenario_threat_level: objective.threat_level || obj?.scenario_threat_level || "",
+          scenario_desired_effect: objective.desired_effect || obj?.scenario_desired_effect || "",
+          mission_object_type: objectTypeValue(obj),
+          coordinates: {
+            x_coord: obj?.x_coord || 0,
+            y_coord: obj?.y_coord || 0,
+          },
+          real_world_anchor: waypoint ? {
+            label: waypoint.label || "",
+            lon: waypoint.lon,
+            lat: waypoint.lat,
+            doctrine: waypoint.doctrine || "",
+          } : undefined,
+          notes: "Generated by map editor from world_objects and mission_plan.objectives.",
+        };
+      });
+    }
+    function syncRoutePlanForObject(obj, idx) {
+      if (!world || !obj) return;
+      const objective = missionObjectiveFor(obj, idx);
+      const waypoint = routeWaypointByObjective(objective?.id || obj.scenario_objective_id || "");
+      if (!waypoint) return;
+      waypoint.x_coord = Number(obj.x_coord || 0);
+      waypoint.y_coord = Number(obj.y_coord || 0);
+      waypoint.coordinate_source = waypoint.coordinate_source || "map_editor_object_sync";
+      waypoint.editor_notes = "x_coord/y_coord synchronized from the matching world object.";
+      if (objective) {
+        objective.real_world_anchor = objective.real_world_anchor || {};
+        objective.real_world_anchor.x_coord = waypoint.x_coord;
+        objective.real_world_anchor.y_coord = waypoint.y_coord;
+      }
     }
     function flightsForObject(idx) {
       return flights()
@@ -836,6 +1034,8 @@
       drawOsm(r);
       drawTerrain(r);
       if (showGrid) drawGrid(r);
+      if (showRoutes) drawCampaignRoutes(r);
+      drawSelectedTargetPackages(r);
       drawObjects();
     }
     function drawTerrain(r) {
@@ -865,6 +1065,106 @@
         ctx.beginPath(); ctx.moveTo(r.x, q); ctx.lineTo(r.x + r.w, q); ctx.stroke();
       }
     }
+    function drawCampaignRoutes(r) {
+      const plan = routePlan();
+      if (!plan || !Array.isArray(plan.waypoints)) return;
+      const byId = new Map(plan.waypoints.map(wp => [wp.id, wp]));
+      const routes = Array.isArray(plan.sortie_routes) ? plan.sortie_routes : [];
+      const routeColors = [getCss("--route-primary"), getCss("--route-secondary"), "#ff8f66", "#a9e36d"];
+      ctx.save();
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      routes.forEach((route, routeIdx) => {
+        const points = (Array.isArray(route.route) ? route.route : [])
+          .map(id => byId.get(id))
+          .filter(Boolean)
+          .map(wp => worldToScreen(Number(wp.x_coord || 0), Number(wp.y_coord || 0)));
+        if (points.length < 2) return;
+        ctx.strokeStyle = routeColors[routeIdx % routeColors.length];
+        ctx.globalAlpha = backgroundMode === "off" ? 0.78 : 0.92;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        points.forEach((p, idx) => idx ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
+        ctx.stroke();
+        ctx.globalAlpha = 0.34;
+        ctx.lineWidth = 8;
+        ctx.beginPath();
+        points.forEach((p, idx) => idx ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
+        ctx.stroke();
+      });
+      plan.waypoints.forEach(wp => {
+        const p = worldToScreen(Number(wp.x_coord || 0), Number(wp.y_coord || 0));
+        ctx.globalAlpha = 0.95;
+        ctx.fillStyle = "rgba(0,0,0,0.72)";
+        ctx.strokeStyle = getCss("--route-primary");
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 7, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        const label = wp.id || wp.objective_id || "";
+        if (objectOverlayMode === "labels" && label) {
+          ctx.font = "11px Aptos Display, Segoe UI, sans-serif";
+          const w = ctx.measureText(label).width;
+          ctx.fillStyle = "rgba(0,0,0,0.68)";
+          ctx.fillRect(p.x + 10, p.y - 16, w + 8, 15);
+          ctx.fillStyle = "#fff3c2";
+          ctx.fillText(label, p.x + 14, p.y - 5);
+        }
+      });
+      ctx.restore();
+    }
+    function objectiveObjectPoint(objectiveId) {
+      if (!objectiveId) return null;
+      for (let idx = 0; idx < objects().length; idx++) {
+        const obj = objects()[idx];
+        const objective = missionObjectiveFor(obj, idx);
+        if (objective?.id === objectiveId || obj?.scenario_objective_id === objectiveId) {
+          return { idx, obj, point: worldToScreen(Number(obj.x_coord || 0), Number(obj.y_coord || 0)) };
+        }
+      }
+      return null;
+    }
+    function drawSelectedTargetPackages(r) {
+      if (selected < 0 || !objects()[selected]) return;
+      const selectedObjective = missionObjectiveFor(objects()[selected], selected);
+      const targetSets = targetSetsForObjective(selectedObjective);
+      if (!targetSets.length) return;
+      ctx.save();
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      targetSets.forEach((targetSet, packageIdx) => {
+        const ids = Array.isArray(targetSet.objective_ids) ? targetSet.objective_ids : [];
+        const points = ids.map(id => objectiveObjectPoint(id)).filter(Boolean);
+        if (!points.length) return;
+        ctx.strokeStyle = packageIdx % 2 ? "rgba(101,214,255,0.92)" : "rgba(255,207,90,0.92)";
+        ctx.fillStyle = "rgba(0,0,0,0.72)";
+        ctx.lineWidth = 3;
+        ctx.setLineDash([10, 6]);
+        if (points.length > 1) {
+          ctx.beginPath();
+          points.forEach((entry, idx) => idx ? ctx.lineTo(entry.point.x, entry.point.y) : ctx.moveTo(entry.point.x, entry.point.y));
+          ctx.stroke();
+        }
+        ctx.setLineDash([]);
+        points.forEach(entry => {
+          const p = entry.point;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, entry.idx === selected ? 13 : 10, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+        });
+        const labelAt = points[0].point;
+        const label = targetSet.id || "target_set";
+        ctx.font = "11px Aptos Display, Segoe UI, sans-serif";
+        const width = ctx.measureText(label).width;
+        ctx.fillStyle = "rgba(0,0,0,0.72)";
+        ctx.fillRect(labelAt.x + 14, labelAt.y + 8, width + 8, 16);
+        ctx.fillStyle = "#fff3c2";
+        ctx.fillText(label, labelAt.x + 18, labelAt.y + 20);
+      });
+      ctx.restore();
+    }
     function drawObjects() {
       objects().forEach((obj, idx) => {
         if (!obj || (!obj.x_coord && !obj.y_coord && !obj.objectIdx && !obj.unitRef)) return;
@@ -883,6 +1183,7 @@
     function drawObjectLabel(obj, p, isSelected) {
       const idx = Number(obj.objectIdx || 0) & 0x7f;
       const label = objectName(obj);
+      const objective = missionObjectiveLabel(obj, objects().indexOf(obj));
       const color = colorFor(obj);
       ctx.save();
       ctx.globalAlpha = 0.92;
@@ -896,7 +1197,7 @@
       ctx.fillStyle = color;
       ctx.fillRect(p.x - 4, p.y - 4, 8, 8);
       ctx.font = "11px Aptos Display, Segoe UI, sans-serif";
-      const text = `${idx}: ${label}`;
+      const text = objective ? `${idx}: ${objective}` : `${idx}: ${label}`;
       const w = ctx.measureText(text).width;
       ctx.fillStyle = "rgba(0,0,0,0.72)";
       ctx.fillRect(p.x + 12, p.y - 10, w + 8, 16);
@@ -988,7 +1289,99 @@
       obj[key] = Number.isNaN(Number(value)) ? value : Number(value);
       if (key === "x_coord" || key === "y_coord") {
         obj[key] = clamp(Math.round(Number(obj[key])), 0, WORLD_MAX - 1);
+        syncRoutePlanForObject(obj, selected);
       }
+      refreshTargetAnnotations();
+      markDirty();
+      renderDetails();
+      renderList();
+      draw();
+    }
+    function parseListValue(value, separator) {
+      return String(value || "")
+        .split(separator)
+        .map(v => v.trim())
+        .filter(Boolean);
+    }
+    function replaceObjectiveReference(sortie, oldId, newId, key) {
+      if (!oldId || !newId || oldId === newId || !Array.isArray(sortie?.[key])) return;
+      sortie[key] = sortie[key].map(value => value === oldId ? newId : value);
+    }
+    function replaceTargetSetObjectiveReference(targetSet, oldId, newId) {
+      if (!oldId || !newId || oldId === newId || !targetSet) return;
+      if (Array.isArray(targetSet.objective_ids)) {
+        targetSet.objective_ids = targetSet.objective_ids.map(value => value === oldId ? newId : value);
+      }
+      if (Array.isArray(targetSet.target_elements)) {
+        targetSet.target_elements.forEach(element => {
+          if (element?.objective_id === oldId) element.objective_id = newId;
+        });
+      }
+      const victory = targetSet.victory_logic;
+      if (victory && Array.isArray(victory.bonus_objective_ids)) {
+        victory.bonus_objective_ids = victory.bonus_objective_ids.map(value => value === oldId ? newId : value);
+      }
+      if (victory && Array.isArray(victory.friendly_survival_required)) {
+        victory.friendly_survival_required = victory.friendly_survival_required.map(value => value === oldId ? newId : value);
+      }
+    }
+    function parseAttackOrder(value) {
+      return String(value || "")
+        .split(/->|,/)
+        .map(v => v.trim())
+        .filter(Boolean);
+    }
+    function updateTargetPackageField(targetSetId, key, value) {
+      const targetSet = missionTargetSets().find(item => item?.id === targetSetId);
+      if (!targetSet) return;
+      if (key === "attack_order") {
+        targetSet.attack_order = parseAttackOrder(value);
+      } else if (key === "victory_logic") {
+        try {
+          const parsed = JSON.parse(value || "{}");
+          if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+            alert("Victory logic must be a JSON object.");
+            return;
+          }
+          targetSet.victory_logic = parsed;
+        } catch (err) {
+          alert(`Invalid victory JSON: ${err.message}`);
+          return;
+        }
+      } else {
+        targetSet[key] = value;
+      }
+      markDirty();
+      renderDetails();
+      draw();
+    }
+    function updateObjectiveField(key, value) {
+      if (!world || selected < 0 || !objects()[selected]) return;
+      const obj = objects()[selected];
+      const objective = ensureMissionObjectiveFor(obj, selected);
+      const oldId = String(objective.id || "");
+      if (key === "success_criteria") objective[key] = parseListValue(value, ";");
+      else if (key === "radio_cue_ids") objective[key] = parseListValue(value, ",");
+      else objective[key] = value;
+      if (key === "id") {
+        obj.scenario_objective_id = String(value || "");
+        sortieSequence().forEach(sortie => {
+          replaceObjectiveReference(sortie, oldId, String(value || ""), "objective_ids");
+          replaceObjectiveReference(sortie, oldId, String(value || ""), "primary_objective_ids");
+          replaceObjectiveReference(sortie, oldId, String(value || ""), "secondary_objective_ids");
+        });
+        missionTargetSets().forEach(targetSet => replaceTargetSetObjectiveReference(targetSet, oldId, String(value || "")));
+      }
+      if (key === "role") obj.scenario_role = String(value || "");
+      if (key === "priority") obj.scenario_priority = String(value || "");
+      if (key === "faction") obj.scenario_faction = String(value || "");
+      if (key === "domain") obj.scenario_domain = String(value || "");
+      if (key === "action") obj.scenario_action = String(value || "");
+      if (key === "target_type") obj.scenario_target_type = String(value || "");
+      if (key === "threat_level") obj.scenario_threat_level = String(value || "");
+      if (key === "desired_effect") obj.scenario_desired_effect = String(value || "");
+      if (key === "intent") obj.scenario_objective = String(value || "");
+      refreshTargetAnnotations();
       markDirty();
       renderDetails();
       renderList();
@@ -1002,6 +1395,7 @@
       objects().push(copy);
       world.read_item_size = objects().length;
       selected = objects().length - 1;
+      refreshTargetAnnotations();
       markDirty();
       updateStats();
       renderDetails();
@@ -1015,6 +1409,7 @@
       objects().splice(selected, 1);
       world.read_item_size = objects().length;
       selected = Math.min(selected, objects().length - 1);
+      refreshTargetAnnotations();
       markDirty();
       updateStats();
       renderDetails();
@@ -1031,6 +1426,10 @@
       const flags = flagLabels(obj);
       const linkedFlights = flightsForObject(selected);
       const role = roleFor(obj, selected);
+      const objective = missionObjectiveFor(obj, selected);
+      const sorties = sortiesForObjective(objective);
+      const targetSets = targetSetsForObjective(objective);
+      const waypoint = routeWaypointByObjective(objective?.id || obj.scenario_objective_id || "");
       const typeValue = objectTypeValue(obj);
       const modelIdx = Number(obj.objectIdx || 0) & 0x7f;
       const hasModel = glbSceneByIndex.has(modelIdx);
@@ -1039,7 +1438,22 @@
         ${preview}
         <div class="row"><label>Index</label><input value="${selected}" disabled></div>
         <div class="row"><label>Label</label><input value="${escapeHtml(objectName(obj))}" disabled></div>
-        <div class="row"><label>Role</label><input value="${escapeHtml(role)}" disabled></div>
+        <div class="row"><label>Role</label><input data-o="role" value="${escapeHtml(objective?.role || role)}"></div>
+        <div class="row"><label>Objective</label><input data-o="id" value="${escapeHtml(objective?.id || obj.scenario_objective_id || "")}"></div>
+        <div class="row"><label>Priority</label><input data-o="priority" value="${escapeHtml(objective?.priority || obj.scenario_priority || "")}"></div>
+        <div class="row"><label>Faction</label><input data-o="faction" value="${escapeHtml(objective?.faction || obj.scenario_faction || "")}"></div>
+        <div class="row"><label>Domain</label><input data-o="domain" value="${escapeHtml(objective?.domain || obj.scenario_domain || "")}"></div>
+        <div class="row"><label>Action</label><input data-o="action" value="${escapeHtml(objective?.action || obj.scenario_action || "")}"></div>
+        <div class="row"><label>Target type</label><input data-o="target_type" value="${escapeHtml(objective?.target_type || obj.scenario_target_type || "")}"></div>
+        <div class="row"><label>Threat</label><input data-o="threat_level" value="${escapeHtml(objective?.threat_level || obj.scenario_threat_level || "")}"></div>
+        <div class="row"><label>Effect</label><input data-o="desired_effect" value="${escapeHtml(objective?.desired_effect || obj.scenario_desired_effect || "")}"></div>
+        <div class="row"><label>Loadout</label><input data-o="suggested_loadout" value="${escapeHtml(objective?.suggested_loadout || "")}"></div>
+        <div class="row"><label>Success</label><input data-o="success_criteria" value="${escapeHtml((objective?.success_criteria || []).join("; "))}"></div>
+        <div class="row"><label>Radio cues</label><input data-o="radio_cue_ids" value="${escapeHtml((objective?.radio_cue_ids || []).join(", "))}"></div>
+        <div class="row"><label>Intent</label><input data-o="intent" value="${escapeHtml(objective?.intent || obj.scenario_objective || "")}"></div>
+        <div class="row"><label>Sorties</label><div>${renderSortieCards(sorties)}</div></div>
+        <div class="row"><label>Target pkgs</label><div>${renderTargetPackages(targetSets)}</div></div>
+        <div class="row"><label>Route wp</label><input value="${waypoint ? `${escapeHtml(waypoint.id || "")}: ${escapeHtml(waypoint.label || "")} (${waypoint.x_coord || 0}, ${waypoint.y_coord || 0})` : "none"}" disabled></div>
         <div class="row"><label>Flags</label><div class="chips">${(flags.length ? flags : ["none"]).map(v => `<span class="chip">${escapeHtml(v)}</span>`).join("")}</div></div>
         <div class="row"><label>object type</label><input value="${typeValue} (${hex(typeValue)})" disabled></div>
         <div class="row"><label>flights here</label><input value="${linkedFlights.length ? linkedFlights.map(v => `#${v.unitIdx} plane ${v.unit.planeType}`).join(", ") : "none"}" disabled></div>
@@ -1056,6 +1470,12 @@
       `;
       detailsEl.querySelectorAll("input[data-k]").forEach(input => {
         input.addEventListener("change", () => updateField(input.dataset.k, input.value));
+      });
+      detailsEl.querySelectorAll("input[data-o]").forEach(input => {
+        input.addEventListener("change", () => updateObjectiveField(input.dataset.o, input.value));
+      });
+      detailsEl.querySelectorAll("input[data-tp], textarea[data-tp]").forEach(input => {
+        input.addEventListener("change", () => updateTargetPackageField(input.dataset.targetSetId, input.dataset.tp, input.value));
       });
       detailsEl.querySelectorAll("button[data-preview]").forEach(button => {
         button.addEventListener("click", () => {
@@ -1076,7 +1496,10 @@
         if (!obj || (!obj.x_coord && !obj.y_coord && !obj.objectIdx && !obj.unitRef)) return;
         const el = document.createElement("div");
         el.className = "item" + (idx === selected ? " active" : "");
-        el.innerHTML = `<strong>${idx}: ${escapeHtml(objectName(obj))}</strong><small>${escapeHtml(roleFor(obj, idx))}; x ${obj.x_coord || 0}, y ${obj.y_coord || 0}, flags ${obj.targetFlags || 0}</small>`;
+        const objective = missionObjectiveFor(obj, idx);
+        const title = objective?.id ? `${objective.id}: ${objectName(obj)}` : objectName(obj);
+        const priority = objective?.priority ? `; priority ${objective.priority}` : "";
+        el.innerHTML = `<strong>${idx}: ${escapeHtml(title)}</strong><small>${escapeHtml(roleFor(obj, idx))}${escapeHtml(priority)}; x ${obj.x_coord || 0}, y ${obj.y_coord || 0}, flags ${obj.targetFlags || 0}</small>`;
         el.addEventListener("click", () => selectObject(idx));
         listEl.appendChild(el);
       });
@@ -1253,10 +1676,43 @@
       autoLoadGlbModels();
       draw();
     }
+    async function loadCampaignManifest(text, name) {
+      const manifest = JSON.parse(text);
+      if (manifest?.format !== "F15SE2_CAMPAIGN" || !manifest?.world) {
+        alert("This JSON is not an F15SE2 campaign manifest.");
+        return;
+      }
+      if (location.protocol === "file:") {
+        alert("campaign.json references a WLD file. Serve this directory with `python3 -m http.server 8000` and open http://localhost:8000/tools/f15assets/map_editor.html so the editor can fetch the referenced WLD JSON.");
+        return;
+      }
+      const worldUrl = campaignWorldUrl(manifest, name);
+      const response = await fetch(worldUrl);
+      if (!response.ok) {
+        alert(`Could not load campaign world JSON: ${manifest.world}`);
+        return;
+      }
+      loadWorld(await response.text(), String(manifest.world).split("/").pop() || "campaign.WLD.json");
+      if (world) {
+        world.campaign_manifest = manifest;
+        titleEl.textContent = `${manifest.id || name}: ${world.fileName || manifest.world}`;
+      }
+    }
+    function campaignWorldUrl(manifest, name) {
+      const id = String(manifest.id || "").trim();
+      const worldPath = String(manifest.world);
+      const pageDir = String(location.href).slice(0, String(location.href).lastIndexOf("/") + 1);
+      if (id && !worldPath.includes("/")) {
+        return new URL(`../../converted_assets_all/${encodeURIComponent(id)}/${worldPath}`, pageDir).toString();
+      }
+      return new URL(worldPath, pageDir).toString();
+    }
     fileInput.addEventListener("change", async event => {
       const file = event.target.files[0];
       if (!file) return;
-      loadWorld(await file.text(), file.name);
+      const text = await file.text();
+      if (/campaign\.json$/i.test(file.name)) await loadCampaignManifest(text, file.name);
+      else loadWorld(text, file.name);
     });
     canvas.addEventListener("pointerdown", event => {
       if (!world) return;
@@ -1284,6 +1740,8 @@
       const p = screenToWorld(x, y);
       objects()[selected].x_coord = p.x;
       objects()[selected].y_coord = p.y;
+      syncRoutePlanForObject(objects()[selected], selected);
+      refreshTargetAnnotations();
       markDirty();
       renderDetails();
       draw();
@@ -1300,6 +1758,11 @@
     document.getElementById("toggle-grid").addEventListener("click", event => {
       showGrid = !showGrid;
       event.target.textContent = showGrid ? "Grid on" : "Grid off";
+      draw();
+    });
+    document.getElementById("toggle-routes").addEventListener("click", event => {
+      showRoutes = !showRoutes;
+      event.target.textContent = showRoutes ? "Routes on" : "Routes off";
       draw();
     });
     document.getElementById("toggle-glb").addEventListener("click", event => {

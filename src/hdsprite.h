@@ -20,16 +20,17 @@ typedef struct R2DImage R2DImage;
  * ownship always points up). Returns 0 when no HD asset is available or this is not
  * a native-overlay vector frame. */
 int hdsprite_drawRadarOwnship(float destX, float destY);
+void hdsprite_drawCockpitIndicator(int indicator, int x, int y, int color);
 
 /* Other middle-MFD radar-scope icons, drawn into the 7x7 gauge footprint centred on
  * the sub-pixel blip (cx,cy). Return 1 if the HD art was submitted (caller skips the
  * atlas), 0 to fall back. GPU-only.
  *   drawRadarContact: enemy aircraft, spun to relative heading; altBand 0=co-alt,
  *                     1=below, 2=above (assets plane-level/plane-low/plane-high).
- *   drawRadarBlip:    fixed status blips keyed by scope `code` — 1=sam, 5=bullseye,
- *                     7=boat; other codes return 0 (keep legacy). */
+ * Non-aircraft contacts use the F15.png sprite atlas. */
 int hdsprite_drawRadarContact(int altBand, float cx, float cy, int angle16);
-int hdsprite_drawRadarBlip(int code, float cx, float cy);
+/* Optional extracted row-3 atlas sprites; missing files keep the source atlas. */
+int hdsprite_drawRadarAtlasIcon(int column, float cx, float cy, int angle16);
 
 /* HUD reticles (main viewport, 320-space). Each draws the HD PNG into the footprint
  * of the legacy blitSprite it replaces — (destX,destY) is the footprint's fractional
@@ -50,6 +51,10 @@ int hdsprite_drawHudAamSeeker(float destX, float destY);
  * (position 8,10; size 224×168 in 320-space). Returns 1 if drawn, 0 to fall back
  * to the legacy SPR. Lazily loaded once per theatre. */
 int hdsprite_drawDebriefTheatreMap(int theatre);
+
+/* Tactical map background: draw the geographic part of the theatre map in the
+ * left cockpit display. Returns 1 if HD art was submitted, 0 for legacy terrain. */
+int hdsprite_drawTacticalMapBackground(int theatre, int centerX, int centerY, int zoomLevel);
 
 /*
  * Pre-mission briefing (START mission-select) widescreen HD art. Unlike the sprites
@@ -75,6 +80,9 @@ int hdsprite_drawDebriefTheatreMap(int theatre);
  */
 int hdsprite_hasBriefingWall(void); /* true if the HD wall loaded (gates the HD path) */
 void hdsprite_drawBriefingWall(void);
+/* Optional room.png plus full-person 0..6.png in start/menu/person. The complete
+ * set must share canvas dimensions. Returns 0 for the legacy arm fallback. */
+int hdsprite_drawBriefingPerson(int frame);
 void hdsprite_drawBriefingArm(int frame); /* frame = arm position 0..6 */
 
 #endif /* HDSPRITE_H */

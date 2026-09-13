@@ -29,8 +29,8 @@ enum StartParseOriginalConstant : int {
     kTerrainMagic = 0x3131,
     kBadSignature = 0x1111,
     kTerrainLevelCount = 5,
-    kTerrainTileLimit = 32,
-    kTerrainOverflowTileCount = 600,
+    kTerrainTileLimit = TERRAIN_TILE_PATTERN_CAPACITY,
+    kTerrainOverflowTileCount = TERRAIN_PLACEMENT_STORAGE_BYTES / sizeof(struct TerrainTile) + 1,
     kGoodGridBuf1Byte = 0x11,
     kGoodGridBuf2Byte = 0x22,
     kGoodGridBuf3Byte = 0x33,
@@ -276,7 +276,7 @@ int main() {
     require(g_messageCalls == kExpectedOneCall &&
                 std::strcmp(g_lastMessage, "Too many tiles.") == 0 &&
                 g_keyCalls == kExpectedOneCall,
-            "parseTerrain preserves original per-level tile-count limit prompt");
+            "parseTerrain rejects counts above the runtime tile-pattern capacity");
 
     resetParseState();
     {
@@ -295,7 +295,7 @@ int main() {
     require(g_messageCalls == kExpectedOneCall &&
                 std::strcmp(g_lastMessage, "Too much tile data") == 0 &&
                 g_keyCalls == kExpectedOneCall,
-            "parseTerrain preserves original tile-data overflow prompt");
+            "parseTerrain rejects a placement count beyond runtime storage capacity");
 
     resetParseState();
     std::strcpy(regnPlhPtr, "REGN.XYZ");

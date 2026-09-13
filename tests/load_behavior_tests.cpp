@@ -53,8 +53,8 @@ enum LoadOriginalConstant : int {
     kTileObjectShapeWord = 0x87,
     kTileMatrixReadPrefix = 7,
     kTileObjectWordReads = 4,
-    kTileOverflowObjectCount = 573,
-    kTileOverflowTriggerObject = 571,
+    kTileOverflowTriggerObject = MAX_TILE_DATA / sizeof(struct TileSceneObject),
+    kTileOverflowObjectCount = kTileOverflowTriggerObject + 1,
     kObjectOffsetWordCount = 1,
     kObjectDataBytes = 3,
     kObjectDataNearOverflowBytes = 0xADD2,
@@ -157,7 +157,7 @@ void resetLoadState() {
     std::memset(g_world3dData, 0, 0xadd4);
     std::memset(buf_3dt, 0, MAX_TILE_DATA);
     std::memset(sizes3dt, 0, sizeof(uint16) * kTileCategoryCount);
-    std::memset(matrix3dt, 0, sizeof(uint16) * kTileCategoryCount * 32);
+    std::memset(matrix3dt, 0, sizeof(matrix3dt));
     std::memset(matrix3dt_2, 0, sizeof(matrix3dt_2));
     std::memset(g_targetSlots, 0, sizeof(struct TargetSlot) * 2);
     std::memset(buf1_3dg, 0, kGrid1Bytes);
@@ -303,7 +303,7 @@ size_t fileRead(void *ptr, size_t size, size_t count, SDL_IOStream *handle) {
         case 2:
             require(bytes == sizeof(uint16) * kTileCategoryCount,
                     "load3DT reads the five original tile-category counts");
-            writeUint16(ptr, g_tooManyTiles ? 33 : kTileObjectCount);
+            writeUint16(ptr, g_tooManyTiles ? TERRAIN_TILE_PATTERN_CAPACITY + 1 : kTileObjectCount);
             std::memset(static_cast<uint16 *>(ptr) + 1, 0,
                         sizeof(uint16) * (kTileCategoryCount - 1));
             break;
@@ -542,6 +542,7 @@ void drawStringBothPages(const char *text, int x, int y, int color) {
 void gfx_flipPage(void) { ++g_flipCalls; }
 int misc_getKey(void) { ++g_keyCalls; return 0; }
 void gfx_waitRetrace(void) { ++g_waitRetraceCalls; }
+int customWorldScenarioBaseTheaterIndex(void) { return -1; }
 void setDrawColor(int) {}
 void fillRectBoth(int, int, int, int) {}
 
@@ -663,17 +664,17 @@ int main() {
     g_tooManyTiles = true;
     load3DT(regnStr);
     require(g_readCalls == kExpectedTwoCalls &&
-                g_closeCalls == 0 &&
+                g_closeCalls == kExpectedOneCall &&
                 std::strcmp(g_drawLog[0].text, "Too many tiles.") == 0,
-            "load3DT preserves original too-many-tiles error without closing the open handle");
+            "load3DT rejects excessive tile counts and closes the file");
 
     resetLoadState();
     g_tileDataOverflow = true;
     load3DT(regnStr);
     require(g_readCalls == kTileMatrixReadPrefix + kTileOverflowTriggerObject * kTileObjectWordReads &&
-                g_closeCalls == 0 &&
+                g_closeCalls == kExpectedOneCall &&
                 std::strcmp(g_drawLog[0].text, "Too much tile data") == 0,
-            "load3DT preserves original late tile-data overflow guard without closing the open handle");
+            "load3DT rejects the first record beyond storage capacity and closes the file");
 
     resetLoadState();
     load3D3(regnStr);
@@ -728,8 +729,12 @@ int main() {
     g_targetSlots[0].flags = kTargetSlotSubCount << 8;
     load3D3(regnStr);
     require(g_drawCalls == kExpectedOneCall &&
-                std::strcmp(g_drawLog[0].text, "ObjData overflow") == 0,
-            "load3D3 preserves original final object-data overflow guard after photo subobjects");
+                std::strcmp(g_drawLog[0].text, "Photo model data overflow.") == 0 &&
+                g_activeFileReadCalls == 4 &&
+                g_closeCalls == kPhotoOpenCountWithSubobject &&
+                g_world3dData[kObjectDataNearOverflowBytes] == 0 &&
+                g_world3dData[kObjectDataNearOverflowBytes + 1] == 0,
+            "load3D3 rejects oversized photo data before payload reads and closes the file");
 
     resetLoadState();
     g_forcedOpenFailureFile = LoaderFile::Object3D3;

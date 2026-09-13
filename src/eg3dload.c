@@ -47,6 +47,12 @@ void load3D3(char *fileName) {
         return;
     }
     fileRead(&size3d3, 2, 1, fileHandle);
+    if (size3d3 > MAX_IMPORTED_MODEL_SLOTS) {
+        printError("Too many object models.");
+        fileClose(fileHandle);
+        size3d3 = 0;
+        return;
+    }
     fileRead(buf3d3, 2, size3d3, fileHandle);
     fileRead(&size3d3_2, 2, 1, fileHandle);
     if (size3d3_2 > 0xadd4) {
@@ -89,11 +95,24 @@ void load3D3(char *fileName) {
             fileHandle = openFile("photo.3d3", 0);
             fileRead(&sign3d3, 2, 1, fileHandle);
             fileRead(&size3d3_7, 2, 1, fileHandle);
+            if (sign3d3 != SIGNATURE_3D3 ||
+                size3d3_7 > PHOTO_MODEL_SLOT_CAPACITY ||
+                subCount < 0 || (size_t)subCount >= size3d3_7) {
+                fileClose(fileHandle);
+                printError("Invalid photo model table.");
+                return;
+            }
             fileRead(g_modelOffsetTable, 2, size3d3_7, fileHandle);
             fileRead(&size3d3_2, 2, 1, fileHandle);
             g_modelOffsetTable[size3d3_7] = size3d3_2;
             for (sub = 0; sub <= subCount; sub++) {
                 chunk = g_modelOffsetTable[sub + 1] - g_modelOffsetTable[sub];
+                if (g_modelOffsetTable[sub] < 0 || chunk < 0 ||
+                    objDataEnd - g_world3dData + chunk > 0xadd4) {
+                    fileClose(fileHandle);
+                    printError("Photo model data overflow.");
+                    return;
+                }
                 while (chunk > 0x800) {
                     fileRead(flt15_buf2, 1, 0x800, fileHandle);
                     chunk -= 0x800;
@@ -114,7 +133,8 @@ void load3D3(char *fileName) {
 
 // ==== seg000:0x2c82 ====
 void load3DT(char *fileName) {
-    int16 shape, cat, byteOff, tile, obj;
+    int16 shape, cat, tile, obj;
+    size_t byteOff = 0;
     strcpyFromDot(fileName, ".3dT");
     if ((fileHandle = openFile(fileName, 0)) == NULL) {
         printError("Open Error on *.3DT");
@@ -128,13 +148,13 @@ void load3DT(char *fileName) {
     }
     fileRead(sizes3dt, 2, 5, fileHandle);
     for (cat = 0; cat < 5; cat++) {
-        if (sizes3dt[cat] > 32) {
+        if (sizes3dt[cat] > TERRAIN_TILE_PATTERN_CAPACITY) {
             printError("Too many tiles.");
+            fileClose(fileHandle);
             return;
         }
         fileRead(matrix3dt[cat], 2, sizes3dt[cat], fileHandle);
     }
-    byteOff = 0;
 #define GET_MATRIX(BYTE_OFFSET) ((struct TileSceneObject *)(buf_3dt + BYTE_OFFSET))
     for (cat = 0; cat < 5; cat++) {
         for (tile = 0; sizes3dt[cat] > tile; tile++) {
@@ -142,6 +162,7 @@ void load3DT(char *fileName) {
             for (obj = 0; matrix3dt[cat][tile] > obj; obj++) {
                 if ((byteOff + sizeof(struct TileSceneObject)) > MAX_TILE_DATA) {
                     printError("Too much tile data");
+                    fileClose(fileHandle);
                     return;
                 }
                 fileRead(&GET_MATRIX(byteOff)->x, 2, 1, fileHandle);
@@ -157,8 +178,12 @@ void load3DT(char *fileName) {
 }
 
 // ==== seg000:0x2e54 ====
+#include "shared/common.h"
+
 void load3DG() {
     int16 unused_1, unused_2, unused_3;
+    int childGridBytes;
+    uint8 campaignTopGrid[16];
     strcpyFromDot(regnStr, ".3dG");
     while ((fileHandle = openFile(regnStr, 0)) == NULL) {
         drawStringBothPages("Please insert F15 Disk B", 104, 40, 0x0f);
@@ -168,18 +193,29 @@ void load3DG() {
     }
     gfx_waitRetrace();
     fileRead(&sign3dg, 2, 1, fileHandle);
-    if (sign3dg != SIGNATURE_3DG) {
+    if (sign3dg != SIGNATURE_3DG && sign3dg != EXTENDED_TERRAIN_GRID_SIGNATURE) {
         printError("Bad Grid file format.");
         fileClose(fileHandle);
         return;
     }
-    fileRead(buf1_3dg, 1, 16, fileHandle);
+    fileRead(campaignTopGrid, 1, sizeof(campaignTopGrid), fileHandle);
     fileRead(buf1_3dg, 1, 0x100, fileHandle);
-    fileRead(buf2_3dg, 1, 0x200, fileHandle);
-    fileRead(buf3_3dg, 1, 0x200, fileHandle);
-    fileRead(buf4_3dg, 1, 0x200, fileHandle);
+    childGridBytes = sign3dg == EXTENDED_TERRAIN_GRID_SIGNATURE
+        ? TERRAIN_CHILD_GRID_BYTES : LEGACY_TERRAIN_CHILD_GRID_BYTES;
+    memset(buf2_3dg, 0, TERRAIN_CHILD_GRID_BYTES);
+    memset(buf3_3dg, 0, TERRAIN_CHILD_GRID_BYTES);
+    memset(buf4_3dg, 0, TERRAIN_CHILD_GRID_BYTES);
+    fileRead(buf2_3dg, 1, childGridBytes, fileHandle);
+    fileRead(buf3_3dg, 1, childGridBytes, fileHandle);
+    fileRead(buf4_3dg, 1, childGridBytes, fileHandle);
     fileClose(fileHandle);
     memcpy(g_topLodGrid, g_theaterGrids + ((gameData->theater & 7) * 64), 64);
+    if (customWorldScenarioBaseTheaterIndex() >= 0) {
+        int row;
+        for (row = 0; row < 4; ++row) {
+            memcpy(g_topLodGrid + (row + 2) * 8 + 2, campaignTopGrid + row * 4, 4);
+        }
+    }
 }
 
 // ==== seg000:0x2f8c ====

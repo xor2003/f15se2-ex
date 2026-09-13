@@ -37,6 +37,7 @@ int egame_main(void) {
     g_ejectState = 0;
     g_ejectPending = 0;
     g_viewMode = VIEW_COCKPIT;
+    g_autopilotEngaged = 0;
     g_directorMode = 0;
     g_directorEventDeadline = -1;
     g_tacmapIndicators[7] = g_tacmapIndicators[12] = g_tacmapIndicators[17] = g_tacmapIndicators[22] = 3;

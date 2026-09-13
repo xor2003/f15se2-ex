@@ -164,8 +164,7 @@ void drawTacticalMap(char page) {
                  * hand-drawn frames. Status blips (1/6/7) never rotate. */
                 if (code < 8 || code > 11 ||
                     !drawRotatedGaugeSprite(8, 3, g_scopeFx, g_scopeFy, -g_ourHead)) {
-                    if (!hdsprite_drawRadarBlip(code, g_scopeFx, g_scopeFy))
-                        blitGaugeSprite(code, 3, vtxScratch.vproj.x.lo, vtxScratch.vproj.y.lo);
+                    blitGaugeSprite(code, 3, vtxScratch.vproj.x.lo, vtxScratch.vproj.y.lo);
                 }
             }
         }
@@ -275,6 +274,9 @@ void projectMapPoint(int mapX, int mapY) {
 
 // ==== seg000:0xa872 ====
 void blitGaugeSprite(int srcCol, int srcRow, int destX, int destY) {
+    // The atlas's cx-3 footprint has its geometric centre half a pixel beyond cx.
+    if (srcRow == 3 && hdsprite_drawRadarAtlasIcon(srcCol, g_scopeFx + 0.5f, g_scopeFy + 0.5f, 0))
+        return;
     int srcX = srcCol * 8 + 1;
     int srcY = srcRow * 8 + 31;
     /* On the GL scope, centre the 7x7 icon on the sub-pixel projected blip
@@ -301,6 +303,7 @@ void blitGaugeSprite(int srcCol, int srcRow, int destX, int destY) {
  * the HD path spins one icon smoothly rather than snapping to a hand-drawn frame.
  * Returns 0 on the software backend so the caller keeps the pre-rotated atlas frame. */
 static int drawRotatedGaugeSprite(int srcCol, int srcRow, float cx, float cy, int angle16) {
+    if (srcRow == 3 && hdsprite_drawRadarAtlasIcon(srcCol, cx, cy, angle16)) return 1;
     int srcX = srcCol * 8 + 1;
     int srcY = srcRow * 8 + 31;
     float rad = (float)(int16)angle16 * (float)(6.283185307179586 / 65536.0);

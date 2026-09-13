@@ -58,6 +58,8 @@ int g_fileReadCalls = 0;
 int g_spriteSurfaceCalls = 0;
 int g_hiResSurfaceCalls = 0;
 int g_presentHiResCalls = 0;
+int g_hiResReplacementSurfaceCalls = 0;
+int g_pageReplacementSurfaceCalls = 0;
 bool g_repeatPicStreamReads = false;
 bool g_sequentialPicStreamReads = false;
 int g_lastPage = -1;
@@ -136,6 +138,8 @@ void resetPicImplState() {
     g_spriteSurfaceCalls = 0;
     g_hiResSurfaceCalls = 0;
     g_presentHiResCalls = 0;
+    g_hiResReplacementSurfaceCalls = 0;
+    g_pageReplacementSurfaceCalls = 0;
     g_repeatPicStreamReads = false;
     g_sequentialPicStreamReads = false;
     g_lastPage = -1;
@@ -208,6 +212,17 @@ SDL_Surface *gfx_getHiResSurface(void) {
 
 void gfx_presentHiRes(void) {
     ++g_presentHiResCalls;
+}
+
+void gfx_setHiResReplacementSurface(SDL_Surface *) {
+    ++g_hiResReplacementSurfaceCalls;
+}
+
+void gfx_setPageReplacementSurface(SDL_Surface *) {
+    ++g_pageReplacementSurfaceCalls;
+}
+
+void gfx_setPageReplacementIndexedBase(SDL_Surface *) {
 }
 
 int main() {

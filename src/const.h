@@ -95,6 +95,8 @@ enum EgaColor {
 #define SIGNATURE_3DG 0x3232
 #define SIGNATURE_3DT 0x3131
 #define SIGNATURE_3D3 0x3333
-#define MAX_TILE_DATA 4000
+/* Runtime storage in bytes for decoded terrain placements, across all LODs. */
+#include "model_limits.h"
+#define MAX_TILE_DATA TERRAIN_PLACEMENT_STORAGE_BYTES
 
 #endif /* F15_SE2_CONST */

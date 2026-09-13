@@ -50,13 +50,41 @@
 static SDL_Window *sdlWindow = NULL;
 static SDL_Renderer *sdlRenderer = NULL;
 static bool s_useGL = false; /* OpenGL backend owns the context + present */
+static SDL_Texture *gfxSoftwarePresentTexture;
+static int gfxSoftwarePresentTextureW;
+static int gfxSoftwarePresentTextureH;
+static SDL_PixelFormat gfxSoftwarePresentTextureFormat;
+static uint32 *gfxSoftwarePresentPixels;
+static size_t gfxSoftwarePresentPixelCapacity;
+static uint32 gfxSoftwarePresentPalette[256];
+static int gfxSoftwarePresentPaletteGen = -1;
+static SDL_Surface *gfxPageReplacementSurface;
+static SDL_Surface *gfxPageCompositeSurface;
+static SDL_Surface *gfxPageReplacementIndexedBase;
+
+static void gfx_expandIndexedSurface(SDL_Surface *surf, uint32 *dst,
+                                     const uint32 *palette) {
+    int y;
+    for (y = 0; y < surf->h; y++) {
+        const uint8 *src = (const uint8 *)surf->pixels + (size_t)y * surf->pitch;
+        uint32 *dstRow = dst + (size_t)y * surf->w;
+        int x = 0;
+        for (; x + 4 <= surf->w; x += 4) {
+            dstRow[x] = palette[src[x]];
+            dstRow[x + 1] = palette[src[x + 1]];
+            dstRow[x + 2] = palette[src[x + 2]];
+            dstRow[x + 3] = palette[src[x + 3]];
+        }
+        for (; x < surf->w; x++) dstRow[x] = palette[src[x]];
+    }
+}
 
 /* Forward declarations for the page-surface model, used by gfx_videoShutdown
  * before their definitions further down. */
 static GfxState FAR *gfx_getState(void);
 static SDL_Palette *gfxPalette; /* shared 256-entry VGA DAC palette */
 static int gfxPaletteGen;       /* bumped on every palette-entry change (cache invalidation) */
-static void gfx_presentSurfaceSW(SDL_Surface *surf, int shake);
+static void gfx_presentSurfaceSW(SDL_Surface *surf, int virtW, int virtH, int shake);
 static void gfx_swLine(int x1, int y1, int x2, int y2, int color);
 static void gfx_swPoint(int x, int y, int color);
 static void gfx_swImage(struct R2DImage *img, int srcX, int srcY, int w, int h,
@@ -164,7 +192,20 @@ void gfx_videoShutdown(void) {
         SDL_DestroyPalette(gfxPalette);
         gfxPalette = NULL;
     }
+    gfx_setHiResReplacementSurface(NULL);
+    gfx_setPageReplacementSurface(NULL);
+    if (gfxPageCompositeSurface) {
+        SDL_DestroySurface(gfxPageCompositeSurface);
+        gfxPageCompositeSurface = NULL;
+    }
     cleanupReplacementFonts();
+    if (gfxSoftwarePresentTexture) {
+        SDL_DestroyTexture(gfxSoftwarePresentTexture);
+        gfxSoftwarePresentTexture = NULL;
+    }
+    SDL_free(gfxSoftwarePresentPixels);
+    gfxSoftwarePresentPixels = NULL;
+    gfxSoftwarePresentPixelCapacity = 0;
     if (sdlRenderer) SDL_DestroyRenderer(sdlRenderer);
     if (sdlWindow) SDL_DestroyWindow(sdlWindow);
     SDL_Quit();
@@ -383,6 +424,7 @@ uint8 *gfx_pagePixels(int page, int *pitchOut) {
  * via the shared r2d_blit. */
 #define MAX_SPRITE_BUFS 8
 static R2DImage *s_spriteBufs[MAX_SPRITE_BUFS];
+static R2DImage *s_spriteReplacementBufs[MAX_SPRITE_BUFS];
 
 int gfx_allocSpriteBuf(void) {
     int i;
@@ -399,6 +441,99 @@ int gfx_allocSpriteBuf(void) {
 struct SDL_Surface *gfx_getSpriteSurface(int handle) {
     if (handle < 1 || handle > MAX_SPRITE_BUFS) return NULL;
     return r2d_imageSurface(s_spriteBufs[handle - 1]);
+}
+
+void gfx_setSpriteReplacementPng(int handle, const char *path) {
+    SDL_Surface *source;
+    SDL_Surface *rgba;
+    int hasTransparency = 0;
+    int x;
+    int y;
+
+    if (handle < 1 || handle > MAX_SPRITE_BUFS) return;
+    r2d_releaseImage(s_spriteReplacementBufs[handle - 1]);
+    s_spriteReplacementBufs[handle - 1] = NULL;
+    if (!path || !r2d_hasNativeOverlay()) return;
+
+    source = SDL_LoadPNG(path);
+    if (!source || (source->w == LOGICAL_WIDTH && source->h == LOGICAL_HEIGHT &&
+                    source->format == SDL_PIXELFORMAT_INDEX8)) {
+        if (source) SDL_DestroySurface(source);
+        return;
+    }
+    rgba = SDL_ConvertSurface(source, SDL_PIXELFORMAT_RGBA32);
+    if (!rgba) {
+        SDL_DestroySurface(source);
+        return;
+    }
+
+    /* F15's top-left pixel is white artwork, not a colour key. Preserve explicit
+     * PNG alpha; opaque RGB sheets use the legacy black background convention. */
+    if (SDL_MUSTLOCK(rgba)) SDL_LockSurface(rgba);
+    for (y = 0; y < rgba->h && !hasTransparency; y++) {
+        const Uint8 *row = (const Uint8 *)rgba->pixels + (size_t)y * rgba->pitch;
+        for (x = 0; x < rgba->w; x++) {
+            if (row[x * 4 + 3] != 255) {
+                hasTransparency = 1;
+                break;
+            }
+        }
+    }
+    if (SDL_MUSTLOCK(source)) SDL_LockSurface(source);
+    for (y = 0; y < rgba->h; y++) {
+        Uint8 *row = (Uint8 *)rgba->pixels + (size_t)y * rgba->pitch;
+        const Uint8 *indices = (const Uint8 *)source->pixels + (size_t)y * source->pitch;
+        for (x = 0; x < rgba->w; x++) {
+            Uint8 *pixel = row + (size_t)x * 4u;
+            const int indexedBackground = source->format == SDL_PIXELFORMAT_INDEX8 && indices[x] == 0;
+            const int rgbBackground = source->format != SDL_PIXELFORMAT_INDEX8 &&
+                !hasTransparency && pixel[0] == 0 && pixel[1] == 0 && pixel[2] == 0;
+            if (indexedBackground || rgbBackground) {
+                pixel[3] = 0;
+            }
+        }
+    }
+    if (SDL_MUSTLOCK(source)) SDL_UnlockSurface(source);
+    SDL_DestroySurface(source);
+    if (SDL_MUSTLOCK(rgba)) SDL_UnlockSurface(rgba);
+    s_spriteReplacementBufs[handle - 1] = r2d_imageFromSurface(rgba);
+    if (!s_spriteReplacementBufs[handle - 1]) {
+        SDL_DestroySurface(rgba);
+        return;
+    }
+    LogInfo(("asset replacement: retained sprite atlas %s at %dx%d",
+             path, rgba->w, rgba->h));
+}
+
+int gfx_hasSpriteReplacement(int handle) {
+    return handle >= 1 && handle <= MAX_SPRITE_BUFS &&
+           s_spriteReplacementBufs[handle - 1] != NULL;
+}
+
+static int gfx_submitSpriteReplacement(int handle, int srcX, int srcY,
+                                       int width, int height, int dstX, int dstY,
+                                       int transparent) {
+    R2DImage *image;
+    SDL_Surface *surface;
+    int sourceX;
+    int sourceY;
+    int sourceRight;
+    int sourceBottom;
+
+    if (handle < 1 || handle > MAX_SPRITE_BUFS || !r2d_vectorActive()) return 0;
+    image = s_spriteReplacementBufs[handle - 1];
+    surface = r2d_imageSurface(image);
+    if (!surface) return 0;
+
+    sourceX = (int)(((int64)srcX * surface->w) / LOGICAL_WIDTH);
+    sourceY = (int)(((int64)srcY * surface->h) / LOGICAL_HEIGHT);
+    sourceRight = (int)(((int64)(srcX + width) * surface->w) / LOGICAL_WIDTH);
+    sourceBottom = (int)(((int64)(srcY + height) * surface->h) / LOGICAL_HEIGHT);
+    return r2d_submitImageF(image, sourceX, sourceY,
+                            sourceRight - sourceX, sourceBottom - sourceY,
+                            (float)dstX, (float)dstY,
+                            (float)width, (float)height,
+                            transparent ? R2D_IMAGE_ATLAS_TRANSPARENT : R2D_IMAGE_ATLAS_OPAQUE);
 }
 
 /* The R2DImage behind a sprite-buffer handle, for the image-submission path
@@ -422,7 +557,9 @@ static void gfx_swImage(R2DImage *img, int srcX, int srcY, int w, int h,
 void gfx_freeSpriteBuf(int handle) {
     if (handle < 1 || handle > MAX_SPRITE_BUFS) return;
     r2d_releaseImage(s_spriteBufs[handle - 1]);
+    r2d_releaseImage(s_spriteReplacementBufs[handle - 1]);
     s_spriteBufs[handle - 1] = NULL;
+    s_spriteReplacementBufs[handle - 1] = NULL;
 }
 
 /* While the 640x350 title is up, the renderer presents the separate hi-res
@@ -439,21 +576,66 @@ static bool gfxHiResActive = false;
  * overlay and the 640x350 hi-res title both map correctly) rather than SDL's
  * logical presentation; we render into the centred dst rect over a black-cleared
  * window. */
-static void gfx_presentSurfaceSW(SDL_Surface *surf, int shake) {
-    SDL_Texture *tex;
+static void gfx_presentSurfaceSW(SDL_Surface *surf, int virtW, int virtH, int shake) {
     R2DMapping m;
+    SDL_PixelFormat uploadFormat = surf ? surf->format : SDL_PIXELFORMAT_UNKNOWN;
+    const void *uploadPixels = surf ? surf->pixels : NULL;
+    int uploadPitch = surf ? surf->pitch : 0;
     int win_w, win_h;
     SDL_FRect dst;
+    int x, y;
     if (!surf || !sdlRenderer) return;
-    tex = SDL_CreateTextureFromSurface(sdlRenderer, surf);
-    if (!tex) return;
-    SDL_SetTextureScaleMode(tex, SDL_SCALEMODE_NEAREST);
+    if (virtW <= 0) virtW = surf->w;
+    if (virtH <= 0) virtH = surf->h;
+    if (surf->format == SDL_PIXELFORMAT_INDEX8) {
+        size_t pixelCount = (size_t)surf->w * (size_t)surf->h;
+        SDL_Palette *palette = SDL_GetSurfacePalette(surf);
+        if (!palette) return;
+        if (pixelCount > gfxSoftwarePresentPixelCapacity) {
+            uint32 *pixels = (uint32 *)SDL_realloc(gfxSoftwarePresentPixels,
+                                                   pixelCount * sizeof(*pixels));
+            if (!pixels) return;
+            gfxSoftwarePresentPixels = pixels;
+            gfxSoftwarePresentPixelCapacity = pixelCount;
+        }
+        if (gfxSoftwarePresentPaletteGen != gfxPaletteGen) {
+            for (x = 0; x < 256; x++) {
+                const SDL_Color c = palette->colors[x];
+                gfxSoftwarePresentPalette[x] = ((uint32)c.r << 16) |
+                                               ((uint32)c.g << 8) |
+                                               (uint32)c.b;
+            }
+            gfxSoftwarePresentPaletteGen = gfxPaletteGen;
+        }
+        gfx_expandIndexedSurface(surf, gfxSoftwarePresentPixels,
+                                 gfxSoftwarePresentPalette);
+        uploadFormat = SDL_PIXELFORMAT_XRGB8888;
+        uploadPixels = gfxSoftwarePresentPixels;
+        uploadPitch = surf->w * (int)sizeof(*gfxSoftwarePresentPixels);
+    }
+    if (!gfxSoftwarePresentTexture ||
+        gfxSoftwarePresentTextureW != surf->w ||
+        gfxSoftwarePresentTextureH != surf->h ||
+        gfxSoftwarePresentTextureFormat != uploadFormat) {
+        if (gfxSoftwarePresentTexture) SDL_DestroyTexture(gfxSoftwarePresentTexture);
+        gfxSoftwarePresentTexture = SDL_CreateTexture(sdlRenderer, uploadFormat,
+                                                       SDL_TEXTUREACCESS_STREAMING,
+                                                       surf->w, surf->h);
+        if (!gfxSoftwarePresentTexture) return;
+        gfxSoftwarePresentTextureW = surf->w;
+        gfxSoftwarePresentTextureH = surf->h;
+        gfxSoftwarePresentTextureFormat = uploadFormat;
+        SDL_SetTextureBlendMode(gfxSoftwarePresentTexture, SDL_BLENDMODE_NONE);
+    }
+    if (!SDL_UpdateTexture(gfxSoftwarePresentTexture, NULL, uploadPixels, uploadPitch)) return;
+    SDL_SetTextureScaleMode(gfxSoftwarePresentTexture,
+                            (surf->w == virtW && surf->h == virtH) ? SDL_SCALEMODE_NEAREST : SDL_SCALEMODE_LINEAR);
 
     SDL_GetRenderOutputSize(sdlRenderer, &win_w, &win_h);
     /* Square pixels: the software path presents the 320x200 page uniformly scaled
      * (fast, "fat" look). Non-square aspect correction here is an opt-in later step
      * (a present-time SDL stretch), not the default. */
-    r2d_computeMapping(surf->w, surf->h, win_w, win_h, 1, &m);
+    r2d_computeMapping(virtW, virtH, win_w, win_h, 1, &m);
 
     SDL_SetRenderDrawColor(sdlRenderer, 0, 0, 0, 255);
     SDL_RenderClear(sdlRenderer);
@@ -462,14 +644,71 @@ static void gfx_presentSurfaceSW(SDL_Surface *surf, int shake) {
      * virtual pixels (scaled to window space). */
     dst.x = (float)m.offX - (float)shake * m.scaleX;
     dst.y = (float)m.offY;
-    dst.w = (float)surf->w * m.scaleX;
-    dst.h = (float)surf->h * m.scaleY;
-    SDL_RenderTexture(sdlRenderer, tex, NULL, &dst);
+    dst.w = (float)virtW * m.scaleX;
+    dst.h = (float)virtH * m.scaleY;
+    SDL_RenderTexture(sdlRenderer, gfxSoftwarePresentTexture, NULL, &dst);
 #ifdef F15_HAVE_FREETYPE
     renderTtfTextOverlay(&m, sdlRenderer, 0);
 #endif
     SDL_RenderPresent(sdlRenderer);
-    SDL_DestroyTexture(tex);
+}
+
+static SDL_Surface *gfx_compositePageReplacement(SDL_Surface *page) {
+    SDL_Palette *pal;
+    int x, y;
+
+    if (!page || !gfxPageReplacementSurface) return page;
+    pal = gfx_getPalette();
+    if (!pal) return page;
+    if (!gfxPageCompositeSurface ||
+        gfxPageCompositeSurface->w != gfxPageReplacementSurface->w ||
+        gfxPageCompositeSurface->h != gfxPageReplacementSurface->h) {
+        if (gfxPageCompositeSurface) SDL_DestroySurface(gfxPageCompositeSurface);
+        gfxPageCompositeSurface = SDL_CreateSurface(gfxPageReplacementSurface->w, gfxPageReplacementSurface->h, SDL_PIXELFORMAT_RGBA32);
+        if (!gfxPageCompositeSurface) return page;
+    }
+
+    if (SDL_MUSTLOCK(gfxPageReplacementSurface)) SDL_LockSurface(gfxPageReplacementSurface);
+    if (gfxPageReplacementIndexedBase && SDL_MUSTLOCK(gfxPageReplacementIndexedBase)) SDL_LockSurface(gfxPageReplacementIndexedBase);
+    if (SDL_MUSTLOCK(gfxPageCompositeSurface)) SDL_LockSurface(gfxPageCompositeSurface);
+    if (SDL_MUSTLOCK(page)) SDL_LockSurface(page);
+
+    for (y = 0; y < gfxPageCompositeSurface->h; y++) {
+        int sy = (int)(((int64)y * page->h) / gfxPageCompositeSurface->h);
+        const uint8 *bg = (const uint8 *)gfxPageReplacementSurface->pixels + (size_t)y * gfxPageReplacementSurface->pitch;
+        const uint8 *fg = (const uint8 *)page->pixels + (size_t)sy * page->pitch;
+        uint8 *out = (uint8 *)gfxPageCompositeSurface->pixels + (size_t)y * gfxPageCompositeSurface->pitch;
+        SDL_memcpy(out, bg, (size_t)gfxPageCompositeSurface->w * 4u);
+        for (x = 0; x < gfxPageCompositeSurface->w; x++) {
+            int sx = (int)(((int64)x * page->w) / gfxPageCompositeSurface->w);
+            uint8 idx = fg[sx];
+            const uint8 *base = gfxPageReplacementIndexedBase &&
+                                gfxPageReplacementIndexedBase->w == page->w &&
+                                gfxPageReplacementIndexedBase->h == page->h
+                ? (const uint8 *)gfxPageReplacementIndexedBase->pixels + (size_t)sy * gfxPageReplacementIndexedBase->pitch
+                : NULL;
+            /* Background PNG alpha must not expose 3D outside the actual MFD
+             * windows. The GL compositor opens those windows explicitly. */
+            out[x * 4 + 3] = 255;
+            if (base ? idx != base[sx] : idx != 0) {
+                SDL_Color c = pal->colors[idx];
+                out[x * 4 + 0] = c.r;
+                out[x * 4 + 1] = c.g;
+                out[x * 4 + 2] = c.b;
+                out[x * 4 + 3] = 255;
+            }
+        }
+    }
+
+    if (SDL_MUSTLOCK(page)) SDL_UnlockSurface(page);
+    if (SDL_MUSTLOCK(gfxPageCompositeSurface)) SDL_UnlockSurface(gfxPageCompositeSurface);
+    if (gfxPageReplacementIndexedBase && SDL_MUSTLOCK(gfxPageReplacementIndexedBase)) SDL_UnlockSurface(gfxPageReplacementIndexedBase);
+    if (SDL_MUSTLOCK(gfxPageReplacementSurface)) SDL_UnlockSurface(gfxPageReplacementSurface);
+    return gfxPageCompositeSurface;
+}
+
+SDL_Surface *gfx_getPagePresentSurface(SDL_Surface *page) {
+    return gfx_compositePageReplacement(page);
 }
 
 /* Push a page's surface to the active 2D backend (GL composite or software
@@ -482,6 +721,10 @@ static void gfx_presentPage(int page) {
         gfx_presentHiRes();
         return;
     }
+    if (gfxPageReplacementSurface) {
+        r2d_presentVirtual(gfx_getPagePresentSurface(ensurePage(page)), LOGICAL_WIDTH, LOGICAL_HEIGHT, gfx_getState()->shakeOffset);
+        return;
+    }
     r2d_present(ensurePage(page), gfx_getState()->shakeOffset);
 }
 
@@ -490,6 +733,7 @@ static void gfx_presentPage(int page) {
  * it. video_setHiRes already switched the renderer's logical presentation to
  * 640x350; gfx_setMode13 restores 320x200 once the title is dismissed. */
 static SDL_Surface *gfxHiResSurface;
+static SDL_Surface *gfxHiResReplacementSurface;
 
 SDL_Surface *gfx_getHiResSurface(void) {
     if (!gfxHiResSurface) {
@@ -503,8 +747,54 @@ SDL_Surface *gfx_getHiResSurface(void) {
 }
 
 void gfx_presentHiRes(void) {
-    r2d_present(gfx_getHiResSurface(), 0);
+    /* Truecolor TITLE640 replacements may be much larger than 640x350. Keep
+     * the original title coordinate rectangle for placement/aspect, but let the
+     * backend sample from the replacement surface at its own resolution. */
+    r2d_presentVirtual(gfxHiResReplacementSurface ? gfxHiResReplacementSurface : gfx_getHiResSurface(),
+                       HIRES_WIDTH, HIRES_HEIGHT, 0);
 }
+
+void gfx_setHiResReplacementSurface(SDL_Surface *surface) {
+    if (gfxHiResReplacementSurface == surface) return;
+    if (gfxHiResReplacementSurface) SDL_DestroySurface(gfxHiResReplacementSurface);
+    gfxHiResReplacementSurface = surface;
+}
+
+int gfx_hasPageReplacement(void) {
+    return gfxPageReplacementSurface != NULL;
+}
+
+SDL_Surface *gfx_getPageReplacementSurface(void) {
+    return gfxPageReplacementSurface;
+}
+
+void gfx_setPageReplacementSurface(SDL_Surface *surface) {
+    if (gfxPageReplacementSurface == surface) return;
+    if (gfxPageReplacementSurface) SDL_DestroySurface(gfxPageReplacementSurface);
+    gfxPageReplacementSurface = surface;
+    if (!surface && gfxPageReplacementIndexedBase) {
+        SDL_DestroySurface(gfxPageReplacementIndexedBase);
+        gfxPageReplacementIndexedBase = NULL;
+    }
+}
+
+void gfx_setPageReplacementIndexedBase(SDL_Surface *surface) {
+    if (gfxPageReplacementIndexedBase) {
+        SDL_DestroySurface(gfxPageReplacementIndexedBase);
+        gfxPageReplacementIndexedBase = NULL;
+    }
+    if (surface) gfxPageReplacementIndexedBase = SDL_DuplicateSurface(surface);
+}
+
+#ifdef DEBUG
+SDL_Surface *gfx_testGetHiResPresentSurface(void) {
+    return gfxHiResReplacementSurface ? gfxHiResReplacementSurface : gfx_getHiResSurface();
+}
+
+SDL_Surface *gfx_testGetPageReplacementSurface(void) {
+    return gfxPageReplacementSurface;
+}
+#endif
 
 /* Initialize row offset table */
 static void initRowOffsets(void) {
@@ -524,6 +814,8 @@ void FAR CDECL gfx_setMode13(void) {
 #ifdef F15_HAVE_FREETYPE
     invalidateTtfTextOverlayRecords();
 #endif
+    gfx_setHiResReplacementSurface(NULL);
+    gfx_setPageReplacementSurface(NULL);
     gfxHiResActive = false;
     gfx_getState()->modeFlag = 1;
 }
@@ -2182,7 +2474,7 @@ void FAR gfx_drawGlyphStrRot(const char *string, int fontIdx, int color,
     bitmaps = g_fontBitmapPtrs[fontIdx];
     widthTab = g_fontWidthTables[fontIdx];
     if (!bitmaps) return;
-    for (ci = 0; string[ci] != 0 && ci < 256; ci++) {
+    for (ci = 0; ci < 256 && string[ci] != 0; ci++) {
         uint8 ch = (uint8)string[ci];
         if (ch & 0x80) { color = ch & 0x7F; continue; } /* inline colour escape */
         if (ch >= 0x20) {
@@ -2327,6 +2619,7 @@ int gfx_readImagePixel(struct R2DImage *img, int x, int y) {
 void gfx_drawSpriteOpaque(int handle, int srcX, int srcY, int dstPage,
                           int dstX, int dstY, int w, int h) {
     (void)dstPage; /* single back buffer */
+    if (gfx_submitSpriteReplacement(handle, srcX, srcY, w, h, dstX, dstY, 0)) return;
     r2d_submitImage(gfx_spriteImage(handle), srcX, srcY, w, h, dstX, dstY, -1);
 }
 
@@ -2376,6 +2669,12 @@ void clearRect(int16 *pageNum, int16 x1, int16 y1, int16 x2, int16 y2) {
     int pitch, row, col;
 
     if (!surf) return;
+    /* A full clear replaces the screen, including its retained truecolor art.
+     * Otherwise matching palette indices can expose pixels from the old PNG. */
+    if (surf == gfx_getCurPageSurface() && x1 <= 0 && y1 <= 0 &&
+        x2 >= surf->w - 1 && y2 >= surf->h - 1) {
+        gfx_setPageReplacementSurface(NULL);
+    }
     base = (uint8 *)surf->pixels;
     pitch = surf->pitch;
     if (x1 < 0) x1 = 0;
@@ -2478,6 +2777,10 @@ int FAR CDECL gfx_blitSprite(struct SpriteParams *p) {
      * is the backend's (software page blit / GL quad). Unconditionally
      * transparent (skip index 0) — the gun-sight/symbol sprites rely on the
      * see-through background. */
+    if (gfx_submitSpriteReplacement((int)p->bufPtr,
+                                    (int)p->srcX, (int)p->srcY,
+                                    (int)p->width, (int)p->height,
+                                    (int)p->dstX, (int)p->dstY, 1)) return 0;
     r2d_submitImage(gfx_spriteImage((int)p->bufPtr),
                     (int)p->srcX, (int)p->srcY, (int)p->width, (int)p->height,
                     (int)p->dstX, (int)p->dstY, 0);
@@ -2635,22 +2938,21 @@ void FAR CDECL gfx_dirtyRect2(const int16 *spanMinBuf, uint16 yMin, uint16 yMax)
     const uint16 *maxBuf = (const uint16 *)((const char *)spanMinBuf + 0x1b8);
     uint8 fill = s->fillColor;
     SDL_Surface *surf = ensurePage(0);
-    uint8 *pagePx;
+    SDL_Rect rects[200];
+    int rectCount = 0;
     int16 firstRow = (int16)yMin; /* AX */
     int16 lastRow = (int16)yMax;  /* CX */
     int y;
     if (!surf) return;
-    pagePx = (uint8 *)surf->pixels;
     /* MGRAPHIC slot 0x25: `or ax,ax; js exit` — if firstRow < 0, draw nothing. */
     if (firstRow < 0) return;
     if (lastRow > 199) lastRow = 199; /* rowOffsets[] safety */
     for (y = (int)lastRow; y >= (int)firstRow; y--) {
         uint16 spanLo = minBuf[y];
         uint16 spanHi = maxBuf[y];
-        uint16 width, col;
+        uint16 width;
         uint16 off;
         int row, col0;
-        uint8 *dst;
         /* MGRAPHIC's degenerate-row test is UNSIGNED (`cmp hi,lo; jc skip; ja
          * draw`): skip when hi < lo, draw when hi > lo, and when equal skip only
          * if the column is 0 or 0x13f (else a single pixel). The edge-walker in
@@ -2676,10 +2978,12 @@ void FAR CDECL gfx_dirtyRect2(const int16 *spanMinBuf, uint16 yMin, uint16 yMax)
         row = off / LOGICAL_WIDTH;
         col0 = off % LOGICAL_WIDTH;
         if (row < 0 || row >= surf->h) continue;
-        dst = pagePx + (size_t)row * surf->pitch + col0;
-        for (col = 0; col < width && col0 + (int)col < LOGICAL_WIDTH; col++)
-            dst[col] = fill;
+        if ((int)width > LOGICAL_WIDTH - col0)
+            width = (uint16)(LOGICAL_WIDTH - col0);
+        rects[rectCount++] = (SDL_Rect){col0, row, width, 1};
     }
+    if (rectCount != 0)
+        SDL_FillSurfaceRects(surf, rects, rectCount, fill);
 }
 
 int gfx_getGlyphAdvance(uint32 codepoint, uint16 fontIdx) {

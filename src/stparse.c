@@ -22,7 +22,8 @@ void parseGridTerrain(void) {
 }
 
 void parseTerrain(char *filename) {
-    int16 tileIdx, level, tileOffset, entry;
+    int16 tileIdx, level, entry;
+    size_t tileOffset = 0;
     uint16 tileNum;
     replaceExtension(filename, ".3dT");
     if ((fileHandle = openFile(filename, 0)) == 0) {
@@ -34,19 +35,20 @@ void parseTerrain(char *filename) {
         } else {
             fileRead(terrainBuf1, 2, 5, fileHandle);
             for (level = 0; level < 5; level++) {
-                if (terrainBuf1[level] > 32) {
+                if (terrainBuf1[level] > TERRAIN_TILE_PATTERN_CAPACITY) {
                     showMsgWaitKey("Too many tiles.");
+                    fileClose(fileHandle);
                     return;
                 }
                 fileRead(&terrainTileCounts[level], 2, terrainBuf1[level], fileHandle);
             }
-            tileOffset = 0;
             for (level = 0; level < 5; level = level + 1) {
                 for (entry = 0; terrainBuf1[level] > entry; entry++) {
                     terrainTilePtrs[level].entries[entry] = (struct TerrainTile *)((uint8 *)terrainTileBlock + tileOffset);
                     for (tileNum = 0; tileNum < terrainTileCounts[level].entries[entry]; tileNum++) {
-                        if (tileOffset > 3500) {
+                        if (tileOffset + sizeof(struct TerrainTile) > TERRAIN_PLACEMENT_STORAGE_BYTES) {
                             showMsgWaitKey("Too much tile data");
+                            fileClose(fileHandle);
                             return;
                         }
                         fileRead(&((struct TerrainTile *)((uint8 *)terrainTileBlock + tileOffset))->buf3, 2, 1, fileHandle);
@@ -66,6 +68,10 @@ void parseTerrain(char *filename) {
 /* ---- merged from stgrid.c ---- */
 void parseGrid() {
     int16 idx;
+    int childGridBytes;
+    nearmemset(gridBuf3, 0, TERRAIN_CHILD_GRID_BYTES);
+    nearmemset(gridBuf4, 0, TERRAIN_CHILD_GRID_BYTES);
+    nearmemset(gridBuf5, 0, TERRAIN_CHILD_GRID_BYTES);
     replaceExtension(regnPlhPtr, ".3dG");
     if ((fileHandle = openFile(regnPlhPtr, 0)) == 0) {
         showMsgWaitKey("Open Error on *.3DG, assuming new file !");
@@ -82,14 +88,16 @@ void parseGrid() {
         return;
     }
     fileRead(&gridSignature, 2, 1, fileHandle);
-    if (gridSignature != GRID_MAGIC) {
+    if (gridSignature != GRID_MAGIC && gridSignature != EXTENDED_TERRAIN_GRID_SIGNATURE) {
         showMsgWaitKey("Bad Grid file format.");
     } else {
         fileRead(gridBuf1, 1, 16, fileHandle);
         fileRead(gridBuf2, 1, 0x100, fileHandle);
-        fileRead(gridBuf3, 1, 0x200, fileHandle);
-        fileRead(gridBuf4, 1, 0x200, fileHandle);
-        fileRead(gridBuf5, 1, 0x200, fileHandle);
+        childGridBytes = gridSignature == EXTENDED_TERRAIN_GRID_SIGNATURE
+            ? TERRAIN_CHILD_GRID_BYTES : LEGACY_TERRAIN_CHILD_GRID_BYTES;
+        fileRead(gridBuf3, 1, childGridBytes, fileHandle);
+        fileRead(gridBuf4, 1, childGridBytes, fileHandle);
+        fileRead(gridBuf5, 1, childGridBytes, fileHandle);
     }
     fileClose(fileHandle);
 }
