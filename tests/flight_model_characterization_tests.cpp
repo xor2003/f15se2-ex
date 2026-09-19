@@ -35,6 +35,107 @@ int cornerRoot(int value) {
     return guess;
 }
 
+int recoveryBearing(int x, int y) {
+    using rotation_reference::word;
+    if (!x) return word(y > 0 ? 0 : 32768);
+    if (!y) return word(x > 0 ? 16384 : 49152);
+    const bool swapped = std::abs(x) > std::abs(y);
+    const int ratio = std::min(std::abs(x), std::abs(y)) * 16384 /
+                      std::max(std::abs(x), std::abs(y));
+    const int angle = (10240 - std::abs(4915 - ratio) * 2816 / 16384) * ratio / 16384;
+    if (x > 0) return word(y > 0 ? (swapped ? 16384 - angle : angle) :
+                                              (swapped ? angle + 16384 : 32768 - angle));
+    return word(y > 0 ? (swapped ? angle + 49152 : -angle) :
+                       (swapped ? 49152 - angle : angle + 32768));
+}
+
+void recoveryGuidance(SDL_Joystick *stick) {
+    using rotation_reference::word;
+    using rotation_reference::floorDivide;
+    const auto clamp = [](int value, int lo, int hi) {
+        value = word(value);
+        return value > hi ? hi : value >= lo ? value : value <= -16384 ? hi : lo;
+    };
+    require(SDL_SetJoystickVirtualAxis(stick, 1, 0), "neutral recovery stick");
+    SDL_UpdateJoysticks();
+    input_pumpEvents();
+    for (bool carrier : {false, true})
+    for (int direction : {-1, 1})
+    for (int corridor : {0, 1, 2})
+    for (int heading : {0, 511, 512, 16384, 16385, -32768})
+    for (int x : {-128, 0, 128})
+    for (int y : {-256, 0, 256})
+    for (int knots : {160, 349, 350, 800})
+    for (int roll : {-8192, 0, 8192})
+    for (int hz : {4, 15}) {
+        g_initPhase = 1;
+        g_frameRateScaling = hz;
+        frameTick = 1;
+        g_thrust = legacy::thrustFromUnits(35);
+        g_setThrust = 5;
+        g_fuelRemaining = 5000;
+        g_gunHits = g_hudVisible = g_inputDisabled = 0;
+        g_ejectState = g_autoCrashDive = g_currentWeaponType = 0;
+        g_groundAltitude = 0;
+        g_viewZ = g_autopilotAltitude = 3000;
+        g_autopilotEngaged = g_waypointBearing = g_missionTick = 0;
+        waypointIndex = 3;
+        g_targetSlots[1].viewIndex = 1;
+        g_planeTable.planes[1].mapX = 10000 + x;
+        g_planeTable.planes[1].mapY = 10000 + y;
+        g_planeTable.planes[1].flags = carrier ? 0x200 : 0;
+        g_viewX_ = g_viewY_ = 10000;
+        g_northSouthSign = direction;
+        g_inLandingCorridor = corridor != 0;
+        g_closestThreatIndex = corridor == 2 ? 2 : 1;
+        g_slowMotionMode = 2;
+        g_altitude = legacy::altitudeFromUnits(3000);
+        g_velocity = legacy::speedFromUnits(8100);
+        g_knots = knots;
+        g_playerPlaneFlags = 1;
+        g_gearDownArmed = 0;
+        g_cornerSpeed = 100;
+        g_kbdSensitivity = 2;
+        g_ViewX = legacy::viewX(0);
+        g_ViewY = legacy::viewY(0);
+        g_ourHead = legacy::angleFromWord(heading);
+        g_ourPitch = {};
+        g_ourRoll = legacy::angleFromWord(roll);
+        g_stallSpeed = {};
+        g_liftForce = g_rollPitchTrim = {};
+        g_orientationDirty = g_rotationCounter = g_rollWasNonzero = 0;
+        rebuildOrientation();
+
+        const int ns = carrier ? direction : (y > 0 ? -1 : y < 0 ? 1 : 0);
+        int dx = x, dy = y + (carrier ? 30 : 64) * ns;
+        int error = word(std::abs(heading));
+        if (ns == -1) {
+            dx = -dx; dy = -dy;
+            error = word(std::abs(int(word(heading - 32768))));
+        }
+        int height = clamp((std::abs(dx) + std::abs(dy)) * 2 + error / 32, 50, 4096);
+        const int slow = height < 4096 ? 1 : 2;
+        if (carrier) height += 100;
+        if (corridor == 1 && std::abs(error) < 512) height = -20;
+        dy = 10000 + y + (carrier ? 28 : 56) * ns + clamp(std::abs(dx) * 4 + error / 16, 0, 3072) * ns;
+        bool brake = false;
+        if (error > 16384) { dx = 10000 + x; height = 4096; }
+        else { dx = 10000 + x + ns * dx * 2; brake = 400 < knots; }
+        const int limit = knots / 16 * 256;
+        error = word(std::clamp(int(word(recoveryBearing(dx - 10000, 10000 - dy) - heading)), -limit, limit) * 2);
+        if (corridor == 1) error = 0;
+        const int rollCommand = -clamp(floorDivide(word(error - roll), 64), -32, 32);
+        const int throttle = clamp(std::abs(error) / 256 + height / 64, 35, 80);
+        const int pitchCommand = clamp(std::clamp(int(floorDivide(height - 3000, 8)), -24, 24), -16, 16);
+        stepFlightModel();
+        require(legacy::rollInput(g_rollInput) == rollCommand, "recovery roll changed");
+        require(legacy::pitchInput(g_pitchInput) == pitchCommand, "recovery pitch changed");
+        require(g_setThrust == throttle, "recovery throttle changed");
+        require((g_playerPlaneFlags & 9) == ((knots >= 350 ? 1 : 0) | (brake ? 8 : 0)), "recovery gear/brakes changed");
+        require(g_slowMotionMode == slow, "recovery slow-motion transition changed");
+    }
+}
+
 // Characterize dbfb4ab before migrating thrust and target-speed generation.
 // Non-neutral input/load coverage added against 9371b5b before load migration.
 // No flight-model or math functions are replaced with test doubles.
@@ -246,6 +347,7 @@ void thrustAndFuel() {
         require(legacy::signedAngle(g_liftForce) == lift && legacy::signedAngle(g_rollPitchTrim) == trim,
                 "lift must sample accelerated speed before braking and the initial roll");
     }
+    recoveryGuidance(stick);
     gameData = nullptr;
     commData = nullptr;
     joy_shutdown();

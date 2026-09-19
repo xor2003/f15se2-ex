@@ -14,6 +14,20 @@ snapshot interpolation now use axis-specific types.
 This is the first migrated subsystem, not a complete interchangeable simulation
 backend. No whole-game floating-point backend selector is exposed.
 
+## Recovery caller characterization
+
+Before migrating recovery guidance, the full-flight test adds 15,552 airborne
+fixtures against `bf7600a`. They span runway/carrier targets, north/south signs,
+absent/matching/wrong-target recovery corridors, heading boundaries (including
+511/512, 16384/16385 and -32768), lateral/longitudinal offsets, both frame rates,
+three bank angles and speeds surrounding the 350-knot gear threshold.
+An independent frozen scalar bearing and guidance reference checks resulting
+roll/pitch commands, requested throttle, gear/brake flags and slow-motion state.
+The real flight model and virtual joystick are used, without math stubs.
+The expanded test passes; production code remains unchanged. Touchdown,
+nonzero initial pitch/trim, extreme map coordinates and full sorties remain
+outside this recovery fixture's coverage.
+
 ## Heading-wrap caller characterization
 
 The full-flight characterization test now exercises normal altitude hold at
