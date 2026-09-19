@@ -32,6 +32,7 @@ template<class B, class Unit> class VerticalQuantity {
     friend class AirspeedMath<B>;
     friend class PropulsionMath<B>;
     friend class AerodynamicsMath<B>;
+    friend class GuidanceMath<B>;
 public:
     VerticalQuantity() = default;
     bool isZero() const { return value_ == 0; }

@@ -6,6 +6,7 @@
 #include "math/airspeed.hpp"
 #include "math/aerodynamics.hpp"
 #include "math/propulsion.hpp"
+#include "math/guidance.hpp"
 #include <type_traits>
 #include <utility>
 
@@ -226,6 +227,12 @@ int main() {
     (void)AerodynamicsMath<FixedBackend>::loadResponse(16, 2, true);
 #elif defined(TEST_TURN_RAW)
     (void)AerodynamicsMath<FixedBackend>::turnRate(16, 8100, 0, 1);
+#elif defined(TEST_GUIDANCE_RAW)
+    (void)GuidanceMath<FixedBackend>::altitudeHold(1000, 100, {}, {}, {}, {});
+#elif defined(TEST_GUIDANCE_HEIGHT)
+    (void)GuidanceMath<FixedBackend>::altitudeHold(FlightAltitude<FixedBackend>{}, {}, {}, {}, {}, {});
+#elif defined(TEST_GUIDANCE_BACKEND)
+    (void)GuidanceMath<FixedBackend>::altitudeHold({}, {}, EulerAngles<ModernBackend>{}, {}, {}, {});
 #elif defined(TEST_TURN_BACKEND)
     (void)AerodynamicsMath<FixedBackend>::turnRate({}, FlightSpeed<ModernBackend>{}, {}, {});
 #elif defined(TEST_TURN_ROLE)

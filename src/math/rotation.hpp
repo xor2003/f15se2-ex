@@ -10,6 +10,7 @@ namespace f15::math {
 template<class B> class AirspeedMath;
 template<class B> class AerodynamicsMath;
 template<class B> class PropulsionMath;
+template<class B> class GuidanceMath;
 
 struct FixedBackend {};
 struct ModernBackend {};
@@ -35,6 +36,7 @@ template<class B> class Angle {
     friend class PoseInterpolation<B>;
     friend class FlightControlMath<B>;
     friend class AerodynamicsMath<B>;
+    friend class GuidanceMath<B>;
     friend struct Boundary<B>;
 public:
     Angle() = default;

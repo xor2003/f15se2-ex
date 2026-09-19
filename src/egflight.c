@@ -5,6 +5,7 @@ using f15::math::legacy::thrustFromUnits;
 using f15::math::legacy::thrustUnits;
 using Propulsion = f15::math::PropulsionMath<f15::math::FixedBackend>;
 #include "math/aerodynamics.hpp"
+#include "math/guidance.hpp"
 using f15::math::legacy::speedWord;
 using f15::math::legacy::speedFromUnits;
 using SpeedMath = f15::math::AirspeedMath<f15::math::FixedBackend>;
@@ -397,16 +398,14 @@ switch_break:
     }
 
     if (g_autopilotAltitude != 0) {
-        headingErr = (g_autopilotEngaged != 0) ? ((g_missionTick & 0xF) << 8) - 0x800
-                                               : 0;
-
-        headingErr = egClampValue((int16)(headingErr - signedAngle(g_ourHead) + g_waypointBearing), -5120, 0x1400) * 2;
-
-        g_rollInput = rollCommand(-clampRange((int16)(headingErr - signedAngle(g_ourRoll)) >> 6, -24, 24));
-
-        tmpVal = egClampValue(((g_autopilotAltitude - g_viewZ) << 4) - signedAngle(g_rollPitchTrim), -5120, 0xC00);
-
-        g_pitchInput = pitchCommand(clampRange((tmpVal - signedAngle(g_ourPitch)) >> 7, -8, 8));
+        const auto headingOffset = angleFromWord(g_autopilotEngaged != 0 ?
+            (g_missionTick & 0xF) * 256 - 2048 : 0);
+        const auto guidance = f15::math::GuidanceMath<f15::math::FixedBackend>::altitudeHold(
+            f15::math::legacy::renderHeightFromUnits(g_autopilotAltitude),
+            f15::math::legacy::renderHeightFromUnits(g_viewZ),
+            {g_ourHead, g_ourPitch, g_ourRoll}, angleFromWord(g_waypointBearing), headingOffset, g_rollPitchTrim);
+        g_rollInput = guidance.roll;
+        g_pitchInput = guidance.pitch;
 
         if (waypointIndex == 3) {
             nsSign = g_northSouthSign;

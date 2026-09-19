@@ -41,6 +41,21 @@ Before using recordings to certify migration, complete these checks:
 
 ## Tests-first gate for further migration
 
+`GuidanceMath::altitudeHold` now implements the normal altitude-hold commands
+for both backends. The fixed caller uses typed scene heights, attitude, bearing,
+heading offset and trim, and returns typed roll/pitch commands. Mission-tick
+offset selection stays in the caller; recovery-waypoint steering is not migrated.
+Fixed guidance preserves word wrapping and floor division without negative
+left shifts. Modern guidance uses shortest-arc heading/roll errors, fractional
+scene-height error and radians-per-second outputs, with the same command limits.
+The new unit grid checks 1,310,720 fixed combinations, fractional modern control,
+limits and heading wrap. Compile checks reject scalar input, expanded flight
+altitude substituted for scene height, and mixed backends.
+Verification: the Linux Release build and all 58 CTests pass. Clang analysis and
+ASan/UBSan pass for the guidance harness. Full-flight characterization also passes
+ASan/UBSan with `egflight.c` instrumented (the rest of the linked core is not).
+Windows, Android, browser and recorded whole-sortie verification remain open.
+
 Altitude-hold caller checkpoint (baseline `0e5cbc2`): 864 additional targeted
 full-flight cases cover neutral-stick altitude hold at two rates, six heights,
 three initial pitches and six banks. Four scenarios exercise small positive and
