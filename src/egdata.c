@@ -64,7 +64,7 @@ int16 g_eventTimers[3] = {0, 12, 18};
 int16 missileSpecIndex = 0;
 
 int16 g_gunAmmo = 650;
-int16 g_autopilotAltitude = 0;
+f15::math::RenderHeight<f15::math::GameBackend> g_autopilotAltitude;
 int16 g_missionStatus = 1;
 int16 g_difficultyTier = 1;
 int16 g_nightMode = 0;

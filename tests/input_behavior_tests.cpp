@@ -1,5 +1,6 @@
 #include "egcode.h"
 #include "egdata.h"
+#include "math/legacy_altitude.hpp"
 #include "eginput.h"
 #include "egkeys.h"
 #include "headless.h"
@@ -352,7 +353,7 @@ int main() {
         const auto savedView = g_viewMode;
         const auto savedAltitude = g_autopilotAltitude;
         const auto savedAutopilot = g_autopilotEngaged;
-        g_autopilotAltitude = 1000;
+        g_autopilotAltitude = f15::math::legacy::renderHeightFromUnits(1000);
         g_autopilotEngaged = 0;
         g_viewMode = VIEW_COCKPIT;
         require(input_flightPointerKey(5, 30) == SCAN_F1 &&
@@ -384,9 +385,9 @@ int main() {
         g_viewMode = VIEW_EXT_SIDE;
         require(input_flightPointerKey(5, 30) == SCAN_SPACEBAR,
                 "last external view returns to cockpit");
-        require(g_autopilotAltitude == 1000,
+        require(f15::math::legacy::Altitudes::render(g_autopilotAltitude) == 1000,
                 "view selection leaves autopilot enabled");
-        g_autopilotAltitude = 0;
+        g_autopilotAltitude = {};
         require(input_flightPointerKey(5, 30) == 0,
                 "manual flight sky taps do not change views");
         g_viewMode = savedView;

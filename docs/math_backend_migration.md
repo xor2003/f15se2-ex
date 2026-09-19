@@ -914,9 +914,17 @@ that a lower autopilot target commands descent, across assisted/unassisted
 difficulty. The existing 899-knot target-speed ceiling is unchanged gameplay
 policy, not a newly imposed storage limit.
 
+Altitude-hold target storage is now `RenderHeight<GameBackend>` in both builds.
+Capturing a modern target uses continuous flight altitude, preserving fractional
+scene height above the old signed-word range. The fixed capture policy is checked
+over every signed 16-bit input; modern key-dispatch coverage checks capture and
+toggle-off at altitude 131072.25. Zero remains the existing inactive sentinel.
+Input cancellation, mission resets, recovery setup, and map indicators use the
+typed state rather than implicit integer assignments or comparisons.
+
 Other `g_viewZ` consumers still require migration, including ground-state checks
-and camera state. The autopilot target itself remains a legacy word. These tests
-do not establish unrestricted high-altitude flight or rendering stability.
+and camera state. These tests do not establish unrestricted high-altitude flight
+or rendering stability.
 
 For whole-sortie migration, capture a fixed seed, initial state and tick-indexed
 inputs. Compare fixed-backend state after each tick exactly. For floating point,

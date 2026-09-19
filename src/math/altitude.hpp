@@ -55,6 +55,10 @@ template<class B> class AltitudeMath {
         return (height - 12288) * 4 + 16384;
     }
 public:
+    static RenderHeight<B> captureAltitudeHold(RenderHeight<B> height) {
+        // Minimum capture height is autopilot policy in scene-height units.
+        return height.value_ < 1000 ? RenderHeight<B>(1000) : height;
+    }
     static ClimbRate<B> climb(AirspeedSample<B> speed, Coefficient<B> sineOfFlightPath) {
         if constexpr (std::is_same_v<B, FixedBackend>) {
             const auto product = static_cast<std::int64_t>(speed.value_ / 10) * sineOfFlightPath.value_;

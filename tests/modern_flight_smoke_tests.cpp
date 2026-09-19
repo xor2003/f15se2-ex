@@ -30,6 +30,8 @@ static_assert(std::is_same_v<GameBackend, ModernBackend>);
 static_assert(std::is_same_v<decltype(g_altitude), FlightAltitude<ModernBackend>>);
 static_assert(std::is_same_v<decltype(g_velocity), FlightSpeed<ModernBackend>>);
 static_assert(std::is_same_v<decltype(g_orientMatrix), Matrix3<ModernBackend>>);
+static_assert(std::is_same_v<decltype(g_autopilotAltitude), RenderHeight<ModernBackend>>);
+static_assert(!std::is_assignable_v<decltype(g_autopilotAltitude)&, int>);
 
 void require(bool value, const char *message) {
     if (!value) { std::fprintf(stderr, "%s\n", message); std::exit(1); }
@@ -167,7 +169,7 @@ int main() {
         g_fuelRemaining = 5000;
         g_playerPlaneFlags = 1;
         g_joyRawX = g_joyRawY = 128;
-        g_autopilotAltitude = autopilot ? 10000 : 0;
+        g_autopilotAltitude = Altitudes::render(autopilot ? 10000 : 0);
         g_autopilotEngaged = 0;
         g_waypointBearing = 0;
         waypointIndex = 0;
@@ -184,15 +186,15 @@ int main() {
         require(std::abs(Speeds::speed(g_velocity) - expectedSpeed) < 1e-10,
                 "high-altitude propulsion used a wrapped scene height");
     }
-    g_autopilotAltitude = 0;
-    g_altitude = Altitudes::altitude(131072);
+    g_autopilotAltitude = {};
+    g_altitude = Altitudes::altitude(131072.25);
     g_ourPitch = g_rollPitchTrim = {};
     advanceFlightAltitude();
     keyDispatch(SCAN_P);
-    require(g_autopilotAltitude == 1000,
-            "legacy high-altitude autopilot capture baseline changed");
+    require(Altitudes::render(g_autopilotAltitude) == 40960.0625,
+            "high-altitude autopilot capture lost range or precision");
     keyDispatch(SCAN_P);
-    require(g_autopilotAltitude == 0, "autopilot toggle did not clear target");
+    require(g_autopilotAltitude.isZero(), "autopilot toggle did not clear target");
     gameData = nullptr;
     commData = nullptr;
     SDL_Quit();

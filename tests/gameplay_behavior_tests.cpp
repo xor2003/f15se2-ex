@@ -1,4 +1,5 @@
 #include "math/legacy_rotation.hpp"
+#include "math/legacy_altitude.hpp"
 using f15::math::legacy::signedAngle;
 using f15::math::legacy::angleFromWord;
 // EGAME combat/flight gameplay behavior tests (LINK_CORE + headless).
@@ -191,7 +192,7 @@ int main() {
     g_slowMotionMode = 2;
     g_playerPlaneFlags = 0x1000;
     g_autopilotEngaged = 1;
-    g_autopilotAltitude = 1200;
+    g_autopilotAltitude = f15::math::legacy::renderHeightFromUnits(1200);
     g_inLandingCorridor = 0;
     g_landingDoneFlag = 0;
     g_landingTimer = 1;
@@ -219,7 +220,7 @@ int main() {
     require(g_ejectState == 0 && g_ejectPending == 0 && g_eventLogCount == 0,
             "mission reset clears previous outcome state");
     require(g_slowMotionMode == 1 && g_playerPlaneFlags == 0 &&
-                g_autopilotEngaged == 0 && g_autopilotAltitude == 0,
+                g_autopilotEngaged == 0 && g_autopilotAltitude.isZero(),
             "mission reset clears acceleration, training, and autopilot state");
     require(g_missionEndedFlag[0] == 0 && g_missionEndedFlag[1] == 0 &&
                 g_viewMode == VIEW_COCKPIT && g_directorMode == 0 &&

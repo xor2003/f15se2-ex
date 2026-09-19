@@ -76,7 +76,8 @@ void updateFrame(void) {
         g_threatActiveTimer = 0;
         g_scopeSweepTimer = 1;
         g_airTargetLock = g_groundTargetLock = -1;
-        g_fireCooldown = g_bombDamageMask = missileSpecIndex = g_autopilotAltitude = waypointIndex = g_unusedWaypointTail = 0;
+        g_fireCooldown = g_bombDamageMask = missileSpecIndex = waypointIndex = g_unusedWaypointTail = 0;
+        g_autopilotAltitude = {};
         g_closestThreatIndex = g_unusedEventHist0 = g_unusedEventHist1 = g_unusedEventHist2 = (int8)(g_halfScaleRender = 0);
         g_threatRefX = g_threatRefY = g_threatRefZ = 0;
         g_prevThreatIndex = g_smokeSourceIdx = -1;
@@ -228,7 +229,7 @@ void updateFrame(void) {
     /* Do not move the destination while the autopilot is flying its approach.
      * Nearest-base tracking still serves ground contact and nearby aircraft. */
     {
-        const int autopilotLanding = g_autopilotAltitude != 0 && waypointIndex == 3;
+        const int autopilotLanding = !g_autopilotAltitude.isZero() && waypointIndex == 3;
         const int recoveryIndex = g_targetSlots[1].viewIndex;
         const int recoveryFlags = recoveryIndex >= 0 && recoveryIndex < g_planeCount
             ? g_planeTable.planes[recoveryIndex].flags : 0;
@@ -243,7 +244,7 @@ void updateFrame(void) {
             waypoints[3].mapY = g_planeTable.planes[g_closestThreatIndex].mapY;
         }
         if (autopilotLanding && !recoveryUsable && !alternativeAvailable) {
-            g_autopilotAltitude = 0;
+            g_autopilotAltitude = {};
             g_autoLandingActive = 0;
             hudMessage("No landing base available");
         }
@@ -343,7 +344,7 @@ skip_target_section:
                 g_landingDoneFlag = 1;
                 if (g_landingTimer++ == 1) {
                     hudMessage("Safe Landing");
-                    g_autopilotAltitude = 0;
+                    g_autopilotAltitude = {};
                     g_autoLandingActive = 0;
                     playVoiceCue(4);
                 }
@@ -422,7 +423,7 @@ skip_autopilot:
             finalizeMission(2);
         } else {
             g_altitude = f15::math::AltitudeMath<f15::math::GameBackend>::obstacleEscape(g_altitude);
-            g_autopilotAltitude = 0;
+            g_autopilotAltitude = {};
         }
     }
 
@@ -723,7 +724,7 @@ void generateRandomRadioMessage(void) {
     if (g_directorEventDeadline != -1) {
         return;
     }
-    g_autopilotAltitude = 500;
+    g_autopilotAltitude = f15::math::legacy::renderHeightFromUnits(500);
     g_directorMode = 2;
     switch (randomRange(3)) {
     case 0:

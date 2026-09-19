@@ -79,7 +79,8 @@ void recoveryGuidance(SDL_Joystick *stick) {
         g_gunHits = g_hudVisible = g_inputDisabled = 0;
         g_ejectState = g_autoCrashDive = g_currentWeaponType = 0;
         g_groundAltitude = 0;
-        g_viewZ = g_autopilotAltitude = 3000;
+        g_viewZ = 3000;
+        g_autopilotAltitude = f15::math::legacy::renderHeightFromUnits(3000);
         g_autopilotEngaged = g_waypointBearing = g_missionTick = 0;
         waypointIndex = 3;
         g_targetSlots[1].viewIndex = 1;
@@ -206,7 +207,8 @@ void thrustAndFuel() {
         g_gunHits = damage;
         g_hudVisible = 0;
         g_inputDisabled = disabled;
-        g_autopilotAltitude = g_autopilotEngaged = 0;
+        g_autopilotAltitude = {};
+        g_autopilotEngaged = 0;
         g_ejectState = g_autoCrashDive = g_currentWeaponType = 0;
         g_groundAltitude = 0;
         const int sceneHeight = height < 8192 ? height : height < 16384 ?
@@ -221,10 +223,10 @@ void thrustAndFuel() {
         g_missionTick = autopilotCase == 3 ? 0 : 15;
         g_waypointBearing = bearingTarget;
         if (autopilotCase) {
-            g_autopilotAltitude = altitudeTarget;
+            g_autopilotAltitude = f15::math::legacy::renderHeightFromUnits(altitudeTarget);
             g_autopilotEngaged = autopilotCase >= 3;
         }
-        if (disabled) g_autopilotAltitude = altitudeTarget;
+        if (disabled) g_autopilotAltitude = f15::math::legacy::renderHeightFromUnits(altitudeTarget);
         g_viewZ = sceneHeight;
         g_altitude = legacy::altitudeFromUnits(height);
         g_velocity = legacy::speedFromUnits(8100);
@@ -350,9 +352,9 @@ void thrustAndFuel() {
         require(legacy::pitchInput(g_pitchInput) == pitchCommand, "load cap pitch-command reduction changed");
         require(legacy::rollInput(g_rollInput) == rollCommand, "altitude-hold roll command changed");
         if (autopilotCase)
-            require(g_autopilotAltitude == altitudeTarget, "neutral input unexpectedly cancels altitude hold");
+            require(f15::math::legacy::Altitudes::render(g_autopilotAltitude) == altitudeTarget, "neutral input unexpectedly cancels altitude hold");
         if (disabled)
-            require(g_autopilotAltitude == 0, "disabled zero-byte deflection must retain legacy altitude-hold cancellation");
+            require(g_autopilotAltitude.isZero(), "disabled zero-byte deflection must retain legacy altitude-hold cancellation");
         require(g_cornerSpeed == corner && AirspeedBoundary<FixedBackend>::stall(g_stallSpeed) == corner * 27,
                 "full flight model corner/stall threshold changed");
         require(legacy::speedUnits(g_velocity) == velocity && g_knots == velocity / 27,

@@ -168,7 +168,7 @@ void renderHudFrame(int unused) {
             if (g_playerPlaneFlags & 0x1000) {
                 drawStringBothPages("TRAINING", 234, 16, 0xf);
             }
-            if (g_autopilotAltitude != 0) {
+            if (!g_autopilotAltitude.isZero()) {
                 drawStringBothPages("AUTOPILOT", 236, 90, 0xf);
             }
             waypointMarkerX = clampRange((((int16)(g_waypointBearing - signedAngle(g_ourHead)) >> 6) / 3) + 159, 89, 229);

@@ -910,7 +910,7 @@ static uint16 autopilotViewKey(void) {
 uint16 input_flightPointerKey(int x, int y) {
     /* No invisible cockpit hit targets in external views. Keep demo's normal
      * tap-to-dismiss behavior, and leave manual flight controls unchanged. */
-    if (g_autopilotAltitude != 0 && g_autopilotEngaged == 0 &&
+    if (!g_autopilotAltitude.isZero() && g_autopilotEngaged == 0 &&
         (g_viewMode != VIEW_COCKPIT || y < 101 ||
          x < 0 || x >= LOGICAL_WIDTH))
         return autopilotViewKey();
@@ -958,7 +958,7 @@ enum {
 int input_flightThrottleValue(int x, int y) {
     int drawY = y;
 
-    if (g_autopilotAltitude != 0 && g_autopilotEngaged == 0 &&
+    if (!g_autopilotAltitude.isZero() && g_autopilotEngaged == 0 &&
         g_viewMode != VIEW_COCKPIT)
         return -1;
 

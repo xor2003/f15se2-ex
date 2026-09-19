@@ -59,7 +59,7 @@ extern int16 g_eventTimers[];
 extern struct MissileSpec missleSpec[];
 extern int16 missileSpecIndex;
 extern int16 g_gunAmmo;
-extern int16 g_autopilotAltitude;
+extern f15::math::RenderHeight<f15::math::GameBackend> g_autopilotAltitude;
 extern int16 g_missionStatus;
 extern int16 g_difficultyTier;
 extern int16 g_nightMode;

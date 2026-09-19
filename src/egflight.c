@@ -195,7 +195,7 @@ void stepFlightModel(void) {
 #if defined(__ANDROID__)
     /* Publish the aircraft attitude before input sampling. Android uses it as
      * feedback for target-angle controls, never as an integrated turn rate. */
-    android_ar_setAutopilotActive(g_autopilotAltitude != 0 ||
+    android_ar_setAutopilotActive(!g_autopilotAltitude.isZero() ||
                                   g_autopilotEngaged != 0);
     android_ar_setGameAttitude(signedAngle(g_ourPitch), signedAngle(g_ourRoll));
 #endif
@@ -250,7 +250,7 @@ void stepFlightModel(void) {
         hudMessage("Look on");
         goto switch_break;
     case INPUT_KEY_LOOK_OFF:
-        if (g_autopilotAltitude != 0 || g_autopilotEngaged != 0)
+        if (!g_autopilotAltitude.isZero() || g_autopilotEngaged != 0)
             hudMessage("Look blocked: autopilot on");
         else
             hudMessage("Look off");
@@ -328,7 +328,7 @@ switch_break:
         joyAxes[0] = 0;
         joyAxes[1] = 0;
 #if defined(__ANDROID__)
-    } else if (g_autopilotAltitude != 0 || g_autopilotEngaged != 0) {
+    } else if (!g_autopilotAltitude.isZero() || g_autopilotEngaged != 0) {
         /* A sensor sample may already be cached when autopilot is toggled.
          * Neutralize it here so legacy stick input cannot cancel autopilot. */
         joyAxes[0] = 0x80;
@@ -362,7 +362,7 @@ switch_break:
     /* Direct attitude must not cancel a stall, ground constraint, or forced
      * crash. Zero thrust alone is not a stall: unpowered gliding remains valid. */
     const bool attitudeControlAllowed =
-        g_autopilotAltitude == 0 && g_inputDisabled == 0 &&
+        g_autopilotAltitude.isZero() && g_inputDisabled == 0 &&
         g_ejectState == 0 && g_autoCrashDive == 0 &&
         Aero::aboveStall(g_velocity, g_stallSpeed) &&
         (g_groundAltitude != g_viewZ || g_knots >= g_cornerSpeed);
@@ -371,7 +371,7 @@ switch_break:
                                      g_rollInput, g_pitchInput, android_ar_overrideFlightInput)
                                : 0;
     if (androidFlightControl) {
-        g_autopilotAltitude = 0;
+        g_autopilotAltitude = {};
         g_autopilotEngaged = 0;
         g_directorMode = 0;
         /*
@@ -401,14 +401,14 @@ switch_break:
     }
 
     if (!g_rollInput.isZero() || !g_pitchInput.isZero()) {
-        g_autopilotAltitude = 0;
+        g_autopilotAltitude = {};
     }
 
-    if (g_autopilotAltitude != 0) {
+    if (!g_autopilotAltitude.isZero()) {
         const auto headingOffset = angleFromWord(g_autopilotEngaged != 0 ?
             (g_missionTick & 0xF) * 256 - 2048 : 0);
         const auto guidance = f15::math::GuidanceMath<f15::math::GameBackend>::altitudeHold(
-            f15::math::legacy::renderHeightFromUnits(g_autopilotAltitude),
+            g_autopilotAltitude,
             flightControlHeight(),
             {g_ourHead, g_ourPitch, g_ourRoll}, angleFromWord(g_waypointBearing), headingOffset, g_rollPitchTrim);
         g_rollInput = guidance.roll;
@@ -626,7 +626,7 @@ switch_break:
 #if defined(__ANDROID__)
     android_ar_setFlightDebug(signedAngle(g_ourHead), Controls::yaw(yaw), rollInput(g_rollInput), pitchInput(g_pitchInput),
                               g_knots, legacyLoad, turbulence,
-                              g_autopilotAltitude, g_autopilotEngaged,
+                              static_cast<int>(f15::math::legacy::Altitudes::render(g_autopilotAltitude)), g_autopilotEngaged,
                               g_directorMode, g_frameRateScaling);
 #endif
 

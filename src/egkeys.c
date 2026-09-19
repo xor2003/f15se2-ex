@@ -4,6 +4,7 @@
 #include "egdata.h"
 #include "math/legacy_rotation.hpp"
 #include "math/legacy_horizontal.hpp"
+#include "math/legacy_altitude.hpp"
 using f15::math::legacy::signedAngle;
 #include "egframe.h"
 #include "egkeys.h"
@@ -196,17 +197,22 @@ void keyDispatch(uint16 scanCode) {
         }
         break;
     case SCAN_P:
-        if (g_autopilotAltitude != 0) {
-            g_autopilotAltitude = 0;
+        if (!g_autopilotAltitude.isZero()) {
+            g_autopilotAltitude = {};
             hudMessage("Autopilot off");
         } else {
-            g_autopilotAltitude = g_viewZ < 1000 ? 1000 : g_viewZ;
+#ifdef F15_MODERN_MATH
+            const auto height = f15::math::AltitudeMath<f15::math::GameBackend>::renderHeight(g_altitude);
+#else
+            const auto height = f15::math::legacy::renderHeightFromUnits(g_viewZ);
+#endif
+            g_autopilotAltitude = f15::math::AltitudeMath<f15::math::GameBackend>::captureAltitudeHold(height);
             hudMessage("Autopilot on");
         }
 #if defined(__ANDROID__)
         /* Stop motion input in this dispatch frame. Waiting for the next
            flight step lets one stale sensor command fight the autopilot. */
-        android_ar_setAutopilotActive(g_autopilotAltitude != 0 ||
+        android_ar_setAutopilotActive(!g_autopilotAltitude.isZero() ||
                                       g_autopilotEngaged != 0);
 #endif
         break;

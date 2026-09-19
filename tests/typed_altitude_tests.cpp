@@ -109,6 +109,14 @@ void productionCaller() {
 }
 
 void modernMath() {
+    for (int height = -32768; height <= 32767; ++height)
+        require(FC::render(FM::captureAltitudeHold(FC::render(height))) ==
+                    (height < 1000 ? 1000 : height),
+                "fixed altitude-hold capture differs from original word policy");
+    for (double height : {999.75, 1000.0, 1000.25, 32768.5, 40960.0625})
+        require(MC::render(MM::captureAltitudeHold(MC::render(height))) ==
+                    (height < 1000 ? 1000 : height),
+                "modern altitude-hold capture lost range or precision");
     const RotationMath<M> rotation;
     const auto angle = Boundary<M>::radians(0.321);
     const auto rate = MM::climb(MC::speed(123.75), rotation.sine(angle));
