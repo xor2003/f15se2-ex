@@ -120,10 +120,10 @@ void renderHudFrame(int unused) {
             }
             if (g_currentWeaponType == 0 || g_currentWeaponType == 2) {
                 setDrawColor(COLOR_LIGHTGRAY);
-                g_flightPathMarkerY = (g_rollPitchTrim >> 6) + 56;
+                g_flightPathMarkerY = (signedAngle(g_rollPitchTrim) >> 6) + 56;
                 if (g_flightPathMarkerY > 10 && g_flightPathMarkerY < 111) {
                     /* Fractional Y (the >>6 dropped) so the marker glides sub-pixel. */
-                    float ry = g_rollPitchTrim / 64.0f + 56.0f;
+                    float ry = signedAngle(g_rollPitchTrim) / 64.0f + 56.0f;
                     if (!hdsprite_drawHudGunReticle(154.0f, ry - 4.0f)) {
                         blitSprite(154, g_flightPathMarkerY - 4, 0x94, 21, 11, 7, 0xf);
                     }

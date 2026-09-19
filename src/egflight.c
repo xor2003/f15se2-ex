@@ -1,6 +1,6 @@
 #include "math/legacy_horizontal.hpp"
 #include "math/legacy_airspeed.hpp"
-using f15::math::legacy::speedUnits;
+#include "math/aerodynamics.hpp"
 using f15::math::legacy::speedWord;
 using f15::math::legacy::speedFromUnits;
 using SpeedMath = f15::math::AirspeedMath<f15::math::FixedBackend>;
@@ -87,12 +87,20 @@ void advanceFlightAltitude() {
     using Altitudes = f15::math::legacy::Altitudes;
     const f15::math::legacy::Math rotation(g_angleLut);
     g_climbRate = VerticalMath::climb(SpeedMath::verticalSample(g_velocity),
-        rotation.sine(g_ourPitch - angleFromWord(g_rollPitchTrim)));
+        rotation.sine(g_ourPitch - g_rollPitchTrim));
     if (g_autoLandingActive == 0)
         g_altitude = VerticalMath::integrate(g_altitude, g_climbRate,
             f15::math::legacy::Controls::frequency(g_frameRateScaling));
     g_altitude = VerticalMath::constrain(g_altitude, Altitudes::ground(g_groundAltitude));
     g_viewZ = Altitudes::render(VerticalMath::renderHeight(g_altitude));
+}
+
+void updateFlightLift() {
+    using Aero = f15::math::AerodynamicsMath<f15::math::FixedBackend>;
+    const auto lift = Aero::liftCorrection(speedFromUnits(g_stallSpeed), g_velocity);
+    const auto trim = Aero::pitchTrim(lift, f15::math::legacy::Math(g_angleLut).cosine(g_ourRoll));
+    g_liftForce = lift;
+    g_rollPitchTrim = trim;
 }
 
 void accelerateFlightSpeed(f15::math::FlightSpeed<f15::math::FixedBackend> target) {
@@ -382,7 +390,7 @@ switch_break:
 
         g_rollInput = rollCommand(-clampRange((int16)(headingErr - signedAngle(g_ourRoll)) >> 6, -24, 24));
 
-        tmpVal = egClampValue(((g_autopilotAltitude - g_viewZ) << 4) - g_rollPitchTrim, -5120, 0xC00);
+        tmpVal = egClampValue(((g_autopilotAltitude - g_viewZ) << 4) - signedAngle(g_rollPitchTrim), -5120, 0xC00);
 
         g_pitchInput = pitchCommand(clampRange((tmpVal - signedAngle(g_ourPitch)) >> 7, -8, 8));
 
@@ -451,7 +459,7 @@ switch_break:
             g_setThrust = clampRange((abs(headingErr) / 256) + (tmpVal / 64), 35, 80);
             UpdateThrottleState();
 
-            tmpVal = egClampValue(((tmpVal - g_viewZ) >> 3) + (g_rollPitchTrim >> 7), -24, 24);
+            tmpVal = egClampValue(((tmpVal - g_viewZ) >> 3) + (signedAngle(g_rollPitchTrim) >> 7), -24, 24);
 
             g_pitchInput = pitchCommand(clampRange(tmpVal - (signedAngle(g_ourPitch) >> 7), -16, 16));
 
@@ -483,7 +491,7 @@ switch_break:
     }
 
     if ((g_playerPlaneFlags & 1) && (g_pitchInput.isNegative() || g_pitchInput.isZero()) && ((uint16)g_stallSpeed) < (speedWord(g_velocity)) && gameData->unk4 < 2 && abs((int16)signedAngle(g_ourRoll)) < 0x3000 && g_gunFiredFlag == 0) {
-        tmpVal = ((((g_rollPitchTrim) - (signedAngle(g_ourPitch))) >> 2) - g_viewZ + 300) >> 2;
+        tmpVal = (((signedAngle(g_rollPitchTrim) - signedAngle(g_ourPitch)) >> 2) - g_viewZ + 300) >> 2;
         if (tmpVal > 0) {
             g_pitchInput = pitchCommand(clampRange(tmpVal, 0, 32));
         }
@@ -607,10 +615,7 @@ switch_break:
 
     accelerateFlightSpeed(speedFromUnits(targetVel));
 
-    g_liftForce = ((int32)g_stallSpeed * 3072) / (abs(speedUnits(g_velocity)) + 1);
-    if ((uint16)g_liftForce > 0x2000) g_liftForce = 0x2000;
-
-    g_rollPitchTrim = cosMul(signedAngle(g_ourRoll), g_liftForce - 0x300);
+    updateFlightLift();
 
     brakeFlightSpeed();
 

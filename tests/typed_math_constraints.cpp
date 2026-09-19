@@ -4,6 +4,7 @@
 #include "math/altitude.hpp"
 #include "math/horizontal.hpp"
 #include "math/airspeed.hpp"
+#include "math/aerodynamics.hpp"
 #include <type_traits>
 
 using namespace f15::math;
@@ -41,6 +42,7 @@ int main() {
     roll += RollCommand<ModernBackend>{};
     (void)roll.isZero();
     (void)AirspeedMath<ModernBackend>::verticalSample(FlightSpeed<ModernBackend>{});
+    (void)AerodynamicsMath<ModernBackend>::pitchTrim(angle, math.cosine(angle));
 #if defined(TEST_PRIMITIVE_ANGLE)
     (void)math.sine(1.0);
 #elif defined(TEST_PRIMITIVE_EULER)
@@ -115,6 +117,16 @@ int main() {
     ViewDisplacement<ModernBackend, ViewXAxis> delta(1.0);
 #elif defined(TEST_HORIZONTAL_SPEED)
     HorizontalSpeed<ModernBackend> speed = 1.0;
+#elif defined(TEST_LIFT_PRIMITIVE)
+    (void)AerodynamicsMath<ModernBackend>::liftCorrection(1.0, 2.0);
+#elif defined(TEST_TRIM_PRIMITIVE)
+    (void)AerodynamicsMath<FixedBackend>::pitchTrim(1, 1);
+#elif defined(TEST_TRIM_BACKEND)
+    (void)AerodynamicsMath<FixedBackend>::pitchTrim(angle, math.cosine(angle));
+#elif defined(TEST_TRIM_COEFFICIENT)
+    (void)AerodynamicsMath<ModernBackend>::pitchTrim(angle, angle);
+#elif defined(TEST_TRIM_FRACTION)
+    (void)PoseInterpolation<ModernBackend>::linearOffset(angle, angle, 0.5);
 #elif defined(TEST_AIRSPEED_PRIMITIVE)
     FlightSpeed<FixedBackend> speed = 10;
 #elif defined(TEST_AIRSPEED_EXTRACTION)

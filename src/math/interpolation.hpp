@@ -41,6 +41,20 @@ template<class B> class PoseInterpolation {
         }
     }
 public:
+    // Trim is a signed angular offset: interpolate linearly, not across the seam.
+    static Angle<B> linearOffset(Angle<B> a, Angle<B> b, FrameFraction fraction) {
+        if constexpr (std::is_same_v<B, FixedBackend>) {
+            const auto start = a.value_.signedRaw(), end = b.value_.signedRaw();
+            const auto difference = std::int64_t(end) - start;
+            const auto magnitude = difference < 0 ? -difference : difference;
+            if (magnitude && fraction.numerator_ > INT64_MAX / magnitude)
+                throw std::overflow_error("trim interpolation product overflow");
+            return Angle<B>(fixed::Angle16(start + static_cast<int>(difference * fraction.numerator_ / fraction.denominator_)));
+        } else {
+            const double t = double(fraction.numerator_) / fraction.denominator_;
+            return Angle<B>(a.value_ * (1 - t) + b.value_ * t);
+        }
+    }
     static bool snaps(Angle<B> a, Angle<B> b) {
         const auto d = delta(a, b);
         if constexpr (std::is_same_v<B, FixedBackend>) return d >= 16384 || d <= -16384;

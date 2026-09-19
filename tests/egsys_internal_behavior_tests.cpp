@@ -57,6 +57,7 @@ void seedCameraState(int base) {
     g_wreckX = static_cast<int16>(base + 120);
     g_wreckY = static_cast<int16>(base + 130);
     g_wreckAlt = static_cast<int16>(base + 140);
+    g_rollPitchTrim = angleFromWord(base + 150);
 }
 
 void clearObjects() {
@@ -103,6 +104,7 @@ int main() {
                 g_wreckAlt == 1640,
             "camApplyInterp interpolates camera, map, crash, and wreck state");
     camRestore(&next);
+    require(g_rollPitchTrim == next.rollPitchTrim, "camera restores typed trim");
     require(fineUnits(g_ViewX) == 2010 &&
                 g_viewY_ == 2080 &&
                 g_wreckAlt == 2140,
@@ -123,6 +125,22 @@ int main() {
     } catch (const std::overflow_error &) { invalidProduct = true; }
     require(invalidProduct && fineUnits(g_ViewX) == 2010 && fineUnits(g_ViewY) == 2020 && g_ourHead == next.head,
             "horizontal interpolation overflow must not partially overwrite camera state");
+    overflowPrev = prev;
+    overflowNext = next;
+    overflowPrev.rollPitchTrim = angleFromWord(-32768);
+    overflowNext.rollPitchTrim = angleFromWord(32767);
+    invalidProduct = false;
+    try {
+        camApplyInterp(&overflowPrev, &overflowNext, INT64_MAX / 32768, INT64_MAX / 32768);
+    } catch (const std::overflow_error &) { invalidProduct = true; }
+    require(invalidProduct && fineUnits(g_ViewX) == 2010 && g_rollPitchTrim == next.rollPitchTrim,
+            "trim interpolation overflow must not partially overwrite camera state");
+    camApplyInterp(&prev, &next, 1, 2);
+    require(signedAngle(g_rollPitchTrim) == 1650, "camera linearly interpolates typed trim");
+    auto flip = next;
+    flip.roll = prev.roll + f15::math::Angle<f15::math::FixedBackend>::halfTurn();
+    camApplyInterp(&prev, &flip, 1, 2);
+    require(g_rollPitchTrim == next.rollPitchTrim, "camera snaps trim on a roll discontinuity");
 
     prev.head = angleFromWord(0x0100);
     next.head = angleFromWord(0xFF00);

@@ -60,7 +60,8 @@ typedef struct {
     /* HUD reticle inputs derived from the player state each sim step (gun-reticle
      * vertical trim, air-to-air seeker head offset). They ride the same snapshot so
      * the reticles glide every render frame instead of snapping at the sim rate. */
-    int32 rollPitchTrim, aamSeekerX, aamSeekerY;
+    f15::math::Angle<f15::math::FixedBackend> rollPitchTrim;
+    int32 aamSeekerX, aamSeekerY;
 } CamSnapshot;
 
 static int32 iabs32(int32 v) {
@@ -102,7 +103,7 @@ static void camRestore(const CamSnapshot *s) {
     g_wreckX = (int16)s->wreckX;
     g_wreckY = (int16)s->wreckY;
     g_wreckAlt = (int16)s->wreckAlt;
-    g_rollPitchTrim = (int16)s->rollPitchTrim;
+    g_rollPitchTrim = s->rollPitchTrim;
     g_aamSeekerX = (int16)s->aamSeekerX;
     g_aamSeekerY = (int16)s->aamSeekerY;
 }
@@ -157,6 +158,8 @@ static void camApplyInterp(const CamSnapshot *p, const CamSnapshot *n, int64 num
     const auto fraction = f15::math::FrameFraction::fromTicks(num, den);
     const auto x = Horizontal::interpolate(p->viewX, n->viewX, fraction);
     const auto y = Horizontal::interpolate(p->viewY, n->viewY, fraction);
+    const auto trim = Pose::snaps(p->roll, n->roll) ? n->rollPitchTrim
+        : Pose::linearOffset(p->rollPitchTrim, n->rollPitchTrim, fraction);
     g_ViewX = x;
     g_ViewY = y;
     g_viewZ = (int16)lerpLinear(p->viewZ, n->viewZ, num, den);
@@ -179,9 +182,7 @@ static void camApplyInterp(const CamSnapshot *p, const CamSnapshot *n, int64 num
     }
     /* Gun-reticle vertical trim tracks the roll pose; snap it across the gimbal
      * flip with the pose (else it would swing through centre for one frame). */
-    g_rollPitchTrim = (int16)(Pose::snaps(p->roll, n->roll)
-                                  ? n->rollPitchTrim
-                                  : lerpLinear(p->rollPitchTrim, n->rollPitchTrim, num, den));
+    g_rollPitchTrim = trim;
     /* Seeker head: snap on a lock switch (a large one-step jump), tween otherwise. */
     if (iabs32(n->aamSeekerX - p->aamSeekerX) >= SEEKER_TELEPORT_GUARD ||
         iabs32(n->aamSeekerY - p->aamSeekerY) >= SEEKER_TELEPORT_GUARD) {

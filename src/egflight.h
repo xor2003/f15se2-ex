@@ -6,6 +6,7 @@
 
 void advanceFlightOrientation(const f15::math::RotationDeltas<f15::math::FixedBackend> &deltas);
 void advanceFlightAltitude();
+void updateFlightLift();
 void accelerateFlightSpeed(f15::math::FlightSpeed<f15::math::FixedBackend> target);
 void brakeFlightSpeed();
 void advanceFlightHorizontal(f15::math::HorizontalSpeed<f15::math::FixedBackend> speed);

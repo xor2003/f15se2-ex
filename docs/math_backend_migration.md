@@ -212,7 +212,7 @@ Android, browser and live-flight verification remain outstanding.
 * Overflowing fixed acceleration differences and braking results are rejected:
   those native signed overflows had no defined C++ result. This is not a claim
   of parity for undefined inputs. Lift's old scalar `abs(speed) + 1` extreme-value
-  behavior remains outside the migrated scope.
+  behavior is now handled by the lift checkpoint below.
 * Modern acceleration/braking retain double precision. The modern speed limit
   clamps to [0, 45000] instead of low-word wrapping/resetting; this is a deliberate
   modern policy, not fixed parity. Engine velocity units remain 27 per indicated
@@ -236,11 +236,49 @@ acceleration/braking helpers. Other linked core files are not instrumented and
 this does not execute an entire sortie. Windows, Android, browser, external-asset
 validation and live-flight checks remain outstanding.
 
+## Lift and trim checkpoint
+
+* `g_liftForce` and `g_rollPitchTrim` now store typed angles. Despite the old
+  variable name, the lift formula produces an angular correction (word units),
+  not a force in newtons. `AerodynamicsMath` computes lift correction and banked
+  pitch trim for both backends. The correction and trim remain typed through
+  flight-path subtraction and climb calculation.
+* Fixed lift retains the signed stall-speed word, native signed velocity
+  magnitude, quotient narrowing to a word before the unsigned 8192 clamp, and
+  rounded Q15 cosine multiplication for trim. The three native velocity values
+  for which `abs(v) + 1` was undefined are explicitly rejected before changing
+  either live correction. Modern lift uses fractional radians, continuous
+  division, and a non-wrapping [0, pi/4] clamp. Negative modern correction clamps
+  to zero rather than acquiring the fixed path's unsigned-word interpretation.
+* The production `updateFlightLift` remains between acceleration and braking,
+  preserving the existing sampling order. Stall-speed generation, autopilot
+  assist arithmetic and HUD coordinate conversion remain transitional raw
+  consumers/producers with explicit adapters, not migrated subsystems.
+* Camera snapshots capture and restore typed trim. `PoseInterpolation::linearOffset`
+  preserves signed linear interpolation, not shortest-arc angle interpolation.
+  The existing roll-discontinuity snap policy is unchanged. A fixed interpolation
+  product overflow is rejected before any camera globals are written.
+* Tests freeze the `8c0f982` formulas, including exhaustive signed stall words,
+  unsigned velocity samples, every roll angle, signed/native boundaries and
+  24,000 production lift/trim/climb cases. Modern fractional lift-to-climb checks
+  cover 12,000 cases. Camera tests cover typed restore, interpolation, roll-flip
+  snapping and unchanged live state on interpolation failure.
+
+Verification: Linux Release build and all 49 CTests pass, including 54 negative
+compiler cases and a positive control. Clang analysis of
+`typed_aerodynamics_tests.cpp` reports no diagnostics. ASan/UBSan passes with that
+test, inline math and `egflight.c` instrumented, including the production
+lift/trim/climb callers. A separate ASan/UBSan run of
+`egsys_internal_behavior_tests.cpp` (including `egsys.c`) also passes. Other linked
+core files are not instrumented; whole-sortie and cross-platform checks remain
+outstanding.
+
 ### Next acceptance boundary
 
 Aircraft Euler, command, altitude, climb, airspeed and fine horizontal position
-storage are typed, but most scalar control producers and consumers remain legacy
-math. Migrate target-speed generation, lift, stall, forces, object state and remaining
+storage plus lift correction and pitch trim are typed, but most scalar control
+producers and consumers remain legacy math. Migrate target-speed generation,
+stall, thrust/force generation, object state and remaining
 read adapters before selecting modern flight math; changing the angle backend
 alone would still quantize at these consumers. Keep modern refresh policy distinct from the original periodic rebuild,
 which intentionally quantizes fixed state. Then migrate flight

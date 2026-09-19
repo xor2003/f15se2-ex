@@ -20,6 +20,7 @@ template<class B, class Unit> class AirspeedQuantity {
     }
     friend struct AirspeedBoundary<B>;
     friend class AirspeedMath<B>;
+    friend class AerodynamicsMath<B>;
 public:
     AirspeedQuantity() = default;
     bool operator==(AirspeedQuantity other) const { return value_ == other.value_; }

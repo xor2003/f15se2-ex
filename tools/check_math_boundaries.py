@@ -13,6 +13,7 @@ ALLOWED = {
     "src/math/altitude.hpp", "src/math/altitude_boundary.hpp", "src/math/legacy_altitude.hpp",
     "src/math/horizontal.hpp", "src/math/horizontal_boundary.hpp", "src/math/legacy_horizontal.hpp",
     "src/math/airspeed.hpp", "src/math/airspeed_boundary.hpp", "src/math/legacy_airspeed.hpp",
+    "src/math/aerodynamics.hpp",
     "src/replacement_terrain_collision.h",
     "src/eg3drast.c", "src/eg3dcam.c", "src/egflight.c",
     # Temporary Euler consumers; remove each entry as its scalar math is migrated.

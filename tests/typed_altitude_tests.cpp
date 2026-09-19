@@ -93,7 +93,7 @@ void productionCaller() {
         const int hz = 1 + next() % 120;
         g_altitude = FC::altitude(initial);
         g_ourPitch = Boundary<F>::angleWord(pitch);
-        g_rollPitchTrim = trim;
+        g_rollPitchTrim = Boundary<F>::angleWord(trim);
         g_velocity = legacy::speedFromUnits(speed);
         g_groundAltitude = ground;
         g_frameRateScaling = hz;

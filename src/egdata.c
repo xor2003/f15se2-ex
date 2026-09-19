@@ -2063,7 +2063,7 @@ char strBuf[78];
 uint8 g_strTruncDot;
 uint8 g_strTruncTerm[1];
 
-int16 g_rollPitchTrim;
+f15::math::Angle<f15::math::FixedBackend> g_rollPitchTrim;
 int16 g_sphereTiltZ;
 int16 g_scopeCenterX;
 int16 g_scopeCenterY;
@@ -2136,7 +2136,7 @@ uint16 g_wingmanY = 0;
 int16 g_aamLockCooldown;
 int32 g_camEyeY;
 int16 g_threatRefX;
-int16 g_liftForce;
+f15::math::Angle<f15::math::FixedBackend> g_liftForce;
 int16 g_wreckFallVel;
 int16 g_camEyeZ;
 int16 g_threatRefY;

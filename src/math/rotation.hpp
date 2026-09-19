@@ -8,6 +8,7 @@
 
 namespace f15::math {
 template<class B> class AirspeedMath;
+template<class B> class AerodynamicsMath;
 
 struct FixedBackend {};
 struct ModernBackend {};
@@ -32,6 +33,7 @@ template<class B> class Angle {
     friend class RotationMath<B>;
     friend class PoseInterpolation<B>;
     friend class FlightControlMath<B>;
+    friend class AerodynamicsMath<B>;
     friend struct Boundary<B>;
 public:
     Angle() = default;
@@ -69,6 +71,7 @@ template<class B> class Coefficient {
     friend class AltitudeMath<B>;
     friend class HorizontalMath<B>;
     friend class AirspeedMath<B>;
+    friend class AerodynamicsMath<B>;
     friend struct Boundary<B>;
 public:
     Coefficient() = default;
