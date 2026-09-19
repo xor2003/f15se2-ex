@@ -21,8 +21,8 @@ run that unchanged path, verify them, and commit the tests separately. Keep thei
 fixed-backend expectations unchanged through migration. Add separate modern
 precision and outcome tests; helper-only coverage does not establish caller parity.
 
-`flight_model_characterization_tests` establishes a baseline against `dbfb4ab`
-without production edits or math/flight-model test doubles. Its 48,600 independent
+`flight_model_characterization_tests` established a baseline against `dbfb4ab`
+without production edits or math/flight-model test doubles. Its initial 48,600 independent
 ticks cover thrust ramp-up/down, damage caps, fuel burn cadence and exhaustion,
 load factor (including its high-bank cap), corner/stall thresholds, and target-speed
 to acceleration ordering at 4 and 15 Hz. Inputs include three heights, three
@@ -33,6 +33,17 @@ rest of the linked core is not instrumented. Clang analysis of the harness is
 clean. This is bounded caller coverage, not full flight-model coverage: turn
 trajectories, assists, ejection, landing, multi-tick sorties and the remaining
 branches still need baselines before their migration.
+
+Before target-speed migration, a tests-only extension against `7e9e228` expands
+this matrix to 194,400 ticks by crossing gear-up/down and airbrake-on/off states.
+It preserves the existing expected values and adds gear drag, post-acceleration
+braking, and lift/trim assertions. In particular, lift must sample accelerated
+speed before airbraking, and trim must use the initial roll. These cases still
+use neutral controls and do not establish coverage of autopilot or input paths.
+The Linux Release build, all 52 CTests, Clang analysis of the harness, and ASan/UBSan with
+`egflight.c` instrumented pass for this extension; the rest of the core remains
+uninstrumented. No units library is introduced: backend quantities remain
+project-owned strong types.
 
 ## Applied-thrust migration checkpoint
 

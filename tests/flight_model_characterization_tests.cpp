@@ -36,6 +36,8 @@ void thrustAndFuel() {
     for (int height : {2000, 4095, 8192})
     for (int pitch : {-4096, 0, 4096})
     for (int roll : {-8192, 0, 8192, 12288, 16384, 24576})
+    for (bool gearUp : {false, true})
+    for (bool airBrake : {false, true})
     for (bool fuelTick : {false, true}) {
         g_initPhase = 1;
         g_frameRateScaling = hz;
@@ -52,7 +54,9 @@ void thrustAndFuel() {
         g_altitude = legacy::altitudeFromUnits(height);
         g_velocity = legacy::speedFromUnits(8100);
         g_knots = 300;
-        g_playerPlaneFlags = 1;
+        g_playerPlaneFlags = (gearUp ? 1 : 0) | (airBrake ? 8 : 0);
+        g_gearDownArmed = 0;
+        g_cornerSpeed = 100;
         g_joyRawX = g_joyRawY = 128;
         g_ViewX = legacy::viewX(0);
         g_ViewY = legacy::viewY(0);
@@ -83,11 +87,17 @@ void thrustAndFuel() {
         targetSpeed = word(floorDivide((height / 128 + 1024) * targetSpeed, 1024));
         targetSpeed = word(targetSpeed * (100 - remaining / 512) / 90);
         targetSpeed = word(floorDivide(targetSpeed * (128 - gees), 128));
+        if (!gearUp) targetSpeed = word(targetSpeed - floorDivide(targetSpeed, 8));
         targetSpeed = std::clamp(targetSpeed, 0, 899) * 27;
-        const int velocity = 8100 + ((targetSpeed - 8100) / 16) / hz;
+        const int beforeBrakes = 8100 + ((targetSpeed - 8100) / 16) / hz;
+        const int velocity = beforeBrakes - (airBrake ? (beforeBrakes / 16) / hz : 0);
         int root = 0;
         while ((root + 1) * (root + 1) <= gees * 4) ++root;
         const int corner = std::abs(word(root * word(100 * (height / 64 + 1024) / 1024) / 8));
+        int lift = word(word(corner * 27) * 3072 / (std::abs(beforeBrakes) + 1));
+        if (std::uint16_t(lift) > 8192) lift = 8192;
+        const int trim = word(floorDivide(std::int64_t(word(lift - 768)) *
+            rotation_reference::sine(roll + 16384, g_angleLut) + 16384, 32768));
 
         stepFlightModel();
         require(legacy::thrustUnits(g_thrust) == expected, "full flight model thrust response changed");
@@ -98,6 +108,8 @@ void thrustAndFuel() {
                 "full flight model corner/stall threshold changed");
         require(legacy::speedUnits(g_velocity) == velocity && g_knots == velocity / 27,
                 "full flight model target-speed/acceleration order changed");
+        require(legacy::signedAngle(g_liftForce) == lift && legacy::signedAngle(g_rollPitchTrim) == trim,
+                "lift must sample accelerated speed before braking and the initial roll");
     }
     gameData = nullptr;
     commData = nullptr;
