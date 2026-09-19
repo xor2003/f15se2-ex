@@ -32,6 +32,8 @@ class BoundaryChecks(unittest.TestCase):
                          'using C = f15::math::AirspeedBoundary<FixedBackend>;',
                          '#include "math/propulsion_boundary.hpp"',
                          '#include "math/legacy_propulsion.hpp"',
+                         '#include "math/legacy_map.hpp"',
+                         'using C = f15::math::MapBoundary<FixedBackend>;',
                          'using C = f15::math::PropulsionBoundary<FixedBackend>;',
                          '#include "fixed_math.hpp"',
                          '#define F15_MATH_BOUNDARY_ACCESS',

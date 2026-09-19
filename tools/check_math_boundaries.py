@@ -15,6 +15,7 @@ ALLOWED = {
     "src/math/airspeed.hpp", "src/math/airspeed_boundary.hpp", "src/math/legacy_airspeed.hpp",
     "src/math/aerodynamics.hpp",
     "src/math/guidance.hpp",
+    "src/math/map_position.hpp", "src/math/legacy_map.hpp",
     "src/math/propulsion.hpp", "src/math/propulsion_boundary.hpp", "src/math/legacy_propulsion.hpp",
     "src/replacement_terrain_collision.h",
     # Recorded diagnostics serialize quantities in the legacy recording units.
@@ -25,9 +26,9 @@ ALLOWED = {
     "src/egtgt2.c", "src/egcombat.c", "src/egframe.c", "src/egtacmap.c", "src/egthreat.c",
     "src/egui.c",
 }
-ACCESS = re.compile(r"F15_MATH_BOUNDARY_ACCESS|\b(?:Control|Altitude|Horizontal|Airspeed|Propulsion)?Boundary\s*<|math::legacy|\bfixed\s*::|"
+ACCESS = re.compile(r"F15_MATH_BOUNDARY_ACCESS|\b(?:Control|Altitude|Horizontal|Airspeed|Propulsion|Map)?Boundary\s*<|math::legacy|\bfixed\s*::|"
                     r'#\s*include\s*[<"](?:math/)?(?:boundary|control_boundary|altitude_boundary|horizontal_boundary|airspeed_boundary|propulsion_boundary|legacy_rotation|legacy_flight_control|legacy_altitude|legacy_horizontal|legacy_airspeed|legacy_propulsion)\.hpp[>"]|'
-                    r'#\s*include\s*[<"]fixed_math\.hpp[>"]')
+                    r'#\s*include\s*[<"](?:fixed_math|(?:math/)?legacy_map)\.hpp[>"]')
 
 def violations(root):
     errors = []

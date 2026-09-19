@@ -4,6 +4,7 @@
 #include "math/legacy_flight_control.hpp"
 #include "math/legacy_airspeed.hpp"
 #include "math/legacy_propulsion.hpp"
+#include "math/legacy_map.hpp"
 #include "math_rotation_reference.hpp"
 #include <cstdio>
 #include <cstdlib>
@@ -12,6 +13,9 @@ namespace {
 using namespace f15::math;
 using F = FixedBackend;
 using M = ModernBackend;
+static_assert(!std::is_constructible_v<MapPosition<F>, int, int>);
+static_assert(!std::is_constructible_v<MapPosition<M>, double, double>);
+static_assert(!std::is_convertible_v<MapPosition<F>, MapPosition<M>>);
 void require(bool ok, const char *message) {
     if (!ok) { std::fprintf(stderr, "%s\n", message); std::exit(1); }
 }
@@ -107,5 +111,24 @@ void recoveryCases() {
             "modern recovery steering lost fractional input");
     }
 }
+void modernApproachCases() {
+    const auto approach = [](double origin, double x, double y) {
+        return GuidanceMath<M>::recoveryApproach(MapBoundary<M>::position(origin + x, origin + y),
+            MapBoundary<M>::position(origin, origin), {}, true, RecoveryDirection::North, false);
+    };
+    for (double origin : {0.0, 1000000.0, -1000000.0}) {
+        const auto result = approach(origin, 10.25, 20.5);
+        require(std::abs(Boundary<M>::radians(result.bearing) - std::atan2(30.75, -89.5)) < 1e-14,
+            "modern approach lost fractional coordinates or translation invariance");
+        require(AltitudeBoundary<M>::render(result.height) == 221.5 && result.exitSlowMotion && result.allowBrakes,
+            "modern approach height or policy changed");
+    }
+    const auto large = approach(0, 16000, 16000);
+    require(std::abs(Boundary<M>::radians(large.bearing) - std::atan2(48000.0, -19100.0)) < 1e-14 &&
+        AltitudeBoundary<M>::render(large.height) == 4196 && !large.exitSlowMotion,
+        "modern approach retained signed-word range loss");
+    const auto corridor = GuidanceMath<M>::recoveryApproach({}, {}, {}, true, RecoveryDirection::North, true);
+    require(AltitudeBoundary<M>::render(corridor.height) == -20, "modern corridor descent target changed");
 }
-int main() { fixedCases(); modernCases(); recoveryCases(); }
+}
+int main() { fixedCases(); modernCases(); recoveryCases(); modernApproachCases(); }

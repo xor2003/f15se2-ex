@@ -6,6 +6,7 @@ using f15::math::legacy::thrustUnits;
 using Propulsion = f15::math::PropulsionMath<f15::math::FixedBackend>;
 #include "math/aerodynamics.hpp"
 #include "math/guidance.hpp"
+#include "math/legacy_map.hpp"
 using f15::math::legacy::speedWord;
 using f15::math::legacy::speedFromUnits;
 using SpeedMath = f15::math::AirspeedMath<f15::math::FixedBackend>;
@@ -143,19 +144,17 @@ void stepFlightModel(void) {
     int16 p;                                // dummy:  bp-0x02 (bucket 0)
     int16 a, q;                             // dummies: bp-0x04, bp-0x06 (bucket 1)
     int16 prevAlt, aa, r;                   // var_C=prevAlt at bp-0x0c, dummies at bp-0x0a,bp-0x08 (bucket 2)
-    int16 ab, tgtIdx, bearing;              // dummy=ab at bp-0x12, var_10=tgtIdx at bp-0x10, var_E=bearing at bp-0x0e (bucket 3)
+    int16 ab, tgtIdx;
     int16 tmpVal;
     int16 ad, u;                           // dummies at bp-0x1e,bp-0x1c (bucket 5)
     int16 turbulence;
     f15::math::HorizontalSpeed<f15::math::FixedBackend> horizVel;
     int16 w;
-    int16 headingErr, dx;                   // var_2C=headingErr at bp-0x2c, var_2A=dx at bp-0x2a (bucket 8)
+    int16 headingErr;
     int16 i, y;                             // dummies: bp-0x2e, bp-0x30 (bucket 9)
-    int16 dy;                              // var_34=dy at bp-0x34 (bucket 10)
     int16 k;                                // dummy:  bp-0x36 (bucket 11)
     int16 idx;                              // var_38: bp-0x38 (bucket 12)
     int16 m;                                // dummy:  bp-0x3a (bucket 13)
-    int16 nsSign;                           // var_3E: bp-0x3e (bucket 15)
     int androidFlightControl = 0;
     int pointerThrottle = 0;
 
@@ -407,70 +406,31 @@ switch_break:
         g_pitchInput = guidance.pitch;
 
         if (waypointIndex == 3) {
-            nsSign = g_northSouthSign;
             tgtIdx = g_targetSlots[1].viewIndex;
             const int inRecoveryCorridor = g_inLandingCorridor != 0 &&
                 g_closestThreatIndex == tgtIdx;
 
-            dx = g_planeTable.planes[tgtIdx].mapX - g_viewX_;
-            dy = g_planeTable.planes[tgtIdx].mapY - g_viewY_;
-
-            if (!(g_planeTable.planes[tgtIdx].flags & 0x200)) {
-                nsSign = -signOf(dy);
-            }
-
-            dy += ((g_planeTable.planes[tgtIdx].flags & 0x200) ? 30 : 0x40) * nsSign;
-
-            headingErr = abs((int16)signedAngle(g_ourHead));
-            if (nsSign == -1) {
-                dx = -dx;
-                dy = -dy;
-                headingErr = abs((int16)(signedAngle(g_ourHead) - 0x8000));
-            }
-
-            tmpVal = clampRange((abs(dx) + abs(dy)) * 2 + headingErr / 32, 50, 0x1000);
-            if (tmpVal < 0x1000) {
-                exitSlowMotion();
-            }
-
-            if (g_planeTable.planes[tgtIdx].flags & 0x200) {
-                tmpVal += 100;
-            }
-
-            if (inRecoveryCorridor && abs(headingErr) < 0x200) {
-                tmpVal = -20;
-            }
-
-            dy = g_planeTable.planes[tgtIdx].mapY + (((g_planeTable.planes[tgtIdx].flags & 0x200) ? 28 : 56) * nsSign);
-
-            dy += clampRange((abs(dx) * 4) + (headingErr / 16), 0, 0xC00) * nsSign;
-
+            const auto approach = f15::math::GuidanceMath<f15::math::FixedBackend>::recoveryApproach(
+                f15::math::legacy::mapPosition(g_planeTable.planes[tgtIdx].mapX, g_planeTable.planes[tgtIdx].mapY),
+                f15::math::legacy::mapPosition(g_viewX_, g_viewY_), g_ourHead,
+                (g_planeTable.planes[tgtIdx].flags & 0x200) != 0,
+                static_cast<f15::math::RecoveryDirection>(g_northSouthSign), inRecoveryCorridor != 0);
+            if (approach.exitSlowMotion) exitSlowMotion();
             *((uint8 *)&g_playerPlaneFlags) &= 0xF7;
-
-            if (headingErr > 0x4000) {
-                dx = g_planeTable.planes[tgtIdx].mapX;
-                tmpVal = 0x1000;
-            } else {
-                dx = g_planeTable.planes[tgtIdx].mapX + (nsSign * dx * 2);
-                if (g_setThrust * 80 < g_knots) {
-                    *((uint8 *)&g_playerPlaneFlags) |= 8;
-                }
-            }
-
-            bearing = computeBearing(dx - g_viewX_, g_viewY_ - dy);
+            if (approach.allowBrakes && g_setThrust * 80 < g_knots) *((uint8 *)&g_playerPlaneFlags) |= 8;
             const auto bankTarget = f15::math::GuidanceMath<f15::math::FixedBackend>::recoveryBank(
-                angleFromWord(bearing), g_ourHead,
+                approach.bearing, g_ourHead,
                 f15::math::legacy::speedFromUnits(g_knots * 27), inRecoveryCorridor != 0);
 
             const auto recovery = f15::math::GuidanceMath<f15::math::FixedBackend>::recoveryAttitude(
-                f15::math::legacy::renderHeightFromUnits(tmpVal),
+                approach.height,
                 f15::math::legacy::renderHeightFromUnits(g_viewZ),
                 {g_ourHead, g_ourPitch, g_ourRoll}, bankTarget, g_rollPitchTrim);
             g_rollInput = recovery.roll;
 
             g_setThrust = f15::math::legacy::thrustUnits(
                 f15::math::GuidanceMath<f15::math::FixedBackend>::recoveryThrust(
-                    bankTarget, f15::math::legacy::renderHeightFromUnits(tmpVal)));
+                    bankTarget, approach.height));
             UpdateThrottleState();
 
             g_pitchInput = recovery.pitch;

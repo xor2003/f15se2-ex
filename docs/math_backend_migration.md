@@ -14,6 +14,23 @@ snapshot interpolation now use axis-specific types.
 This is the first migrated subsystem, not a complete interchangeable simulation
 backend. No whole-game floating-point backend selector is exposed.
 
+## Typed recovery approach geometry
+
+The production recovery path now uses `GuidanceMath::recoveryApproach` with
+coarse `MapPosition` values, distinct from fine view positions and render heights.
+It returns typed bearing/height plus slow-motion and brake-policy decisions.
+Fixed geometry preserves signed-word stores, the unusual wrapped clamp and
+legacy bearing approximation. Modern geometry uses continuous coordinate
+differences and `atan2`; fractional coordinates, translation invariance and
+large aim offsets are tested explicitly. Existing gameplay height limits remain
+policy, not numerical range limits. The caller still owns target selection,
+actual brake activation, gear changes and ground-contact handling.
+
+Raw map construction is confined to the reviewed `legacy_map.hpp` adapter;
+boundary-check regression tests reject its use from unreviewed game files.
+Modern guidance tests and standalone Clang analysis/ASan/UBSan pass. This does
+not establish modern full-sortie behavior or every fixed map edge case.
+
 ## Large-offset recovery baseline
 
 Before changing approach geometry, the real-caller recovery grid is expanded
