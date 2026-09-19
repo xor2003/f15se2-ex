@@ -39,6 +39,13 @@ and release bundles were retained. The f15se2-re repository was not modified.
 The main f15se2-ex/build dependency source cache remains in use by the integration
 build; do not remove it without reconfiguring that build.
 
-Archive tags are local until explicitly pushed. Keep feature integration separate
+Archive tags were also pushed to the my remote after the user requested backups
+of the latest work. Existing dirty source was reviewed and saved in separate
+checkpoint commits on feature/wasm-port, fix/dos-runtime, diagnostic/pr26-replay
+and the asset feature branch. Generated outputs and local authoring/reference
+assets remain on disk and are excluded via the common Git info/exclude file,
+not committed or silently discarded. The f15se2-re dirty state is unchanged.
+
+Keep feature integration separate
 from branch housekeeping: retained branches may be alternate implementations or
 PR splits, and must be reviewed before merging into integration/latest.
