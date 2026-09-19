@@ -4,6 +4,10 @@ project(F15SE2-EX
     LANGUAGES C CXX
 )
 
+if(EMSCRIPTEN)
+    include(cmake/wasm.cmake)
+endif()
+
 #==============================================================================
 # Options
 #==============================================================================
@@ -57,6 +61,9 @@ else()
             UPDATE_DISCONNECTED TRUE
         )
         FetchContent_MakeAvailable(SDL3)
+        if(EMSCRIPTEN)
+            f15_patch_sdl_missing_axes("${sdl3_SOURCE_DIR}")
+        endif()
     else()
         # DOWNLOAD_DEPENDENCIES is off: a system SDL3 is mandatory.
         find_package(SDL3 3.4.0 REQUIRED CONFIG COMPONENTS SDL3)
@@ -211,6 +218,14 @@ set(END_SOURCES
     ${SRC_DIR}/endata.c
 )
 
+if(EMSCRIPTEN)
+    list(REMOVE_ITEM EGAME_SOURCES ${SRC_DIR}/r3d_gl.c)
+    list(APPEND EGAME_SOURCES
+        ${SRC_DIR}/r3d_gles.c
+        ${SRC_DIR}/r3d_gles_compat.c
+        ${SRC_DIR}/web_runtime.c)
+endif()
+
 list(APPEND F15SE2_SOURCES ${EGAME_SOURCES})
 list(APPEND F15SE2_SOURCES ${END_SOURCES})
 
@@ -228,13 +243,15 @@ set_source_files_properties(
 # Desktop uses OpenGL 1.x; Android uses the GLES2 compatibility backend.
 if(ANDROID)
     find_library(GLESV2_LIBRARY GLESv2 REQUIRED)
-else()
+elseif(NOT EMSCRIPTEN)
     find_package(OpenGL REQUIRED)
 endif()
 
 # Some tests use std::thread; link a threads library explicitly so it resolves
 # across toolchains (not all fold pthread into libc).
-find_package(Threads REQUIRED)
+if(NOT EMSCRIPTEN)
+    find_package(Threads REQUIRED)
+endif()
 
 #------------------------------------------------------------------------------
 # Sanitizers (GCC/Clang, opt-in). Applied at directory scope so the executable
@@ -307,6 +324,12 @@ if(ANDROID)
     )
     target_link_libraries(main PRIVATE f15se2_core)
     set(F15SE2_APP_TARGET main)
+elseif(EMSCRIPTEN)
+    target_link_libraries(f15se2_core PUBLIC SDL3::SDL3)
+    add_executable(f15se2 ${SRC_DIR}/f15.c)
+    target_link_libraries(f15se2 PRIVATE f15se2_core)
+    f15_configure_browser(f15se2)
+    set(F15SE2_APP_TARGET f15se2)
 else()
     target_link_libraries(f15se2_core PUBLIC SDL3::SDL3 OpenGL::GL)
     add_executable(f15se2 ${SRC_DIR}/f15.c)
@@ -416,7 +439,7 @@ endif()
 # PNG re-copies it on the next build without a relink or `make clean`. CONFIGURE_DEPENDS
 # re-globs at build time, so new files are picked up too; the stamp makes it incremental
 # (the copy runs only when an asset actually changed).
-if(NOT ANDROID)
+if(NOT ANDROID AND NOT EMSCRIPTEN)
     file(GLOB_RECURSE ASSET_FILES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/assets/*)
     add_custom_command(
         OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/assets.stamp
@@ -442,7 +465,7 @@ endif()
 #                  Not-yet-migrated tests still use this.
 #
 #   add_behavior_test(<name> [LINK_CORE] [SOURCES <.c/.cpp ...>] [DEFS <defs...>])
-if(NOT ANDROID)
+if(NOT ANDROID AND NOT EMSCRIPTEN)
 enable_testing()
 
 set(TEST_DIR ${CMAKE_CURRENT_SOURCE_DIR}/tests)

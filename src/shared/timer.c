@@ -43,7 +43,10 @@ void setTimerTickHook(void(far *fn)(void)) {
 
 /* Advance the tick counters to match elapsed real time, firing the hook once
  * per 1/60 s tick. Safe to call as often as a spin loop likes. */
+#include "web_runtime.h"
+
 void timerPump(void) {
+    web_yield();
     Uint64 now;
     if (!timerRunning) return;
     now = SDL_GetTicksNS();
