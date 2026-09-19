@@ -57,6 +57,11 @@ int main() {
     (void)AerodynamicsMath<ModernBackend>::loadResponse(
         AerodynamicsMath<ModernBackend>::bankLoad(angle, bankTable), {}, true);
     (void)AerodynamicsMath<FixedBackend>::bankLoad({}, bankTable);
+    const auto approach = GuidanceMath<ModernBackend>::recoveryApproach({}, {}, {}, false,
+        RecoveryDirection::North, false);
+    const auto bank = GuidanceMath<ModernBackend>::recoveryBank(approach.bearing, {}, {}, false);
+    (void)GuidanceMath<ModernBackend>::recoveryAttitude(approach.height, {}, {}, bank, {});
+    (void)GuidanceMath<ModernBackend>::recoveryThrust(bank, approach.height);
     static_assert(std::is_same_v<decltype(PropulsionMath<ModernBackend>::advance(
         {}, {}, std::declval<SimulationStep<ModernBackend>>())), EngineThrust<ModernBackend>>);
     static_assert(std::is_same_v<decltype(AerodynamicsMath<ModernBackend>::stallResponse(
@@ -233,6 +238,26 @@ int main() {
     (void)GuidanceMath<FixedBackend>::altitudeHold(FlightAltitude<FixedBackend>{}, {}, {}, {}, {}, {});
 #elif defined(TEST_GUIDANCE_BACKEND)
     (void)GuidanceMath<FixedBackend>::altitudeHold({}, {}, EulerAngles<ModernBackend>{}, {}, {}, {});
+#elif defined(TEST_RECOVERY_MAP_RAW)
+    MapPosition<FixedBackend> position(1, 2);
+#elif defined(TEST_RECOVERY_MAP_SCALE)
+    (void)GuidanceMath<FixedBackend>::recoveryApproach(ViewCoordinate<FixedBackend, ViewXAxis>{}, {}, {},
+        false, RecoveryDirection::North, false);
+#elif defined(TEST_RECOVERY_MAP_BACKEND)
+    (void)GuidanceMath<FixedBackend>::recoveryApproach(MapPosition<ModernBackend>{}, {}, {},
+        false, RecoveryDirection::North, false);
+#elif defined(TEST_RECOVERY_DIRECTION_RAW)
+    (void)GuidanceMath<FixedBackend>::recoveryApproach({}, {}, {}, false, 1, false);
+#elif defined(TEST_RECOVERY_BANK_SPEED)
+    (void)GuidanceMath<FixedBackend>::recoveryBank({}, {}, 300, false);
+#elif defined(TEST_RECOVERY_BANK_BACKEND)
+    (void)GuidanceMath<FixedBackend>::recoveryBank({}, {}, FlightSpeed<ModernBackend>{}, false);
+#elif defined(TEST_RECOVERY_ATTITUDE_HEIGHT)
+    (void)GuidanceMath<FixedBackend>::recoveryAttitude(FlightAltitude<FixedBackend>{}, {}, {}, {}, {});
+#elif defined(TEST_RECOVERY_THRUST_HEIGHT)
+    (void)GuidanceMath<FixedBackend>::recoveryThrust({}, FlightAltitude<FixedBackend>{});
+#elif defined(TEST_RECOVERY_THRUST_EXTRACTION)
+    int request = GuidanceMath<FixedBackend>::recoveryThrust({}, {});
 #elif defined(TEST_TURN_BACKEND)
     (void)AerodynamicsMath<FixedBackend>::turnRate({}, FlightSpeed<ModernBackend>{}, {}, {});
 #elif defined(TEST_TURN_ROLE)

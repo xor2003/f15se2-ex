@@ -28,6 +28,10 @@ actual brake activation, gear changes and ground-contact handling.
 
 Raw map construction is confined to the reviewed `legacy_map.hpp` adapter;
 boundary-check regression tests reject its use from unreviewed game files.
+Nine recovery compile-failure cases reject raw map construction, fine/coarse
+coordinate substitution, backend mixing, raw direction/speed arguments,
+flight-altitude/render-height substitution, and implicit thrust extraction.
+A valid modern recovery call chain is compiled as a positive control.
 Modern guidance tests and standalone Clang analysis/ASan/UBSan pass. This does
 not establish modern full-sortie behavior or every fixed map edge case.
 
