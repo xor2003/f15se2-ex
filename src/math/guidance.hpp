@@ -21,6 +21,29 @@ template<class B> class GuidanceMath {
         return value / divisor - (value % divisor < 0 ? 1 : 0);
     }
 public:
+    static FlightCommands<B> recoveryAttitude(RenderHeight<B> target, RenderHeight<B> height,
+        EulerAngles<B> attitude, Angle<B> bankTarget, Angle<B> trim) {
+        if constexpr (std::is_same_v<B, FixedBackend>) {
+            const int roll = -std::clamp(floorDivide(word(int(bankTarget.value_.raw()) -
+                int(attitude.roll.value_.raw())), rollDivisor), -32, 32);
+            const int pitchTarget = std::clamp(floorDivide(int(target.value_) - height.value_, 8) +
+                floorDivide(word(trim.value_.raw()), pitchDivisor), -24, 24);
+            const int pitch = std::clamp(pitchTarget - floorDivide(word(attitude.pitch.value_.raw()),
+                pitchDivisor), -16, 16);
+            return {RollCommand<B>(roll), PitchCommand<B>(static_cast<std::int16_t>(pitch))};
+        } else {
+            const double rollError = (bankTarget - attitude.roll).value_;
+            const double pitchTarget = (target.value_ - height.value_) / 8 +
+                trim.value_ / (pitchDivisor * wordRadians);
+            if (!std::isfinite(rollError) || !std::isfinite(pitchTarget) || !std::isfinite(attitude.pitch.value_))
+                throw std::domain_error("non-finite recovery guidance input");
+            const double roll = -std::clamp(rollError / (rollDivisor * wordRadians), -32.0, 32.0);
+            const double pitch = std::clamp(std::clamp(pitchTarget, -24.0, 24.0) -
+                attitude.pitch.value_ / (pitchDivisor * wordRadians), -16.0, 16.0);
+            return {RollCommand<B>(roll * pitchDivisor * wordRadians), PitchCommand<B>(pitch * pitchDivisor * wordRadians)};
+        }
+    }
+
     // Targets use the scene-height scale stored by the original autopilot,
     // not expanded flight altitude. Recovery-waypoint steering is separate.
     static FlightCommands<B> altitudeHold(RenderHeight<B> target, RenderHeight<B> height,

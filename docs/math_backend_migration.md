@@ -14,6 +14,18 @@ snapshot interpolation now use axis-specific types.
 This is the first migrated subsystem, not a complete interchangeable simulation
 backend. No whole-game floating-point backend selector is exposed.
 
+## Typed recovery attitude
+
+Recovery roll/pitch command generation now uses `GuidanceMath::recoveryAttitude`
+with typed scene heights, attitude, bank target and trim. Fixed math preserves
+the separate signed-word and floor-division steps; modern math retains fractional
+inputs with equivalent command limits. Approach geometry, bearing generation,
+throttle policy and touchdown handling remain at the legacy caller boundary and
+are not yet migrated. The new helper has 262,144 independent fixed-reference
+cases plus modern fractional-input checks. Standalone Clang analysis and
+ASan/UBSan pass; the previously committed airborne recovery caller fixtures
+also pass with the production routing change.
+
 ## Recovery caller characterization
 
 Before migrating recovery guidance, the full-flight test adds 15,552 airborne

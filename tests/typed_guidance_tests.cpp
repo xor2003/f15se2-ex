@@ -54,5 +54,30 @@ void modernCases() {
     require(std::abs(ControlBoundary<M>::radiansPerSecond(wrapped.roll) + 0.00008) < 1e-14,
         "modern bearing takes the long path across the wrap");
 }
+void recoveryCases() {
+    using rotation_reference::word;
+    using rotation_reference::floorDivide;
+    for (int raw = 0; raw < 65536; ++raw)
+    for (int target : {-20, 50, 4096, 4196}) {
+        const int roll = word(raw), pitch = word(raw * 3), trim = word(raw * 7);
+        const int bank = word(raw * 11), height = word(raw * 13);
+        const auto result = GuidanceMath<F>::recoveryAttitude(legacy::renderHeightFromUnits(target),
+            legacy::renderHeightFromUnits(height), legacy::angles(0, pitch, roll),
+            legacy::angleFromWord(bank), legacy::angleFromWord(trim));
+        const int expectedRoll = -std::clamp(int(floorDivide(word(bank - roll), 64)), -32, 32);
+        const int expectedPitch = std::clamp(std::clamp(int(floorDivide(target - height, 8) +
+            floorDivide(trim, 128)), -24, 24) - int(floorDivide(pitch, 128)), -16, 16);
+        require(ControlBoundary<F>::roll(result.roll) == expectedRoll &&
+            ControlBoundary<F>::pitch(result.pitch) == expectedPitch, "fixed recovery steering differs from scalar formula");
+    }
+    constexpr double unit = 6.28318530717958647692 / 65536;
+    for (double delta : {-0.5, -0.01, 0.0, 0.01, 0.5}) {
+        const auto result = GuidanceMath<M>::recoveryAttitude(AltitudeBoundary<M>::render(1000 + delta),
+            AltitudeBoundary<M>::render(1000), {}, Boundary<M>::radians(delta * unit), {});
+        require(std::abs(ControlBoundary<M>::radiansPerSecond(result.roll) + delta * 2 * unit) < 1e-14 &&
+            std::abs(ControlBoundary<M>::radiansPerSecond(result.pitch) - delta * 16 * unit) < 1e-14,
+            "modern recovery steering lost fractional input");
+    }
 }
-int main() { fixedCases(); modernCases(); }
+}
+int main() { fixedCases(); modernCases(); recoveryCases(); }

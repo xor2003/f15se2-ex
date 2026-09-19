@@ -467,14 +467,16 @@ switch_break:
                 headingErr = 0;
             }
 
-            g_rollInput = rollCommand(-clampRange((int16)(headingErr - signedAngle(g_ourRoll)) >> 6, -32, 32));
+            const auto recovery = f15::math::GuidanceMath<f15::math::FixedBackend>::recoveryAttitude(
+                f15::math::legacy::renderHeightFromUnits(tmpVal),
+                f15::math::legacy::renderHeightFromUnits(g_viewZ),
+                {g_ourHead, g_ourPitch, g_ourRoll}, angleFromWord(headingErr), g_rollPitchTrim);
+            g_rollInput = recovery.roll;
 
             g_setThrust = clampRange((abs(headingErr) / 256) + (tmpVal / 64), 35, 80);
             UpdateThrottleState();
 
-            tmpVal = egClampValue(((tmpVal - g_viewZ) >> 3) + (signedAngle(g_rollPitchTrim) >> 7), -24, 24);
-
-            g_pitchInput = pitchCommand(clampRange(tmpVal - (signedAngle(g_ourPitch) >> 7), -16, 16));
+            g_pitchInput = recovery.pitch;
 
             if (g_knots < 350) {
                 *((uint8 *)&g_playerPlaneFlags) &= 0xFE;
