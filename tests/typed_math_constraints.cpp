@@ -240,6 +240,12 @@ int main() {
     (void)GuidanceMath<FixedBackend>::altitudeHold({}, {}, EulerAngles<ModernBackend>{}, {}, {}, {});
 #elif defined(TEST_RECOVERY_MAP_RAW)
     MapPosition<FixedBackend> position(1, 2);
+#elif defined(TEST_ANALOG_RAW)
+    AnalogStick sample(0.1, 0.2);
+#elif defined(TEST_ANALOG_RATE_AXIS)
+    AnalogResponse response{PitchCommand<ModernBackend>{}, {}, {}, 0.1};
+#elif defined(TEST_ANALOG_RATE_BACKEND)
+    AnalogResponse response{RollCommand<FixedBackend>{}, {}, {}, 0.1};
 #elif defined(TEST_RECOVERY_MAP_SCALE)
     (void)GuidanceMath<FixedBackend>::recoveryApproach(ViewCoordinate<FixedBackend, ViewXAxis>{}, {}, {},
         false, RecoveryDirection::North, false);

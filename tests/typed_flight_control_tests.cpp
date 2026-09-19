@@ -161,7 +161,28 @@ void modernPrecision() {
     });
 }
 }
+void analogPrecision() {
+    const AnalogResponse profile{D::radiansPerSecond<RollAxis>(2), D::radiansPerSecond<PitchAxis>(1),
+        D::radiansPerSecond<PitchAxis>(0.5), 0.1};
+    double previous = -3;
+    for (int i = -32768; i <= 32767; ++i) {
+        const double input = i < 0 ? i / 32768.0 : i / 32767.0;
+        const auto commands = MM::fromAnalog(D::analogStick(input, input), profile);
+        const double shaped = std::abs(input) <= 0.1 ? 0 : std::copysign((std::abs(input) - 0.1) / 0.9, input);
+        const double roll = D::radiansPerSecond(commands.roll);
+        require(std::abs(roll - shaped * 2) < 1e-14 &&
+            std::abs(D::radiansPerSecond(commands.pitch) - shaped * (input < 0 ? 0.5 : 1)) < 1e-14,
+            "analog response lost precision or pitch asymmetry");
+        require(roll >= previous && (std::abs(input) <= 0.1 || roll > previous), "analog response is not monotonic");
+        previous = roll;
+    }
+    rejects([&] { MM::fromAnalog(D::analogStick(0, 0), {profile.maximumRoll,
+        profile.maximumPositivePitch, profile.maximumNegativePitch, 1}); });
+    rejects([] { D::analogStick(1.01, 0); });
+    rejects([] { D::analogStick(0, std::numeric_limits<double>::quiet_NaN()); });
+}
 int main() {
     fixedInputs(); productionCaller(); modernPrecision();
+    analogPrecision();
     std::puts("typed flight control tests passed");
 }

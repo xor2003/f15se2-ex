@@ -67,6 +67,25 @@ class JoystickSample {
     template<class B> friend struct ControlBoundary;
 };
 
+class AnalogStick {
+    double roll_, pitch_;
+    AnalogStick(double roll, double pitch) : roll_(roll), pitch_(pitch) {
+        if (!std::isfinite(roll) || !std::isfinite(pitch) || std::abs(roll) > 1 || std::abs(pitch) > 1)
+            throw std::domain_error("analog stick must be finite and normalized to [-1,1]");
+    }
+    friend struct ControlBoundary<ModernBackend>;
+    friend class FlightControlMath<ModernBackend>;
+};
+
+// Explicit controller policy, not an aircraft performance model. Rates are
+// positive magnitudes. Positive input requests positive command on each axis.
+struct AnalogResponse {
+    RollCommand<ModernBackend> maximumRoll;
+    PitchCommand<ModernBackend> maximumPositivePitch;
+    PitchCommand<ModernBackend> maximumNegativePitch;
+    double deadzoneFraction;
+};
+
 template<class B> struct FlightCommands { RollCommand<B> roll; PitchCommand<B> pitch; };
 template<class B> struct RotationDeltas { Angle<B> yaw, pitch, roll; };
 
@@ -77,6 +96,21 @@ template<class B> class FlightControlMath {
     }
     static constexpr double wordRadians = 6.28318530717958647692 / 65536;
 public:
+    static FlightCommands<B> fromAnalog(AnalogStick sample, const AnalogResponse &profile) {
+        static_assert(std::is_same_v<B, ModernBackend>, "continuous input requires modern control math");
+        if (!std::isfinite(profile.deadzoneFraction) || profile.deadzoneFraction < 0 || profile.deadzoneFraction >= 1 ||
+            profile.maximumRoll.isNegative() || profile.maximumPositivePitch.isNegative() || profile.maximumNegativePitch.isNegative())
+            throw std::domain_error("invalid analog response profile");
+        const auto response = [&](double input) {
+            const double magnitude = std::abs(input);
+            if (magnitude <= profile.deadzoneFraction) return 0.0;
+            return std::copysign((magnitude - profile.deadzoneFraction) / (1 - profile.deadzoneFraction), input);
+        };
+        const double roll = response(sample.roll_), pitch = response(sample.pitch_);
+        return {RollCommand<B>(roll * profile.maximumRoll.value_),
+            PitchCommand<B>(pitch * (pitch < 0 ? profile.maximumNegativePitch.value_ : profile.maximumPositivePitch.value_))};
+    }
+
     static FlightCommands<B> fromJoystick(JoystickSample sample) {
         int r = (sample.roll_ >> 4) - 8, p = (sample.pitch_ >> 4) - 8;
         if (r < 0) ++r;

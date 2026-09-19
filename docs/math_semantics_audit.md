@@ -73,6 +73,20 @@ limits and frame-rate-independent integration. Trace the SDL-to-byte boundary in
 precision already discarded there. No production input behavior changes in this
 audit checkpoint.
 
+The first implementation step adds `AnalogStick` and `AnalogResponse` to
+`flight_control.hpp`. `fromAnalog` accepts normalized input and explicitly typed
+maximum roll/positive-pitch/negative-pitch angular rates, plus a dimensionless
+deadzone fraction. It linearly rescales the range outside the deadzone; this is
+an explicit new controller profile, not a claim to reproduce the old curve.
+There is no built-in aircraft rate or deadzone default. Positive input maps to
+positive command, so device inversion belongs at the input adapter.
+All 65536 signed-axis samples are checked for monotonicity and numerical
+response, including asymmetric pitch limits. Invalid normalized inputs and
+deadzone profiles are rejected. Compile-failure tests protect raw construction,
+axis identity and backend identity. The byte-based `fromJoystick` remains the
+legacy response path. SDL routing and production use of continuous input are
+still pending; this helper alone cannot recover precision lost earlier.
+
 ## Acceptance for further migration
 
 1. Trace each quantity to its producer and consumers, including file and display
