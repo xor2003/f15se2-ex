@@ -212,16 +212,19 @@ int main() {
     g_initPhase = 2;
     g_bulletTrackCount = 16;
     g_smokeSourceIdx = -1;
-    frameTick = 1;
-    g_altitude = Altitudes::altitude(229376);
-    g_ourPitch = g_rollPitchTrim = {};
-    advanceFlightAltitude();
-    g_knots = 0;
-    g_landingTimer = 0;
-    g_nearestThreatRange = 0x7fff;
-    g_groundAltitude = 0;
-    updateFrame();
-    require(g_landingTimer == 1, "mission update mistook high altitude for ground contact");
+    for (double altitude : {0.0, 0.125, 131072.0, 229375.5, 229376.0, 229376.5, 262144.0}) {
+        frameTick = 1;
+        g_altitude = Altitudes::altitude(altitude);
+        g_ourPitch = g_rollPitchTrim = {};
+        advanceFlightAltitude();
+        g_knots = 0;
+        g_landingTimer = 0;
+        g_nearestThreatRange = 0x7fff;
+        g_groundAltitude = 0;
+        updateFrame();
+        require(g_landingTimer == (altitude == 0 ? 0 : 1),
+                "mission ground contact lost altitude range or fractional precision");
+    }
     gameData = nullptr;
     commData = nullptr;
     SDL_Quit();
