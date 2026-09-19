@@ -1,3 +1,5 @@
+#include "math/legacy_horizontal.hpp"
+using f15::math::legacy::fineUnits;
 /* egtgt2.c — world->HUD projection + range/bearing helpers (reads g_viewZ
    as int16). Split from egtarget.c at the projectWorldToHud boundary. */
 #include "eg3dmap.h"
@@ -58,8 +60,8 @@ void projectWorldToHud(int16 worldX, int16 worldY, int16 worldZ) {
     relZ = (worldZ - g_viewZ) >> 5;
 
     if (g_viewMode & 0x80) {
-        relX -= (int16)((g_ViewX - g_camEyeX) >> 5);
-        relY -= (int16)((g_ViewY - g_camEyeY) >> 5);
+        relX -= (int16)((fineUnits(g_ViewX) - g_camEyeX) >> 5);
+        relY -= (int16)((fineUnits(g_ViewY) - g_camEyeY) >> 5);
         relZ -= (int16)((-((int32)(uint16)g_viewZ - (int32)g_camEyeZ)) >> 5);
     }
 
@@ -113,13 +115,13 @@ void projectWorldToHudFine(int32 fineX, int32 fineY, int fineZ) {
     long relX, relY, relZ, am, camX, camY, camDepth;
     int rx, ry, rz, sh;
 
-    relX = g_ViewX - fineX;
-    relY = fineY + g_ViewY - 0x100000L; /* (relY >> 5) == object posY - g_viewY_ */
+    relX = fineUnits(g_ViewX) - fineX;
+    relY = fineY + fineUnits(g_ViewY) - 0x100000L; /* (relY >> 5) == object posY - g_viewY_ */
     relZ = (long)fineZ - (long)g_viewZ;
 
     if (g_viewMode & 0x80) {
-        relX -= g_ViewX - g_camEyeX;
-        relY -= g_ViewY - g_camEyeY;
+        relX -= fineUnits(g_ViewX) - g_camEyeX;
+        relY -= fineUnits(g_ViewY) - g_camEyeY;
         relZ -= -((long)(unsigned)g_viewZ - (long)g_camEyeZ);
     }
 

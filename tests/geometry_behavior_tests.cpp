@@ -1,4 +1,5 @@
 #include "math/legacy_rotation.hpp"
+#include "math/legacy_horizontal.hpp"
 using f15::math::legacy::signedAngle;
 using f15::math::legacy::angleFromWord;
 // 3D projection / tile-grid / map-geometry behavior tests (LINK_CORE + headless).
@@ -574,8 +575,8 @@ int main() {
                 g_projDepth == kHudProjStoredDepth,
             "projectWorldToHud projects centered points through the original full-height HUD center");
     g_viewMode = (ViewMode)kHudCrashCamFlag;
-    g_ViewX = g_camEyeX + kHudCamEyeDelta;
-    g_ViewY = g_camEyeY;
+    g_ViewX = f15::math::legacy::viewX(g_camEyeX + kHudCamEyeDelta);
+    g_ViewY = f15::math::legacy::viewY(g_camEyeY);
     g_camEyeZ = g_viewZ;
     projectWorldToHud(kHudProjWorldX, kHudProjWorldY, 0);
     require(vtxScratch.vproj.x.lo != -1,

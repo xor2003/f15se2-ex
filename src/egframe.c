@@ -1,3 +1,9 @@
+#include "math/legacy_horizontal.hpp"
+using f15::math::legacy::fineUnits;
+using f15::math::legacy::viewX;
+using f15::math::legacy::viewY;
+using f15::math::legacy::moveX;
+using f15::math::legacy::moveY;
 // seg000 debug code (/Zi) - split from egmain.c
 #include "eg3dmap.h"
 #include "eg3dview.h"
@@ -54,8 +60,8 @@ void updateFrame(void) {
     uint16 screenY;
     int16 i, objIdx;
 
-    g_viewX_ = (int16)((g_ViewX + 0x10L) >> 5);
-    g_viewY_ = -((int16)((g_ViewY + 0x10L) >> 5) - 0x8000);
+    g_viewX_ = (int16)((fineUnits(g_ViewX) + 0x10L) >> 5);
+    g_viewY_ = -((int16)((fineUnits(g_ViewY) + 0x10L) >> 5) - 0x8000);
 
     if (g_initPhase == 1) {
         g_playerPlaneFlags = 0;
@@ -92,10 +98,10 @@ void updateFrame(void) {
                                                                                         : -1;
 
         if (((g_planeTable.planes[g_targetSlots[0].viewIndex].flags) & 0x200) != 0) {
-            g_ViewX -= (int32)(tmp * 0x80);
+            g_ViewX -= moveX((int32)(tmp * 0x80));
             *(char *)&g_playerPlaneFlags |= 8;
         } else {
-            g_ViewY -= (int32)(1800 * g_northSouthSign);
+            g_ViewY -= moveY((int32)(1800 * g_northSouthSign));
         }
         initFrameRandom();
         appendMapEvent(8, 0);
@@ -153,12 +159,12 @@ void updateFrame(void) {
     val = clampRange(g_viewX_, 0x100, 0x7e00);
     if (val != g_viewX_) {
         g_viewX_ = val;
-        g_ViewX = (int32)val << 5;
+        g_ViewX = viewX((int32)val << 5);
     }
     val = clampRange(g_viewY_, 0x200, 0x7d00);
     if (val != g_viewY_) {
         g_viewY_ = val;
-        g_ViewY = (int32)(0x8000 - g_viewY_) << 5;
+        g_ViewY = viewY((int32)(0x8000 - g_viewY_) << 5);
     }
 
     updateThreatSites();
@@ -365,8 +371,8 @@ skip_target_section:
             if (abs(g_viewX_ - g_planeTable.planes[g_closestThreatIndex].mapX) < 0x10 && abs(g_viewY_ - g_planeTable.planes[g_closestThreatIndex].mapY) < 0x10) {
                 g_altitude = {};
                 g_setThrust = g_velocity = 0;
-                g_ViewX = (int32)g_planeTable.planes[g_closestThreatIndex].mapX << 5;
-                g_ViewY = (int32)(0x8000 - g_planeTable.planes[g_closestThreatIndex].mapY) << 5;
+                g_ViewX = viewX((int32)g_planeTable.planes[g_closestThreatIndex].mapX << 5);
+                g_ViewY = viewY((int32)(0x8000 - g_planeTable.planes[g_closestThreatIndex].mapY) << 5);
             } else {
                 hudMessage("Automatic Landing Engaged");
                 g_autoLandingActive = 1;
@@ -377,8 +383,9 @@ skip_target_section:
                 g_velocity = 5400;
                 g_altitude = f15::math::AltitudeMath<f15::math::FixedBackend>::landingApproach(
                     g_altitude, f15::math::legacy::Altitudes::ground(g_groundAltitude), i);
-                g_ViewX -= (g_ViewX - ((int32)g_planeTable.planes[g_closestThreatIndex].mapX << 5)) / (int32)i;
-                g_ViewY -= (g_ViewY - ((int32)(0x8000 - g_planeTable.planes[g_closestThreatIndex].mapY) << 5)) / (int32)i;
+                using HorizontalMath = f15::math::HorizontalMath<f15::math::FixedBackend>;
+                g_ViewX = HorizontalMath::approach(g_ViewX, viewX((int32)g_planeTable.planes[g_closestThreatIndex].mapX << 5), i);
+                g_ViewY = HorizontalMath::approach(g_ViewY, viewY((int32)(0x8000 - g_planeTable.planes[g_closestThreatIndex].mapY) << 5), i);
             }
         }
     } else {
@@ -550,8 +557,8 @@ void updateBulletsAndFire(void) {
     mag = cosMul(pitch, mag);
     bulletTracks[slot].velX = sinMul(yaw, mag);
     bulletTracks[slot].velY = -cosMul(yaw, mag);
-    bulletTracks[slot].posX = (g_ViewX + bulletTracks[slot].velX) & BULLET_FINE_MASK;
-    bulletTracks[slot].posY = (0x100000L - g_ViewY + bulletTracks[slot].velY) & BULLET_FINE_MASK;
+    bulletTracks[slot].posX = (fineUnits(g_ViewX) + bulletTracks[slot].velX) & BULLET_FINE_MASK;
+    bulletTracks[slot].posY = (0x100000L - fineUnits(g_ViewY) + bulletTracks[slot].velY) & BULLET_FINE_MASK;
     bulletTracks[slot].alt = bulletTracks[slot].velZ + g_viewZ - 2;
     g_gunFiredFlag = 1;
     goto done_fire;
@@ -782,14 +789,14 @@ void initMissionStrings() {
         }
     }
     if (gameData->difficulty != 0) { // 1e6c
-        g_ViewX = ((int32)(g_planeTable.planes[g_targetSlots[0].viewIndex].mapX) << 5) + 2;
-        g_ViewY = (0x8000 - (int32)(g_planeTable.planes[g_targetSlots[0].viewIndex].mapY)) << 5;
+        g_ViewX = viewX(((int32)(g_planeTable.planes[g_targetSlots[0].viewIndex].mapX) << 5) + 2);
+        g_ViewY = viewY((0x8000 - (int32)(g_planeTable.planes[g_targetSlots[0].viewIndex].mapY)) << 5);
     } else {
-        g_ViewX = ((int32)waypoints[0].mapX << 5) + 2;
-        g_ViewY = (0x8000 - (int32)waypoints[0].mapY) << 5;
+        g_ViewX = viewX(((int32)waypoints[0].mapX << 5) + 2);
+        g_ViewY = viewY((0x8000 - (int32)waypoints[0].mapY) << 5);
     }
-    g_viewX_ = (g_ViewX + 0x10) >> 5;
-    g_viewY_ = 0x8000 - ((g_ViewY + 0x10) >> 5);
+    g_viewX_ = (fineUnits(g_ViewX) + 0x10) >> 5;
+    g_viewY_ = 0x8000 - ((fineUnits(g_ViewY) + 0x10) >> 5);
 }
 
 // ==== seg000:0x1f3e ====

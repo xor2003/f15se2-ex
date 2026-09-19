@@ -1,3 +1,5 @@
+#include "math/legacy_horizontal.hpp"
+using f15::math::legacy::fineUnits;
 #include "eg3dview.h"
 #include "egcode.h"
 #include "egdata.h"
@@ -63,6 +65,16 @@ void advanceFlightOrientation(const f15::math::RotationDeltas<f15::math::FixedBa
     if (deltas.yaw != zero)
         applyRotationDelta(math.yawDelta(deltas.yaw), g_orientMatrix);
     computeAttitudeAngles();
+}
+
+void advanceFlightHorizontal(f15::math::HorizontalSpeed<f15::math::FixedBackend> speed) {
+    if (g_autoLandingActive != 0) return;
+    const f15::math::legacy::Math rotation(g_angleLut);
+    const auto step = f15::math::HorizontalMath<f15::math::FixedBackend>::increments(
+        speed, rotation.sine(g_ourHead), rotation.cosine(g_ourHead),
+        f15::math::legacy::Controls::frequency(g_frameRateScaling));
+    g_ViewX += step.x;
+    g_ViewY += step.y;
 }
 
 void advanceFlightAltitude() {
@@ -682,11 +694,7 @@ switch_break:
     prevAlt = altitudeUnits(g_altitude);
     advanceFlightAltitude();
 
-    if (g_autoLandingActive == 0) {
-        g_ViewX += fixedMulQ14(horizVel, sine(signedAngle(g_ourHead))) / 10 / g_frameRateScaling;
-
-        g_ViewY += fixedMulQ14(horizVel, cosine(signedAngle(g_ourHead))) / 10 / g_frameRateScaling;
-    }
+    advanceFlightHorizontal(f15::math::legacy::Horizontal::speed(horizVel));
 
     if (g_groundAltitude == g_viewZ) {
         if (prevAlt > g_groundAltitude && g_inLandingCorridor != 0) {
@@ -711,8 +719,8 @@ switch_break:
     g_viewSnapshotRing[idx].heading = signedAngle(g_ourHead);
     g_viewSnapshotRing[idx].pitch = signedAngle(g_ourPitch);
     g_viewSnapshotRing[idx].roll = signedAngle(g_ourRoll);
-    *(int32 *)&g_viewSnapshotRing[idx].worldX = g_ViewX;
-    *(int32 *)&g_viewSnapshotRing[idx].worldY = g_ViewY;
+    *(int32 *)&g_viewSnapshotRing[idx].worldX = fineUnits(g_ViewX);
+    *(int32 *)&g_viewSnapshotRing[idx].worldY = fineUnits(g_ViewY);
     g_viewSnapshotRing[idx].alt = g_viewZ;
 
     if (g_currentWeaponType == 1) {
@@ -872,9 +880,9 @@ void computeTrackingCameraAngles(int32 targetX, int32 targetY, int16 targetAlt,
 // something to do with view switching?
 void renderFrame() {
     int16 camDist, savedCamDist, camOffset, tmp;
-    g_camEyeX = g_viewTargetX = g_ViewX;
-    g_camEyeY = g_ViewY;
-    g_viewTargetY = 0x100000 - g_ViewY;
+    g_camEyeX = g_viewTargetX = fineUnits(g_ViewX);
+    g_camEyeY = fineUnits(g_ViewY);
+    g_viewTargetY = 0x100000 - fineUnits(g_ViewY);
     g_camEyeZ = g_viewZ + 0x18;
     g_camEyeFracX = g_camEyeFracY = g_camEyeFracZ = 0;
     g_viewTargetAlt = g_viewZ;
@@ -932,21 +940,21 @@ void renderFrame() {
         g_viewRoll = 0;
         /* Q8 eye: a whole-fine-unit eye position lurches visibly at close cam
          * distance as the offset rotates with the (smoothly interpolated) heading. */
-        g_camEyeX = eyeFromQ8(sinMulQ8(signedAngle(g_ourHead) + 0x4000, 0x18 << camDist) + ((long)g_ViewX << 8), &g_camEyeFracX);
-        g_camEyeY = eyeFromQ8(cosMulQ8(signedAngle(g_ourHead) + 0x4000, 0x18 << camDist) + ((long)g_ViewY << 8), &g_camEyeFracY);
+        g_camEyeX = eyeFromQ8(sinMulQ8(signedAngle(g_ourHead) + 0x4000, 0x18 << camDist) + ((long)fineUnits(g_ViewX) << 8), &g_camEyeFracX);
+        g_camEyeY = eyeFromQ8(cosMulQ8(signedAngle(g_ourHead) + 0x4000, 0x18 << camDist) + ((long)fineUnits(g_ViewY) << 8), &g_camEyeFracY);
         break;
     case VIEW_EXT_UNUSED:
         g_viewHeading = 0x8000;
         g_viewPitch = 0;
         g_viewRoll = 0;
-        g_camEyeY = (0x18 << camDist) + g_ViewY;
+        g_camEyeY = (0x18 << camDist) + fineUnits(g_ViewY);
         break;
     case VIEW_EXT_FOLLOW:
         g_viewHeading = signedAngle(g_ourHead);
         g_viewPitch = 0;
         g_viewRoll = 0;
-        g_camEyeX = eyeFromQ8(sinMulQ8(signedAngle(g_ourHead) + 0x8000, 0x18 << camDist) + ((long)g_ViewX << 8), &g_camEyeFracX);
-        g_camEyeY = eyeFromQ8(cosMulQ8(signedAngle(g_ourHead) + 0x8000, 0x18 << camDist) + ((long)g_ViewY << 8), &g_camEyeFracY);
+        g_camEyeX = eyeFromQ8(sinMulQ8(signedAngle(g_ourHead) + 0x8000, 0x18 << camDist) + ((long)fineUnits(g_ViewX) << 8), &g_camEyeFracX);
+        g_camEyeY = eyeFromQ8(cosMulQ8(signedAngle(g_ourHead) + 0x8000, 0x18 << camDist) + ((long)fineUnits(g_ViewY) << 8), &g_camEyeFracY);
         g_camEyeZ = (4 << camDist) + g_viewZ;
         break;
     case VIEW_EXT_TARGET:
@@ -993,14 +1001,14 @@ void renderFrame() {
         }
         if (g_directorMode == 0) camDist = savedCamDist;
         computeTrackingCameraAngles((int32)g_viewTargetX, (int32)g_viewTargetY,
-                                    g_viewTargetAlt, g_ViewX, g_ViewY, g_viewZ,
+                                    g_viewTargetAlt, fineUnits(g_ViewX), fineUnits(g_ViewY), g_viewZ,
                                     &g_viewHeading, &g_viewPitch);
         g_viewRoll = 0;
         camOffset = cosMul(g_viewPitch, 0x18 << camDist);
         if (g_viewTargetObj & 0x60 || g_directorMode != 0) {
             if (g_viewMode == VIEW_EXT_TARGET) {
-                g_camEyeX = eyeFromQ8(sinMulQ8(g_viewHeading + 0x8000, camOffset) + ((long)g_ViewX << 8), &g_camEyeFracX);
-                g_camEyeY = eyeFromQ8(cosMulQ8(g_viewHeading + 0x8000, camOffset) + ((long)g_ViewY << 8), &g_camEyeFracY);
+                g_camEyeX = eyeFromQ8(sinMulQ8(g_viewHeading + 0x8000, camOffset) + ((long)fineUnits(g_ViewX) << 8), &g_camEyeFracX);
+                g_camEyeY = eyeFromQ8(cosMulQ8(g_viewHeading + 0x8000, camOffset) + ((long)fineUnits(g_ViewY) << 8), &g_camEyeFracY);
                 g_camEyeZ = (int16)eyeFromQ8(sinMulQ8(g_viewPitch, 0x18 << camDist) + ((long)((4 << camDist) + g_viewZ) << 8), &g_camEyeFracZ);
                 g_viewPitch = -g_viewPitch;
             } else {

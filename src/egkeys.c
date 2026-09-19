@@ -3,6 +3,7 @@
 #include "egcombat.h"
 #include "egdata.h"
 #include "math/legacy_rotation.hpp"
+#include "math/legacy_horizontal.hpp"
 using f15::math::legacy::signedAngle;
 #include "egframe.h"
 #include "egkeys.h"
@@ -285,16 +286,16 @@ void keyDispatch(uint16 scanCode) {
             initWeaponLoadout();
             break;
         case 0x1f00:
-            g_ViewY += 0x20000L >> g_mapZoomLevel;
+            g_ViewY += f15::math::legacy::moveY(0x20000L >> g_mapZoomLevel);
             break;
         case 0x2d00:
-            g_ViewY -= 0x20000L >> g_mapZoomLevel;
+            g_ViewY -= f15::math::legacy::moveY(0x20000L >> g_mapZoomLevel);
             break;
         case 0x2c00:
-            g_ViewX -= 0x20000L >> g_mapZoomLevel;
+            g_ViewX -= f15::math::legacy::moveX(0x20000L >> g_mapZoomLevel);
             break;
         case 0x2e00:
-            g_ViewX += 0x20000L >> g_mapZoomLevel;
+            g_ViewX += f15::math::legacy::moveX(0x20000L >> g_mapZoomLevel);
             break;
         }
     }

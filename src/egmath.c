@@ -1,3 +1,5 @@
+#include "math/legacy_horizontal.hpp"
+using f15::math::legacy::fineUnits;
 // seg000 optimized code (/Ot)
 #include "inttype.h"
 #include "eg3dcam.h"
@@ -119,12 +121,12 @@ static void drawWorldObjectCore(int16 shapeId, int isShadow,
     dataOff = shapeDataOffset(shapeId);
     logShapeReplacementIfPresent(shapeId);
     drawPg = g_pageFront;
-    relX = worldX - g_ViewX;
-    relY = worldY + g_ViewY - 0x01000000L;
+    relX = worldX - fineUnits(g_ViewX);
+    relY = worldY + fineUnits(g_ViewY) - 0x01000000L;
     altDiff = altitude - g_viewZ;
     if ((g_viewMode & 0x80) != 0) {
-        relX += g_ViewX - g_camEyeX;
-        relY += g_camEyeY - g_ViewY;
+        relX += fineUnits(g_ViewX) - g_camEyeX;
+        relY += g_camEyeY - fineUnits(g_ViewY);
         altDiff += g_viewZ - g_camEyeZ;
         /* Q8 remainder of the external eye position (true eye is frac/256
          * further along each axis than the integer subtracted above). */
@@ -202,12 +204,12 @@ static int worldPointToCamera(long worldX, long worldY, int altitude,
     long relX, relY;
     int altDiff, shiftAmt;
 
-    relX = worldX - g_ViewX;
-    relY = worldY + g_ViewY - 0x01000000L;
+    relX = worldX - fineUnits(g_ViewX);
+    relY = worldY + fineUnits(g_ViewY) - 0x01000000L;
     altDiff = altitude - g_viewZ;
     if ((g_viewMode & 0x80) != 0) {
-        relX += g_ViewX - g_camEyeX;
-        relY += g_camEyeY - g_ViewY;
+        relX += fineUnits(g_ViewX) - g_camEyeX;
+        relY += g_camEyeY - fineUnits(g_ViewY);
         altDiff += g_viewZ - g_camEyeZ;
     }
     /* scaleShift 0 -> -2 (half-scale) / -3 (full) in drawWorldObject; a right shift. */
@@ -297,8 +299,8 @@ void drawTargetView(int shapeId, int32 worldX, int32 worldY, int altitude, int o
     logShapeReplacementIfPresent(shapeId);
     *g_targetViewParams = 1;
 
-    dxFine = worldX - g_ViewX;
-    dyFine = worldY - g_ViewY;
+    dxFine = worldX - fineUnits(g_ViewX);
+    dyFine = worldY - fineUnits(g_ViewY);
     dzFine = altitude - g_viewZ;
 
     if (mode < 2) {

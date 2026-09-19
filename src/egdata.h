@@ -9,6 +9,7 @@
 #include "math/rotation.hpp"
 #include "math/flight_control.hpp"
 #include "math/altitude.hpp"
+#include "math/horizontal.hpp"
 
 typedef struct SDL_IOStream SDL_IOStream;
 
@@ -285,10 +286,10 @@ extern int16 g_threatRefY;
 extern int16 g_viewRoll;
 extern struct DynTileOverride g_dynTileEntries[]; // overlaps the following bytes with structs
 extern int16 g_threatRefZ;
-extern int32 g_ViewX;
+extern f15::math::ViewCoordinate<f15::math::FixedBackend, f15::math::ViewXAxis> g_ViewX;
 extern int16 g_savedSamTtl;
 extern struct TileObject nearestTile;
-extern int32 g_ViewY;
+extern f15::math::ViewCoordinate<f15::math::FixedBackend, f15::math::ViewYAxis> g_ViewY;
 extern struct ReplayLog g_replayLog;
 extern int16 g_ejectPending;
 extern int16 g_ejectState;

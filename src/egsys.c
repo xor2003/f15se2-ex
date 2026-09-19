@@ -50,7 +50,9 @@ void updateFrame(void);
  * too. Moving objects are interpolated separately (object snapshot helpers
  * below). */
 typedef struct {
-    int32 viewX, viewY, viewZ;
+    f15::math::ViewCoordinate<f15::math::FixedBackend, f15::math::ViewXAxis> viewX;
+    f15::math::ViewCoordinate<f15::math::FixedBackend, f15::math::ViewYAxis> viewY;
+    int32 viewZ;
     f15::math::Angle<f15::math::FixedBackend> head, pitch, roll;
     int32 mapX, mapY; /* g_viewX_ / g_viewY_ */
     int32 crashX, crashY, crashZ;
@@ -151,8 +153,12 @@ static void camApplyInterp(const CamSnapshot *p, const CamSnapshot *n, int64 num
     using Pose = f15::math::PoseInterpolation<f15::math::FixedBackend>;
     const auto pose = Pose::interpolate({p->head, p->pitch, p->roll}, {n->head, n->pitch, n->roll},
                                        f15::math::FrameFraction::fromTicks(num, den));
-    g_ViewX = lerpLinear(p->viewX, n->viewX, num, den);
-    g_ViewY = lerpLinear(p->viewY, n->viewY, num, den);
+    using Horizontal = f15::math::HorizontalMath<f15::math::FixedBackend>;
+    const auto fraction = f15::math::FrameFraction::fromTicks(num, den);
+    const auto x = Horizontal::interpolate(p->viewX, n->viewX, fraction);
+    const auto y = Horizontal::interpolate(p->viewY, n->viewY, fraction);
+    g_ViewX = x;
+    g_ViewY = y;
     g_viewZ = (int16)lerpLinear(p->viewZ, n->viewZ, num, den);
     g_ourHead = pose.yaw;
     g_ourPitch = pose.pitch;

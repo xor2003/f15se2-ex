@@ -2,6 +2,7 @@
 #include "math/interpolation.hpp"
 #include "math/flight_control.hpp"
 #include "math/altitude.hpp"
+#include "math/horizontal.hpp"
 #include <type_traits>
 
 using namespace f15::math;
@@ -22,6 +23,9 @@ static_assert(!std::is_constructible_v<SimulationStep<ModernBackend>, double>);
 #endif
 #if defined(TEST_UNGUARDED_ALTITUDE_BOUNDARY)
 #include "math/altitude_boundary.hpp"
+#endif
+#if defined(TEST_UNGUARDED_HORIZONTAL_BOUNDARY)
+#include "math/horizontal_boundary.hpp"
 #endif
 
 int main() {
@@ -90,6 +94,25 @@ int main() {
 #elif defined(TEST_ALTITUDE_POINTER)
     ClimbRate<FixedBackend> rate;
     short *raw = &rate;
+#elif defined(TEST_COORDINATE_PRIMITIVE)
+    ViewCoordinate<FixedBackend, ViewXAxis> point = 5;
+#elif defined(TEST_COORDINATE_EXTRACTION)
+    double raw = ViewCoordinate<ModernBackend, ViewYAxis>{};
+#elif defined(TEST_COORDINATE_AXIS)
+    ViewCoordinate<FixedBackend, ViewXAxis> point = ViewCoordinate<FixedBackend, ViewYAxis>{};
+#elif defined(TEST_COORDINATE_BACKEND)
+    ViewCoordinate<FixedBackend, ViewXAxis> point = ViewCoordinate<ModernBackend, ViewXAxis>{};
+#elif defined(TEST_COORDINATE_ADD)
+    (void)(ViewCoordinate<FixedBackend, ViewXAxis>{} + ViewCoordinate<FixedBackend, ViewXAxis>{});
+#elif defined(TEST_DISPLACEMENT_AXIS)
+    (void)(ViewCoordinate<FixedBackend, ViewXAxis>{} + ViewDisplacement<FixedBackend, ViewYAxis>{});
+#elif defined(TEST_DISPLACEMENT_PRIMITIVE)
+    ViewDisplacement<ModernBackend, ViewXAxis> delta(1.0);
+#elif defined(TEST_HORIZONTAL_SPEED)
+    HorizontalSpeed<ModernBackend> speed = 1.0;
+#elif defined(TEST_COORDINATE_POINTER)
+    ViewCoordinate<FixedBackend, ViewXAxis> point;
+    int *raw = &point;
 #endif
     return 0;
 }

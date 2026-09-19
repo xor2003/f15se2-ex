@@ -1,4 +1,6 @@
 #include "math/legacy_rotation.hpp"
+#include "math/legacy_horizontal.hpp"
+using f15::math::legacy::fineUnits;
 using f15::math::legacy::signedAngle;
 using f15::math::legacy::angleFromWord;
 #include "egdata.h"
@@ -41,8 +43,8 @@ void require(bool condition, const char *message) {
 }
 
 void seedCameraState(int base) {
-    g_ViewX = base + 10;
-    g_ViewY = base + 20;
+    g_ViewX = f15::math::legacy::viewX(base + 10);
+    g_ViewY = f15::math::legacy::viewY(base + 20);
     g_viewZ = static_cast<int16>(base + 30);
     g_ourHead = angleFromWord(static_cast<int16>(base + 40));
     g_ourPitch = angleFromWord(base + 50);
@@ -91,8 +93,8 @@ int main() {
     seedCameraState(2000);
     camCapture(&next);
     camApplyInterp(&prev, &next, kHalfNumerator, kHalfDenominator);
-    require(g_ViewX == 1510 &&
-                g_ViewY == 1520 &&
+    require(fineUnits(g_ViewX) == 1510 &&
+                fineUnits(g_ViewY) == 1520 &&
                 g_viewZ == 1530 &&
                 signedAngle(g_ourPitch) == 1550 &&
                 g_viewX_ == 1570 &&
@@ -101,7 +103,7 @@ int main() {
                 g_wreckAlt == 1640,
             "camApplyInterp interpolates camera, map, crash, and wreck state");
     camRestore(&next);
-    require(g_ViewX == 2010 &&
+    require(fineUnits(g_ViewX) == 2010 &&
                 g_viewY_ == 2080 &&
                 g_wreckAlt == 2140,
             "camRestore restores the authoritative next camera snapshot");
@@ -110,8 +112,17 @@ int main() {
     bool invalidInterval = false;
     try { camApplyInterp(&prev, &next, 0, 0); }
     catch (const std::domain_error &) { invalidInterval = true; }
-    require(invalidInterval && g_ViewX == 2010 && g_ourHead == next.head,
+    require(invalidInterval && fineUnits(g_ViewX) == 2010 && g_ourHead == next.head,
             "invalid interpolation interval must not partially overwrite camera state");
+    CamSnapshot overflowPrev = prev, overflowNext = next;
+    overflowPrev.viewY = f15::math::legacy::viewY(0);
+    overflowNext.viewY = f15::math::legacy::viewY(INT32_MAX);
+    bool invalidProduct = false;
+    try {
+        camApplyInterp(&overflowPrev, &overflowNext, INT64_MAX / 32768, INT64_MAX / 32768);
+    } catch (const std::overflow_error &) { invalidProduct = true; }
+    require(invalidProduct && fineUnits(g_ViewX) == 2010 && fineUnits(g_ViewY) == 2020 && g_ourHead == next.head,
+            "horizontal interpolation overflow must not partially overwrite camera state");
 
     prev.head = angleFromWord(0x0100);
     next.head = angleFromWord(0xFF00);

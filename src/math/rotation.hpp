@@ -14,6 +14,7 @@ template<class B> class RotationMath;
 template<class B> class PoseInterpolation;
 template<class B> class FlightControlMath;
 template<class B> class AltitudeMath;
+template<class B> class HorizontalMath;
 template<class B> struct Boundary;
 
 // Representation is deliberately absent from the public quantity API.
@@ -65,6 +66,7 @@ template<class B> class Coefficient {
     explicit Coefficient(Rep value) : value_(value) {}
     friend class RotationMath<B>;
     friend class AltitudeMath<B>;
+    friend class HorizontalMath<B>;
     friend struct Boundary<B>;
 public:
     Coefficient() = default;

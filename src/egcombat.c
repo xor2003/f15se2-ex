@@ -1,3 +1,5 @@
+#include "math/legacy_horizontal.hpp"
+using f15::math::legacy::fineUnits;
 // seg000 optimized code (/Ot)
 #include "eg3dmap.h"
 #include "egcode.h"
@@ -721,8 +723,8 @@ void fireMissile() {
      * missile doesn't visibly snap to the 32-fine-unit map grid on the first
      * frame. Both keep fine>>5 == the coarse coord set above (g_viewX_ =
      * (g_ViewX+0x10)>>5, g_viewY_ = 0x8000-((g_ViewY+0x10)>>5)). */
-    g_projectiles[slot].fineX = (((int32)(uint16)g_viewX_ << 5) + ((g_ViewX + 0x10) & 0x1f)) & 0x1FFFFF;
-    g_projectiles[slot].fineY = (((int32)(uint16)g_viewY_ << 5) + (0x1f - ((g_ViewY + 0x10) & 0x1f))) & 0x1FFFFF;
+    g_projectiles[slot].fineX = (((int32)(uint16)g_viewX_ << 5) + ((fineUnits(g_ViewX) + 0x10) & 0x1f)) & 0x1FFFFF;
+    g_projectiles[slot].fineY = (((int32)(uint16)g_viewY_ << 5) + (0x1f - ((fineUnits(g_ViewY) + 0x10) & 0x1f))) & 0x1FFFFF;
     g_projectiles[slot].alt = g_viewZ - 20;
     g_projectiles[slot].speed = (uint16)g_velocity >> 11;
     g_projectiles[slot].worldX = signedAngle(g_ourHead);

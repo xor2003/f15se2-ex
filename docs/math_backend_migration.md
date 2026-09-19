@@ -9,6 +9,8 @@ implementations. Roll/pitch command storage, joystick shaping, ground steering
 and control-rate integration now use typed flight-control math as well.
 Flight altitude and climb-rate storage, vertical integration and altitude display
 mapping also have typed fixed/modern implementations.
+Persistent fine X/Y coordinates, horizontal movement, landing easing and camera
+snapshot interpolation now use axis-specific types.
 This is the first migrated subsystem, not a complete interchangeable simulation
 backend. No whole-game floating-point backend selector is exposed.
 
@@ -16,7 +18,7 @@ backend. No whole-game floating-point backend selector is exposed.
 
 * `Angle`, `Coefficient`, `EulerAngles` and `Matrix3` carry backend types. Storage
   is private; primitive construction/extraction and mixed-backend operations
-  are not public APIs. Thirty-one negative compilation tests enforce representative
+  are not public APIs. Forty-one negative compilation tests enforce representative
   misuse cases, with a positive compilation control.
 * Fixed builders preserve intermediate rounding, word wrapping, LUT interpolation
   and matrix-product truncation. The production adapters also preserve the six
@@ -156,11 +158,49 @@ compiler cases with a positive control. Clang analysis of `typed_altitude_tests.
 reports no diagnostics and its ASan/UBSan run passes. The linked production core
 is not instrumented. Windows, Android, browser and live-flight checks were not run.
 
+## Horizontal movement checkpoint
+
+* `horizontal.hpp` separates fine view-frame coordinates from displacements and
+  horizontal speed. X and Y are different types; the view frame retains the
+  existing inverted map-Y convention. Primitive assignment, coordinate addition,
+  axis mixing and fixed/modern mixing are compile errors. `g_ViewX` and `g_ViewY`
+  now hold these coordinates; they are not integer aliases or writable proxies.
+* Fixed movement keeps signed-word horizontal speed, rounded Q15 multiplication,
+  division by ten, then tick-frequency division. Coordinate updates and landing
+  easing explicitly decode 32-bit wrapping. Ordinary-domain results preserve the
+  existing formulas; overflow tests define the intended machine-width behavior
+  instead of relying on formerly undefined signed C++ overflow.
+* Modern movement stores double-precision fine coordinates and retains fractional
+  steps. It does not wrap at signed 32-bit limits. These are still engine fine
+  units, not an assertion of an SI conversion. The raw velocity-to-horizontal-speed
+  producer in `stepFlightModel` is not yet migrated.
+* `advanceFlightHorizontal` is the production movement caller. It skips movement
+  during automatic landing. Map slewing uses typed displacements, and landing
+  easing uses a typed operation. Old target/camera/terrain/render consumers have
+  explicit read-only boundary adapters; their formulas are not yet typed math.
+  The raw view-history ring still receives explicitly encoded coordinate values.
+* Camera snapshots capture/restore typed X/Y directly. Fixed interpolation keeps
+  truncating signed differences; modern interpolation retains fractions. A fixed
+  interpolation product exceeding int64 is rejected before any live camera state
+  is changed. The original camera/object tests remain and include a regression
+  for this failure path. Object/projectile snapshots are still legacy scalars.
+* `typed_horizontal_tests` freezes the expressions from `6bc4cc2`: all 65,536
+  headings at eight speeds and five tick frequencies, signed-coordinate boundary
+  addition/subtraction, landing easing, interpolation and 24,000 persistent
+  production movement steps with automatic-landing pauses. Modern checks cover
+  12,000 subunit steps, fractional snapshot/easing results and no 32-bit wrap.
+
+Verification: Linux Release build and all 47 CTests pass, including 41 negative
+compiler cases with a positive control. Clang analysis of `typed_horizontal_tests.cpp`
+reports no diagnostics; its ASan/UBSan run passes. Only the test translation unit
+and inline math are instrumented, not the linked production core. Windows,
+Android, browser and live-flight verification remain outstanding.
+
 ### Next acceptance boundary
 
-Aircraft Euler, command, altitude and climb storage are typed, but most scalar
-control producers and consumers remain legacy math. Migrate forces, horizontal
-position integration and remaining
+Aircraft Euler, command, altitude, climb and fine horizontal position storage are
+typed, but most scalar control producers and consumers remain legacy math.
+Migrate velocity, forces, object state and remaining
 read adapters before selecting modern flight math; changing the angle backend
 alone would still quantize at these consumers. Keep modern refresh policy distinct from the original periodic rebuild,
 which intentionally quantizes fixed state. Then migrate flight

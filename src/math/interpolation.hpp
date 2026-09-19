@@ -11,6 +11,7 @@ class FrameFraction {
     std::int64_t numerator_, denominator_;
     FrameFraction(std::int64_t n, std::int64_t d) : numerator_(n), denominator_(d) {}
     template<class B> friend class PoseInterpolation;
+    template<class B> friend class HorizontalMath;
 public:
     // Scheduler counters are integral; reject extrapolation and fixed-product overflow.
     static FrameFraction fromTicks(std::int64_t elapsed, std::int64_t duration) {

@@ -1,5 +1,7 @@
 #ifndef REPLACEMENT_TERRAIN_COLLISION_H
 #define REPLACEMENT_TERRAIN_COLLISION_H
+#include "math/legacy_horizontal.hpp"
+using f15::math::legacy::fineUnits;
 
 #include "eg3dgrid.h"
 #include "r3d_replacement.h"
@@ -28,8 +30,8 @@ static int aircraftInsideReplacementTerrain(void) {
      * objects retain the original collision path rather than becoming terrain. */
     for (lod = 1; lod <= 4; ++lod) {
         int fineUnitsPerModelUnit = 1 << (2 * (lod - 1));
-        double x = (double)g_ViewX / fineUnitsPerModelUnit;
-        double y = (double)g_ViewY / fineUnitsPerModelUnit;
+        double x = (double)fineUnits(g_ViewX) / fineUnitsPerModelUnit;
+        double y = (double)fineUnits(g_ViewY) / fineUnitsPerModelUnit;
         double z = (double)(uint16)g_viewZ / fineUnitsPerModelUnit;
         int column, row, gridOffset = lod == 4 ? 2 : 0;
         int tile, entry;

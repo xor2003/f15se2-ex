@@ -2146,12 +2146,12 @@ int16 g_viewRoll;
  * backwards for a key match. */
 struct DynTileOverride g_dynTileEntries[94];
 int16 g_threatRefZ;
-int32 g_ViewX;
+f15::math::ViewCoordinate<f15::math::FixedBackend, f15::math::ViewXAxis> g_ViewX;
 int16 g_savedSamTtl;
 /* nearestTile: scratch record filled by findNearestTileObject()/
    drawNearestTileObject() and walked by addTileEntry(). */
 struct TileObject nearestTile;
-int32 g_ViewY;
+f15::math::ViewCoordinate<f15::math::FixedBackend, f15::math::ViewYAxis> g_ViewY;
 
 char aLong[] = "Long";
 char aMedium[] = "Medium";
