@@ -31,6 +31,22 @@ template<class B> class GuidanceMath {
         return value / divisor - (value % divisor < 0 ? 1 : 0);
     }
 public:
+    static PitchCommand<B> groundAvoidancePitch(FlightAltitude<B> altitude,
+        Angle<B> pitch, Angle<B> trim, PitchCommand<B> requested) {
+        static_assert(std::is_same_v<B, ModernBackend>);
+        // Original assist tuning in scene-height and angle-word scales, not
+        // physical units. Do not narrow continuous state to those word types.
+        constexpr double clearance = 300;
+        constexpr double angleGain = 0.25;
+        constexpr double responseGain = 0.25;
+        constexpr double maximumCommand = 32;
+        constexpr double commandRadiansPerSecond = 128 * wordRadians;
+        const auto height = AltitudeMath<B>::renderHeight(altitude);
+        const double command = ((trim.value_ - pitch.value_) / wordRadians * angleGain -
+            height.value_ + clearance) * responseGain;
+        if (command <= 0) return requested;
+        return PitchCommand<B>(std::min(command, maximumCommand) * commandRadiansPerSecond);
+    }
     static RecoveryApproach<B> recoveryApproach(MapPosition<B> target, MapPosition<B> player,
         Angle<B> heading, bool carrier, RecoveryDirection direction, bool inCorridor) {
         int ns = static_cast<int>(direction);

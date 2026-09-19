@@ -900,9 +900,15 @@ The fixed turbulence path is unchanged. Integer turbulence amplitude remains an
 explicit boundary to the existing deterministic random-command generator;
 1000 scene-height units and the response divisor 32768 remain gameplay tuning.
 
-Other `g_viewZ` consumers still require migration, including ground-avoidance
-assistance, guidance, propulsion inputs, and camera state. The turbulence test
-does not establish unrestricted high-altitude flight or rendering stability.
+The modern ground-avoidance assist also takes typed altitude, attitude, trim,
+and pilot command directly. Its centered-stick production regression covers
+both assisted and unassisted difficulty at altitude 131072. Low-altitude tests
+retain the original response tuning while allowing fractional modern commands.
+The fixed assist expression remains unchanged.
+
+Other `g_viewZ` consumers still require migration, including autopilot guidance,
+propulsion inputs, ground-state checks, and camera state. These tests do not
+establish unrestricted high-altitude flight or rendering stability.
 
 For whole-sortie migration, capture a fixed seed, initial state and tick-indexed
 inputs. Compare fixed-backend state after each tick exactly. For floating point,

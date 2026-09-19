@@ -467,10 +467,15 @@ switch_break:
     }
 
     if ((g_playerPlaneFlags & 1) && (g_pitchInput.isNegative() || g_pitchInput.isZero()) && Aero::aboveStall(g_velocity, g_stallSpeed) && gameData->unk4 < 2 && abs((int16)signedAngle(g_ourRoll)) < 0x3000 && g_gunFiredFlag == 0) {
+#ifdef F15_MODERN_MATH
+        g_pitchInput = f15::math::GuidanceMath<f15::math::GameBackend>::groundAvoidancePitch(
+            g_altitude, g_ourPitch, g_rollPitchTrim, g_pitchInput);
+#else
         tmpVal = (((signedAngle(g_rollPitchTrim) - signedAngle(g_ourPitch)) >> 2) - g_viewZ + 300) >> 2;
         if (tmpVal > 0) {
             g_pitchInput = pitchCommand(clampRange(tmpVal, 0, 32));
         }
+#endif
     }
 
     if (g_ejectState != 0) {

@@ -5,6 +5,7 @@
 #include "math/legacy_propulsion.hpp"
 #include "math/legacy_flight_control.hpp"
 #include "math/aerodynamics.hpp"
+#include "math/guidance.hpp"
 #include "egdata.h"
 #include "egflight.h"
 #include "comm.h"
@@ -39,6 +40,26 @@ int main() {
     using Speeds = AirspeedBoundary<ModernBackend>;
     using Controls = ControlBoundary<ModernBackend>;
     using Aero = AerodynamicsMath<ModernBackend>;
+    using Guidance = GuidanceMath<ModernBackend>;
+    const auto noseDown = Controls::radiansPerSecond<PitchAxis>(-0.1);
+    constexpr double commandScale = 128 * (6.28318530717958647692 / 65536);
+    for (const auto &sample : {std::pair{0.0, 32.0}, {299.5, 0.125}, {300.0, 0.0}}) {
+        const auto corrected = Guidance::groundAvoidancePitch(
+            Altitudes::altitude(sample.first), {}, {}, {});
+        require(std::abs(Controls::radiansPerSecond(corrected) - sample.second * commandScale) < 1e-14,
+                "modern ground-avoidance response changed");
+    }
+    require(Controls::radiansPerSecond(Guidance::groundAvoidancePitch(
+                Altitudes::altitude(131072), {}, {}, noseDown)) == -0.1,
+            "high-altitude ground avoidance replaced pilot pitch");
+    const auto noseBelowHorizon = Angles::radians(-500 * (6.28318530717958647692 / 65536));
+    require(std::abs(Controls::radiansPerSecond(Guidance::groundAvoidancePitch(
+                Altitudes::altitude(400), noseBelowHorizon, {}, noseDown)) -
+                6.25 * commandScale) < 1e-14,
+            "descending flight-path ground avoidance changed");
+    require(Controls::radiansPerSecond(Guidance::groundAvoidancePitch(
+                Altitudes::altitude(400), noseBelowHorizon, noseBelowHorizon, noseDown)) == -0.1,
+            "trim-neutral flight path incorrectly triggered ground avoidance");
     for (const auto &sample : {std::pair{0.0, 9}, {500.5, 4}, {999.0, 0},
                                {1000.0, 0}, {98304.0, 0}, {131072.0, 0}}) {
         require(Aero::lowAltitudeTurbulenceRange(Altitudes::altitude(sample.first),
@@ -133,7 +154,9 @@ int main() {
         for (double coefficient : Angles::matrix(g_orientMatrix))
             require(std::isfinite(coefficient), "modern flight matrix became non-finite");
     }
+    for (int difficulty : {1, 2})
     for (int i = 0; i < 8; ++i) {
+        game.unk4 = difficulty;
         g_altitude = Altitudes::altitude(131072);
         g_velocity = Speeds::speed(8100);
         g_knots = 300;
@@ -145,6 +168,8 @@ int main() {
         stepFlightModel();
         require(g_rollInput.isZero(),
                 "high altitude injected false low-altitude roll turbulence");
+        require(g_pitchInput.isZero(),
+                "high altitude injected false ground-avoidance pitch");
     }
     gameData = nullptr;
     commData = nullptr;
