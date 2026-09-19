@@ -8,5 +8,9 @@ using Airspeeds = AirspeedBoundary<FixedBackend>;
 inline FlightSpeed<FixedBackend> speedFromUnits(std::int32_t v) { return Airspeeds::speed(v); }
 inline std::int32_t speedUnits(FlightSpeed<FixedBackend> v) { return Airspeeds::speed(v); }
 inline std::uint16_t speedWord(FlightSpeed<FixedBackend> v) { return std::uint16_t(speedUnits(v)); }
+inline StallSpeed<FixedBackend> stallFromUnits(std::int64_t v) {
+    const auto bits = std::uint16_t(v);
+    return Airspeeds::stall(static_cast<std::int16_t>(bits < 32768 ? int(bits) : int(bits) - 65536));
+}
 }
 #endif

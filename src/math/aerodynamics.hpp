@@ -3,6 +3,8 @@
 #include "airspeed.hpp"
 
 namespace f15::math {
+enum class StallSeverity { Normal, Severe };
+template<class B> struct StallResponse { bool stalled; Angle<B> noseDrop; };
 // The legacy "lift force" is an angular correction, not a force in newtons.
 template<class B> class AerodynamicsMath {
     static int signedWord(std::int64_t v) {
@@ -10,7 +12,33 @@ template<class B> class AerodynamicsMath {
         return bits < 32768 ? int(bits) : int(bits) - 65536;
     }
 public:
-    static Angle<B> liftCorrection(FlightSpeed<B> stallSpeed, FlightSpeed<B> speed) {
+    static bool aboveStall(FlightSpeed<B> speed, StallSpeed<B> threshold) {
+        if constexpr (std::is_same_v<B, FixedBackend>) return std::uint16_t(speed.value_) > std::uint16_t(threshold.value_);
+        else return speed.value_ > threshold.value_;
+    }
+    static bool belowStall(FlightSpeed<B> speed, StallSpeed<B> threshold) {
+        if constexpr (std::is_same_v<B, FixedBackend>) return std::uint16_t(speed.value_) < std::uint16_t(threshold.value_);
+        else return speed.value_ < threshold.value_;
+    }
+    static StallResponse<B> stallResponse(FlightSpeed<B> speed, StallSpeed<B> threshold,
+                                          StallSeverity severity, SimulationStep<B> step) {
+        if (severity != StallSeverity::Normal && severity != StallSeverity::Severe)
+            throw std::domain_error("invalid stall severity");
+        if (!belowStall(speed, threshold)) return {false, {}};
+        const int divisor = severity == StallSeverity::Severe ? 2 : 4;
+        if constexpr (std::is_same_v<B, FixedBackend>) {
+            // Legacy stall correction is per tick, without frequency scaling.
+            const int deficit = int(std::uint16_t(threshold.value_)) - int(std::uint16_t(speed.value_));
+            return {true, Angle<B>(fixed::Angle16(deficit / divisor))};
+        } else {
+            const double deficit = threshold.value_ - speed.value_;
+            if (!std::isfinite(deficit)) throw std::overflow_error("stall speed deficit overflow");
+            // Calibrate to the current 15 Hz simulation, retaining fractions at other rates.
+            const double radians = deficit * ((15 * step.value_ / divisor) * (6.28318530717958647692 / 65536));
+            return {true, Angle<B>(radians)};
+        }
+    }
+    static Angle<B> liftCorrection(StallSpeed<B> stallSpeed, FlightSpeed<B> speed) {
         if constexpr (std::is_same_v<B, FixedBackend>) {
             // abs(INT_MIN) and abs(INT_MAX)+1 were undefined in the old formula.
             if (speed.value_ <= -INT32_MAX || speed.value_ == INT32_MAX)

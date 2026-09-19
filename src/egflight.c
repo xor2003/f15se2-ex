@@ -4,6 +4,7 @@
 using f15::math::legacy::speedWord;
 using f15::math::legacy::speedFromUnits;
 using SpeedMath = f15::math::AirspeedMath<f15::math::FixedBackend>;
+using Aero = f15::math::AerodynamicsMath<f15::math::FixedBackend>;
 using f15::math::legacy::fineUnits;
 #include "eg3dview.h"
 #include "egcode.h"
@@ -96,11 +97,21 @@ void advanceFlightAltitude() {
 }
 
 void updateFlightLift() {
-    using Aero = f15::math::AerodynamicsMath<f15::math::FixedBackend>;
-    const auto lift = Aero::liftCorrection(speedFromUnits(g_stallSpeed), g_velocity);
+    const auto lift = Aero::liftCorrection(g_stallSpeed, g_velocity);
     const auto trim = Aero::pitchTrim(lift, f15::math::legacy::Math(g_angleLut).cosine(g_ourRoll));
     g_liftForce = lift;
     g_rollPitchTrim = trim;
+}
+
+bool correctFlightStall() {
+    if ((uint16)g_groundAltitude >= (uint16)g_viewZ || !Aero::belowStall(g_velocity, g_stallSpeed)) return false;
+    const auto severity = gameData->unk4 == 2 || g_gunHits > 8
+        ? f15::math::StallSeverity::Severe : f15::math::StallSeverity::Normal;
+    const auto response = Aero::stallResponse(g_velocity, g_stallSpeed, severity,
+        f15::math::legacy::Controls::frequency(g_frameRateScaling));
+    g_ourPitch -= response.noseDrop;
+    g_orientationDirty = 1;
+    return response.stalled;
 }
 
 void accelerateFlightSpeed(f15::math::FlightSpeed<f15::math::FixedBackend> target) {
@@ -342,7 +353,7 @@ switch_break:
     const bool attitudeControlAllowed =
         g_autopilotAltitude == 0 && g_inputDisabled == 0 &&
         g_ejectState == 0 && g_autoCrashDive == 0 &&
-        speedWord(g_velocity) > (uint16)g_stallSpeed &&
+        Aero::aboveStall(g_velocity, g_stallSpeed) &&
         (g_groundAltitude != g_viewZ || g_knots >= g_cornerSpeed);
     androidFlightControl = attitudeControlAllowed
                                ? f15::math::legacy::updateControlFromWords(
@@ -490,7 +501,7 @@ switch_break:
         g_pitchInput += pitchCommand((randomRange(turbulence) - (turbulence >> 1)) >> 1);
     }
 
-    if ((g_playerPlaneFlags & 1) && (g_pitchInput.isNegative() || g_pitchInput.isZero()) && ((uint16)g_stallSpeed) < (speedWord(g_velocity)) && gameData->unk4 < 2 && abs((int16)signedAngle(g_ourRoll)) < 0x3000 && g_gunFiredFlag == 0) {
+    if ((g_playerPlaneFlags & 1) && (g_pitchInput.isNegative() || g_pitchInput.isZero()) && Aero::aboveStall(g_velocity, g_stallSpeed) && gameData->unk4 < 2 && abs((int16)signedAngle(g_ourRoll)) < 0x3000 && g_gunFiredFlag == 0) {
         tmpVal = (((signedAngle(g_rollPitchTrim) - signedAngle(g_ourPitch)) >> 2) - g_viewZ + 300) >> 2;
         if (tmpVal > 0) {
             g_pitchInput = pitchCommand(clampRange(tmpVal, 0, 32));
@@ -610,7 +621,7 @@ switch_break:
         speedCalc -= speedCalc >> 3;
     }
 
-    g_stallSpeed = g_cornerSpeed * 27;
+    g_stallSpeed = f15::math::legacy::stallFromUnits(g_cornerSpeed * 27);
     targetVel = clampRange(speedCalc, 0, 899) * 27;
 
     accelerateFlightSpeed(speedFromUnits(targetVel));
@@ -676,9 +687,7 @@ switch_break:
         advanceFlightOrientation(deltas);
     }
 
-    if ((uint16)g_stallSpeed > speedWord(g_velocity) && (uint16)g_groundAltitude < (uint16)g_viewZ) {
-        g_ourPitch -= angleFromWord(((uint16)g_stallSpeed - speedWord(g_velocity)) >> ((gameData->unk4 == 2 || g_gunHits > 8) ? 1 : 2));
-        g_orientationDirty = 1;
+    if (correctFlightStall()) {
         if (signedAngle(g_ourPitch) < 0 || (uint16)g_viewZ < 200) {
             makeSound(20, 1);
         }

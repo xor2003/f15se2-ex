@@ -9,10 +9,13 @@ template<class B> struct AirspeedBoundary;
 template<class B> class AirspeedMath;
 struct FlightSpeedUnit {};
 struct DecelerationUnit {};
+struct StallSpeedUnit {};
 template<class B, class Unit> class AirspeedQuantity {
     static_assert(std::is_same_v<B, FixedBackend> || std::is_same_v<B, ModernBackend>);
-    static_assert(std::is_same_v<Unit, FlightSpeedUnit> || std::is_same_v<Unit, DecelerationUnit>);
-    using Rep = std::conditional_t<std::is_same_v<B, FixedBackend>, std::int32_t, double>;
+    static_assert(std::is_same_v<Unit, FlightSpeedUnit> || std::is_same_v<Unit, DecelerationUnit> ||
+                  std::is_same_v<Unit, StallSpeedUnit>);
+    using FixedRep = std::conditional_t<std::is_same_v<Unit, StallSpeedUnit>, std::int16_t, std::int32_t>;
+    using Rep = std::conditional_t<std::is_same_v<B, FixedBackend>, FixedRep, double>;
     Rep value_{};
     explicit AirspeedQuantity(Rep v) : value_(v) {
         if constexpr (std::is_same_v<B, ModernBackend>)
@@ -28,6 +31,7 @@ public:
 };
 template<class B> using FlightSpeed = AirspeedQuantity<B, FlightSpeedUnit>;
 template<class B> using Deceleration = AirspeedQuantity<B, DecelerationUnit>;
+template<class B> using StallSpeed = AirspeedQuantity<B, StallSpeedUnit>;
 
 // Engine velocity units (27 per indicated knot), not SI metres per second.
 template<class B> class AirspeedMath {

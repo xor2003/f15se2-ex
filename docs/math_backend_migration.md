@@ -273,12 +273,47 @@ lift/trim/climb callers. A separate ASan/UBSan run of
 core files are not instrumented; whole-sortie and cross-platform checks remain
 outstanding.
 
+## Stall checkpoint
+
+* `g_stallSpeed` now uses `StallSpeed<B>`, distinct from current `FlightSpeed<B>`
+  and acceleration quantities. Fixed storage remains a signed word; modern
+  storage is a fractional double. `liftCorrection` now requires the threshold
+  type rather than accepting an arbitrary current-speed value in that role.
+* `AerodynamicsMath::aboveStall` and `belowStall` preserve the fixed path's strict
+  unsigned-word comparisons, including equality and native velocity values beyond
+  one word. The modern path compares full fractional values without word wrap.
+* `stallResponse` returns both stall status and a typed nose-drop angle. Fixed
+  normal/severe drops keep the original divide-by-four/divide-by-two per-tick
+  rounding, independent of tick frequency. Even a deficit that rounds to zero
+  remains a stall response. Modern drops retain fractions and multiply the rate
+  calibrated at the current 15 Hz simulation by the supplied elapsed time. This
+  timing policy is deliberate, not an assertion of fixed parity at other rates.
+* `correctFlightStall` is the production pitch-correction caller. It preserves
+  ground suppression, difficulty/damage severity selection and the dirty flag.
+  The warning sound remains at the original call site after pitch correction.
+  Corner-speed generation and conversion to a stall threshold remain a raw
+  producer pending migration of the thrust/load-factor calculation.
+* `typed_stall_tests` freezes the `02e55d1` expressions: all 65,536 threshold words
+  with twelve signed/native velocity cases, three frequencies and both severity
+  levels; corner-speed conversion; and 24,000 production pitch/dirty-state cases.
+  Modern tests cover fractional thresholds, no word wrapping, and equal elapsed
+  time at 15/30/60/120 Hz. Invalid enums, non-finite inputs and overflowing deficits
+  are rejected. Compiler-negative cases cover threshold roles, backends, raw
+  construction/extraction, pointers, time and severity.
+
+Verification: Linux Release build and all 50 CTests pass, including 61 negative
+compiler cases with a positive control. Clang analysis of `typed_stall_tests.cpp`
+reports no diagnostics. ASan/UBSan passes with that test, inline math and
+`egflight.c` instrumented, including the real stall caller. Other linked core
+files are not instrumented; whole-sortie and cross-platform verification remain
+outstanding.
+
 ### Next acceptance boundary
 
 Aircraft Euler, command, altitude, climb, airspeed and fine horizontal position
-storage plus lift correction and pitch trim are typed, but most scalar control
+storage plus stall threshold, lift correction and pitch trim are typed, but most scalar control
 producers and consumers remain legacy math. Migrate target-speed generation,
-stall, thrust/force generation, object state and remaining
+corner-speed and thrust/force generation, object state and remaining
 read adapters before selecting modern flight math; changing the angle backend
 alone would still quantize at these consumers. Keep modern refresh policy distinct from the original periodic rebuild,
 which intentionally quantizes fixed state. Then migrate flight

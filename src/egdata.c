@@ -2101,7 +2101,7 @@ struct TileObject *g_nearestTileObj;
 uint8 buf1_3dg[0x100];
 char g_savedPosVisible;
 int16 g_threatDisplayTtl;
-int16 g_stallSpeed;
+f15::math::StallSpeed<f15::math::FixedBackend> g_stallSpeed;
 
 /* g_topLodGrid: 8x8 theater terrain grid, read as [col+(row<<3)] (0..63);
  * [66] = 64 grid bytes + 2 pad. */

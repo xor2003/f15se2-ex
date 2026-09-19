@@ -53,6 +53,7 @@ template<class B> class SimulationStep {
     friend class AltitudeMath<B>;
     friend class HorizontalMath<B>;
     friend class AirspeedMath<B>;
+    friend class AerodynamicsMath<B>;
     friend struct ControlBoundary<B>;
 };
 

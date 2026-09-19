@@ -6,6 +6,7 @@
 #include "math/airspeed.hpp"
 #include "math/aerodynamics.hpp"
 #include <type_traits>
+#include <utility>
 
 using namespace f15::math;
 static_assert(!std::is_constructible_v<Angle<FixedBackend>, int>);
@@ -43,6 +44,9 @@ int main() {
     (void)roll.isZero();
     (void)AirspeedMath<ModernBackend>::verticalSample(FlightSpeed<ModernBackend>{});
     (void)AerodynamicsMath<ModernBackend>::pitchTrim(angle, math.cosine(angle));
+    (void)AerodynamicsMath<ModernBackend>::belowStall(FlightSpeed<ModernBackend>{}, StallSpeed<ModernBackend>{});
+    static_assert(std::is_same_v<decltype(AerodynamicsMath<ModernBackend>::stallResponse(
+        {}, {}, StallSeverity::Normal, std::declval<SimulationStep<ModernBackend>>())), StallResponse<ModernBackend>>);
 #if defined(TEST_PRIMITIVE_ANGLE)
     (void)math.sine(1.0);
 #elif defined(TEST_PRIMITIVE_EULER)
@@ -117,6 +121,22 @@ int main() {
     ViewDisplacement<ModernBackend, ViewXAxis> delta(1.0);
 #elif defined(TEST_HORIZONTAL_SPEED)
     HorizontalSpeed<ModernBackend> speed = 1.0;
+#elif defined(TEST_STALL_PRIMITIVE)
+    StallSpeed<FixedBackend> stall = 2700;
+#elif defined(TEST_STALL_EXTRACTION)
+    double stall = StallSpeed<ModernBackend>{};
+#elif defined(TEST_STALL_ROLE)
+    (void)AerodynamicsMath<FixedBackend>::belowStall(FlightSpeed<FixedBackend>{}, FlightSpeed<FixedBackend>{});
+#elif defined(TEST_STALL_BACKEND)
+    (void)AerodynamicsMath<FixedBackend>::belowStall(FlightSpeed<FixedBackend>{}, StallSpeed<ModernBackend>{});
+#elif defined(TEST_STALL_SEVERITY)
+    using InvalidSeverity = decltype(AerodynamicsMath<ModernBackend>::stallResponse(
+        {}, {}, 1, std::declval<SimulationStep<ModernBackend>>()));
+#elif defined(TEST_STALL_STEP)
+    (void)AerodynamicsMath<ModernBackend>::stallResponse({}, {}, StallSeverity::Normal, 0.1);
+#elif defined(TEST_STALL_POINTER)
+    StallSpeed<FixedBackend> stall;
+    short *raw = &stall;
 #elif defined(TEST_LIFT_PRIMITIVE)
     (void)AerodynamicsMath<ModernBackend>::liftCorrection(1.0, 2.0);
 #elif defined(TEST_TRIM_PRIMITIVE)

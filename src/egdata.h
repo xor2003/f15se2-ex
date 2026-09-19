@@ -255,7 +255,7 @@ extern uint8 buf1_3dg[];
 extern char g_savedPosVisible;
 extern int16 g_threatDisplayTtl;
 extern uint8 buf_3dt[]; // #define MAX_TILE_DATA
-extern int16 g_stallSpeed;
+extern f15::math::StallSpeed<f15::math::FixedBackend> g_stallSpeed;
 extern uint8 g_topLodGrid[];
 extern int16 g_lastMissileSlot;
 extern f15::math::FlightSpeed<f15::math::FixedBackend> g_velocity;

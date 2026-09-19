@@ -10,6 +10,9 @@ template<class B> struct AirspeedBoundary {
     static FlightSpeed<B> speed(Rep v) { return FlightSpeed<B>(v); }
     static Rep speed(FlightSpeed<B> v) { return v.value_; }
     static Deceleration<B> deceleration(Rep v) { return Deceleration<B>(v); }
+    using StallRep = std::conditional_t<std::is_same_v<B, FixedBackend>, std::int16_t, double>;
+    static StallSpeed<B> stall(StallRep v) { return StallSpeed<B>(v); }
+    static StallRep stall(StallSpeed<B> v) { return v.value_; }
 };
 }
 #endif
