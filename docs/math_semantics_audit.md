@@ -21,6 +21,58 @@ aircraft capabilities must be separate concerns. No units library is required.
 | `src/math/guidance.hpp::recoveryAttitude` | Division by 8, trim conversion, angular-rate clamps | Controller gains and authority limits. Keep fixed reference; modern needs explicit gains with coordinate/time semantics and response tests. |
 | `src/math/horizontal.hpp` | Fine view coordinates and inverted map Y | Coordinate convention. Keep distinct from coarse `MapPosition`; resource/world conversion boundaries still need consolidation. |
 
+## Traced scale relationships
+
+### Flight altitude, displayed altitude and velocity
+
+`src/eghudr.c` reads `altitudeUnits(g_altitude)` directly into the altitude tape,
+divides by 1000 for its labels, and describes the low-altitude branch as
+"altitude < 1000 ft". This establishes the display's feet convention, not the
+physical correctness of every simulation formula. The tape also narrows to
+`uint16`, so removing the modern altitude ceiling does not fix the display.
+
+The current flight relationship is traceable without guessing units:
+
+1. `src/egflight.c` assigns `g_knots = speedWord(g_velocity) / 27`.
+2. `AltitudeMath::climb` divides the velocity sample by 10 before applying the
+   flight-path sine (with extra fixed rounding in the fixed backend).
+3. `AltitudeMath::integrate` integrates that rate with a simulation step;
+   `ControlBoundary::frequency` maps frequency to `1/hz` seconds in modern math.
+4. Thus, ignoring fixed rounding, a speed sample representing K indicated knots
+   generates `2.7 * K * sin(flightPath)` flight-altitude units per simulation
+   second. Horizontal integration uses the same velocity / 10 factor in fine
+   view coordinates (`HorizontalMath::component`).
+
+This is an observed engine relationship. It does not justify calling the speed
+sample metres/second, nor treating coarse map units as feet. Before substituting
+a physical velocity conversion, establish map-to-fine-coordinate scale, intended
+simulation time scale, and effects on stall, targeting, collision and travel time.
+Keep the existing relationship in the fixed reference. Modern physical scaling
+needs explicit adapters and trajectory tests, not scattered replacements of 27
+or 10. The modern render-height compression is also still a legacy scene bridge.
+
+### Input precision versus controller tuning
+
+`FlightControlMath::fromJoystick` shifts each byte right by four before either
+backend branch. The modern path therefore still loses those four bits. Its
+neutral region is byte values 112..143, roll shaping is quadratic, and pitch
+authority is asymmetric. These are three distinct issues:
+
+* Byte/nibble quantization is representation loss.
+* Neutral region is input deadzone policy, separate from SDL calibration.
+* Response curve and maximum angular rates are controller tuning.
+
+`tests/typed_flight_control_tests.cpp::fixedInputs` currently requires the modern
+response to match those same quantized rates for all byte pairs. That is a
+legacy-profile test, not a modern-precision acceptance test. Retain fixed
+exhaustive coverage, then add a normalized analog input type and an explicit
+response profile with deadzone and angular-rate semantics. Test adjacent analog
+samples outside the deadzone, center stability, saturation, asymmetric pitch
+limits and frame-rate-independent integration. Trace the SDL-to-byte boundary in
+`src/joystick.c` as well; improving only the final curve cannot recover input
+precision already discarded there. No production input behavior changes in this
+audit checkpoint.
+
 ## Acceptance for further migration
 
 1. Trace each quantity to its producer and consumers, including file and display
