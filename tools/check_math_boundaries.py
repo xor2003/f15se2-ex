@@ -10,14 +10,15 @@ ALLOWED = {
     "src/math/interpolation.hpp",
     "src/math/flight_control.hpp", "src/math/control_boundary.hpp",
     "src/math/legacy_flight_control.hpp",
+    "src/math/altitude.hpp", "src/math/altitude_boundary.hpp", "src/math/legacy_altitude.hpp",
     "src/eg3drast.c", "src/eg3dcam.c", "src/egflight.c",
     # Temporary Euler consumers; remove each entry as its scalar math is migrated.
     "src/egtarget.c", "src/egkeys.c", "src/egmath.c", "src/eghudr.c", "src/eghudm.c",
     "src/egtgt2.c", "src/egcombat.c", "src/egframe.c", "src/egtacmap.c", "src/egthreat.c",
     "src/egui.c",
 }
-ACCESS = re.compile(r"F15_MATH_BOUNDARY_ACCESS|\b(?:Control)?Boundary\s*<|math::legacy|\bfixed\s*::|"
-                    r'#\s*include\s*[<"](?:math/)?(?:boundary|control_boundary|legacy_rotation|legacy_flight_control)\.hpp[>"]|'
+ACCESS = re.compile(r"F15_MATH_BOUNDARY_ACCESS|\b(?:Control|Altitude)?Boundary\s*<|math::legacy|\bfixed\s*::|"
+                    r'#\s*include\s*[<"](?:math/)?(?:boundary|control_boundary|altitude_boundary|legacy_rotation|legacy_flight_control|legacy_altitude)\.hpp[>"]|'
                     r'#\s*include\s*[<"]fixed_math\.hpp[>"]')
 
 def violations(root):

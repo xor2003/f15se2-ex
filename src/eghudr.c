@@ -19,6 +19,7 @@
 #include "egcode.h"
 #include "egdata.h"
 #include "math/legacy_rotation.hpp"
+#include "math/legacy_altitude.hpp"
 using f15::math::legacy::signedAngle;
 #include "inttype.h"
 #include "struct.h"
@@ -315,7 +316,7 @@ static void drawInstrumentGauges(void) {
 
     /* ---- altitude tape ---- */
     {
-        uint16 alt = g_altitude;
+        uint16 alt = f15::math::legacy::altitudeUnits(g_altitude);
         int16 thousands = (int16)(alt / 1000) - 1;
         uint16 rem = (uint16)(alt % 1000);
         uint16 hundredsPix;

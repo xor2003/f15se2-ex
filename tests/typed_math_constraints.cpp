@@ -1,6 +1,7 @@
 #include "math/rotation.hpp"
 #include "math/interpolation.hpp"
 #include "math/flight_control.hpp"
+#include "math/altitude.hpp"
 #include <type_traits>
 
 using namespace f15::math;
@@ -18,6 +19,9 @@ static_assert(!std::is_constructible_v<SimulationStep<ModernBackend>, double>);
 #endif
 #if defined(TEST_UNGUARDED_CONTROL_BOUNDARY)
 #include "math/control_boundary.hpp"
+#endif
+#if defined(TEST_UNGUARDED_ALTITUDE_BOUNDARY)
+#include "math/altitude_boundary.hpp"
 #endif
 
 int main() {
@@ -71,6 +75,21 @@ int main() {
 #elif defined(TEST_CONTROL_POINTER)
     PitchCommand<FixedBackend> pitch;
     short *raw = &pitch;
+#elif defined(TEST_ALTITUDE_PRIMITIVE)
+    FlightAltitude<FixedBackend> a = 100;
+#elif defined(TEST_ALTITUDE_EXTRACTION)
+    double raw = FlightAltitude<ModernBackend>{};
+#elif defined(TEST_ALTITUDE_RENDER_MIX)
+    FlightAltitude<ModernBackend> a = RenderHeight<ModernBackend>{};
+#elif defined(TEST_ALTITUDE_RATE_MIX)
+    FlightAltitude<FixedBackend> a = ClimbRate<FixedBackend>{};
+#elif defined(TEST_ALTITUDE_BACKEND_MIX)
+    FlightAltitude<FixedBackend> a = FlightAltitude<ModernBackend>{};
+#elif defined(TEST_ALTITUDE_PRIMITIVE_STEP)
+    (void)AltitudeMath<ModernBackend>::integrate({}, {}, 1.0);
+#elif defined(TEST_ALTITUDE_POINTER)
+    ClimbRate<FixedBackend> rate;
+    short *raw = &rate;
 #endif
     return 0;
 }

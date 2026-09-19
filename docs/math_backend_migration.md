@@ -7,6 +7,8 @@ attitude recovery now use the typed fixed implementation. Aircraft Euler state a
 its camera snapshots are typed as well; render interpolation has fixed and modern
 implementations. Roll/pitch command storage, joystick shaping, ground steering
 and control-rate integration now use typed flight-control math as well.
+Flight altitude and climb-rate storage, vertical integration and altitude display
+mapping also have typed fixed/modern implementations.
 This is the first migrated subsystem, not a complete interchangeable simulation
 backend. No whole-game floating-point backend selector is exposed.
 
@@ -14,7 +16,7 @@ backend. No whole-game floating-point backend selector is exposed.
 
 * `Angle`, `Coefficient`, `EulerAngles` and `Matrix3` carry backend types. Storage
   is private; primitive construction/extraction and mixed-backend operations
-  are not public APIs. Twenty-three negative compilation tests enforce representative
+  are not public APIs. Thirty-one negative compilation tests enforce representative
   misuse cases, with a positive compilation control.
 * Fixed builders preserve intermediate rounding, word wrapping, LUT interpolation
   and matrix-product truncation. The production adapters also preserve the six
@@ -114,10 +116,51 @@ Verification: Linux Release build and all 45 CTests pass. Clang analysis of
 Only that translation unit and inline math are instrumented, not the linked core.
 Windows, Android, browser and live-flight verification remain outstanding.
 
+## Altitude migration checkpoint
+
+* `altitude.hpp` separates flight altitude, vertical climb rate, terrain height,
+  compressed render height and sampled airspeed. These use the existing engine
+  scales; they are not advertised as metres or metres/second. Persistent
+  `g_altitude` and `g_climbRate` are typed. Neither implicitly exposes a primitive
+  nor accepts one, and scene heights cannot be assigned to flight altitudes.
+* Fixed climb retains division of unsigned-word airspeed by ten before Q15
+  multiplication and rounding. Integration keeps unsigned 32-bit altitude and
+  signed-word climb-rate truncation. The low-word terrain/0xf230 check, 60000
+  ceiling, piecewise render compression, unsigned landing easing and 500-unit
+  obstacle escape retain their existing behavior, including wrapping.
+* Modern climb and integration retain fractions. Descending below terrain clamps
+  to terrain instead of wrapping; values above the ceiling clamp to 60000 instead
+  of applying the legacy low-word check. Scene terrain height is expanded before
+  comparing it to modern flight altitude. Current `egframe.c` assigns ground
+  heights of 0 or 128, where both scales coincide; tests also check the modern
+  inverse mapping above the compression thresholds. The ceiling remains the
+  upper limit even if an unsupported terrain height exceeds it.
+* `advanceFlightAltitude`, called by `stepFlightModel`, runs climb calculation,
+  optional integration, constraints and render mapping. Automatic landing skips
+  integration but still updates climb and constrains/maps the altitude. Landing
+  easing and obstacle escape in `updateFrame` use typed operations. Crash/landing
+  side effects and the rest of `updateFrame` are not yet migrated or replay-tested.
+* HUD, targeting and the corner-speed formula temporarily use named read-only
+  adapters. Airspeed and terrain state are sampled through explicit boundaries;
+  their underlying global storage, horizontal movement and aerodynamic forces
+  remain unmigrated. No original resource structures changed.
+* `typed_altitude_tests` freezes expressions from `aa28521`: all 65,536 low-word
+  altitudes, all angle words at eight airspeeds, all speed words at generated
+  angles, full signed climb-rate inputs at five frequencies and eight altitude
+  boundaries, landing easing and 24,000 production vertical-update cases.
+  Modern tests check fractional climb and 12,000 accumulated subunit updates,
+  compression thresholds, terrain/ceiling constraints and invalid inputs.
+
+Verification: Linux Release build and all 46 CTests pass, including 31 negative
+compiler cases with a positive control. Clang analysis of `typed_altitude_tests.cpp`
+reports no diagnostics and its ASan/UBSan run passes. The linked production core
+is not instrumented. Windows, Android, browser and live-flight checks were not run.
+
 ### Next acceptance boundary
 
-Aircraft Euler and command storage are typed, but most scalar control producers
-and consumers remain legacy math. Migrate forces, position integration and remaining
+Aircraft Euler, command, altitude and climb storage are typed, but most scalar
+control producers and consumers remain legacy math. Migrate forces, horizontal
+position integration and remaining
 read adapters before selecting modern flight math; changing the angle backend
 alone would still quantize at these consumers. Keep modern refresh policy distinct from the original periodic rebuild,
 which intentionally quantizes fixed state. Then migrate flight

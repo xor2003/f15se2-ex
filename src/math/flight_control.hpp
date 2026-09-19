@@ -50,6 +50,7 @@ template<class B> class SimulationStep {
     Rep value_;
     explicit SimulationStep(Rep value) : value_(value) {}
     friend class FlightControlMath<B>;
+    friend class AltitudeMath<B>;
     friend struct ControlBoundary<B>;
 };
 

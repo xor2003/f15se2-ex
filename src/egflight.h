@@ -4,6 +4,7 @@
 #include "math/flight_control.hpp"
 
 void advanceFlightOrientation(const f15::math::RotationDeltas<f15::math::FixedBackend> &deltas);
+void advanceFlightAltitude();
 
 int16 isqrt(int16 value);
 void computeTrackingCameraAngles(int32 targetX, int32 targetY, int16 targetAlt,

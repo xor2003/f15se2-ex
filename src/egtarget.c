@@ -5,6 +5,7 @@
 #include "egcombat.h"
 #include "egdata.h"
 #include "math/legacy_rotation.hpp"
+#include "math/legacy_altitude.hpp"
 using f15::math::legacy::signedAngle;
 #include "egflight.h"
 #include "egframe.h"
@@ -852,7 +853,7 @@ void drawHudWorldOverlay(void) {
 
         if (missileSpecD == 30 && abs((int16)signedAngle(g_ourRoll)) < 0x2000) {
             tmp = computeLoftAngle();
-            loftDist = cosMul(tmp, g_altitude) / (sinMul(-tmp, 0x20) + 1);
+            loftDist = cosMul(tmp, f15::math::legacy::altitudeUnits(g_altitude)) / (sinMul(-tmp, 0x20) + 1);
             pointX = sinMul(signedAngle(g_ourHead), loftDist) + g_viewX_;
             pointY = g_viewY_ - cosMul(signedAngle(g_ourHead), loftDist);
             projectWorldToHud(pointX, pointY, 0);

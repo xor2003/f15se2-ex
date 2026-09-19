@@ -5,6 +5,9 @@
 #include "egcombat.h"
 #include "egdata.h"
 #include "math/legacy_rotation.hpp"
+#include "math/legacy_altitude.hpp"
+using f15::math::legacy::altitudeUnits;
+using f15::math::legacy::climbUnits;
 using f15::math::legacy::signedAngle;
 #include "egframe.h"
 #include "egmath.h"
@@ -99,8 +102,8 @@ void renderHudFrame(int unused) {
             setDrawColor(g_nightMode != 0 ? COLOR_RED : COLOR_BLACK);
             speedBarLen = clampRange((((g_cornerSpeed - g_knots) * 2) / 5) + 29, 0, 61);
             if (speedBarLen) drawViewportLine(72, 85 - speedBarLen, 72, 85);
-            drawViewportLine(247, 56, 247, clampRange(-((g_climbRate >> 4) - 56), 20, 85));
-            if ((g_playerPlaneFlags & 1) == 0 && (frameTick & 1) != 0 && gameData->unk4 != 0 && g_climbRate < 0) {
+            drawViewportLine(247, 56, 247, clampRange(-((climbUnits(g_climbRate) >> 4) - 56), 20, 85));
+            if ((g_playerPlaneFlags & 1) == 0 && (frameTick & 1) != 0 && gameData->unk4 != 0 && g_climbRate.isNegative()) {
                 climbMarkerY = (((g_planeTable.planes[g_closestThreatIndex].flags & 0x200 ? 0x100 : 0x80) / gameData->unk4) >> 4) + 56;
                 setDrawColor(COLOR_WHITE);
                 drawViewportLine(242, climbMarkerY - 2, 244, climbMarkerY);
@@ -156,8 +159,8 @@ void renderHudFrame(int unused) {
                 }
             }
             drawNumber(g_knots, 80, 54, 0xf);
-            if (g_altitude <= 20000) {
-                drawNumber(g_altitude < 100 ? g_altitude : (g_altitude / 5) * 5, 228, 54, 0xf);
+            if (altitudeUnits(g_altitude) <= 20000) {
+                drawNumber(altitudeUnits(g_altitude) < 100 ? altitudeUnits(g_altitude) : (altitudeUnits(g_altitude) / 5) * 5, 228, 54, 0xf);
             }
             if (g_slowMotionMode > 1) {
                 drawStringBothPages("ACCEL", 150, 4, 0xf);

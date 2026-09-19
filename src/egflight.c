@@ -24,6 +24,9 @@
 #include "joystick.h"
 #include "math/legacy_rotation.hpp"
 #include "math/legacy_flight_control.hpp"
+#include "math/legacy_altitude.hpp"
+using f15::math::legacy::altitudeUnits;
+using f15::math::legacy::climbUnits;
 using f15::math::legacy::signedAngle;
 using f15::math::legacy::angleFromWord;
 using f15::math::legacy::rollCommand;
@@ -62,6 +65,19 @@ void advanceFlightOrientation(const f15::math::RotationDeltas<f15::math::FixedBa
     computeAttitudeAngles();
 }
 
+void advanceFlightAltitude() {
+    using VerticalMath = f15::math::AltitudeMath<f15::math::FixedBackend>;
+    using Altitudes = f15::math::legacy::Altitudes;
+    const f15::math::legacy::Math rotation(g_angleLut);
+    g_climbRate = VerticalMath::climb(Altitudes::speed(static_cast<uint16>(g_velocity)),
+        rotation.sine(g_ourPitch - angleFromWord(g_rollPitchTrim)));
+    if (g_autoLandingActive == 0)
+        g_altitude = VerticalMath::integrate(g_altitude, g_climbRate,
+            f15::math::legacy::Controls::frequency(g_frameRateScaling));
+    g_altitude = VerticalMath::constrain(g_altitude, Altitudes::ground(g_groundAltitude));
+    g_viewZ = Altitudes::render(VerticalMath::renderHeight(g_altitude));
+}
+
 void stepFlightModel(void) {
     // Local variables - names chosen to match MSC 5.1 hash-based stack layout
     // Within same hash bucket: first declared → highest BP offset (LIFO)
@@ -87,9 +103,8 @@ void stepFlightModel(void) {
 
     if (g_initPhase == 0) {
         g_ourPitch = g_ourRoll = {};
-        g_viewZ =
-            g_altitude =
-                g_velocity =
+        g_altitude = {};
+        g_viewZ = g_velocity =
                     g_setThrust =
                         g_thrust = 0;
 
@@ -538,7 +553,7 @@ switch_break:
     g_cornerSpeed = 100;
     speedCalc = ((((uint16)g_viewZ >> 7) + 0x0400) * (int32)(speedCalc & speedCalc)) >> 10; // speedCalc & speedCalc folds to a plain load but ranks the operand "heavy", so the shift-expr is evaluated/pushed first like the ref
 
-    g_cornerSpeed = ((int32)100 * (uint32)((g_altitude >> 6) + 0x0400)) >> 10;
+    g_cornerSpeed = ((int32)100 * (uint32)((altitudeUnits(g_altitude) >> 6) + 0x0400)) >> 10;
 
     speedCalc = ((int32)speedCalc) * ((int32)(-((g_fuelRemaining >> 9) - 100))) / (int32)90;
 
@@ -664,28 +679,13 @@ switch_break:
         rebuildOrientation();
     }
 
-    prevAlt = g_altitude;
-    g_climbRate = fixedMulQ14((((uint16)g_velocity) / 10), sine(signedAngle(g_ourPitch) - g_rollPitchTrim));
+    prevAlt = altitudeUnits(g_altitude);
+    advanceFlightAltitude();
 
     if (g_autoLandingActive == 0) {
-        g_altitude += (g_climbRate / g_frameRateScaling);
-
         g_ViewX += fixedMulQ14(horizVel, sine(signedAngle(g_ourHead))) / 10 / g_frameRateScaling;
 
         g_ViewY += fixedMulQ14(horizVel, cosine(signedAngle(g_ourHead))) / 10 / g_frameRateScaling;
-    }
-
-    if ((uint16)g_altitude > 0xf230 || (uint16)g_altitude < (uint16)g_groundAltitude) {
-        g_altitude = g_groundAltitude;
-    }
-    if (g_altitude > 0xEA60) g_altitude = 0xEA60;
-
-    if (g_altitude < 0x2000) {
-        g_viewZ = g_altitude;
-    } else if (g_altitude < 0x4000) {
-        g_viewZ = ((g_altitude - 0x2000) >> 1) + 0x2000;
-    } else {
-        g_viewZ = ((g_altitude - 0x4000) >> 2) + 0x3000;
     }
 
     if (g_groundAltitude == g_viewZ) {
@@ -695,7 +695,7 @@ switch_break:
 
             if (!android_ar_preventCrashes() &&
                 !gameOptionsEnabled(GAME_OPTION_NO_DAMAGE) &&
-                (((((g_planeTable.planes[g_closestThreatIndex].flags & 0x200) ? 0x100 : 0x80) < ((int16)(-g_climbRate * g_missionStatus) / 2))) ||
+                (((((g_planeTable.planes[g_closestThreatIndex].flags & 0x200) ? 0x100 : 0x80) < ((int16)(-climbUnits(g_climbRate) * g_missionStatus) / 2))) ||
                 ((gameData->unk4 != 0 &&
                   (((g_playerPlaneFlags & 1) != 0) ||
                    (((int16)abs(signedAngle(g_ourRoll))) > (int16)((0x30 / (g_missionStatus + 1)) << 8))))))) {
@@ -704,7 +704,7 @@ switch_break:
                 finalizeMission(5);
             }
         }
-        g_climbRate = 0;
+        g_climbRate = {};
     }
 
     idx = frameTick & 0xF;

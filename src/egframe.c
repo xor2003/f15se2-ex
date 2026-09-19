@@ -5,6 +5,8 @@
 #include "egcombat.h"
 #include "egdata.h"
 #include "math/legacy_rotation.hpp"
+#include "math/legacy_altitude.hpp"
+using f15::math::legacy::altitudeFromUnits;
 using f15::math::legacy::signedAngle;
 #include "egflight.h"
 #include "egframe.h"
@@ -110,7 +112,7 @@ void updateFrame(void) {
         g_gunAmmo = 1000;
         if (g_missionStatus == 0 || g_autopilotEngaged != 0) {
             g_northSouthSign = ((uint16)(g_viewY_ - waypoints[1].mapY) < 0x8000u) ? 1 : -1;
-            g_altitude = 2000;
+            g_altitude = altitudeFromUnits(2000);
             g_velocity = 8100;
             g_setThrust = 100;
             UpdateThrottleState();
@@ -361,7 +363,8 @@ skip_target_section:
     end_landing_check:
         if ((g_landingDoneFlag == 0) && (g_missionStatus == 0) && g_playerPlaneFlags & 0x6000) {
             if (abs(g_viewX_ - g_planeTable.planes[g_closestThreatIndex].mapX) < 0x10 && abs(g_viewY_ - g_planeTable.planes[g_closestThreatIndex].mapY) < 0x10) {
-                g_setThrust = g_velocity = g_altitude = 0;
+                g_altitude = {};
+                g_setThrust = g_velocity = 0;
                 g_ViewX = (int32)g_planeTable.planes[g_closestThreatIndex].mapX << 5;
                 g_ViewY = (int32)(0x8000 - g_planeTable.planes[g_closestThreatIndex].mapY) << 5;
             } else {
@@ -372,10 +375,8 @@ skip_target_section:
                     i = 14;
                 }
                 g_velocity = 5400;
-                g_altitude -= (g_altitude - g_groundAltitude) / i;
-                if (g_altitude < (unsigned)(g_groundAltitude + 5)) {
-                    g_altitude = g_groundAltitude + 5;
-                }
+                g_altitude = f15::math::AltitudeMath<f15::math::FixedBackend>::landingApproach(
+                    g_altitude, f15::math::legacy::Altitudes::ground(g_groundAltitude), i);
                 g_ViewX -= (g_ViewX - ((int32)g_planeTable.planes[g_closestThreatIndex].mapX << 5)) / (int32)i;
                 g_ViewY -= (g_ViewY - ((int32)(0x8000 - g_planeTable.planes[g_closestThreatIndex].mapY) << 5)) / (int32)i;
             }
@@ -405,13 +406,13 @@ skip_autopilot:
 
     if ((g_savedPosVisible != 0 || aircraftInsideReplacementTerrain()) && (g_viewMode & 0x80) == 0) {
         if (!gameOptionsEnabled(GAME_OPTION_NO_DAMAGE) &&
-            gameData->unk4 != 0 && g_altitude != 0) {
+            gameData->unk4 != 0 && !g_altitude.isZero()) {
             makeSound(0, 2);
             gfx_waitRetrace();
             waitFrameSync(120);
             finalizeMission(2);
         } else {
-            g_altitude += 500;
+            g_altitude = f15::math::AltitudeMath<f15::math::FixedBackend>::obstacleEscape(g_altitude);
             g_autopilotAltitude = 0;
         }
     }

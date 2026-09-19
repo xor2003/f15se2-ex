@@ -8,6 +8,7 @@
 #include "egtypes.h"
 #include "math/rotation.hpp"
 #include "math/flight_control.hpp"
+#include "math/altitude.hpp"
 
 typedef struct SDL_IOStream SDL_IOStream;
 
@@ -158,7 +159,7 @@ extern uint16 g_viewZ;
 #else
 extern int16 g_viewZ;
 #endif
-extern unsigned int g_altitude;
+extern f15::math::FlightAltitude<f15::math::FixedBackend> g_altitude;
 extern char g_orientationDirty;
 extern int16 g_setThrust;
 extern int16 g_joyCalibTimer;
@@ -385,7 +386,7 @@ extern int g_jiffiesPerFrame;
 extern uint8 g_missionEndedFlag[];
 extern int16 g_viewHeadingOffset;
 extern int16 gfxBufPtr;
-extern int16 g_climbRate;
+extern f15::math::ClimbRate<f15::math::FixedBackend> g_climbRate;
 extern struct Proj3d g_proj3d;
 extern size_t size3d3_7;
 extern int16 g_viewPosX;

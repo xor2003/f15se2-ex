@@ -1873,8 +1873,8 @@ f15::math::Angle<f15::math::FixedBackend> g_ourHead;
 
 int16 g_viewZ; /* altitude-Z */
 
-/* g_altitude: airspeed/velocity magnitude. */
-unsigned int g_altitude = 0;
+/* Uncompressed flight altitude; g_viewZ uses the compressed scene-height scale. */
+f15::math::FlightAltitude<f15::math::FixedBackend> g_altitude;
 int16 g_rotationCounter = 0;
 char g_rollWasNonzero = 0;
 /* g_orientationDirty: orientation-dirty flag. Set when heading/pitch/roll change so the
@@ -2294,7 +2294,7 @@ struct Proj3d g_proj3d;
 int16 g_viewHeadingOffset;
 int16 gfxBufPtr;
 int g_gees;
-int16 g_climbRate;
+f15::math::ClimbRate<f15::math::FixedBackend> g_climbRate;
 /* size3d3_7: vertex count for the secondary (g_modelOffsetTable) loader buffer. */
 size_t size3d3_7;
 
