@@ -1,8 +1,6 @@
-# The pinned SDL DOS audio backend yields only when its ring buffer is full.
-# Slow mixing can leave it permanently empty, starving the cooperative main
-# thread. Keep this workaround until the SDL revision includes a fairness fix.
-# Upstream: https://github.com/libsdl-org/SDL/pull/16288
-# Remove this script and its PATCH_COMMAND after updating and testing SDL.
+# Temporary fix for audio-thread starvation when mixing cannot fill the ring.
+# https://github.com/libsdl-org/SDL/pull/16288
+# Remove with PATCH_COMMAND after testing an SDL update containing the fix.
 set(audio_source "${SDL_SOURCE_DIR}/src/audio/dos/SDL_dosaudio_sb.c")
 file(READ "${audio_source}" source)
 set(original "    const int size = hidden->ring_size;\n\n    for (;;) {")

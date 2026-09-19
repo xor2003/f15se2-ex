@@ -12,6 +12,7 @@
  * racing it. timerPump() is called from the input pump and from timerYield(),
  * so every wait loop that polls a counter advances time as it spins.
  */
+#include "benchmark.h"
 
 #include "inttype.h"
 #include <dos.h>
@@ -46,6 +47,14 @@ void setTimerTickHook(void(far *fn)(void)) {
 void timerPump(void) {
     Uint64 now;
     if (!timerRunning) return;
+    if (benchmarkEnabled()) {
+        timerCounter++;
+        timerCounter2++;
+        timerCounter3++;
+        timerCounter4++;
+        if (gameTickHook != 0) gameTickHook();
+        return;
+    }
     now = SDL_GetTicksNS();
     if (now > nextTickNs + MAX_CATCHUP_NS)
         nextTickNs = now; /* fell too far behind: resync, don't burst */

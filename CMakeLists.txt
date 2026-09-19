@@ -34,6 +34,18 @@ option(AUTOSTART "Skip menus and start a mission directly (DEBUG_AUTOSTART)" OFF
 if(CMAKE_SYSTEM_NAME STREQUAL "DOS")
     set(F15_DOS TRUE)
 endif()
+option(F15_DOS_I486_TUNE "Tune the DOS game binary for an i486 baseline" OFF)
+if(F15_DOS AND F15_DOS_I486_TUNE)
+    # Apply the baseline to dependencies added below as well as game sources;
+    # the DOS executable links SDL statically and must not retain i586 code.
+    add_compile_options(
+        $<$<CONFIG:Release>:-O2>
+        $<$<CONFIG:Release>:-march=i486>
+        $<$<CONFIG:Release>:-mtune=i486>
+        $<$<CONFIG:Release>:-ffunction-sections>
+        $<$<CONFIG:Release>:-fdata-sections>
+    )
+endif()
 
 # 3D render backends are chosen per platform at compile time; the runtime probe
 # (r3d.c) then claims the first compiled-in backend whose environment it supports.
@@ -325,6 +337,14 @@ else()
     set_target_properties(f15se2 PROPERTIES OUTPUT_NAME "f15se2-ex")
 endif()
 target_link_libraries(f15se2 PRIVATE f15se2_core)
+target_sources(f15se2_core PRIVATE src/benchmark.c)
+
+# The i486 has a small unified 8 KiB on-chip cache. Prefer -O2 over the larger
+# -O3 output, emit no instructions newer than the i486, and remove unreachable
+# functions and data so more of the active game code remains cache-resident.
+if(F15_DOS AND F15_DOS_I486_TUNE)
+    target_link_options(f15se2 PRIVATE $<$<CONFIG:Release>:-Wl,--gc-sections>)
+endif()
 
 # Strip symbols from Release builds to shrink the binary (GNU/Clang only; MSVC
 # already keeps debug info in a separate .pdb rather than the exe itself).

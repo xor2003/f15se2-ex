@@ -3,6 +3,7 @@
  * so a fork can replace just this file.
  */
 
+#include "benchmark.h"
 #include "egtypes.h"
 #include "egcode.h"
 #include "egdata.h"
@@ -336,17 +337,19 @@ void gameMainLoop(void) {
     ProjSnap projPrev[PROJ_MAX], projNext[PROJ_MAX];
     uint64 simStepNs = simStepNsNow();
     uint64 accumNs = 0;
-    uint64 prevNs = timerNowNs();
+    uint64 prevNs;
     int steps;
 
+    benchmarkInitialize();
+    prevNs = benchmarkEnabled() ? 0 : timerNowNs();
     camCapture(&camNext);
     camPrev = camNext; /* first frame renders the spawn state, no interpolation */
     objCapture(simNext, projNext);
     objCapture(simPrev, projPrev);
 
     do {
-        uint64 nowNs = timerNowNs();
-        accumNs += nowNs - prevNs;
+        uint64 nowNs = benchmarkEnabled() ? 0 : timerNowNs();
+        accumNs += benchmarkElapsedNs(nowNs, prevNs, simStepNs);
         prevNs = nowNs;
         timerPump(); /* advance the 60 Hz tick counters + per-tick / colour-cycle hook */
 
@@ -390,7 +393,9 @@ void gameMainLoop(void) {
         gfx_dacAnimate();
         camRestore(&camNext); /* restore authoritative sim state for the next step */
         objRestore(simNext, projNext);
+        if (benchmarkFrameComplete()) break;
     } while (g_missionEndedFlag[0] == 0);
+    benchmarkFinish();
 }
 
 void runGameLoop(void) {

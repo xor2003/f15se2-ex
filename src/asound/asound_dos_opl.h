@@ -14,8 +14,8 @@ enum {
 
 static void asnd_writeDosOpl(unsigned char reg, unsigned char value) {
     outportb(ASND_OPL_ADDRESS_PORT, reg);
-    /* Status reads supply the OPL2 bus delays without yielding halfway through
-     * a register write: about 3.3 us after address, 23 us after data. */
+    /* OPL2 requires about 3.3 us after the address and 23 us after data.
+     * Status reads provide these delays without yielding between writes. */
     for (int i = 0; i < ASND_OPL_ADDRESS_DELAY_READS; ++i)
         inportb(ASND_OPL_ADDRESS_PORT);
     outportb(ASND_OPL_DATA_PORT, value);

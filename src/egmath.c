@@ -15,6 +15,7 @@
 #include "slot.h"
 #include "const.h"
 #include "r3d.h"
+#include "benchmark.h"
 
 #include <dos.h>
 #include <memory.h>
@@ -488,7 +489,9 @@ int16 signOf(int16 value) { /* Original: sgn(x). Return -1, 0, or 1. */
 }
 
 void seedRng(void) {
-    if (g_inputDisabled == 0) {
+    if (benchmarkEnabled()) {
+        g_rngSeed = benchmarkRngSeed();
+    } else if (g_inputDisabled == 0) {
         g_rngSeed = getTimeOfDay();
     }
     srand(g_rngSeed);

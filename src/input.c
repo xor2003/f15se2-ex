@@ -13,6 +13,7 @@
  * arrival/removal. Only the keyboard/gamepad meaning differs between flight and
  * the menus, so that part is gated on the mode set by the phase's key readers.
  */
+#include "benchmark.h"
 #include "input.h"
 #include "inttype.h"
 #include "const.h"
@@ -76,6 +77,7 @@ void input_ringReset(void) {
 }
 
 bool input_keyWaiting(void) {
+    if (benchmarkEnabled()) return false;
     input_pumpEvents();
     return ringHead != ringTail;
 }
