@@ -7,12 +7,20 @@
 #include "log.h"
 #include "gfx_impl.h"
 #include "const.h"
+#include "math/legacy_rotation.hpp"
 
 #include <dos.h>
 #include <memory.h>
 
 void setViewRotation(int16 rotX, int16 rotY, int16 rotZ) {
-    buildRotationMatrixFar(g_viewRotMatrix, -rotX, -rotY, -rotZ);
+    namespace legacy = f15::math::legacy;
+    const legacy::Math math(g_angleLut);
+    const auto angles = legacy::angles(rotX, rotY, rotZ);
+    const auto viewAngles = f15::math::EulerAngles<f15::math::FixedBackend>{
+        -angles.yaw, -angles.pitch, -angles.roll};
+    legacy::storeTerms(math.terms(viewAngles), g_rotSinYaw, g_rotCosYaw,
+                       g_sphereRadius, g_sphereDistZ, g_spherePitch, g_sphereRoll);
+    legacy::Codec::matrixWords(f15::math::cameraRotation(math, angles), g_viewRotMatrix);
 }
 
 // ==== seg000:0x3a90 ====

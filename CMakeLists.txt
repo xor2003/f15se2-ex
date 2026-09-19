@@ -513,6 +513,15 @@ add_executable(fixed_math_tests ${TEST_DIR}/fixed_math_tests.cpp)
 target_include_directories(fixed_math_tests PRIVATE ${SRC_DIR})
 target_compile_features(fixed_math_tests PRIVATE cxx_std_17)
 add_test(NAME fixed_math_tests COMMAND fixed_math_tests)
+add_test(NAME typed_math_compile_fail COMMAND ${CMAKE_COMMAND}
+    -DCXX=${CMAKE_CXX_COMPILER} -DUSE_MSVC=${MSVC}
+    -DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR} -DBINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}
+    -P ${TEST_DIR}/typed_math_compile_fail.cmake)
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+add_test(NAME math_boundary_check COMMAND ${Python3_EXECUTABLE}
+    ${CMAKE_CURRENT_SOURCE_DIR}/tools/check_math_boundaries.py)
+add_test(NAME math_boundary_check_tests COMMAND ${Python3_EXECUTABLE}
+    ${TEST_DIR}/math_boundary_check_tests.py)
 
 function(add_behavior_test name)
     cmake_parse_arguments(T "LINK_CORE" "" "SOURCES;DEFS" ${ARGN})
@@ -578,6 +587,7 @@ target_compile_options(signed_ratio_behavior_tests PRIVATE
 add_behavior_test(file_io_behavior_tests LINK_CORE)
 add_behavior_test(gameplay_behavior_tests LINK_CORE)
 add_behavior_test(fixed_math_backend_tests LINK_CORE)
+add_behavior_test(typed_rotation_tests LINK_CORE)
 add_behavior_test(input_behavior_tests LINK_CORE)
 add_behavior_test(joystick_behavior_tests LINK_CORE)
 add_behavior_test(controls_behavior_tests LINK_CORE)

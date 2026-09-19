@@ -1,9 +1,54 @@
 # Fixed and floating-point math migration
 
-Status: 2026-09-19. The imported `src/fixed_math.hpp` is a compatibility
-library, not a complete interchangeable simulation backend. Production game
-code still uses its existing math functions. No floating-point simulation
-backend or runtime backend selector is implemented by this import.
+Status: 2026-09-19. Typed fixed and double-precision rotation backends are
+implemented in `src/math/rotation.hpp`. Production matrix builders, matrix
+multiplication and camera rotation now use the typed fixed implementation.
+This is the first migrated subsystem, not a complete interchangeable simulation
+backend. No whole-game floating-point backend selector is exposed.
+
+## Rotation migration checkpoint
+
+* `Angle`, `Coefficient`, `EulerAngles` and `Matrix3` carry backend types. Storage
+  is private; primitive construction/extraction and mixed-backend operations
+  are not public APIs. Eight negative compilation tests enforce representative
+  misuse cases, with a positive compilation control.
+* Fixed builders preserve intermediate rounding, word wrapping, LUT interpolation
+  and matrix-product truncation. The production adapters also preserve the six
+  horizon scratch globals and existing return values.
+* Modern builders use radians and double-precision matrices, retaining fractions
+  across matrix products. A 100,000-step test retains increments smaller than one
+  legacy angle word. Orthogonality, handedness and inverse conventions are tested.
+* The historical object builder is not just the transpose of the positive-angle
+  camera builder. Modern `objectRotation(a)` is `transpose(rotation(-a))`.
+* `boundary.hpp` provides explicitly gated representation adapters;
+  `legacy_rotation.hpp` is temporary compatibility debt for the raw global state.
+  The source allowlist is enforced by `tools/check_math_boundaries.py`, with its
+  own rejection tests. Python is required for native test configuration. This
+  textual check is not an AST audit of all numerical state and cannot prove
+  whole-game migration or detect every spelling/alias of a bypass.
+* The fixed oracle in `tests/math_rotation_reference.hpp` preserves the pre-routing
+  algorithms from `9018a8b` using defined widened arithmetic. It does not call the
+  new library. Tests exhaust 65,536 sine inputs, compare 10,000 Euler triples,
+  arbitrary word-matrix products, camera and flight rotation/rebuild callers,
+  and 2,000 production internal object-builder cases. The LUT is still shared
+  with production; this is current-port compatibility evidence, not DOS binary proof.
+
+Verification at this checkpoint: Linux Release build and all 44 CTests pass.
+Clang analysis of the typed test translation unit reports no diagnostics.
+ASan/UBSan passes for that instrumented translation unit and its inline math;
+the linked production core was not sanitizer-instrumented. Windows, Android,
+browser, live-flight and external-asset validation were not run in this checkpoint.
+
+### Next acceptance boundary
+
+Persistent orientation state, attitude recovery and refresh policy must move
+together before selecting modern flight math. `applyRotationDelta` and
+`rebuildOrientation` are regression-covered callers, but their matrices and Euler
+globals remain raw words. Do not enable a floating option that writes each result
+back into those globals. Characterize the inverse-angle endpoint behavior first,
+then migrate flight position/velocity/forces and their consumers with explicit
+units, frames and file/render adapters. Projection, terrain, combat and AI remain
+unmigrated. The final acceptance requirements below still apply.
 
 ## Provenance and import corrections
 
@@ -29,17 +74,18 @@ Review found these problems in the original library and harness:
   failed to link. This import uses this repository's existing LINK_CORE model,
   without renaming production functions or compiling a modified reference copy.
 
-These corrections are confined to the new library/tests. They do not change
-the production flight model, rendering, input widths, or saved data.
+Those import corrections were confined to the new library/tests. The subsequent
+rotation routing preserves fixed outputs; it does not change resource layouts,
+input widths or introduce new flight-model formulas.
 
 ## Coverage and gaps
 
 | Area | Library coverage | Work remaining before backend replacement |
 | --- | --- | --- |
-| Angles/trigonometry | Angle16, interpolated sine/cosine, inverse trig | Explicit radians/turns conversion and inverse-trig endpoint contracts |
+| Angles/trigonometry | Typed fixed/double rotation angles and trig; imported inverse trig | Inverse-trig endpoint contracts and remaining scalar trig callers |
 | Fixed products | Q15, rounded result, high-word products and carry variants | Audit every caller's rounding and destination narrowing; Q15 inputs are signed words |
 | Long arithmetic | WordPair32, shifts, full/saturated division | Document valid domains, divide-by-zero behavior and overflow policy per operation |
-| Orientation | Matrix3x3Q15 builders, product, vector component | Extract stateful attitude recovery and orientation refresh from egflight.c |
+| Orientation | Typed fixed/double builders and product; fixed production routing | Extract stateful attitude recovery and orientation refresh from egflight.c |
 | Projection/HUD | Selected projection, clipping, HUD rotation helpers | Verify against current rasterizer and HUD state, including invalid/depth sentinels |
 | Range/bearing | Legacy approximation and bearing helpers | Keep gameplay distance approximation distinct from Euclidean distance |
 | Camera precision | Not complete | sinMulQ8/cosMulQ8, camera fractional remainders, fine-coordinate bearing/range in egmath.c |
@@ -139,7 +185,7 @@ Current import checks:
 * Windows, Android and browser builds were not run for this import. Optional
   external-asset validation tests were not registered in this build.
 
-Before production routing, expand tests to all helpers and their input domains,
+Before further production routing, expand tests to all helpers and their input domains,
 especially inverse-trig endpoints, inverse matrices, projection/clipping and
 large scalars. Use fixed-seed generated cases and independent widened-integer
 references. Keep multiplication-result narrowing explicit in adapters: the

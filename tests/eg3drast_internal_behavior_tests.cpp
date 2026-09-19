@@ -9,6 +9,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
+#include "math_rotation_reference.hpp"
 
 #include "../src/eg3drast.c"
 
@@ -559,6 +560,21 @@ int main() {
                 matrixA[4] == kQ15ZeroAngleProduct &&
                 matrixA[8] == kQ15ZeroAngleProduct,
             "buildInverseRotationMatrix builds the original zero-angle inverse matrix");
+    for (int sample = 0; sample < 2000; ++sample) {
+        const int yaw = sample * 61, pitch = sample * 127, roll = sample * 211;
+        const auto expected = rotation_reference::rotation(yaw, pitch, roll, g_angleLut, true);
+        buildInverseRotationMatrix(matrixA, yaw, pitch, roll);
+        for (int i = 0; i < 9; ++i)
+            require(matrixA[i] == expected[i], "object rotation differs from frozen reference");
+        require(g_rotSinYaw == rotation_reference::sine(yaw, g_angleLut) &&
+                    g_rotCosYaw == rotation_reference::sine(yaw + 16384, g_angleLut) &&
+                    g_sphereRadius == rotation_reference::sine(pitch, g_angleLut) &&
+                    g_sphereDistZ == rotation_reference::sine(pitch + 16384, g_angleLut) &&
+                    g_spherePitch == rotation_reference::sine(roll, g_angleLut) &&
+                    g_sphereRoll == rotation_reference::sine(roll + 16384, g_angleLut),
+                "object rotation scratch terms changed");
+    }
+    buildInverseRotationMatrix(matrixA, 0, 0, 0);
     matrixA[1] = 12;
     matrixA[3] = 34;
     matrixA[2] = 56;

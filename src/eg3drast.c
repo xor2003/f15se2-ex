@@ -33,6 +33,7 @@
 #include "r2d.h"
 #include "r3d_replacement.h"
 #include "inttype.h"
+#include "math/legacy_rotation.hpp"
 
 /* Packed model display-list byte fields. Keep these hexadecimal because they
  * are masks and tags in the original stream, not numeric quantities. */
@@ -256,30 +257,12 @@ static int16 q15sum(int a, int b, int c, int d, int sub) {
 /* high word of a doubled Q15 product or product-sum.                     */
 /* ===================================================================== */
 static void buildRotationMatrix(int16 *m, int angleX, int angleY, int angleZ) {
-    int R, P, Ro, D, SY, CY, mSI, mBP;
-    g_rotSinYaw = hsine(angleX);
-    g_rotCosYaw = hcosine(angleX);
-    g_spherePitch = hsine(angleZ);
-    g_sphereRoll = hcosine(angleZ);
-    g_sphereRadius = hsine(angleY);
-    g_sphereDistZ = hcosine(angleY);
-    R = g_sphereRadius;
-    P = g_spherePitch;
-    Ro = g_sphereRoll;
-    D = g_sphereDistZ;
-    SY = g_rotSinYaw;
-    CY = g_rotCosYaw;
-    mSI = q15hi(R, P);
-    mBP = q15hi(R, Ro);
-    m[0] = q15sum(mSI, SY, CY, Ro, 0);
-    m[1] = q15sum(mBP, SY, CY, P, 1);
-    m[2] = q15hi(SY, D);
-    m[3] = q15hi(P, D);
-    m[4] = q15hi(Ro, D);
-    m[5] = -R;
-    m[6] = q15sum(mSI, CY, SY, Ro, 1);
-    m[7] = q15sum(mBP, CY, SY, P, 0);
-    m[8] = q15hi(CY, D);
+    namespace legacy = f15::math::legacy;
+    const legacy::Math math(g_angleLut);
+    const auto angles = legacy::angles(angleX, angleY, angleZ);
+    legacy::storeTerms(math.terms(angles), g_rotSinYaw, g_rotCosYaw,
+                       g_sphereRadius, g_sphereDistZ, g_spherePitch, g_sphereRoll);
+    legacy::Codec::matrixWords(math.rotation(angles), m);
 }
 
 int far buildRotationMatrixFar(int16 *matrix, int angleX, int angleY, int angleZ) {
@@ -1844,43 +1827,20 @@ static int dirRound(long s) {
 /* seg001 0x15CD — 3x3 Q15 matrix multiply, result = A * B (each entry the high
  * word of the doubled dot product). A/B are 9-element row-major matrices. */
 static void multiplyMatrix3x3(const int16 *A, const int16 *B, int16 *R) {
-    int row, col;
-    for (row = 0; row < 3; row++) {
-        for (col = 0; col < 3; col++) {
-            long acc = (imul16(A[row * 3 + 0], B[0 * 3 + col]) << 1) + (imul16(A[row * 3 + 1], B[1 * 3 + col]) << 1) + (imul16(A[row * 3 + 2], B[2 * 3 + col]) << 1);
-            R[row * 3 + col] = HI16(acc);
-        }
-    }
+    using Codec = f15::math::legacy::Codec;
+    Codec::matrixWords(Codec::matrixWords(A) * Codec::matrixWords(B), R);
 }
 
 /* seg001 0x147B — buildInverseRotationMatrix: like buildRotationMatrix but it
  * lays the transpose/inverse orientation into *m (used for per-object rotation
  * relative to the already-built view matrix). Sets the same sphere terms. */
 static void buildInverseRotationMatrix(int16 *m, int angleX, int angleY, int angleZ) {
-    int R, P, Ro, D, SY, CY, mSI, mBP;
-    g_rotSinYaw = hsine(angleX);
-    g_rotCosYaw = hcosine(angleX);
-    g_spherePitch = hsine(angleZ);
-    g_sphereRoll = hcosine(angleZ);
-    g_sphereRadius = hsine(angleY);
-    g_sphereDistZ = hcosine(angleY);
-    R = g_sphereRadius;
-    P = g_spherePitch;
-    Ro = g_sphereRoll;
-    D = g_sphereDistZ;
-    SY = g_rotSinYaw;
-    CY = g_rotCosYaw;
-    mSI = q15hi(R, P);
-    mBP = q15hi(R, Ro);
-    m[0] = q15sum(CY, Ro, mSI, SY, 1);
-    m[1] = -q15hi(P, D);
-    m[2] = q15sum(mSI, CY, SY, Ro, 0);
-    m[3] = q15sum(mBP, SY, CY, P, 0);
-    m[4] = q15hi(Ro, D);
-    m[5] = q15sum(SY, P, mBP, CY, 1);
-    m[6] = -q15hi(SY, D);
-    m[7] = R;
-    m[8] = q15hi(CY, D);
+    namespace legacy = f15::math::legacy;
+    const legacy::Math math(g_angleLut);
+    const auto angles = legacy::angles(angleX, angleY, angleZ);
+    legacy::storeTerms(math.terms(angles), g_rotSinYaw, g_rotCosYaw,
+                       g_sphereRadius, g_sphereDistZ, g_spherePitch, g_sphereRoll);
+    legacy::Codec::matrixWords(math.objectRotation(angles), m);
 }
 
 /* seg001 0x1599 — transpose the 3x3 object orientation matrix in place. */
