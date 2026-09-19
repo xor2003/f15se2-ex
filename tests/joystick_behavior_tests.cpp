@@ -13,6 +13,9 @@
 #include "headless.h"
 #include "slot.h"
 #include "const.h"
+#define F15_MATH_BOUNDARY_ACCESS
+#include "math/control_boundary.hpp"
+#undef F15_MATH_BOUNDARY_ACCESS
 
 #include <cstdlib>
 #include <iostream>
@@ -102,6 +105,17 @@ struct Stick {
     }
 };
 
+void requirePhysicalStick(double roll, double pitch) {
+    using namespace f15::math;
+    using Boundary = ControlBoundary<ModernBackend>;
+    const AnalogResponse identity{Boundary::radiansPerSecond<RollAxis>(1),
+        Boundary::radiansPerSecond<PitchAxis>(1), Boundary::radiansPerSecond<PitchAxis>(1), 0};
+    const auto commands = FlightControlMath<ModernBackend>::fromAnalog(joy_physicalStick(), identity);
+    require(std::abs(Boundary::radiansPerSecond(commands.roll) - roll) < 1e-14 &&
+            std::abs(Boundary::radiansPerSecond(commands.pitch) - pitch) < 1e-14,
+            "physical stick preserves normalized precision on both axes");
+}
+
 void legacyAxisSamples() {
     // Literal observations define the old byte interface independently of the
     // converter. Include both deadzone edges and asymmetric signed endpoints.
@@ -120,6 +134,8 @@ void legacyAxisSamples() {
             for (int axis = 0; axis < 2; ++axis) {
                 stick.axis(1 - axis, 0);
                 stick.axis(axis, sample.raw);
+                const double normalized = sample.raw / (sample.raw < 0 ? 32768.0 : 32767.0);
+                requirePhysicalStick(axis == 0 ? normalized : 0, axis == 1 ? normalized : 0);
                 const int x = axis == 0 ? sample.byte : 128;
                 const int y = axis == 1 ? sample.byte : 128;
                 require(readCalibratedJoystick() == (x | (y << 8)),
@@ -137,6 +153,34 @@ void legacyAxisSamples() {
             }
         }
     }
+    requirePhysicalStick(0, 0);
+}
+
+void calibratedPhysicalStick() {
+    std::string path;
+    {
+        Stick stick(2, 2);
+        path = joy_mappingPath(stick.handle) + ".calibration";
+        std::ofstream profile(path);
+        profile << "2\n-20000 123 24000\n-25000 -456 18000\n-1 32767 -32768\n";
+        require(profile.good(), "write physical stick calibration fixture");
+    }
+    {
+        Stick stick(2, 2);
+        stick.axis(0, 123);
+        stick.axis(1, -456);
+        requirePhysicalStick(0, 0);
+        stick.axis(0, 124);
+        stick.axis(1, -457);
+        requirePhysicalStick(1.0 / 23877, -1.0 / 24544);
+        stick.axis(0, -32768);
+        stick.axis(1, 32767);
+        requirePhysicalStick(-1, 1);
+        stick.axis(0, 24000);
+        stick.axis(1, -25000);
+        requirePhysicalStick(1, -1);
+    }
+    std::filesystem::remove(path);
 }
 
 void defaultsAndRemapping() {
@@ -424,6 +468,7 @@ int main() {
     gfx_initState();
     gfx_setMode13();
     legacyAxisSamples();
+    calibratedPhysicalStick();
     defaultsAndRemapping();
     flightCommands();
     autopilotAndViews();

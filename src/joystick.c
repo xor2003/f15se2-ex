@@ -38,6 +38,10 @@
 #include "log.h"
 #include "egkeys.h"
 #include "egtypes.h"
+#define F15_MATH_BOUNDARY_ACCESS
+#include "math/control_boundary.hpp"
+#undef F15_MATH_BOUNDARY_ACCESS
+#include <algorithm>
 #include <dos.h>
 #include <stdlib.h>
 
@@ -273,17 +277,41 @@ void joy_handleEvent(const SDL_Event *ev) {
     }
 }
 
+struct PrimaryAxes {
+    Sint16 roll = 0, pitch = 0;
+    bool rawDevice = false;
+};
+
+static PrimaryAxes primaryAxes(void) {
+    if (g_pad) {
+        return {SDL_GetGamepadAxis(g_pad, SDL_GAMEPAD_AXIS_LEFTX),
+                SDL_GetGamepadAxis(g_pad, SDL_GAMEPAD_AXIS_LEFTY), false};
+    } else if (g_joy && SDL_GetNumJoystickAxes(g_joy) >= 2) {
+        return {SDL_GetJoystickAxis(g_joy, 0), SDL_GetJoystickAxis(g_joy, 1), true};
+    }
+    return {};
+}
+
+f15::math::AnalogStick joy_physicalStick(void) {
+    const auto sample = primaryAxes();
+    const auto normalized = [&](int axis, int value) {
+        const bool calibrated = sample.rawDevice && g_calibration.enabled;
+        const double center = calibrated ? g_calibration.center[axis] : 0;
+        const double low = calibrated ? g_calibration.low[axis] : -32768;
+        const double high = calibrated ? g_calibration.high[axis] : 32767;
+        const double delta = value - center;
+        const double span = delta < 0 ? center - low : high - center;
+        return std::clamp(delta / span, -1.0, 1.0);
+    };
+    return f15::math::ControlBoundary<f15::math::ModernBackend>::analogStick(
+        normalized(0, sample.roll), normalized(1, sample.pitch));
+}
+
 /* Refresh joyAxes[0]/[1] from the active device's primary 2-axis stick. */
 static void updateAxes(void) {
-    if (g_pad) {
-        joyAxes[0] = axisByte(SDL_GetGamepadAxis(g_pad, SDL_GAMEPAD_AXIS_LEFTX));
-        joyAxes[1] = axisByte(SDL_GetGamepadAxis(g_pad, SDL_GAMEPAD_AXIS_LEFTY));
-    } else if (g_joy && SDL_GetNumJoystickAxes(g_joy) >= 2) {
-        joyAxes[0] = axisByte(joy_correctAxis(g_calibration, 0, SDL_GetJoystickAxis(g_joy, 0)));
-        joyAxes[1] = axisByte(joy_correctAxis(g_calibration, 1, SDL_GetJoystickAxis(g_joy, 1)));
-    } else {
-        joyAxes[0] = joyAxes[1] = 0x80;
-    }
+    const auto sample = primaryAxes();
+    joyAxes[0] = axisByte(sample.rawDevice ? joy_correctAxis(g_calibration, 0, sample.roll) : sample.roll);
+    joyAxes[1] = axisByte(sample.rawDevice ? joy_correctAxis(g_calibration, 1, sample.pitch) : sample.pitch);
     controls_applyAxes(&joyAxes[0], &joyAxes[1], true);
 }
 

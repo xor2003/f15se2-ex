@@ -84,8 +84,23 @@ All 65536 signed-axis samples are checked for monotonicity and numerical
 response, including asymmetric pitch limits. Invalid normalized inputs and
 deadzone profiles are rejected. Compile-failure tests protect raw construction,
 axis identity and backend identity. The byte-based `fromJoystick` remains the
-legacy response path. SDL routing and production use of continuous input are
-still pending; this helper alone cannot recover precision lost earlier.
+legacy response path.
+
+`joy_physicalStick` now reads the active SDL device into `AnalogStick` before
+byte conversion. Uncalibrated signed endpoints map separately to -1 and +1;
+raw-device calibration divides directly by each saved center-to-endpoint span,
+without the integer intermediate in `joy_correctAxis`. Values outside calibrated
+travel saturate at the endpoints. A missing device returns center. This adapter
+does not apply a deadzone, response curve, button overrides, focus policy or
+replay policy. It must not replace the flight reader until those responsibilities
+are integrated and tested. The existing byte reader remains unchanged in
+behavior, with a separately committed SDL characterization baseline.
+
+Virtual-device tests cover both device paths, deadzone-edge samples without
+modern snapping, signed endpoints, one-count motion around displaced calibrated
+centers, saturation and missing-device centering. Production flight selection
+and recording of continuous samples are still pending; existing byte recordings
+cannot reconstruct their lost precision.
 
 ## Acceptance for further migration
 

@@ -9,6 +9,7 @@
 #define JOYSTICK_H
 
 #include <SDL3/SDL.h>
+#include "math/flight_control.hpp"
 
 /* Open SDL's gamepad subsystem and bind the first connected device. */
 void joy_init(void);
@@ -29,6 +30,11 @@ bool joy_button(SDL_GamepadButton b);
 
 /* Current gamepad axis value, -32768..32767 (0 unless a gamepad is active). */
 Sint16 joy_axisRaw(SDL_GamepadAxis a);
+
+/* Physical primary stick, calibrated and normalized without a response curve
+ * or deadzone. Missing devices return center. This does not apply flight-mode,
+ * focus, button overrides or replay policy; it is not a flight command reader. */
+f15::math::AnalogStick joy_physicalStick(void);
 
 /* Raw-stick priority bindings; command polling is once per flight step. */
 enum RawAction { RAW_CANNON, RAW_MISSILE, RAW_COUNTERMEASURE, RAW_WEAPON,

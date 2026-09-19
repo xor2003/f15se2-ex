@@ -18,6 +18,8 @@ ALLOWED = {
     "src/math/map_position.hpp", "src/math/legacy_map.hpp",
     "src/math/propulsion.hpp", "src/math/propulsion_boundary.hpp", "src/math/legacy_propulsion.hpp",
     "src/replacement_terrain_collision.h",
+    # SDL samples and persisted device calibration enter the typed input domain.
+    "src/joystick.c",
     # Recorded diagnostics serialize quantities in the legacy recording units.
     "src/shared/blackbox_diag.c", "src/shared/blackbox_snapshot.c",
     "src/eg3drast.c", "src/eg3dcam.c", "src/egflight.c",
