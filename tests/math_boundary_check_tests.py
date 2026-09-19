@@ -18,6 +18,9 @@ class BoundaryChecks(unittest.TestCase):
             path = root / "src/gameplay.cpp"
             for text in ('#include "math/boundary.hpp"',
                          '#include "math/legacy_rotation.hpp"',
+                         '#include "math/control_boundary.hpp"',
+                         '#include "math/legacy_flight_control.hpp"',
+                         'using C = f15::math::ControlBoundary<FixedBackend>;',
                          '#include "fixed_math.hpp"',
                          '#define F15_MATH_BOUNDARY_ACCESS',
                          'auto angle = f15::fixed::Angle16::raw(1);',

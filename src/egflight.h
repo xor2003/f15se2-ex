@@ -1,6 +1,9 @@
 #ifndef F15_SE2_EGFLIGHT
 #define F15_SE2_EGFLIGHT
 /* public interface of egflight.c */
+#include "math/flight_control.hpp"
+
+void advanceFlightOrientation(const f15::math::RotationDeltas<f15::math::FixedBackend> &deltas);
 
 int16 isqrt(int16 value);
 void computeTrackingCameraAngles(int32 targetX, int32 targetY, int16 targetAlt,

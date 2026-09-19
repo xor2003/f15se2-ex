@@ -2233,7 +2233,7 @@ uint8 g_shapeTargetCategory[UNIT_STATE_COUNT];
 int16 g_flightPathMarkerY;
 int16 g_aamLockActive;
 int16 g_unusedSavedWord;
-int g_rollInput;
+f15::math::RollCommand<f15::math::FixedBackend> g_rollInput;
 uint16 keyScancode;
 int16 g_unusedEventHist2;
 int16 g_projDepth;
@@ -2273,7 +2273,7 @@ int16 g_scopeClipRight;
 /* matrix3dt_2: per-LOD x per-vertex model-data pointers (parallels matrix3dt). */
 struct TileSceneObject *matrix3dt_2[5][TERRAIN_TILE_PATTERN_CAPACITY];
 int16 g_scopeClipBottom;
-int16 g_pitchInput;
+f15::math::PitchCommand<f15::math::FixedBackend> g_pitchInput;
 int16 g_cornerSpeed;
 struct TileSceneObject *g_curTileEntry;
 int16 g_viewHeading;

@@ -12,6 +12,7 @@ struct FixedBackend {};
 struct ModernBackend {};
 template<class B> class RotationMath;
 template<class B> class PoseInterpolation;
+template<class B> class FlightControlMath;
 template<class B> struct Boundary;
 
 // Representation is deliberately absent from the public quantity API.
@@ -27,6 +28,7 @@ template<class B> class Angle {
     }
     friend class RotationMath<B>;
     friend class PoseInterpolation<B>;
+    friend class FlightControlMath<B>;
     friend struct Boundary<B>;
 public:
     Angle() = default;

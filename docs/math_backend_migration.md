@@ -5,7 +5,8 @@ implemented in `src/math/rotation.hpp`. Production matrix builders, matrix
 multiplication, camera rotation, persistent aircraft orientation matrices and
 attitude recovery now use the typed fixed implementation. Aircraft Euler state and
 its camera snapshots are typed as well; render interpolation has fixed and modern
-implementations.
+implementations. Roll/pitch command storage, joystick shaping, ground steering
+and control-rate integration now use typed flight-control math as well.
 This is the first migrated subsystem, not a complete interchangeable simulation
 backend. No whole-game floating-point backend selector is exposed.
 
@@ -13,7 +14,7 @@ backend. No whole-game floating-point backend selector is exposed.
 
 * `Angle`, `Coefficient`, `EulerAngles` and `Matrix3` carry backend types. Storage
   is private; primitive construction/extraction and mixed-backend operations
-  are not public APIs. Fourteen negative compilation tests enforce representative
+  are not public APIs. Twenty-three negative compilation tests enforce representative
   misuse cases, with a positive compilation control.
 * Fixed builders preserve intermediate rounding, word wrapping, LUT interpolation
   and matrix-product truncation. The production adapters also preserve the six
@@ -69,16 +70,54 @@ backend. No whole-game floating-point backend selector is exposed.
   sub-word interpolation, platform input/output and invalid interval rejection.
   The original resource structures and file layouts are unchanged.
 
-Verification at this checkpoint: Linux Release build and all 44 CTests pass.
+Verification at the Euler checkpoint: Linux Release build and all 44 CTests pass.
 Clang analysis of the typed test translation unit reports no diagnostics.
 ASan/UBSan passes for that instrumented translation unit and its inline math;
 the linked production core was not sanitizer-instrumented. Windows, Android,
 browser, live-flight and external-asset validation were not run in this checkpoint.
 
+## Flight-control migration checkpoint
+
+* `flight_control.hpp` adds axis-specific `RollCommand`, `PitchCommand`, `YawRate`
+  and backend-specific `SimulationStep`. Commands cannot be interchanged across
+  axes/backends or used as angles, primitive numbers or writable integer pointers.
+  `g_rollInput` and `g_pitchInput` now use these types. Existing control producers
+  outside the extracted math use named, read-only legacy adapters temporarily.
+* Fixed storage keeps roll at 32 bits and pitch/yaw at 16 bits. Roll scales by
+  128 in 32 bits before dividing by the tick frequency; pitch narrows to a signed
+  word before division. Yaw divides its signed word directly. These deliberately
+  different rules are frozen from `66ce785`, not generalized into one formula.
+  Undefined signed shifts are expressed as multiplication and explicit modular
+  decoding. Extreme overflow tests specify the intended word behavior, not a
+  guarantee about the old undefined C++ expressions on every compiler.
+* Modern rates use radians/second and positive steps up to one second. They retain
+  fractional increments and do not reproduce fixed command overflow. Both backends
+  currently keep the original joystick bins/deadzone/response curve; smoother
+  input shaping is a separate gameplay change. Non-finite rates, invalid steps
+  and overflowing modern rate addition are rejected.
+* `stepFlightModel` uses typed increments and `advanceFlightOrientation`. The latter
+  preserves right-multiplied body roll/pitch, left-multiplied world yaw, zero-delta
+  skipping, rotation counters and attitude recovery. Android control pointers
+  pass through a tested explicit adapter; Android hardware was not exercised.
+* `typed_flight_control_tests` checks all 65,536 joystick pairs, every signed-word
+  command at nine tick frequencies, wide roll boundaries, ground steering,
+  platform input/output, and 4,096 production orientation-update cases against
+  independent frozen expressions and the existing matrix/recovery references.
+  Modern tests cover sub-word integration over 12,000 steps, units, intended
+  divergence from fixed overflow and invalid inputs.
+* This is not a whole-`stepFlightModel` replay test: autopilot, lift/thrust, damage,
+  stall and position integration still need frozen tick-by-tick scenario coverage.
+  Existing tests are retained, not replaced by the new control tests.
+
+Verification: Linux Release build and all 45 CTests pass. Clang analysis of
+`typed_flight_control_tests.cpp` reports no diagnostics; its ASan/UBSan run passes.
+Only that translation unit and inline math are instrumented, not the linked core.
+Windows, Android, browser and live-flight verification remain outstanding.
+
 ### Next acceptance boundary
 
-Aircraft Euler storage is typed, but flight-control inputs and most scalar
-consumers remain legacy math. Migrate the inputs, forces, integration and remaining
+Aircraft Euler and command storage are typed, but most scalar control producers
+and consumers remain legacy math. Migrate forces, position integration and remaining
 read adapters before selecting modern flight math; changing the angle backend
 alone would still quantize at these consumers. Keep modern refresh policy distinct from the original periodic rebuild,
 which intentionally quantizes fixed state. Then migrate flight

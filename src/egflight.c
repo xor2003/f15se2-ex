@@ -23,8 +23,13 @@
 #include "input.h"
 #include "joystick.h"
 #include "math/legacy_rotation.hpp"
+#include "math/legacy_flight_control.hpp"
 using f15::math::legacy::signedAngle;
 using f15::math::legacy::angleFromWord;
+using f15::math::legacy::rollCommand;
+using f15::math::legacy::pitchCommand;
+using f15::math::legacy::rollInput;
+using f15::math::legacy::pitchInput;
 
 #include <dos.h>
 #include <stdio.h>
@@ -44,6 +49,19 @@ void renderFrame();
 void drawVectorShape(const int16 *shapeData);
 void waitForKeyPress(void);
 
+void advanceFlightOrientation(const f15::math::RotationDeltas<f15::math::FixedBackend> &deltas) {
+    const f15::math::legacy::Math math(g_angleLut);
+    const f15::math::Angle<f15::math::FixedBackend> zero;
+    // Body roll/pitch multiply on the right; world yaw multiplies on the left.
+    if (deltas.roll != zero)
+        applyRotationDelta(g_orientMatrix, math.rollDelta(deltas.roll));
+    if (deltas.pitch != zero)
+        applyRotationDelta(g_orientMatrix, math.pitchDelta(deltas.pitch));
+    if (deltas.yaw != zero)
+        applyRotationDelta(math.yawDelta(deltas.yaw), g_orientMatrix);
+    computeAttitudeAngles();
+}
+
 void stepFlightModel(void) {
     // Local variables - names chosen to match MSC 5.1 hash-based stack layout
     // Within same hash bucket: first declared → highest BP offset (LIFO)
@@ -52,10 +70,10 @@ void stepFlightModel(void) {
     int16 a, q;                             // dummies: bp-0x04, bp-0x06 (bucket 1)
     int16 prevAlt, aa, r;                   // var_C=prevAlt at bp-0x0c, dummies at bp-0x0a,bp-0x08 (bucket 2)
     int16 ab, tgtIdx, bearing;              // dummy=ab at bp-0x12, var_10=tgtIdx at bp-0x10, var_E=bearing at bp-0x0e (bucket 3)
-    int16 yaw, yawAngle, tmpVal;            // var_18=yaw at bp-0x18, var_16=yawAngle at bp-0x16, var_14=tmpVal at bp-0x14 (bucket 4)
+    int16 yaw, tmpVal;
     int16 ad, u, targetVel;                 // dummies at bp-0x1e,bp-0x1c, var_1A=targetVel at bp-0x1a (bucket 5)
-    int16 turbulence, horizVel, pitchAngle; // var_24=turbulence at bp-0x24, var_22=horizVel at bp-0x22, var_20=pitchAngle at bp-0x20 (bucket 6)
-    int16 rollAngle, w;                     // var_28=rollAngle at bp-0x28, dummy=w at bp-0x26 (bucket 7)
+    int16 turbulence, horizVel;
+    int16 w;
     int16 headingErr, dx;                   // var_2C=headingErr at bp-0x2c, var_2A=dx at bp-0x2a (bucket 8)
     int16 i, y;                             // dummies: bp-0x2e, bp-0x30 (bucket 9)
     int16 dy, speedCalc;                    // var_34=dy at bp-0x34, var_32=speedCalc at bp-0x32 (bucket 10)
@@ -247,17 +265,11 @@ switch_break:
         }
     }
 
-    g_rollInput = ((uint16)joyAxes[0] >> 4) - 8;
-    if (g_rollInput < 0) g_rollInput++;
-
-    g_pitchInput = ((uint16)joyAxes[1] >> 4) - 8;
-    if (g_pitchInput < 0) g_pitchInput++;
-
-    g_rollInput = -((abs(g_rollInput) + 2) * g_rollInput) * 2;
-    g_pitchInput *= 6;
-    if (g_pitchInput < 0) {
-        g_pitchInput /= 2;
-    }
+    using Controls = f15::math::legacy::Controls;
+    using ControlMath = f15::math::FlightControlMath<f15::math::FixedBackend>;
+    const auto commands = ControlMath::fromJoystick(Controls::joystick(joyAxes[0], joyAxes[1]));
+    g_rollInput = commands.roll;
+    g_pitchInput = commands.pitch;
 
     /*
      * Android attitude control needs corrections smaller than the DOS
@@ -274,8 +286,8 @@ switch_break:
         (uint16)g_velocity > (uint16)g_stallSpeed &&
         (g_groundAltitude != g_viewZ || g_knots >= g_cornerSpeed);
     androidFlightControl = attitudeControlAllowed
-                               ? android_ar_overrideFlightInput(
-                                     &g_rollInput, &g_pitchInput)
+                               ? f15::math::legacy::updateControlFromWords(
+                                     g_rollInput, g_pitchInput, android_ar_overrideFlightInput)
                                : 0;
     if (androidFlightControl) {
         g_autopilotAltitude = 0;
@@ -291,8 +303,8 @@ switch_break:
         }
     }
 
-    if (g_groundAltitude == g_viewZ && g_pitchInput < 0 && signedAngle(g_ourPitch) <= 0) {
-        g_pitchInput = 0;
+    if (g_groundAltitude == g_viewZ && g_pitchInput.isNegative() && signedAngle(g_ourPitch) <= 0) {
+        g_pitchInput = {};
     }
 
     if (g_knots > 350 && !(*((uint8 *)&g_playerPlaneFlags) & 1) && g_gearDownArmed != 0) {
@@ -307,7 +319,7 @@ switch_break:
         hudMessage("Brakes on");
     }
 
-    if (g_rollInput != 0 || g_pitchInput != 0) {
+    if (!g_rollInput.isZero() || !g_pitchInput.isZero()) {
         g_autopilotAltitude = 0;
     }
 
@@ -317,11 +329,11 @@ switch_break:
 
         headingErr = egClampValue((int16)(headingErr - signedAngle(g_ourHead) + g_waypointBearing), -5120, 0x1400) * 2;
 
-        g_rollInput = -clampRange((int16)(headingErr - signedAngle(g_ourRoll)) >> 6, -24, 24);
+        g_rollInput = rollCommand(-clampRange((int16)(headingErr - signedAngle(g_ourRoll)) >> 6, -24, 24));
 
         tmpVal = egClampValue(((g_autopilotAltitude - g_viewZ) << 4) - g_rollPitchTrim, -5120, 0xC00);
 
-        g_pitchInput = clampRange((tmpVal - signedAngle(g_ourPitch)) >> 7, -8, 8);
+        g_pitchInput = pitchCommand(clampRange((tmpVal - signedAngle(g_ourPitch)) >> 7, -8, 8));
 
         if (waypointIndex == 3) {
             nsSign = g_northSouthSign;
@@ -383,14 +395,14 @@ switch_break:
                 headingErr = 0;
             }
 
-            g_rollInput = -clampRange((int16)(headingErr - signedAngle(g_ourRoll)) >> 6, -32, 32);
+            g_rollInput = rollCommand(-clampRange((int16)(headingErr - signedAngle(g_ourRoll)) >> 6, -32, 32));
 
             g_setThrust = clampRange((abs(headingErr) / 256) + (tmpVal / 64), 35, 80);
             UpdateThrottleState();
 
             tmpVal = egClampValue(((tmpVal - g_viewZ) >> 3) + (g_rollPitchTrim >> 7), -24, 24);
 
-            g_pitchInput = clampRange(tmpVal - (signedAngle(g_ourPitch) >> 7), -16, 16);
+            g_pitchInput = pitchCommand(clampRange(tmpVal - (signedAngle(g_ourPitch) >> 7), -16, 16));
 
             if (g_knots < 350) {
                 *((uint8 *)&g_playerPlaneFlags) &= 0xFE;
@@ -398,9 +410,9 @@ switch_break:
 
             if (g_groundAltitude == g_viewZ) {
                 g_setThrust = 0;
-                g_rollInput = 0;
+                g_rollInput = {};
                 g_playerPlaneFlags |= 8;
-                g_pitchInput = 0;
+                g_pitchInput = {};
             }
         }
     }
@@ -415,21 +427,21 @@ switch_break:
     }
 
     if (turbulence > 0 && ((uint16)g_groundAltitude) < ((uint16)g_viewZ)) {
-        g_rollInput += randomRange(turbulence) - (turbulence >> 1);
-        g_pitchInput += (randomRange(turbulence) - (turbulence >> 1)) >> 1;
+        g_rollInput += rollCommand(randomRange(turbulence) - (turbulence >> 1));
+        g_pitchInput += pitchCommand((randomRange(turbulence) - (turbulence >> 1)) >> 1);
     }
 
-    if ((g_playerPlaneFlags & 1) && g_pitchInput <= 0 && ((uint16)g_stallSpeed) < ((uint16)g_velocity) && gameData->unk4 < 2 && abs((int16)signedAngle(g_ourRoll)) < 0x3000 && g_gunFiredFlag == 0) {
+    if ((g_playerPlaneFlags & 1) && (g_pitchInput.isNegative() || g_pitchInput.isZero()) && ((uint16)g_stallSpeed) < ((uint16)g_velocity) && gameData->unk4 < 2 && abs((int16)signedAngle(g_ourRoll)) < 0x3000 && g_gunFiredFlag == 0) {
         tmpVal = ((((g_rollPitchTrim) - (signedAngle(g_ourPitch))) >> 2) - g_viewZ + 300) >> 2;
         if (tmpVal > 0) {
-            g_pitchInput = clampRange(tmpVal, 0, 32);
+            g_pitchInput = pitchCommand(clampRange(tmpVal, 0, 32));
         }
     }
 
     if (g_ejectState != 0) {
-        g_rollInput = 0x40;
+        g_rollInput = rollCommand(0x40);
 
-        g_pitchInput = (abs((int16)signedAngle(g_ourRoll)) > 0x4000) ? 0x10 : -8; // pitch_input_modifier
+        g_pitchInput = pitchCommand((abs((int16)signedAngle(g_ourRoll)) > 0x4000) ? 0x10 : -8);
 
         // g_ejectState++;
         g_crashCamZ += clampRange(
@@ -507,12 +519,12 @@ switch_break:
 
     g_gees = g_rollGeeTable[(abs((int16)signedAngle(g_ourRoll)) >> 8) & 0x7f];
     if (((uint16)g_groundAltitude) < ((uint16)g_viewZ)) {
-        g_gees += g_pitchInput / 2;
+        g_gees += pitchInput(g_pitchInput) / 2;
     }
 
     if (g_gees > 0x80) {
         g_gees = 0x80;
-        g_pitchInput = clampRange(0x80 - g_rollGeeTable[(abs((int16)signedAngle(g_ourRoll)) >> 8) & 0x7f], 0, g_pitchInput);
+        g_pitchInput = pitchCommand(clampRange(0x80 - g_rollGeeTable[(abs((int16)signedAngle(g_ourRoll)) >> 8) & 0x7f], 0, pitchInput(g_pitchInput)));
     }
 
     strcpy(g_geeStringBuf, itoa(g_gees / 16, strBuf, 10));
@@ -579,32 +591,33 @@ switch_break:
      * behavior below remain authoritative.
      */
     if (androidFlightControl) {
-        android_ar_overrideFlightInput(&g_rollInput, &g_pitchInput);
+        f15::math::legacy::updateControlFromWords(g_rollInput, g_pitchInput, android_ar_overrideFlightInput);
     }
 
     if (g_groundAltitude == g_viewZ) {
-        yaw = (g_rollInput * -1) << 6;
-        g_rollInput = 0;
+        yaw = Controls::yaw(ControlMath::groundYaw(g_rollInput));
+        g_rollInput = {};
         if (g_knots < g_cornerSpeed) {
-            g_pitchInput = 0;
+            g_pitchInput = {};
         }
     }
 
     if (g_autoCrashDive != 0) {
-        g_pitchInput = -0x400 - signedAngle(g_ourPitch);
+        g_pitchInput = pitchCommand(-0x400 - signedAngle(g_ourPitch));
         // (ref stores velocity then setThrust; chains store right-to-left)
         g_setThrust =
             g_velocity = 0;
     }
 
 #if defined(__ANDROID__)
-    android_ar_setFlightDebug(signedAngle(g_ourHead), yaw, g_rollInput, g_pitchInput,
+    android_ar_setFlightDebug(signedAngle(g_ourHead), yaw, rollInput(g_rollInput), pitchInput(g_pitchInput),
                               g_knots, g_gees, turbulence,
                               g_autopilotAltitude, g_autopilotEngaged,
                               g_directorMode, g_frameRateScaling);
 #endif
 
-    yawAngle = yaw / g_frameRateScaling;
+    const auto deltas = ControlMath::increments(g_rollInput, g_pitchInput, Controls::yaw(yaw),
+                                               Controls::frequency(g_frameRateScaling));
     if (androidFlightControl) {
         /*
          * Phone tilt specifies only bank and pitch. Advance heading from the
@@ -612,27 +625,11 @@ switch_break:
          * matrix back to Euler angles can alternate between equivalent
          * azimuths and make a banked aircraft shake toward its old heading.
          */
-        g_ourHead += angleFromWord(yawAngle);
+        g_ourHead += deltas.yaw;
         f15::math::legacy::updateAttitudeFromWords(g_ourRoll, g_ourPitch, android_ar_overrideFlightAttitude);
         g_orientationDirty = 1;
     } else {
-        rollAngle = (((int32)g_rollInput) << 7) / ((int32)g_frameRateScaling);
-        const f15::math::legacy::Math rotationMath(g_angleLut);
-        using RotationCodec = f15::math::legacy::Codec;
-        if (rollAngle != 0) {
-            applyRotationDelta(g_orientMatrix, rotationMath.rollDelta(RotationCodec::angleWord(rollAngle)));
-        }
-
-        pitchAngle = (int16)((int32)g_pitchInput << 7) / g_frameRateScaling;
-        if (pitchAngle != 0) {
-            applyRotationDelta(g_orientMatrix, rotationMath.pitchDelta(RotationCodec::angleWord(pitchAngle)));
-        }
-
-        if (yawAngle != 0) {
-            applyRotationDelta(rotationMath.yawDelta(RotationCodec::angleWord(yawAngle)), g_orientMatrix);
-        }
-
-        computeAttitudeAngles();
+        advanceFlightOrientation(deltas);
     }
 
     if ((uint16)g_stallSpeed > (uint16)g_velocity && (uint16)g_groundAltitude < (uint16)g_viewZ) {
