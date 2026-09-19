@@ -21,6 +21,7 @@
 #include <utility>
 
 void stepFlightModel();
+void updateFrame();
 void rebuildOrientation();
 void setupInstrumentLayoutFar();
 void drawInstrumentGaugesFar();
@@ -208,6 +209,19 @@ int main() {
         require(std::abs(Speeds::speed(g_velocity) - (1000 - decrement)) < 1e-12,
                 "scene-height wrap or quantization selected the wrong braking mode");
     }
+    g_initPhase = 2;
+    g_bulletTrackCount = 16;
+    g_smokeSourceIdx = -1;
+    frameTick = 1;
+    g_altitude = Altitudes::altitude(229376);
+    g_ourPitch = g_rollPitchTrim = {};
+    advanceFlightAltitude();
+    g_knots = 0;
+    g_landingTimer = 0;
+    g_nearestThreatRange = 0x7fff;
+    g_groundAltitude = 0;
+    updateFrame();
+    require(g_landingTimer == 1, "mission update mistook high altitude for ground contact");
     gameData = nullptr;
     commData = nullptr;
     SDL_Quit();

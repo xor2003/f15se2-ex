@@ -41,6 +41,16 @@ using f15::math::legacy::signedAngle;
 #include <string.h>
 
 /* Private helpers for this translation unit. */
+static bool missionAtHeight(int16 height) {
+    using namespace f15::math;
+#ifdef F15_MODERN_MATH
+    const auto current = AltitudeMath<GameBackend>::renderHeight(g_altitude);
+#else
+    const auto current = legacy::renderHeightFromUnits(g_viewZ);
+#endif
+    return AltitudeMath<GameBackend>::atGround(current, legacy::Altitudes::ground(height));
+}
+
 void updateFrame(void);
 void dispatchKeyScancode();
 void tickMessageTimers();
@@ -308,7 +318,7 @@ void updateFrame(void) {
     }
 
 skip_target_section:
-    if (g_nearestThreatRange < 0x200 || g_groundAltitude == g_viewZ) {
+    if (g_nearestThreatRange < 0x200 || missionAtHeight(g_groundAltitude)) {
         g_groundAltitude = 0;
         g_attackRangeX = 0xa0;
         g_attackRangeY = 0x800;
@@ -319,7 +329,7 @@ skip_target_section:
             g_groundAltitude = 0x80;
             g_attackRangeX = 0x100;
             g_attackRangeY = 0x3c0;
-            if (g_viewZ == 0x80 && g_knots > 0x50) {
+            if (missionAtHeight(g_groundAltitude) && g_knots > 0x50) {
                 if ((uint16)(g_viewY_ - g_planeTable.planes[g_closestThreatIndex].mapY) * g_northSouthSign >= 0x10 && (uint16)(g_viewY_ - g_planeTable.planes[g_closestThreatIndex].mapY) * g_northSouthSign <= 0x14) {
                     if (!gameOptionsEnabled(GAME_OPTION_NO_DAMAGE) &&
                         abs((int16)(signedAngle(g_ourHead) - ((1 - g_northSouthSign) << 0xe))) < 0x2000) {
@@ -398,7 +408,7 @@ skip_target_section:
 
 skip_autopilot:
     if (g_inLandingCorridor == 0) {
-        if (g_viewZ == 0) {
+        if (missionAtHeight(0)) {
             if (!android_ar_preventCrashes() &&
                 !gameOptionsEnabled(GAME_OPTION_NO_DAMAGE) &&
                 (gameData->unk4 != 0 || g_gunHits > 4 || g_fuelRemaining == 0) &&
