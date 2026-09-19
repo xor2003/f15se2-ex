@@ -1,6 +1,8 @@
 #include "math/legacy_airspeed.hpp"
 #include "math/legacy_altitude.hpp"
 #include "math/legacy_rotation.hpp"
+#include "math/legacy_horizontal.hpp"
+#include "math_rotation_reference.hpp"
 #include "egdata.h"
 #include "egflight.h"
 #include "comm.h"
@@ -30,6 +32,9 @@ void thrustAndFuel() {
     for (int requested : {0, 1, 35, 100, 144})
     for (int damage : {0, 12, 40})
     for (int fuel : {0, 1, 5000})
+    for (int height : {2000, 4095, 8192})
+    for (int pitch : {-4096, 0, 4096})
+    for (int roll : {-8192, 0, 8192, 12288, 16384, 24576})
     for (bool fuelTick : {false, true}) {
         g_initPhase = 1;
         g_frameRateScaling = hz;
@@ -42,13 +47,19 @@ void thrustAndFuel() {
         g_autopilotAltitude = g_autopilotEngaged = 0;
         g_ejectState = g_autoCrashDive = g_currentWeaponType = 0;
         g_groundAltitude = 0;
-        g_viewZ = 2000;
-        g_altitude = legacy::altitudeFromUnits(2000);
+        g_viewZ = height;
+        g_altitude = legacy::altitudeFromUnits(height);
         g_velocity = legacy::speedFromUnits(8100);
         g_knots = 300;
         g_playerPlaneFlags = 1;
         g_joyRawX = g_joyRawY = 128;
-        g_ourHead = g_ourPitch = g_ourRoll = {};
+        g_ViewX = legacy::viewX(0);
+        g_ViewY = legacy::viewY(0);
+        g_ourHead = {};
+        g_ourPitch = legacy::angleFromWord(pitch);
+        g_ourRoll = legacy::angleFromWord(roll);
+        g_stallSpeed = {};
+        g_liftForce = g_rollPitchTrim = {};
         g_orientationDirty = g_rotationCounter = g_rollWasNonzero = 0;
         rebuildOrientation();
 
@@ -60,21 +71,28 @@ void thrustAndFuel() {
         if (fuelTick && target) remaining -= target * target / 750 + 2;
         if (remaining <= 0) { remaining = 0; expected = 0; }
 
-        // Level, neutral-stick flight has 16 load units. Preserve each integer
-        // division separately: algebraic simplification changes truncation.
-        int targetSpeed = expected * 800 / 100;
-        targetSpeed = ((2000 / 128 + 1024) * targetSpeed) / 1024;
-        targetSpeed = targetSpeed * (100 - remaining / 512) / 90;
-        targetSpeed = targetSpeed * (128 - 16) / 128;
+        // Preserve each signed-word store and division separately. The oracle
+        // uses the frozen LUT interpolator, never production math operations.
+        using rotation_reference::floorDivide;
+        using rotation_reference::word;
+        const int gees = std::min(128, int(g_rollGeeTable[(std::abs(roll) / 256) & 127]));
+        const int pitchDrag = word(floorDivide(
+            std::int64_t(rotation_reference::sine(pitch, g_angleLut)) * 80 + 16384, 32768));
+        int targetSpeed = word((expected - pitchDrag) * 800 / 100);
+        targetSpeed = word(floorDivide((height / 128 + 1024) * targetSpeed, 1024));
+        targetSpeed = word(targetSpeed * (100 - remaining / 512) / 90);
+        targetSpeed = word(floorDivide(targetSpeed * (128 - gees), 128));
         targetSpeed = std::clamp(targetSpeed, 0, 899) * 27;
         const int velocity = 8100 + ((targetSpeed - 8100) / 16) / hz;
-        const int corner = 100 * (2000 / 64 + 1024) / 1024;
+        int root = 0;
+        while ((root + 1) * (root + 1) <= gees * 4) ++root;
+        const int corner = std::abs(word(root * word(100 * (height / 64 + 1024) / 1024) / 8));
 
         stepFlightModel();
         require(g_thrust == expected, "full flight model thrust response changed");
         require(g_fuelRemaining == remaining, "full flight model fuel cadence/depletion changed");
         require(g_setThrust == target, "damage thrust limit changed");
-        require(g_gees == 16, "neutral level-flight load changed");
+        require(g_gees == gees, "neutral banked-flight load changed");
         require(g_cornerSpeed == corner && AirspeedBoundary<FixedBackend>::stall(g_stallSpeed) == corner * 27,
                 "full flight model corner/stall threshold changed");
         require(legacy::speedUnits(g_velocity) == velocity && g_knots == velocity / 27,

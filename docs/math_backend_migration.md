@@ -22,13 +22,17 @@ fixed-backend expectations unchanged through migration. Add separate modern
 precision and outcome tests; helper-only coverage does not establish caller parity.
 
 `flight_model_characterization_tests` establishes a baseline against `dbfb4ab`
-without production edits or math/flight-model test doubles. Its 900 independent
-level-flight ticks cover thrust ramp-up/down, damage caps, fuel burn cadence and
-exhaustion, neutral load factor, corner/stall thresholds, and target-speed to
-acceleration ordering at 4 and 15 Hz. Expected values are frozen integer
-expressions, not calls to the new backend. This is bounded caller coverage, not
-full flight-model coverage: turns, assists, ejection, landing, multi-tick sorties
-and the remaining branches still need baselines before their migration.
+without production edits or math/flight-model test doubles. Its 48,600 independent
+ticks cover thrust ramp-up/down, damage caps, fuel burn cadence and exhaustion,
+load factor (including its high-bank cap), corner/stall thresholds, and target-speed
+to acceleration ordering at 4 and 15 Hz. Inputs include three heights, three
+pitch angles and six bank angles. Expected values are frozen integer expressions
+with explicit word stores and signed shifts, not calls to the new backend.
+The expanded harness also passes ASan/UBSan with `egflight.c` instrumented; the
+rest of the linked core is not instrumented. Clang analysis of the harness is
+clean. This is bounded caller coverage, not full flight-model coverage: turn
+trajectories, assists, ejection, landing, multi-tick sorties and the remaining
+branches still need baselines before their migration.
 
 ## Rotation migration checkpoint
 
