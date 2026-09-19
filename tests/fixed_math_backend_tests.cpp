@@ -2,6 +2,7 @@
 #include "egcode.h"
 #include "egdata.h"
 #include "egmath.h"
+#include "egflight.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -19,6 +20,14 @@ static void check(bool ok, const char *operation, int a, int b = 0) {
 
 int main() {
     namespace fixed = f15::fixed;
+    // Compare the unchanged engine entry point before migrating its callers.
+    // In particular, this is not floor(sqrt(abs(value))): isqrt(8) is 3.
+    for (int value = -32768; value <= 32767; ++value) {
+        check(fixed::integerSqrtCompatible(value) == ::isqrt(static_cast<int16>(value)),
+              "legacy Newton square root", value);
+    }
+    check(::isqrt(-32768) == 1 && ::isqrt(0) == 1 && ::isqrt(8) == 3,
+          "square-root exceptional/rounded results", 8);
     // Exhaust the angle domain against the production table and real core.
     for (int raw = 0; raw < 65536; ++raw) {
         const auto angle = fixed::Angle16(raw);

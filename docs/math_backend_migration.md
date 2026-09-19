@@ -120,6 +120,28 @@ existing `g_viewZ`, not recomputed from flight altitude at a different update
 stage. These adapters are explicit migration debt. Whole-game backend selection,
 multi-tick mission outcomes and Windows/Android/browser verification remain open.
 
+## Tests-first gate for corner speed
+
+A tests-only extension against `ac2fbf8` adds flight altitudes 16,383, 16,384
+and 60,000 to the full-tick matrix, bringing it to 388,800 cases. Scene height
+is independently initialized with the original compression formula. The oracle
+uses that scene height for target-speed scaling but flight altitude for corner
+speed, so substituting one altitude representation for the other is observable.
+The tested production corner-speed calculation remains unchanged.
+
+`fixed_math_backend_tests` now compares `integerSqrtCompatible` with the actual
+`isqrt` entry point over all 65,536 signed-word inputs. Explicit checks preserve
+the surprising results for -32,768, zero and eight (1, 1 and 3 respectively).
+This establishes compatibility of the imported Newton helper, not equivalence
+to a mathematical floor square root. The existing full-tick corner oracle uses
+an independent integer root for its bounded load-factor samples.
+
+Both affected tests build and all 52 CTests pass. Clang analysis of both harnesses is clean;
+the expanded flight harness passes ASan/UBSan with `egflight.c` instrumented and
+the rest of the core uninstrumented. No production behavior is changed by this
+checkpoint. Negative-load, assisted-input and multi-tick corner-speed behavior
+still require their own caller coverage.
+
 ## Rotation migration checkpoint
 
 * `Angle`, `Coefficient`, `EulerAngles` and `Matrix3` carry backend types. Storage

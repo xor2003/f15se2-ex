@@ -33,7 +33,7 @@ void thrustAndFuel() {
     for (int requested : {0, 1, 35, 100, 144})
     for (int damage : {0, 12, 40})
     for (int fuel : {0, 1, 5000})
-    for (int height : {2000, 4095, 8192})
+    for (int height : {2000, 4095, 8192, 16383, 16384, 60000})
     for (int pitch : {-4096, 0, 4096})
     for (int roll : {-8192, 0, 8192, 12288, 16384, 24576})
     for (bool gearUp : {false, true})
@@ -50,7 +50,9 @@ void thrustAndFuel() {
         g_autopilotAltitude = g_autopilotEngaged = 0;
         g_ejectState = g_autoCrashDive = g_currentWeaponType = 0;
         g_groundAltitude = 0;
-        g_viewZ = height;
+        const int sceneHeight = height < 8192 ? height : height < 16384 ?
+            (height - 8192) / 2 + 8192 : (height - 16384) / 4 + 12288;
+        g_viewZ = sceneHeight;
         g_altitude = legacy::altitudeFromUnits(height);
         g_velocity = legacy::speedFromUnits(8100);
         g_knots = 300;
@@ -84,7 +86,7 @@ void thrustAndFuel() {
         const int pitchDrag = word(floorDivide(
             std::int64_t(rotation_reference::sine(pitch, g_angleLut)) * 80 + 16384, 32768));
         int targetSpeed = word((expected - pitchDrag) * 800 / 100);
-        targetSpeed = word(floorDivide((height / 128 + 1024) * targetSpeed, 1024));
+        targetSpeed = word(floorDivide((sceneHeight / 128 + 1024) * targetSpeed, 1024));
         targetSpeed = word(targetSpeed * (100 - remaining / 512) / 90);
         targetSpeed = word(floorDivide(targetSpeed * (128 - gees), 128));
         if (!gearUp) targetSpeed = word(targetSpeed - floorDivide(targetSpeed, 8));
