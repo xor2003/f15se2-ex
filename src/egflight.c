@@ -143,7 +143,7 @@ void stepFlightModel(void) {
     int16 a, q;                             // dummies: bp-0x04, bp-0x06 (bucket 1)
     int16 prevAlt, aa, r;                   // var_C=prevAlt at bp-0x0c, dummies at bp-0x0a,bp-0x08 (bucket 2)
     int16 ab, tgtIdx, bearing;              // dummy=ab at bp-0x12, var_10=tgtIdx at bp-0x10, var_E=bearing at bp-0x0e (bucket 3)
-    int16 yaw, tmpVal;
+    int16 tmpVal;
     int16 ad, u;                           // dummies at bp-0x1e,bp-0x1c (bucket 5)
     int16 turbulence;
     f15::math::HorizontalSpeed<f15::math::FixedBackend> horizVel;
@@ -591,7 +591,7 @@ switch_break:
     g_gees = load.load;
     g_pitchInput = load.pitch;
 
-    // Display/debug output and the not-yet-migrated yaw expression use legacy units.
+    // Display/debug output uses legacy units.
     const int legacyLoad = f15::math::legacy::loadSixteenths(g_gees);
     strcpy(g_geeStringBuf, itoa(legacyLoad / 16, strBuf, 10));
     strcat(g_geeStringBuf, ".");
@@ -618,9 +618,9 @@ switch_break:
 
     audio_setEnginePitch(g_knots, thrustUnits(g_thrust));
 
-    yaw = (((int32)sinMul(signedAngle(g_ourRoll), legacyLoad << 4)) << 7) / ((int32)((int16)(speedWord(g_velocity) >> 9) + 0x20));
-
-    yaw = cosMul(signedAngle(g_ourPitch), yaw);
+    const f15::math::legacy::Math turnRotation(g_angleLut);
+    auto yaw = Aero::turnRate(g_gees, g_velocity,
+        turnRotation.sine(g_ourRoll), turnRotation.cosine(g_ourPitch));
 
     /*
      * Turbulence and other legacy assists modify the stick earlier in this
@@ -634,7 +634,7 @@ switch_break:
     }
 
     if (g_groundAltitude == g_viewZ) {
-        yaw = Controls::yaw(ControlMath::groundYaw(g_rollInput));
+        yaw = ControlMath::groundYaw(g_rollInput);
         g_rollInput = {};
         if (g_knots < g_cornerSpeed) {
             g_pitchInput = {};
@@ -648,13 +648,13 @@ switch_break:
     }
 
 #if defined(__ANDROID__)
-    android_ar_setFlightDebug(signedAngle(g_ourHead), yaw, rollInput(g_rollInput), pitchInput(g_pitchInput),
+    android_ar_setFlightDebug(signedAngle(g_ourHead), Controls::yaw(yaw), rollInput(g_rollInput), pitchInput(g_pitchInput),
                               g_knots, legacyLoad, turbulence,
                               g_autopilotAltitude, g_autopilotEngaged,
                               g_directorMode, g_frameRateScaling);
 #endif
 
-    const auto deltas = ControlMath::increments(g_rollInput, g_pitchInput, Controls::yaw(yaw),
+    const auto deltas = ControlMath::increments(g_rollInput, g_pitchInput, yaw,
                                                Controls::frequency(g_frameRateScaling));
     if (androidFlightControl) {
         /*

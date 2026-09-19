@@ -224,6 +224,14 @@ int main() {
     FlightSpeed<FixedBackend> speed = AirspeedSample<FixedBackend>{};
 #elif defined(TEST_LOAD_RESPONSE_RAW)
     (void)AerodynamicsMath<FixedBackend>::loadResponse(16, 2, true);
+#elif defined(TEST_TURN_RAW)
+    (void)AerodynamicsMath<FixedBackend>::turnRate(16, 8100, 0, 1);
+#elif defined(TEST_TURN_BACKEND)
+    (void)AerodynamicsMath<FixedBackend>::turnRate({}, FlightSpeed<ModernBackend>{}, {}, {});
+#elif defined(TEST_TURN_ROLE)
+    (void)AerodynamicsMath<FixedBackend>::turnRate(FuelLoad<FixedBackend>{}, {}, {}, {});
+#elif defined(TEST_TURN_AXIS)
+    PitchCommand<FixedBackend> pitch = AerodynamicsMath<FixedBackend>::turnRate({}, {}, {}, {});
 #elif defined(TEST_BANK_RAW)
     const std::uint8_t table[128]{};
     (void)AerodynamicsMath<FixedBackend>::bankLoad(42, table);

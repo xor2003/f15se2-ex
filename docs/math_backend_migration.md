@@ -41,6 +41,25 @@ Before using recordings to certify migration, complete these checks:
 
 ## Tests-first gate for further migration
 
+Aerodynamic yaw is now implemented by `AerodynamicsMath::turnRate` for fixed and
+modern backends. The caller keeps `YawRate` typed through ground steering and
+orientation integration; only Android diagnostic output extracts its old units.
+The fixed implementation preserves the unsigned speed-word band, two rounded
+trigonometric products and intermediate signed-word division result without
+left-shifting negative values. The modern implementation keeps fractional load,
+speed and trigonometry and returns radians per second without word wrapping.
+Its denominator must be positive and its result finite.
+
+The dedicated unit grid checks all 65,536 angles at ten speed boundaries and six
+loads (3,932,160 cases); modern checks cover fractional rates and speeds beyond
+the legacy word range. Compile-negative tests reject raw operands, backend
+mixing, fuel-as-flight-load and yaw-as-pitch assignments. The full-flight yaw
+baseline below remains in place. This does not enable a whole-game modern backend.
+Verification: Linux Release build and all 57 CTests pass. Clang analysis of the
+aerodynamic harness is clean. ASan/UBSan pass for both the aerodynamic harness and
+full-flight characterization with `egflight.c` instrumented; the remaining linked
+core is not instrumented. Windows, Android and browser checks remain outstanding.
+
 Aerodynamic-yaw caller checkpoint (baseline `742431d`): the full-flight
 characterization harness now compares `g_matrixScratch` against a frozen scalar
 yaw formula and independent matrix products in all 1,166,400 existing cases.

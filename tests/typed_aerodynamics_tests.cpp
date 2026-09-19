@@ -39,6 +39,39 @@ int trim(int correction, int roll) {
     return word(rotation_reference::floorDivide(product, 32768) +
                 (rotation_reference::floorDivide(product, 16384) & 1));
 }
+void turnMath() {
+    const RotationMath<F> rotation(g_angleLut);
+    for (int angle = 0; angle < 65536; ++angle)
+    for (int speed : {-1, 0, 511, 512, 513, 8100, 32768, 45000, 65535, 65536})
+    for (int load : {-128, -10, 0, 16, 128, 2048}) {
+        const auto rounded = [](int v, int c) {
+            return word(rotation_reference::floorDivide(std::int64_t(v) * c + 16384, 32768));
+        };
+        const int pitch = angle * 3;
+        const int bank = rounded(word(load * 16), rotation_reference::sine(angle, g_angleLut));
+        const int divided = word(bank * 128 / (std::uint16_t(speed) / 512 + 32));
+        const int expected = rounded(divided, rotation_reference::sine(pitch + 16384, g_angleLut));
+        require(ControlBoundary<F>::yaw(FM::turnRate(PropulsionBoundary<F>::load(load), FC::speed(speed),
+            rotation.sine(legacy::angleFromWord(angle)), rotation.cosine(legacy::angleFromWord(pitch)))) == expected,
+            "fixed turn rate differs from frozen yaw formula");
+    }
+    const RotationMath<M> modern;
+    constexpr double radiansPerWord = 6.28318530717958647692 / 65536;
+    for (double roll : {-1.2, -.00001, 0.0, .00001, 1.2})
+    for (double pitch : {-0.9, 0.0, 0.9})
+    for (double speed : {0.0, 511.75, 512.25, 8100.5, 70000.0}) {
+        const double expected = 16.25 * std::sin(roll) * 2048 /
+            (speed / 512 + 32) * std::cos(pitch) * radiansPerWord;
+        const double actual = ControlBoundary<M>::radiansPerSecond(MM::turnRate(
+            PropulsionBoundary<M>::load(16.25), MC::speed(speed),
+            modern.sine(Boundary<M>::radians(roll)), modern.cosine(Boundary<M>::radians(pitch))));
+        require(std::abs(actual - expected) < 1e-14, "modern yaw loses precision or units");
+        if (roll != 0) require(actual != 0, "modern fractional yaw was truncated");
+    }
+    rejects([&] { MM::turnRate(PropulsionBoundary<M>::load(16), MC::speed(-16384),
+        modern.sine(Boundary<M>::radians(1)), modern.cosine(Boundary<M>::radians(0))); });
+}
+
 void fixedMath() {
     const RotationMath<F> rotation(g_angleLut);
     for (int value = 0; value < 65536; ++value) {
@@ -220,4 +253,4 @@ void loadMath() {
     rejects([] { FM::loadResponse(PropulsionBoundary<F>::load(INT32_MIN), ControlBoundary<F>::pitch(-2), true); });
 }
 }
-int main() { fixedMath(); productionCaller(); modernMath(); cornerMath(); bankMath(); loadMath(); }
+int main() { fixedMath(); productionCaller(); modernMath(); cornerMath(); bankMath(); loadMath(); turnMath(); }

@@ -23,6 +23,30 @@ template<class B> class AerodynamicsMath {
         return bits < 32768 ? int(bits) : int(bits) - 65536;
     }
 public:
+    static YawRate<B> turnRate(FlightLoad<B> load, FlightSpeed<B> speed,
+                               Coefficient<B> sineRoll, Coefficient<B> cosinePitch) {
+        constexpr int loadScale = 16;
+        constexpr int turnScale = 128;
+        constexpr int speedBand = 512;
+        constexpr int baseDenominator = 32;
+        if constexpr (std::is_same_v<B, FixedBackend>) {
+            const auto roundedProduct = [](int value, int coefficient) {
+                const auto product = std::int64_t(value) * coefficient + 16384;
+                return signedWord(product / 32768 - (product % 32768 < 0 ? 1 : 0));
+            };
+            const int bankTurn = roundedProduct(signedWord(std::int64_t(load.value_) * loadScale), sineRoll.value_);
+            const int denominator = std::uint16_t(speed.value_) / speedBand + baseDenominator;
+            const int yaw = signedWord(bankTurn * turnScale / denominator);
+            return YawRate<B>(static_cast<std::int16_t>(roundedProduct(yaw, cosinePitch.value_)));
+        } else {
+            const double denominator = speed.value_ / speedBand + baseDenominator;
+            if (denominator <= 0) throw std::domain_error("non-positive turn-rate denominator");
+            const double rate = load.value_ * sineRoll.value_ * (loadScale * turnScale) /
+                denominator * cosinePitch.value_ * (6.28318530717958647692 / 65536);
+            if (!std::isfinite(rate)) throw std::overflow_error("non-finite turn rate");
+            return YawRate<B>(rate);
+        }
+    }
     // The table is legacy aerodynamic data, not an untyped runtime quantity.
     static FlightLoad<B> bankLoad(Angle<B> roll, const std::uint8_t (&table)[128]) {
         if constexpr (std::is_same_v<B, FixedBackend>) {
