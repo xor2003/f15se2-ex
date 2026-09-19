@@ -13,6 +13,8 @@ template<class B> struct AirspeedBoundary {
     using StallRep = std::conditional_t<std::is_same_v<B, FixedBackend>, std::int16_t, double>;
     static StallSpeed<B> stall(StallRep v) { return StallSpeed<B>(v); }
     static StallRep stall(StallSpeed<B> v) { return v.value_; }
+    static CornerSpeed<B> corner(StallRep v) { return CornerSpeed<B>(v); }
+    static StallRep corner(CornerSpeed<B> v) { return v.value_; }
 };
 }
 #endif

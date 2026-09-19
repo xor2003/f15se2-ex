@@ -142,6 +142,37 @@ the rest of the core uninstrumented. No production behavior is changed by this
 checkpoint. Negative-load, assisted-input and multi-tick corner-speed behavior
 still require their own caller coverage.
 
+## Corner-speed migration checkpoint
+
+After tests-first commit `6ba1d94`, `stepFlightModel` calls
+`AerodynamicsMath::cornerSpeed` and `stallThreshold`. `CornerSpeed` is a strong
+type in indicated knots, distinct from the 27-units-per-knot flight and stall
+speed types. The covered producer no longer performs scalar corner arithmetic
+or reconstructs the stall threshold through a raw-number adapter.
+
+The fixed backend preserves the unsigned 32-bit altitude product, signed-word
+stores, legacy Newton root, arithmetic shift and final absolute-value store.
+Signed native overflow in the load-times-four expression is rejected. The
+modern backend uses the continuous square root of load magnitude and retains
+fractional altitude, corner speed and stall threshold. At zero load its root
+is zero, intentionally unlike the fixed helper's minimum-one result. Modern
+altitude scaling avoids unnecessary multiply-before-divide overflow.
+
+Tests compare 720,896 fixed combinations (eleven altitudes and all signed-word
+load values) to frozen stage-by-stage arithmetic, plus modern fractional and
+overflow cases. The previously committed 388,800-tick baseline is unchanged.
+Seven new compiler-negative cases prohibit raw corner values/extraction,
+altitude/load/backend mixing, flight-speed-as-corner conversion and raw pointers.
+Clang analysis is clean; ASan/UBSan pass for the aerodynamic harness and the
+full-tick baseline with `egflight.c` instrumented, not the entire linked core.
+The Linux Release build and all 52 CTests pass, including 84 compiler-negative
+cases and the valid-API control. Windows, Android and browser builds are unverified.
+
+`g_cornerSpeed` remains a scalar compatibility store for unmigrated ground and
+assist consumers, reached through the explicit `cornerKnots` adapter. Load
+generation, negative-load caller scenarios, assisted controls and whole-game
+backend selection remain open. No units library is used.
+
 ## Rotation migration checkpoint
 
 * `Angle`, `Coefficient`, `EulerAngles` and `Matrix3` carry backend types. Storage

@@ -51,6 +51,7 @@ int main() {
     (void)AerodynamicsMath<ModernBackend>::belowStall(FlightSpeed<ModernBackend>{}, StallSpeed<ModernBackend>{});
     (void)PropulsionMath<ModernBackend>::limitForDamage(EngineThrust<ModernBackend>{}, 0);
     (void)PropulsionMath<ModernBackend>::targetSpeed({}, math.sine(angle), {}, {}, {}, LandingGear::Retracted);
+    (void)AerodynamicsMath<ModernBackend>::stallThreshold(AerodynamicsMath<ModernBackend>::cornerSpeed({}, {}));
     static_assert(std::is_same_v<decltype(PropulsionMath<ModernBackend>::advance(
         {}, {}, std::declval<SimulationStep<ModernBackend>>())), EngineThrust<ModernBackend>>);
     static_assert(std::is_same_v<decltype(AerodynamicsMath<ModernBackend>::stallResponse(
@@ -133,6 +134,21 @@ int main() {
     EngineThrust<FixedBackend> thrust = 100;
 #elif defined(TEST_FUEL_PRIMITIVE)
     FuelLoad<FixedBackend> fuel = 5000;
+#elif defined(TEST_CORNER_PRIMITIVE)
+    CornerSpeed<FixedBackend> corner = 100;
+#elif defined(TEST_CORNER_EXTRACTION)
+    double corner = CornerSpeed<ModernBackend>{};
+#elif defined(TEST_CORNER_ALTITUDE)
+    (void)AerodynamicsMath<FixedBackend>::cornerSpeed(RenderHeight<FixedBackend>{}, {});
+#elif defined(TEST_CORNER_LOAD)
+    (void)AerodynamicsMath<ModernBackend>::cornerSpeed({}, FuelLoad<ModernBackend>{});
+#elif defined(TEST_CORNER_BACKEND)
+    (void)AerodynamicsMath<ModernBackend>::cornerSpeed(FlightAltitude<FixedBackend>{}, {});
+#elif defined(TEST_CORNER_STALL)
+    (void)AerodynamicsMath<FixedBackend>::stallThreshold(FlightSpeed<FixedBackend>{});
+#elif defined(TEST_CORNER_POINTER)
+    CornerSpeed<FixedBackend> corner;
+    short *raw = &corner;
 #elif defined(TEST_LOAD_PRIMITIVE)
     FlightLoad<ModernBackend> load = 16.0;
 #elif defined(TEST_FUEL_EXTRACTION)

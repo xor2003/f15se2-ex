@@ -23,6 +23,7 @@ template<class B, class Unit> class PropulsionQuantity {
     }
     friend class PropulsionMath<B>;
     friend struct PropulsionBoundary<B>;
+    friend class AerodynamicsMath<B>;
 public:
     PropulsionQuantity() = default;
 };

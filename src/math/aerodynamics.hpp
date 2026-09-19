@@ -1,17 +1,49 @@
 #ifndef F15_MATH_AERODYNAMICS_HPP
 #define F15_MATH_AERODYNAMICS_HPP
 #include "airspeed.hpp"
+#include "propulsion.hpp"
 
 namespace f15::math {
 enum class StallSeverity { Normal, Severe };
 template<class B> struct StallResponse { bool stalled; Angle<B> noseDrop; };
 // The legacy "lift force" is an angular correction, not a force in newtons.
 template<class B> class AerodynamicsMath {
+    static constexpr int baseCornerKnots = 100;
+    static constexpr int altitudeBand = 64;
+    static constexpr int altitudeScale = 1024;
+    static constexpr int rootLoadScale = 4;
+    static constexpr int cornerLoadScale = 8;
+    static constexpr int velocityUnitsPerKnot = 27;
     static int signedWord(std::int64_t v) {
         const auto bits = std::uint16_t(v);
         return bits < 32768 ? int(bits) : int(bits) - 65536;
     }
 public:
+    static CornerSpeed<B> cornerSpeed(FlightAltitude<B> altitude, FlightLoad<B> load) {
+        if constexpr (std::is_same_v<B, FixedBackend>) {
+            // Preserve the unsigned dword product, then each signed-word store.
+            const auto altitudeProduct = std::uint32_t(baseCornerKnots *
+                std::uint32_t(altitude.value_ / altitudeBand + altitudeScale));
+            const int altitudeSpeed = signedWord(altitudeProduct / altitudeScale);
+            const auto rootArgument = std::int64_t(load.value_) * rootLoadScale;
+            if (rootArgument < INT32_MIN || rootArgument > INT32_MAX)
+                throw std::overflow_error("corner-speed load overflow");
+            const int root = fixed::integerSqrtCompatible(signedWord(rootArgument));
+            const auto product = std::int64_t(root) * altitudeSpeed;
+            const int speed = signedWord(product / cornerLoadScale - (product % cornerLoadScale < 0 ? 1 : 0));
+            return CornerSpeed<B>(static_cast<std::int16_t>(signedWord(std::abs(speed))));
+        } else {
+            const double altitudeSpeed = baseCornerKnots + altitude.value_ *
+                (double(baseCornerKnots) / (altitudeBand * altitudeScale));
+            const double root = std::sqrt(std::abs(load.value_)) * 2;
+            return CornerSpeed<B>(std::abs(altitudeSpeed * (root / cornerLoadScale)));
+        }
+    }
+    static StallSpeed<B> stallThreshold(CornerSpeed<B> corner) {
+        if constexpr (std::is_same_v<B, FixedBackend>)
+            return StallSpeed<B>(static_cast<std::int16_t>(signedWord(int(corner.value_) * velocityUnitsPerKnot)));
+        else return StallSpeed<B>(corner.value_ * velocityUnitsPerKnot);
+    }
     static bool aboveStall(FlightSpeed<B> speed, StallSpeed<B> threshold) {
         if constexpr (std::is_same_v<B, FixedBackend>) return std::uint16_t(speed.value_) > std::uint16_t(threshold.value_);
         else return speed.value_ > threshold.value_;

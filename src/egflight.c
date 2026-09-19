@@ -602,12 +602,9 @@ switch_break:
     strcat(g_geeStringBuf, itoa((abs(g_gees) & 0xF) >> 1, strBuf, 10));
     strcat(g_geeStringBuf, "G");
 
-    g_cornerSpeed = ((int32)100 * (uint32)((altitudeUnits(g_altitude) >> 6) + 0x0400)) >> 10;
-
-    g_cornerSpeed = ((int32)isqrt(g_gees * 4) * (int32)g_cornerSpeed) >> 3;
-    g_cornerSpeed = abs(g_cornerSpeed);
-
-    g_stallSpeed = f15::math::legacy::stallFromUnits(g_cornerSpeed * 27);
+    const auto corner = Aero::cornerSpeed(g_altitude, f15::math::legacy::loadFromSixteenths(g_gees));
+    g_cornerSpeed = f15::math::legacy::cornerKnots(corner);
+    g_stallSpeed = Aero::stallThreshold(corner);
     accelerateFlightSpeed(Propulsion::targetSpeed(g_thrust,
         f15::math::legacy::Math(g_angleLut).sine(g_ourPitch),
         f15::math::legacy::renderHeightFromUnits(g_viewZ),
