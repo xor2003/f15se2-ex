@@ -40,11 +40,11 @@ int main() {
     gfx_videoInit();
     gfx_setMode13();
     setupInstrumentLayoutFar();
-    for (int altitude : {999, 1000, 65000, 65535, 65536, 90000}) {
+    for (int altitude : {999, 1000, 65000, 65535, 65536, 90000, 100000, 1000000}) {
         g_altitude = Altitudes::altitude(altitude);
         drawInstrumentGaugesFar();
-        require(g_altRemainder == (altitude % 65536) % 1000,
-                "legacy altitude tape baseline changed");
+        require(g_altRemainder == altitude % 1000,
+                "modern altitude tape wrapped at a legacy boundary");
     }
     auto rollCommand = Controls::radiansPerSecond<RollAxis>(0.123456789);
     auto pitchCommand = Controls::radiansPerSecond<PitchAxis>(-0.234567891);

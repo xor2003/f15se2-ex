@@ -26,6 +26,10 @@ using f15::math::legacy::signedAngle;
 #include "gfx.h"
 #include "r2d.h"
 #include <dos.h>
+#ifdef F15_MODERN_MATH
+#include <cmath>
+#include <cstdio>
+#endif
 
 /* --- C-defined egame globals not surfaced in a header --- */
 extern uint8 g_tapeColumn;
@@ -316,9 +320,17 @@ static void drawInstrumentGauges(void) {
 
     /* ---- altitude tape ---- */
     {
+#ifdef F15_MODERN_MATH
+        const double alt = std::floor(f15::math::legacy::Altitudes::altitude(g_altitude));
+        const double thousands = std::floor(alt / 1000.0) - 1;
+        uint16 rem = (uint16)std::fmod(alt, 1000.0);
+        // Modern labels are numeric, not offsets into the legacy digit table.
+        double di;
+#else
         uint16 alt = f15::math::legacy::altitudeUnits(g_altitude);
         int16 thousands = (int16)(alt / 1000) - 1;
         uint16 rem = (uint16)(alt % 1000);
+#endif
         uint16 hundredsPix;
         g_altRemainder = rem;
         hundredsPix = (uint16)((rem << g_tapeScaleShift) / 100);
@@ -344,7 +356,7 @@ static void drawInstrumentGauges(void) {
                     g_tapeRenderX -= g_tapeTickPitch;
                     continue;
                 }
-                g_tapeDigitStrip[0] = g_tapeDigitStrip[di + 0xa9];
+                g_tapeDigitStrip[0] = g_tapeDigitStrip[(int)di + 0xa9];
                 drawTapeStr(g_tapeText0, g_tapeDigitStrip, 0x01);
                 di += 2;
                 if (--g_tapePageCounter == 0) goto alt_done;
@@ -366,8 +378,14 @@ static void drawInstrumentGauges(void) {
             if (di == 0) {
                 drawTapeStr(g_tapeText0, g_tapeDigitStrip + 4, 0x01);
             } else {
+#ifdef F15_MODERN_MATH
+                char label[320];
+                std::snprintf(label, sizeof(label), "%.0fK", di / 2);
+                drawTapeStr(g_tapeText0, (const uint8 *)label, 0x01);
+#else
                 W16W(g_altLabelBuf, W16(g_tapeDigitStrip + di + 0xa8));
                 drawTapeStr(g_tapeText0, g_altLabelBuf, 0x01);
+#endif
             }
             di += 2;
             if (--g_tapePageCounter == 0) break;
