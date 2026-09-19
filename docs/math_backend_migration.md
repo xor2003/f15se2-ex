@@ -41,6 +41,16 @@ Before using recordings to certify migration, complete these checks:
 
 ## Tests-first gate for further migration
 
+Altitude-hold caller checkpoint (baseline `0e5cbc2`): 864 additional targeted
+full-flight cases cover neutral-stick altitude hold at two rates, six heights,
+three initial pitches and six banks. Four scenarios exercise small positive and
+negative altitude/bearing errors, signed-angle trim limits, bearing wrap and the
+engaged-autopilot mission-tick heading offset. Independent formulas check roll
+and pitch commands after load limiting plus the full rotation matrix sequence.
+All 1,167,264 characterization cases pass and Clang analysis of the harness is
+clean. Production autopilot is unchanged at this checkpoint. Recovery-waypoint
+steering, input cancellation and Android overrides need separate coverage.
+
 Aerodynamic yaw is now implemented by `AerodynamicsMath::turnRate` for fixed and
 modern backends. The caller keeps `YawRate` typed through ground steering and
 orientation integration; only Android diagnostic output extracts its old units.

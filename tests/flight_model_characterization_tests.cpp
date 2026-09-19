@@ -81,7 +81,12 @@ void thrustAndFuel() {
     for (int stickPitch : {1, 128, 254})
     for (bool gearUp : {false, true})
     for (bool airBrake : {false, true})
-    for (bool fuelTick : {false, true}) {
+    for (bool fuelTick : {false, true})
+    for (int autopilotCase : {0, 1, 2, 3, 4}) {
+        // Add a focused autopilot grid without multiplying unrelated fuel and
+        // engine cases. Neutral stick is required for altitude hold to survive.
+        if (autopilotCase && (initial != 100 || requested != 100 || damage != 0 ||
+            fuel != 5000 || stickPitch != 128 || !gearUp || airBrake || fuelTick)) continue;
         g_initPhase = 1;
         g_frameRateScaling = hz;
         frameTick = fuelTick ? hz * 2 : 1;
@@ -95,6 +100,19 @@ void thrustAndFuel() {
         g_groundAltitude = 0;
         const int sceneHeight = height < 8192 ? height : height < 16384 ?
             (height - 8192) / 2 + 8192 : (height - 16384) / 4 + 12288;
+        const int altitudeTarget = autopilotCase == 1 ? sceneHeight + 1 :
+            autopilotCase == 2 ? sceneHeight - 1 : autopilotCase == 3 ? 1 : 32767;
+        const int bearingTarget = autopilotCase == 1 ? 1 : autopilotCase == 2 ? -1 :
+            autopilotCase == 3 ? 32767 : -32768;
+        const int initialTrim = !autopilotCase ? 0 : autopilotCase == 1 ? 1 :
+            autopilotCase == 2 ? -1 : autopilotCase == 3 ? -32768 : 32767;
+        waypointIndex = 0;
+        g_missionTick = autopilotCase == 3 ? 0 : 15;
+        g_waypointBearing = bearingTarget;
+        if (autopilotCase) {
+            g_autopilotAltitude = altitudeTarget;
+            g_autopilotEngaged = autopilotCase >= 3;
+        }
         g_viewZ = sceneHeight;
         g_altitude = legacy::altitudeFromUnits(height);
         g_velocity = legacy::speedFromUnits(8100);
@@ -115,6 +133,7 @@ void thrustAndFuel() {
         g_ourRoll = legacy::angleFromWord(roll);
         g_stallSpeed = {};
         g_liftForce = g_rollPitchTrim = {};
+        g_rollPitchTrim = legacy::angleFromWord(initialTrim);
         g_orientationDirty = g_rotationCounter = g_rollWasNonzero = 0;
         rebuildOrientation();
         // Preserve the pre-correction matrix output even if stall recovery
@@ -137,6 +156,14 @@ void thrustAndFuel() {
         if (pitchCommand < 0) ++pitchCommand;
         pitchCommand *= 6;
         if (pitchCommand < 0) pitchCommand /= 2;
+        int rollCommand = 0;
+        if (autopilotCase) {
+            const int offset = autopilotCase >= 3 ? (g_missionTick & 15) * 256 - 2048 : 0;
+            const int headingError = std::clamp(int(word(offset + bearingTarget)), -5120, 5120) * 2;
+            rollCommand = -std::clamp(int(floorDivide(word(headingError - roll), 64)), -24, 24);
+            const int altitudeError = std::clamp((altitudeTarget - sceneHeight) * 16 - initialTrim, -5120, 3072);
+            pitchCommand = std::clamp(int(floorDivide(altitudeError - pitch, 128)), -8, 8);
+        }
         const int bankLoad = g_rollGeeTable[(std::abs(roll) / 256) & 127];
         const int gees = std::min(128, bankLoad + pitchCommand / 2);
         if (bankLoad + pitchCommand / 2 > 128) {
@@ -170,8 +197,15 @@ void thrustAndFuel() {
         const int yawRate = word(floorDivide(
             std::int64_t(rotation_reference::sine(pitch + 16384, g_angleLut)) * dividedYaw + 16384, 32768));
         const int pitchStep = word(pitchCommand * 128) / hz;
+        const int rollStep = rollCommand * 128 / hz;
         const int yawStep = yawRate / hz;
         auto expectedMatrix = rotation_reference::rotation(0, pitch, roll, g_angleLut);
+        if (rollStep) {
+            const int16 s = rotation_reference::sine(rollStep, g_angleLut);
+            const int16 c = rotation_reference::sine(rollStep + 16384, g_angleLut);
+            const rotation_reference::Matrix delta{c, s, 0, word(-s), c, 0, 0, 0, 32767};
+            expectedMatrix = rotation_reference::multiply(expectedMatrix, delta);
+        }
         if (pitchStep) {
             const int16 s = rotation_reference::sine(pitchStep, g_angleLut);
             const int16 c = rotation_reference::sine(pitchStep + 16384, g_angleLut);
@@ -200,6 +234,9 @@ void thrustAndFuel() {
                 hz, height, roll, stickPitch, int(g_joyRawY), legacy::pitchInput(g_pitchInput), actualLoad, gees);
         require(actualLoad == gees, "bank and pitch-command load changed");
         require(legacy::pitchInput(g_pitchInput) == pitchCommand, "load cap pitch-command reduction changed");
+        require(legacy::rollInput(g_rollInput) == rollCommand, "altitude-hold roll command changed");
+        if (autopilotCase)
+            require(g_autopilotAltitude == altitudeTarget, "neutral input unexpectedly cancels altitude hold");
         require(g_cornerSpeed == corner && AirspeedBoundary<FixedBackend>::stall(g_stallSpeed) == corner * 27,
                 "full flight model corner/stall threshold changed");
         require(legacy::speedUnits(g_velocity) == velocity && g_knots == velocity / 27,
