@@ -448,7 +448,11 @@ switch_break:
         }
     }
     if (gameData->unk4 != 0) {
+#ifdef F15_MODERN_MATH
+        turbulence = Aero::lowAltitudeTurbulenceRange(g_altitude, g_velocity);
+#else
         turbulence = ((int32)g_knots * (1000 - g_viewZ)) >> 15;
+#endif
     } else {
         turbulence = 0;
     }

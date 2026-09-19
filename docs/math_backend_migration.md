@@ -885,6 +885,25 @@ large scalars. Use fixed-seed generated cases and independent widened-integer
 references. Keep multiplication-result narrowing explicit in adapters: the
 library can return +32768 where a production signed-word store wraps it.
 
+### Modern high-altitude follow-up
+
+The modern HUD no longer truncates altitude modulo 65536 and generates its
+thousands labels numerically. This does not remove the separate signed scene-height
+boundary: `advanceFlightAltitude` still stores compressed height in `g_viewZ`,
+which becomes negative at flight altitude 98304. A production characterization
+test records that remaining boundary explicitly.
+
+Modern low-altitude turbulence now takes typed flight altitude and speed directly,
+avoiding this narrowed scene height. A centered-stick production flight-loop
+regression at altitude 131072 failed before that change and passes afterward.
+The fixed turbulence path is unchanged. Integer turbulence amplitude remains an
+explicit boundary to the existing deterministic random-command generator;
+1000 scene-height units and the response divisor 32768 remain gameplay tuning.
+
+Other `g_viewZ` consumers still require migration, including ground-avoidance
+assistance, guidance, propulsion inputs, and camera state. The turbulence test
+does not establish unrestricted high-altitude flight or rendering stability.
+
 For whole-sortie migration, capture a fixed seed, initial state and tick-indexed
 inputs. Compare fixed-backend state after each tick exactly. For floating point,
 use declared angular/position/velocity tolerances, finite-value checks, matrix

@@ -4,6 +4,7 @@
 #include "math/legacy_airspeed.hpp"
 #include "math/legacy_propulsion.hpp"
 #include "math/legacy_flight_control.hpp"
+#include "math/aerodynamics.hpp"
 #include "egdata.h"
 #include "egflight.h"
 #include "comm.h"
@@ -15,6 +16,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <type_traits>
+#include <utility>
 
 void stepFlightModel();
 void rebuildOrientation();
@@ -36,6 +38,15 @@ int main() {
     using Altitudes = AltitudeBoundary<ModernBackend>;
     using Speeds = AirspeedBoundary<ModernBackend>;
     using Controls = ControlBoundary<ModernBackend>;
+    using Aero = AerodynamicsMath<ModernBackend>;
+    for (const auto &sample : {std::pair{0.0, 9}, {500.5, 4}, {999.0, 0},
+                               {1000.0, 0}, {98304.0, 0}, {131072.0, 0}}) {
+        require(Aero::lowAltitudeTurbulenceRange(Altitudes::altitude(sample.first),
+                    Speeds::speed(8100)) == sample.second,
+                "modern low-altitude turbulence response changed");
+    }
+    require(Aero::lowAltitudeTurbulenceRange(Altitudes::altitude(0),
+                Speeds::speed(0)) == 0, "stationary aircraft received turbulence");
     test_headless_init();
     gfx_videoInit();
     gfx_setMode13();
@@ -121,6 +132,19 @@ int main() {
                 "modern flight step produced invalid airborne state");
         for (double coefficient : Angles::matrix(g_orientMatrix))
             require(std::isfinite(coefficient), "modern flight matrix became non-finite");
+    }
+    for (int i = 0; i < 8; ++i) {
+        g_altitude = Altitudes::altitude(131072);
+        g_velocity = Speeds::speed(8100);
+        g_knots = 300;
+        g_playerPlaneFlags = 1;
+        g_joyRawX = g_joyRawY = 128;
+        g_ourHead = g_ourPitch = g_ourRoll = g_rollPitchTrim = {};
+        rebuildOrientation();
+        advanceFlightAltitude();
+        stepFlightModel();
+        require(g_rollInput.isZero(),
+                "high altitude injected false low-altitude roll turbulence");
     }
     gameData = nullptr;
     commData = nullptr;

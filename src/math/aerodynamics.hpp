@@ -2,6 +2,7 @@
 #define F15_MATH_AERODYNAMICS_HPP
 #include "airspeed.hpp"
 #include "propulsion.hpp"
+#include <limits>
 
 namespace f15::math {
 enum class StallSeverity { Normal, Severe };
@@ -23,6 +24,21 @@ template<class B> class AerodynamicsMath {
         return bits < 32768 ? int(bits) : int(bits) - 65536;
     }
 public:
+    // Modern buffet uses continuous flight state. The integer result is the
+    // range consumed by the existing deterministic random-command generator.
+    static int lowAltitudeTurbulenceRange(FlightAltitude<B> altitude, FlightSpeed<B> speed) {
+        static_assert(std::is_same_v<B, ModernBackend>);
+        constexpr double buffetCeiling = 1000; // Compressed scene-height scale.
+        constexpr double buffetResponseScale = 32768; // Legacy response tuning.
+        const auto height = AltitudeMath<B>::renderHeight(altitude);
+        if (height.value_ >= buffetCeiling || speed.value_ <= 0) return 0;
+        const double range = (speed.value_ / velocityUnitsPerKnot) *
+            (buffetCeiling - height.value_) / buffetResponseScale;
+        // Leave room for the separately applied gear buffet (at most 32).
+        if (!std::isfinite(range) || range > std::numeric_limits<int>::max() - 32)
+            throw std::overflow_error("turbulence random range overflow");
+        return static_cast<int>(range);
+    }
     static YawRate<B> turnRate(FlightLoad<B> load, FlightSpeed<B> speed,
                                Coefficient<B> sineRoll, Coefficient<B> cosinePitch) {
         constexpr int loadScale = 16;
