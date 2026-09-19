@@ -509,6 +509,11 @@ enable_testing()
 
 set(TEST_DIR ${CMAKE_CURRENT_SOURCE_DIR}/tests)
 
+add_executable(fixed_math_tests ${TEST_DIR}/fixed_math_tests.cpp)
+target_include_directories(fixed_math_tests PRIVATE ${SRC_DIR})
+target_compile_features(fixed_math_tests PRIVATE cxx_std_17)
+add_test(NAME fixed_math_tests COMMAND fixed_math_tests)
+
 function(add_behavior_test name)
     cmake_parse_arguments(T "LINK_CORE" "" "SOURCES;DEFS" ${ARGN})
     add_executable(${name} ${TEST_DIR}/${name}.cpp ${T_SOURCES})
@@ -572,6 +577,7 @@ target_compile_options(signed_ratio_behavior_tests PRIVATE
     $<$<CXX_COMPILER_ID:MSVC>:/J>)
 add_behavior_test(file_io_behavior_tests LINK_CORE)
 add_behavior_test(gameplay_behavior_tests LINK_CORE)
+add_behavior_test(fixed_math_backend_tests LINK_CORE)
 add_behavior_test(input_behavior_tests LINK_CORE)
 add_behavior_test(joystick_behavior_tests LINK_CORE)
 add_behavior_test(controls_behavior_tests LINK_CORE)
