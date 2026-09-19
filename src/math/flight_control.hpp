@@ -20,6 +20,7 @@ template<class B, class Axis> class AxisRate {
     Rep value_{};
     explicit AxisRate(Rep value) : value_(value) {}
     friend class FlightControlMath<B>;
+    friend class AerodynamicsMath<B>;
     friend struct ControlBoundary<B>;
     static AxisRate sum(AxisRate a, AxisRate b) {
         if constexpr (std::is_same_v<B, FixedBackend>) {

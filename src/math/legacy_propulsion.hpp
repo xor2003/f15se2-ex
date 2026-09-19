@@ -16,5 +16,8 @@ inline FuelLoad<FixedBackend> fuelFromUnits(std::int16_t value) {
 inline FlightLoad<FixedBackend> loadFromSixteenths(std::int32_t value) {
     return PropulsionBoundary<FixedBackend>::load(value);
 }
+inline std::int32_t loadSixteenths(FlightLoad<FixedBackend> value) {
+    return PropulsionBoundary<FixedBackend>::load(value);
+}
 }
 #endif

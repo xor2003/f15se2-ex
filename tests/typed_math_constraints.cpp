@@ -218,6 +218,14 @@ int main() {
     int *raw = &speed;
 #elif defined(TEST_AIRSPEED_SAMPLE)
     FlightSpeed<FixedBackend> speed = AirspeedSample<FixedBackend>{};
+#elif defined(TEST_LOAD_RESPONSE_RAW)
+    (void)AerodynamicsMath<FixedBackend>::loadResponse(16, 2, true);
+#elif defined(TEST_LOAD_RESPONSE_AXIS)
+    (void)AerodynamicsMath<FixedBackend>::loadResponse({}, RollCommand<FixedBackend>{}, true);
+#elif defined(TEST_LOAD_RESPONSE_BACKEND)
+    (void)AerodynamicsMath<ModernBackend>::loadResponse(FlightLoad<FixedBackend>{}, {}, true);
+#elif defined(TEST_LOAD_RESPONSE_ROLE)
+    (void)AerodynamicsMath<FixedBackend>::loadResponse(FuelLoad<FixedBackend>{}, {}, true);
 #elif defined(TEST_COORDINATE_POINTER)
     ViewCoordinate<FixedBackend, ViewXAxis> point;
     int *raw = &point;

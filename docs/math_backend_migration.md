@@ -173,6 +173,36 @@ assist consumers, reached through the explicit `cornerKnots` adapter. Load
 generation, negative-load caller scenarios, assisted controls and whole-game
 backend selection remain open. No units library is used.
 
+## Flight-load migration checkpoint
+
+Tests-first commit `a875575` extends the unchanged flight model to 1,166,400
+cases using an SDL virtual joystick for centered and both full-pitch positions.
+The input pump overwrites keyboard-stick globals, so assigning those globals
+alone does not exercise non-neutral input. The fixture checks the axes actually
+consumed by the flight model. It also freezes the unusual ordered load clamp:
+a negative pitch can make its lower and upper bounds inverted.
+
+`AerodynamicsMath::loadResponse` now accepts typed bank load and pitch command,
+and returns typed load and the limited pitch command. Fixed mode preserves the
+separate truncating division, signed-word clamp arguments, and upper-bound-first
+clamp ordering. Modern mode retains fractional pitch contribution and limiting;
+it does not reproduce signed-word wrapping. Both retain the eight-G ceiling.
+The caller reuses the typed result for corner speed and propulsion drag.
+
+The bank lookup and `g_gees` storage/formatting/yaw consumers remain legacy
+boundaries; this is not a completed migration of load throughout the game.
+Unit coverage exhausts all 256 bank-byte values, all signed 16-bit pitch
+commands, and both airborne states (33,554,432 combinations). Modern tests
+check fractional contribution, ground behavior, and fractional limiting.
+Four added compile-negative cases reject primitives, wrong axes, wrong
+quantities, and backend mixing at the new API.
+
+Verification: full Linux Release build and all 52 CTests pass. Clang analysis
+of the aerodynamic harness is clean. ASan/UBSan passes for the aerodynamic
+harness and full flight-model characterization, with `egflight.c` instrumented;
+the rest of the linked core is not instrumented. Whole-sortie blackbox replay,
+Windows, Android, and browser verification remain outstanding.
+
 ## Rotation migration checkpoint
 
 * `Angle`, `Coefficient`, `EulerAngles` and `Matrix3` carry backend types. Storage

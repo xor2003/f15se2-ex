@@ -6,6 +6,7 @@
 namespace f15::math {
 enum class StallSeverity { Normal, Severe };
 template<class B> struct StallResponse { bool stalled; Angle<B> noseDrop; };
+template<class B> struct LoadResponse { FlightLoad<B> load; PitchCommand<B> pitch; };
 // The legacy "lift force" is an angular correction, not a force in newtons.
 template<class B> class AerodynamicsMath {
     static constexpr int baseCornerKnots = 100;
@@ -14,11 +15,36 @@ template<class B> class AerodynamicsMath {
     static constexpr int rootLoadScale = 4;
     static constexpr int cornerLoadScale = 8;
     static constexpr int velocityUnitsPerKnot = 27;
+    static constexpr int maximumLoad = 128; // Eight G, in sixteenths.
+    static constexpr int pitchLoadDivisor = 2;
+    static constexpr double commandRadiansPerSecond = 128 * (6.28318530717958647692 / 65536);
     static int signedWord(std::int64_t v) {
         const auto bits = std::uint16_t(v);
         return bits < 32768 ? int(bits) : int(bits) - 65536;
     }
 public:
+    static LoadResponse<B> loadResponse(FlightLoad<B> bank, PitchCommand<B> pitch, bool airborne) {
+        if constexpr (std::is_same_v<B, FixedBackend>) {
+            const auto load = std::int64_t(bank.value_) + (airborne ? pitch.value_ / pitchLoadDivisor : 0);
+            if (load < INT32_MIN || load > INT32_MAX)
+                throw std::overflow_error("flight load overflow");
+            if (load <= maximumLoad) return {FlightLoad<B>(static_cast<std::int32_t>(load)), pitch};
+            // The old clamp accepts signed words and checks the upper bound
+            // first, even when a negative pitch makes its bounds inverted.
+            const int limit = signedWord(std::int64_t(maximumLoad) - bank.value_);
+            const int command = limit > pitch.value_ ? pitch.value_ :
+                limit >= 0 ? limit : limit <= -16384 ? pitch.value_ : 0;
+            return {FlightLoad<B>(maximumLoad), PitchCommand<B>(static_cast<std::int16_t>(command))};
+        } else {
+            const double command = pitch.value_ / commandRadiansPerSecond;
+            const double load = bank.value_ + (airborne ? command / pitchLoadDivisor : 0);
+            if (!std::isfinite(load)) throw std::overflow_error("non-finite flight load");
+            if (load <= maximumLoad) return {FlightLoad<B>(load), pitch};
+            const double limit = maximumLoad - bank.value_;
+            const double limited = limit > command ? command : std::max(0.0, limit);
+            return {FlightLoad<B>(maximumLoad), PitchCommand<B>(limited * commandRadiansPerSecond)};
+        }
+    }
     static CornerSpeed<B> cornerSpeed(FlightAltitude<B> altitude, FlightLoad<B> load) {
         if constexpr (std::is_same_v<B, FixedBackend>) {
             // Preserve the unsigned dword product, then each signed-word store.

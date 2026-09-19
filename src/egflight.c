@@ -586,15 +586,11 @@ switch_break:
         g_fuelRemaining = 0;
     }
 
-    g_gees = g_rollGeeTable[(abs((int16)signedAngle(g_ourRoll)) >> 8) & 0x7f];
-    if (((uint16)g_groundAltitude) < ((uint16)g_viewZ)) {
-        g_gees += pitchInput(g_pitchInput) / 2;
-    }
-
-    if (g_gees > 0x80) {
-        g_gees = 0x80;
-        g_pitchInput = pitchCommand(clampRange(0x80 - g_rollGeeTable[(abs((int16)signedAngle(g_ourRoll)) >> 8) & 0x7f], 0, pitchInput(g_pitchInput)));
-    }
+    const auto load = Aero::loadResponse(f15::math::legacy::loadFromSixteenths(
+        g_rollGeeTable[(abs((int16)signedAngle(g_ourRoll)) >> 8) & 0x7f]), g_pitchInput,
+        ((uint16)g_groundAltitude) < ((uint16)g_viewZ));
+    g_gees = f15::math::legacy::loadSixteenths(load.load);
+    g_pitchInput = load.pitch;
 
     strcpy(g_geeStringBuf, itoa(g_gees / 16, strBuf, 10));
     strcat(g_geeStringBuf, ".");
@@ -602,14 +598,14 @@ switch_break:
     strcat(g_geeStringBuf, itoa((abs(g_gees) & 0xF) >> 1, strBuf, 10));
     strcat(g_geeStringBuf, "G");
 
-    const auto corner = Aero::cornerSpeed(g_altitude, f15::math::legacy::loadFromSixteenths(g_gees));
+    const auto corner = Aero::cornerSpeed(g_altitude, load.load);
     g_cornerSpeed = f15::math::legacy::cornerKnots(corner);
     g_stallSpeed = Aero::stallThreshold(corner);
     accelerateFlightSpeed(Propulsion::targetSpeed(g_thrust,
         f15::math::legacy::Math(g_angleLut).sine(g_ourPitch),
         f15::math::legacy::renderHeightFromUnits(g_viewZ),
         f15::math::legacy::fuelFromUnits(g_fuelRemaining),
-        f15::math::legacy::loadFromSixteenths(g_gees),
+        load.load,
         (g_playerPlaneFlags & 1) ? f15::math::LandingGear::Retracted : f15::math::LandingGear::Extended));
 
     updateFlightLift();

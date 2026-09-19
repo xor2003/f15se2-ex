@@ -3,6 +3,7 @@
 #include "math/legacy_rotation.hpp"
 #include "math/legacy_altitude.hpp"
 #include "math/legacy_propulsion.hpp"
+#include "math/legacy_flight_control.hpp"
 #include "math/interpolation.hpp"
 #include "math_rotation_reference.hpp"
 #include "egdata.h"
@@ -160,5 +161,40 @@ void cornerMath() {
     rejects([] { MM::cornerSpeed(AltitudeBoundary<M>::altitude(1e308), PropulsionBoundary<M>::load(1e308)); });
     rejects([] { MM::stallThreshold(MC::corner(1e308)); });
 }
+void loadMath() {
+    for (int bank = 0; bank <= 255; ++bank)
+    for (int pitch = -32768; pitch <= 32767; ++pitch)
+    for (bool airborne : {false, true}) {
+        // Frozen load/clamp sequence from egflight.c at a875575.
+        int expected = bank + (airborne ? pitch / 2 : 0);
+        int command = pitch;
+        if (expected > 128) {
+            expected = 128;
+            int limit = 128 - bank;
+            if (limit > command) limit = command;
+            else if (limit < 0) limit = 0;
+            command = limit;
+        }
+        const auto result = FM::loadResponse(PropulsionBoundary<F>::load(bank),
+            ControlBoundary<F>::pitch(pitch), airborne);
+        require(PropulsionBoundary<F>::load(result.load) == expected, "fixed load differs from frozen baseline");
+        require(ControlBoundary<F>::pitch(result.pitch) == command, "fixed load limiter differs from frozen baseline");
+    }
+    constexpr double radiansPerCommand = 128 * (6.28318530717958647692 / 65536);
+    const auto fractional = MM::loadResponse(PropulsionBoundary<M>::load(16.25),
+        ControlBoundary<M>::radiansPerSecond<PitchAxis>(1.5 * radiansPerCommand), true);
+    require(std::abs(PropulsionBoundary<M>::load(fractional.load) - 17.0) < 1e-12,
+            "modern pitch contribution truncated");
+    const auto grounded = MM::loadResponse(PropulsionBoundary<M>::load(16.25),
+        ControlBoundary<M>::radiansPerSecond<PitchAxis>(1.5 * radiansPerCommand), false);
+    require(PropulsionBoundary<M>::load(grounded.load) == 16.25, "ground load includes pitch");
+    const auto capped = MM::loadResponse(PropulsionBoundary<M>::load(127.25),
+        ControlBoundary<M>::radiansPerSecond<PitchAxis>(4.0 * radiansPerCommand), true);
+    require(PropulsionBoundary<M>::load(capped.load) == 128 &&
+            std::abs(ControlBoundary<M>::radiansPerSecond(capped.pitch) - .75 * radiansPerCommand) < 1e-12,
+            "modern load limiter lost fractional command");
+    rejects([] { FM::loadResponse(PropulsionBoundary<F>::load(INT32_MAX), ControlBoundary<F>::pitch(2), true); });
+    rejects([] { FM::loadResponse(PropulsionBoundary<F>::load(INT32_MIN), ControlBoundary<F>::pitch(-2), true); });
 }
-int main() { fixedMath(); productionCaller(); modernMath(); cornerMath(); }
+}
+int main() { fixedMath(); productionCaller(); modernMath(); cornerMath(); loadMath(); }
