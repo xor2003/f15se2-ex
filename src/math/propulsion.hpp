@@ -43,6 +43,7 @@ template<class B> class EngineThrust {
     }
     friend class PropulsionMath<B>;
     friend struct PropulsionBoundary<B>;
+    friend class GuidanceMath<B>;
 public:
     EngineThrust() = default;
     bool isZero() const { return value_ == 0; }

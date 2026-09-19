@@ -14,6 +14,17 @@ snapshot interpolation now use axis-specific types.
 This is the first migrated subsystem, not a complete interchangeable simulation
 backend. No whole-game floating-point backend selector is exposed.
 
+## Typed recovery thrust
+
+Recovery throttle generation now returns `EngineThrust` from typed bank target
+and approach height. Its fixed implementation preserves the two independent
+integer divisions and 35..80 command limits; modern math retains fractions.
+The intermediate bank target no longer leaves the typed API. The requested
+throttle still crosses an explicit adapter into `g_setThrust`, whose remaining
+consumers have not been migrated. The helper is checked against 262,144 fixed
+reference combinations and a fractional modern case, in addition to the
+previously committed full-flight recovery fixtures.
+
 ## Typed recovery bank target
 
 `GuidanceMath::recoveryBank` now computes the speed-dependent bank target from

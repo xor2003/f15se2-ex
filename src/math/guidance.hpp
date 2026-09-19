@@ -2,6 +2,7 @@
 #define F15_MATH_GUIDANCE_HPP
 #include "altitude.hpp"
 #include "airspeed.hpp"
+#include "propulsion.hpp"
 #include <algorithm>
 
 namespace f15::math {
@@ -22,6 +23,17 @@ template<class B> class GuidanceMath {
         return value / divisor - (value % divisor < 0 ? 1 : 0);
     }
 public:
+    static EngineThrust<B> recoveryThrust(Angle<B> bankTarget, RenderHeight<B> approachHeight) {
+        if constexpr (std::is_same_v<B, FixedBackend>) {
+            const int request = std::abs(word(bankTarget.value_.raw())) / 256 + approachHeight.value_ / 64;
+            return EngineThrust<B>(static_cast<std::int16_t>(std::clamp(request, 35, 80)));
+        } else {
+            const double request = std::abs(bankTarget.value_) / (256 * wordRadians) + approachHeight.value_ / 64;
+            if (!std::isfinite(request)) throw std::domain_error("non-finite recovery thrust input");
+            return EngineThrust<B>(std::clamp(request, 35.0, 80.0));
+        }
+    }
+
     // Speed is the indicated-speed sample used by guidance, expressed in the
     // flight-speed scale (27 units per knot), not a newly integrated velocity.
     static Angle<B> recoveryBank(Angle<B> bearing, Angle<B> heading,

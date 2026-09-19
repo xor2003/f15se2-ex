@@ -3,6 +3,7 @@
 #include "math/legacy_rotation.hpp"
 #include "math/legacy_flight_control.hpp"
 #include "math/legacy_airspeed.hpp"
+#include "math/legacy_propulsion.hpp"
 #include "math_rotation_reference.hpp"
 #include <cstdio>
 #include <cstdlib>
@@ -74,6 +75,10 @@ void recoveryCases() {
     for (int target : {-20, 50, 4096, 4196}) {
         const int roll = word(raw), pitch = word(raw * 3), trim = word(raw * 7);
         const int bank = word(raw * 11), height = word(raw * 13);
+        const auto thrust = GuidanceMath<F>::recoveryThrust(legacy::angleFromWord(bank),
+            legacy::renderHeightFromUnits(target));
+        require(legacy::thrustUnits(thrust) == std::clamp(std::abs(bank) / 256 + target / 64, 35, 80),
+            "fixed recovery thrust differs from scalar formula");
         const auto result = GuidanceMath<F>::recoveryAttitude(legacy::renderHeightFromUnits(target),
             legacy::renderHeightFromUnits(height), legacy::angles(0, pitch, roll),
             legacy::angleFromWord(bank), legacy::angleFromWord(trim));
@@ -84,6 +89,10 @@ void recoveryCases() {
             ControlBoundary<F>::pitch(result.pitch) == expectedPitch, "fixed recovery steering differs from scalar formula");
     }
     constexpr double unit = 6.28318530717958647692 / 65536;
+    const auto fractionalThrust = GuidanceMath<M>::recoveryThrust(Boundary<M>::radians(256.5 * unit),
+        AltitudeBoundary<M>::render(2560.5));
+    require(std::abs(PropulsionBoundary<M>::thrust(fractionalThrust) - (256.5 / 256 + 2560.5 / 64)) < 1e-14,
+        "modern recovery thrust lost fractional input");
     for (double knots : {0.25, 15.5, 16.25, 350.5}) {
         const auto bank = GuidanceMath<M>::recoveryBank(Boundary<M>::radians(1), {},
             AirspeedBoundary<M>::speed(knots * 27), false);

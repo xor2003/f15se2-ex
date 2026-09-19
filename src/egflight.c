@@ -461,7 +461,6 @@ switch_break:
             const auto bankTarget = f15::math::GuidanceMath<f15::math::FixedBackend>::recoveryBank(
                 angleFromWord(bearing), g_ourHead,
                 f15::math::legacy::speedFromUnits(g_knots * 27), inRecoveryCorridor != 0);
-            headingErr = signedAngle(bankTarget);
 
             const auto recovery = f15::math::GuidanceMath<f15::math::FixedBackend>::recoveryAttitude(
                 f15::math::legacy::renderHeightFromUnits(tmpVal),
@@ -469,7 +468,9 @@ switch_break:
                 {g_ourHead, g_ourPitch, g_ourRoll}, bankTarget, g_rollPitchTrim);
             g_rollInput = recovery.roll;
 
-            g_setThrust = clampRange((abs(headingErr) / 256) + (tmpVal / 64), 35, 80);
+            g_setThrust = f15::math::legacy::thrustUnits(
+                f15::math::GuidanceMath<f15::math::FixedBackend>::recoveryThrust(
+                    bankTarget, f15::math::legacy::renderHeightFromUnits(tmpVal)));
             UpdateThrottleState();
 
             g_pitchInput = recovery.pitch;
