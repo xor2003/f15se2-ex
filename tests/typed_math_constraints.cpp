@@ -31,6 +31,10 @@ int main() {
     (void)(angle + math.sine(angle));
 #elif defined(TEST_PRIVATE_STORAGE)
     angle.value_ = 0;
+#elif defined(TEST_MATRIX_INDEX)
+    matrix[0] = 1.0;
+#elif defined(TEST_MATRIX_POINTER)
+    const double *raw = matrix;
 #endif
     return 0;
 }

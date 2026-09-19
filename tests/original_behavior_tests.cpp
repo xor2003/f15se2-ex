@@ -13,6 +13,11 @@
 #include "egflight.h"
 #include "comm.h"
 #include "inttype.h"
+#define F15_MATH_BOUNDARY_ACCESS
+#include "math/boundary.hpp"
+#undef F15_MATH_BOUNDARY_ACCESS
+using OrientationCodec = f15::math::Boundary<f15::math::FixedBackend>;
+using OrientationMatrix = f15::math::Matrix3<f15::math::FixedBackend>;
 
 #include <cstdlib>
 #include <cstring>
@@ -28,7 +33,7 @@ extern int valueToAngle(int value);
 extern int complementAngle(int value);
 extern int16 FAR CDECL hudSine(int16 angle);
 extern int FAR CDECL hudPitchScale(int ap);
-extern void applyRotationDelta(const int16 *matA, const int16 *matB);
+extern void applyRotationDelta(const OrientationMatrix &matA, const OrientationMatrix &matB);
 extern void computeAttitudeAngles(void);
 extern void rebuildOrientation(void);
 
@@ -297,30 +302,34 @@ int main() {
                 "randomRange scales DOS 15-bit rand output");
     }
 
+    int16 orientationWords[9] = {};
     // --- rebuildOrientation + computeAttitudeAngles round trip --------------
     // Orientation math is pure: rebuildOrientation builds g_orientMatrix from the
-    // Euler attitude via the real buildRotationMatrixFar; computeAttitudeAngles
-    // recovers the attitude (valueToAngle/complementAngle/signedRatio16 path).
+    // Euler attitude via the typed fixed builder; computeAttitudeAngles recovers
+    // the attitude with the original inverse-trig and signed quotient rules.
     g_ourHead = g_ourPitch = g_ourRoll = 0;
     g_orientationDirty = 1;
     g_rotationCounter = 99;
     rebuildOrientation();
+    OrientationCodec::matrixWords(g_orientMatrix, orientationWords);
     require(g_orientationDirty == 0 &&
                 g_rotationCounter == 0 &&
-                g_orientMatrix[0] == kQ15ZeroAngleProduct &&
-                g_orientMatrix[4] == kQ15ZeroAngleProduct &&
-                g_orientMatrix[8] == kQ15ZeroAngleProduct,
+                orientationWords[0] == kQ15ZeroAngleProduct &&
+                orientationWords[4] == kQ15ZeroAngleProduct &&
+                orientationWords[8] == kQ15ZeroAngleProduct,
             "rebuildOrientation rebuilds the original zero-angle matrix and clears dirty state");
+    g_orientMatrix = OrientationCodec::matrixWords(orientationWords);
     computeAttitudeAngles();
     require(g_ourHead == 0 && g_ourPitch == 0 && g_ourRoll == 0,
             "computeAttitudeAngles recovers original zero attitude from identity orientation");
 
-    std::memset(g_orientMatrix, 0, sizeof(int16) * 9);
-    g_orientMatrix[2] = kAttitudeWideComponent;
-    g_orientMatrix[3] = kAttitudeWideComponent;
-    g_orientMatrix[4] = kAttitudeNarrowComponent;
-    g_orientMatrix[5] = 0;
-    g_orientMatrix[8] = kAttitudeNarrowComponent;
+    std::memset(orientationWords, 0, sizeof(orientationWords));
+    orientationWords[2] = kAttitudeWideComponent;
+    orientationWords[3] = kAttitudeWideComponent;
+    orientationWords[4] = kAttitudeNarrowComponent;
+    orientationWords[5] = 0;
+    orientationWords[8] = kAttitudeNarrowComponent;
+    g_orientMatrix = OrientationCodec::matrixWords(orientationWords);
     computeAttitudeAngles();
     require(g_ourHead == complementAngle(std::abs(static_cast<int>(
                 static_cast<int16>(expectedSignedRatio16(kAttitudeNarrowComponent, kQ15Identity))))) &&
@@ -328,12 +337,13 @@ int main() {
                 static_cast<int16>(expectedSignedRatio16(kAttitudeNarrowComponent, kQ15Identity))))),
             "computeAttitudeAngles uses original complement-angle path for wide heading and roll components");
 
-    std::memset(g_orientMatrix, 0, sizeof(int16) * 9);
-    g_orientMatrix[2] = kAttitudeNarrowComponent;
-    g_orientMatrix[3] = kAttitudeNarrowComponent;
-    g_orientMatrix[4] = -kAttitudeNarrowComponent;
-    g_orientMatrix[5] = 0;
-    g_orientMatrix[8] = -kAttitudeNarrowComponent;
+    std::memset(orientationWords, 0, sizeof(orientationWords));
+    orientationWords[2] = kAttitudeNarrowComponent;
+    orientationWords[3] = kAttitudeNarrowComponent;
+    orientationWords[4] = -kAttitudeNarrowComponent;
+    orientationWords[5] = 0;
+    orientationWords[8] = -kAttitudeNarrowComponent;
+    g_orientMatrix = OrientationCodec::matrixWords(orientationWords);
     computeAttitudeAngles();
     require(g_ourHead == 0x8000 - valueToAngle(std::abs(static_cast<int>(
                 static_cast<int16>(expectedSignedRatio16(kAttitudeNarrowComponent, kQ15Identity))))) &&
@@ -341,12 +351,13 @@ int main() {
                 static_cast<int16>(expectedSignedRatio16(kAttitudeNarrowComponent, kQ15Identity))))),
             "computeAttitudeAngles preserves original positive/negative quadrant folding");
 
-    std::memset(g_orientMatrix, 0, sizeof(int16) * 9);
-    g_orientMatrix[2] = -kAttitudeNarrowComponent;
-    g_orientMatrix[3] = -kAttitudeNarrowComponent;
-    g_orientMatrix[4] = kAttitudeNarrowComponent;
-    g_orientMatrix[5] = 0;
-    g_orientMatrix[8] = kAttitudeNarrowComponent;
+    std::memset(orientationWords, 0, sizeof(orientationWords));
+    orientationWords[2] = -kAttitudeNarrowComponent;
+    orientationWords[3] = -kAttitudeNarrowComponent;
+    orientationWords[4] = kAttitudeNarrowComponent;
+    orientationWords[5] = 0;
+    orientationWords[8] = kAttitudeNarrowComponent;
+    g_orientMatrix = OrientationCodec::matrixWords(orientationWords);
     computeAttitudeAngles();
     require(static_cast<uint16>(g_ourHead) == static_cast<uint16>(-valueToAngle(std::abs(static_cast<int>(
                 static_cast<int16>(expectedSignedRatio16(-kAttitudeNarrowComponent, kQ15Identity)))))) &&
@@ -354,58 +365,64 @@ int main() {
                 static_cast<int16>(expectedSignedRatio16(-kAttitudeNarrowComponent, kQ15Identity)))))),
             "computeAttitudeAngles preserves original negative/positive quadrant folding");
 
-    std::memset(g_orientMatrix, 0, sizeof(int16) * 9);
-    g_orientMatrix[1] = kAttitudeNarrowComponent;
-    g_orientMatrix[3] = kAttitudeNarrowComponent;
-    g_orientMatrix[4] = -kAttitudeNarrowComponent;
-    g_orientMatrix[5] = kAttitudePitchQuarterTurnInput;
+    std::memset(orientationWords, 0, sizeof(orientationWords));
+    orientationWords[1] = kAttitudeNarrowComponent;
+    orientationWords[3] = kAttitudeNarrowComponent;
+    orientationWords[4] = -kAttitudeNarrowComponent;
+    orientationWords[5] = kAttitudePitchQuarterTurnInput;
+    g_orientMatrix = OrientationCodec::matrixWords(orientationWords);
     computeAttitudeAngles();
     require(g_ourRoll == 0 &&
                 g_ourHead == 0x8000 - valueToAngle(kAttitudeNarrowComponent),
             "computeAttitudeAngles preserves original vertical-pitch heading quadrant fallback");
 
-    std::memset(g_orientMatrix, 0, sizeof(int16) * 9);
-    g_orientMatrix[2] = 0;
-    g_orientMatrix[3] = 0;
-    g_orientMatrix[4] = -kAttitudeNarrowComponent;
-    g_orientMatrix[5] = 0;
-    g_orientMatrix[8] = -kAttitudeNarrowComponent;
+    std::memset(orientationWords, 0, sizeof(orientationWords));
+    orientationWords[2] = 0;
+    orientationWords[3] = 0;
+    orientationWords[4] = -kAttitudeNarrowComponent;
+    orientationWords[5] = 0;
+    orientationWords[8] = -kAttitudeNarrowComponent;
+    g_orientMatrix = OrientationCodec::matrixWords(orientationWords);
     computeAttitudeAngles();
     require(static_cast<uint16>(g_ourHead) == kAngleHalfTurn &&
                 static_cast<uint16>(g_ourRoll) == kAngleHalfTurn,
             "computeAttitudeAngles preserves original high-byte quadrant add for zero/negative axes");
 
-    std::memset(g_orientMatrix, 0, sizeof(int16) * 9);
-    g_orientMatrix[1] = kAttitudeNarrowComponent;
-    g_orientMatrix[3] = 0;
-    g_orientMatrix[4] = -kAttitudeNarrowComponent;
-    g_orientMatrix[5] = kAttitudePitchQuarterTurnInput;
+    std::memset(orientationWords, 0, sizeof(orientationWords));
+    orientationWords[1] = kAttitudeNarrowComponent;
+    orientationWords[3] = 0;
+    orientationWords[4] = -kAttitudeNarrowComponent;
+    orientationWords[5] = kAttitudePitchQuarterTurnInput;
+    g_orientMatrix = OrientationCodec::matrixWords(orientationWords);
     computeAttitudeAngles();
     require(static_cast<uint16>(g_ourHead) ==
                 static_cast<uint16>(valueToAngle(kAttitudeNarrowComponent) + kAngleHalfTurn),
             "computeAttitudeAngles preserves original vertical-pitch high-byte quadrant add");
 
-    std::memset(g_orientMatrix, 0, sizeof(int16) * 9);
-    g_orientMatrix[1] = kAttitudeNarrowComponent;
-    g_orientMatrix[3] = -kAttitudeNarrowComponent;
-    g_orientMatrix[4] = kAttitudeNarrowComponent;
-    g_orientMatrix[5] = kAttitudePitchQuarterTurnInput;
+    std::memset(orientationWords, 0, sizeof(orientationWords));
+    orientationWords[1] = kAttitudeNarrowComponent;
+    orientationWords[3] = -kAttitudeNarrowComponent;
+    orientationWords[4] = kAttitudeNarrowComponent;
+    orientationWords[5] = kAttitudePitchQuarterTurnInput;
+    g_orientMatrix = OrientationCodec::matrixWords(orientationWords);
     computeAttitudeAngles();
     require(static_cast<uint16>(g_ourHead) ==
                 static_cast<uint16>(-valueToAngle(kAttitudeNarrowComponent)),
             "computeAttitudeAngles preserves original vertical-pitch negative heading fallback");
 
-    std::memset(g_orientMatrix, 0, sizeof(int16) * 9);
-    g_orientMatrix[5] = kQ15Identity; /* +1.0 sine input maps pitch to the -90 degree dirty band. */
+    std::memset(orientationWords, 0, sizeof(orientationWords));
+    orientationWords[5] = kQ15Identity; /* +1.0 sine input maps pitch to the -90 degree dirty band. */
     g_orientationDirty = 0;
+    g_orientMatrix = OrientationCodec::matrixWords(orientationWords);
     computeAttitudeAngles();
     require(g_orientationDirty == 1,
             "computeAttitudeAngles dirties orientation in the original negative near-vertical pitch band");
 
-    std::memset(g_orientMatrix, 0, sizeof(int16) * 9);
-    g_orientMatrix[0] = g_orientMatrix[4] = g_orientMatrix[8] = kQ15Identity;
+    std::memset(orientationWords, 0, sizeof(orientationWords));
+    orientationWords[0] = orientationWords[4] = orientationWords[8] = kQ15Identity;
     g_rollWasNonzero = 1;
     g_orientationDirty = 0;
+    g_orientMatrix = OrientationCodec::matrixWords(orientationWords);
     computeAttitudeAngles();
     require(g_ourRoll == 0 && g_orientationDirty == 1,
             "computeAttitudeAngles preserves original roll-was-nonzero dirty guard");
@@ -418,12 +435,13 @@ int main() {
     identityB[0] = identityB[4] = identityB[8] = kQ15Identity;
     g_rotationCounter = kRotationDirtyPeriod - 1;
     g_orientationDirty = 0;
-    applyRotationDelta(identityA, identityB);
+    applyRotationDelta(OrientationCodec::matrixWords(identityA), OrientationCodec::matrixWords(identityB));
+    OrientationCodec::matrixWords(g_orientMatrix, orientationWords);
     require(g_rotationCounter == kRotationDirtyPeriod &&
                 g_orientationDirty == 1 &&
-                g_orientMatrix[0] == kQ15ZeroAngleProduct &&
-                g_orientMatrix[4] == kQ15ZeroAngleProduct &&
-                g_orientMatrix[8] == kQ15ZeroAngleProduct,
+                orientationWords[0] == kQ15ZeroAngleProduct &&
+                orientationWords[4] == kQ15ZeroAngleProduct &&
+                orientationWords[8] == kQ15ZeroAngleProduct,
             "applyRotationDelta multiplies matrices and dirties orientation every original eighth rotation");
 
     std::cout << "original_behavior_tests passed\n";

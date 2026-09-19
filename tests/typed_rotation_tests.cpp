@@ -2,6 +2,7 @@
 #include "math/boundary.hpp"
 #undef F15_MATH_BOUNDARY_ACCESS
 #include "math_rotation_reference.hpp"
+#include "math_attitude_reference.hpp"
 #include "egdata.h"
 #include "egcode.h"
 #include "eg3dcam.h"
@@ -10,8 +11,10 @@
 #include <cstdlib>
 #include <limits>
 
-extern void applyRotationDelta(const int16 *, const int16 *);
+extern void applyRotationDelta(const f15::math::Matrix3<f15::math::FixedBackend> &,
+                               const f15::math::Matrix3<f15::math::FixedBackend> &);
 extern void rebuildOrientation();
+extern void computeAttitudeAngles();
 
 namespace {
 using namespace f15::math;
@@ -86,13 +89,13 @@ void fixedAndCallers() {
         require(words(matrix * FC::matrixWords(b.data())) == product, "fixed product changed");
         g_rotationCounter = 7;
         g_orientationDirty = 0;
-        applyRotationDelta(expected.data(), b.data());
-        require(std::equal(product.begin(), product.end(), g_orientMatrix) &&
-                std::equal(product.begin(), product.end(), g_matrixScratch) &&
+        applyRotationDelta(FC::matrixWords(expected.data()), FC::matrixWords(b.data()));
+        require(product == words(g_orientMatrix) &&
+                product == words(g_matrixScratch) &&
                 g_rotationCounter == 8 && g_orientationDirty == 1, "flight rotation caller changed");
         g_ourHead = static_cast<int16>(yaw); g_ourPitch = static_cast<int16>(pitch); g_ourRoll = static_cast<int16>(roll);
         rebuildOrientation();
-        require(std::equal(expected.begin(), expected.end(), g_orientMatrix) &&
+        require(expected == words(g_orientMatrix) &&
                 g_rotationCounter == 0 && g_orientationDirty == 0, "flight rebuild caller changed");
     }
     // General word matrices exercise accumulator wrap, not only near-unit rotations.
@@ -116,6 +119,10 @@ void modernPrecision() {
         const auto a = angles<M>(i * 61, i * 127, i * 211);
         orthogonal(math.rotation(a), 2e-14);
         orthogonal(math.objectRotation(a), 2e-14);
+        const auto rebuilt = MC::matrix(math.rotation(math.recover(math.rotation(a), false).angles));
+        const auto original = MC::matrix(math.rotation(a));
+        for (int j = 0; j < 9; ++j)
+            require(std::abs(rebuilt[j] - original[j]) < 2e-14, "modern attitude round trip");
         const auto product = math.objectRotation(a) * cameraRotation(math, a);
         const auto m = MC::matrix(product);
         for (int j = 0; j < 9; ++j)
@@ -127,15 +134,119 @@ void modernPrecision() {
     orthogonal(accumulated, 5e-11);
     const auto m = MC::matrix(accumulated);
     require(std::abs(m[2] - std::sin(0.01)) < 1e-12, "modern state discarded sub-word increments");
+    auto pitchState = Matrix3<M>::identity(), rollState = Matrix3<M>::identity();
+    const auto tinyAngle = MC::radians(1e-7);
+    for (int tick = 0; tick < 30000; ++tick) {
+        pitchState = pitchState * math.pitchDelta(tinyAngle);
+        rollState = rollState * math.rollDelta(tinyAngle);
+    }
+    require(std::abs(MC::radians(math.recover(pitchState, false).angles.pitch) - 0.003) < 1e-13 &&
+            std::abs(MC::radians(math.recover(rollState, false).angles.roll) + 0.003) < 1e-13,
+            "modern axis state lost precision or reversed the flight delta convention");
     bool rejected = false;
     try { (void)MC::radians(std::numeric_limits<double>::infinity()); }
     catch (const std::domain_error &) { rejected = true; }
     require(rejected, "nonfinite boundary input accepted");
+}
+
+void attitudeAndDeltas() {
+    const RotationMath<F> fixed(g_angleLut);
+    const RotationMath<M> modern;
+    auto checkRecovery = [&](const rotation_reference::Matrix &matrix, bool previousRoll) {
+        const auto reference = rotation_reference::recover(matrix, previousRoll, g_angleLut);
+        const auto typed = FC::matrixWords(matrix.data());
+        const auto recovered = fixed.recover(typed, previousRoll);
+        const bool matches = FC::angleWord(recovered.angles.yaw) == static_cast<uint16>(reference.yaw) &&
+                FC::angleWord(recovered.angles.pitch) == static_cast<uint16>(reference.pitch) &&
+                FC::angleWord(recovered.angles.roll) == static_cast<uint16>(reference.roll) &&
+                recovered.needsRefresh == reference.dirty;
+        if (!matches) {
+            std::fprintf(stderr, "recovery expected %d,%d,%d,%d got %u,%u,%u,%d; matrix:",
+                reference.yaw, reference.pitch, reference.roll, reference.dirty,
+                FC::angleWord(recovered.angles.yaw), FC::angleWord(recovered.angles.pitch),
+                FC::angleWord(recovered.angles.roll), recovered.needsRefresh);
+            for (auto value : matrix) std::fprintf(stderr, " %d", value);
+            std::fputc('\n', stderr);
+        }
+        require(matches, "fixed recovery differs from frozen reference");
+        g_orientMatrix = typed;
+        g_orientationDirty = 0;
+        g_rollWasNonzero = previousRoll;
+        computeAttitudeAngles();
+        require(g_ourHead == reference.yaw && g_ourPitch == reference.pitch &&
+                g_ourRoll == reference.roll && bool(g_orientationDirty) == reference.dirty,
+                "production recovery differs from frozen reference");
+    };
+    for (int raw = 0; raw < 65536; ++raw) {
+        const int16 s = rotation_reference::sine(raw, g_angleLut);
+        const int16 c = rotation_reference::sine(raw + 16384, g_angleLut);
+        const int16 minus = rotation_reference::word(-s);
+        const auto angle = FC::angleWord(raw);
+        const rotation_reference::Matrix yaw{c, 0, s, 0, 32767, 0, minus, 0, c};
+        const rotation_reference::Matrix pitch{32767, 0, 0, 0, c, minus, 0, s, c};
+        const rotation_reference::Matrix roll{c, s, 0, minus, c, 0, 0, 0, 32767};
+        require(words(fixed.yawDelta(angle)) == yaw && words(fixed.pitchDelta(angle)) == pitch &&
+                words(fixed.rollDelta(angle)) == roll, "fixed axis delta changed");
+        checkRecovery(rotation_reference::rotation(raw, raw * 3, raw * 7, g_angleLut), raw % 2);
+        auto matrix = yaw;
+        matrix[5] = rotation_reference::word(raw);
+        checkRecovery(matrix, false); // Exhaust the pitch recovery input, including both endpoints.
+    }
+    for (double pitch : {-1.5707963267948966, 1.5707963267948966}) {
+        const auto matrix = modern.rotation({MC::radians(0.7), MC::radians(pitch), MC::radians(-0.3)});
+        const auto rebuilt = modern.rotation(modern.recover(matrix, true).angles);
+        for (int j = 0; j < 9; ++j)
+            require(std::abs(MC::matrix(matrix)[j] - MC::matrix(rebuilt)[j]) < 1e-14,
+                    "modern vertical attitude convention");
+    }
+    // Persistent state and the actual flight caller are checked tick by tick.
+    auto expected = rotation_reference::rotation(1200, 400, 800, g_angleLut);
+    g_orientMatrix = FC::matrixWords(expected.data());
+    g_rotationCounter = 0;
+    for (int tick = 0; tick < 4096; ++tick) {
+        const auto delta = fixed.rollDelta(FC::angleWord(tick % 129 - 64));
+        expected = rotation_reference::multiply(expected, words(delta));
+        applyRotationDelta(g_orientMatrix, delta);
+        require(words(g_orientMatrix) == expected, "persistent fixed orientation drifted from baseline");
+        checkRecovery(expected, false);
+    }
+    int rotations = 0;
+    bool dirty = false;
+    g_rotationCounter = 0;
+    g_orientationDirty = 0;
+    for (int tick = 0; tick < 8192; ++tick) {
+        const auto roll = fixed.rollDelta(FC::angleWord(31));
+        const auto pitch = fixed.pitchDelta(FC::angleWord(-17));
+        const auto yaw = fixed.yawDelta(FC::angleWord(23));
+        expected = rotation_reference::multiply(expected, words(roll));
+        applyRotationDelta(g_orientMatrix, roll);
+        if (!(++rotations % 8)) dirty = true;
+        expected = rotation_reference::multiply(expected, words(pitch));
+        applyRotationDelta(g_orientMatrix, pitch);
+        if (!(++rotations % 8)) dirty = true;
+        expected = rotation_reference::multiply(words(yaw), expected);
+        applyRotationDelta(yaw, g_orientMatrix);
+        if (!(++rotations % 8)) dirty = true;
+        const auto attitude = rotation_reference::recover(expected, false, g_angleLut);
+        dirty = dirty || attitude.dirty;
+        computeAttitudeAngles();
+        require(g_rotationCounter == rotations && bool(g_orientationDirty) == dirty &&
+                g_ourHead == attitude.yaw && g_ourPitch == attitude.pitch && g_ourRoll == attitude.roll,
+                "fixed update/recovery refresh schedule changed");
+        if (dirty) {
+            expected = rotation_reference::rotation(attitude.yaw, attitude.pitch, attitude.roll, g_angleLut);
+            rebuildOrientation();
+            rotations = 0;
+            dirty = false;
+        }
+        require(words(g_orientMatrix) == expected, "fixed complete orientation sequence changed");
+    }
 }
 } // namespace
 
 int main() {
     fixedAndCallers();
     modernPrecision();
+    attitudeAndDeltas();
     std::puts("typed rotation backends and production callers passed");
 }

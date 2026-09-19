@@ -7,7 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 # Transitional adapters are debt, not an exemption for future domain code.
 ALLOWED = {
     "src/math/rotation.hpp", "src/math/boundary.hpp", "src/math/legacy_rotation.hpp",
-    "src/eg3drast.c", "src/eg3dcam.c",
+    "src/eg3drast.c", "src/eg3dcam.c", "src/egflight.c",
 }
 ACCESS = re.compile(r"F15_MATH_BOUNDARY_ACCESS|\bBoundary\s*<|math::legacy|\bfixed\s*::|"
                     r'#\s*include\s*[<"](?:math/)?(?:boundary|legacy_rotation)\.hpp[>"]|'

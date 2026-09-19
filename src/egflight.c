@@ -22,6 +22,7 @@
 #include "eginput.h"
 #include "input.h"
 #include "joystick.h"
+#include "math/legacy_rotation.hpp"
 
 #include <dos.h>
 #include <stdio.h>
@@ -30,7 +31,8 @@
 
 /* Private helpers for this translation unit. */
 void stepFlightModel();
-void applyRotationDelta(const int16 *matA, const int16 *matB);
+void applyRotationDelta(const f15::math::Matrix3<f15::math::FixedBackend> &matA,
+                        const f15::math::Matrix3<f15::math::FixedBackend> &matB);
 void computeAttitudeAngles(void);
 void rebuildOrientation();
 uint16 signedRatio16(int16, int16);
@@ -616,26 +618,19 @@ switch_break:
         g_orientationDirty = 1;
     } else {
         rollAngle = (((int32)g_rollInput) << 7) / ((int32)g_frameRateScaling);
+        const f15::math::legacy::Math rotationMath(g_angleLut);
+        using RotationCodec = f15::math::legacy::Codec;
         if (rollAngle != 0) {
-            g_rollMatrix[4] = g_rollMatrix[0] = cosine(rollAngle);
-            g_rollMatrix[1] = sine(rollAngle);
-            g_rollMatrix[3] = -g_rollMatrix[1];
-            applyRotationDelta(g_orientMatrix, g_rollMatrix);
+            applyRotationDelta(g_orientMatrix, rotationMath.rollDelta(RotationCodec::angleWord(rollAngle)));
         }
 
         pitchAngle = (int16)((int32)g_pitchInput << 7) / g_frameRateScaling;
         if (pitchAngle != 0) {
-            g_pitchMatrix[8] = g_pitchMatrix[4] = cosine(pitchAngle);
-            g_pitchMatrix[7] = sine(pitchAngle);
-            g_pitchMatrix[5] = -g_pitchMatrix[7];
-            applyRotationDelta(g_orientMatrix, g_pitchMatrix);
+            applyRotationDelta(g_orientMatrix, rotationMath.pitchDelta(RotationCodec::angleWord(pitchAngle)));
         }
 
         if (yawAngle != 0) {
-            g_yawMatrix[8] = g_yawMatrix[0] = cosine(yawAngle);
-            g_yawMatrix[2] = sine(yawAngle);
-            g_yawMatrix[6] = -g_yawMatrix[2];
-            applyRotationDelta(g_yawMatrix, g_orientMatrix);
+            applyRotationDelta(rotationMath.yawDelta(RotationCodec::angleWord(yawAngle)), g_orientMatrix);
         }
 
         computeAttitudeAngles();
@@ -743,81 +738,33 @@ switch_break:
     }
 }
 
-void applyRotationDelta(const int16 *matA, const int16 *matB) {
-    int16 p, a;
-
+void applyRotationDelta(const f15::math::Matrix3<f15::math::FixedBackend> &matA,
+                        const f15::math::Matrix3<f15::math::FixedBackend> &matB) {
     g_rotationCounter++;
-    if (!(*(char *)&g_rotationCounter & 7)) {
+    if (!(static_cast<uint16>(g_rotationCounter) & 7)) {
         g_orientationDirty = 1;
     }
-    multiplyMatrix3x3Far(matA, matB, g_matrixScratch);
-    memcpy(g_orientMatrix, g_matrixScratch, 18);
+    g_matrixScratch = matA * matB;
+    g_orientMatrix = g_matrixScratch;
 }
 
 void computeAttitudeAngles(void) {
-    int16 cosPitch;
-
-    g_ourPitch = valueToAngle(-g_orientMatrix[5]);
-    cosPitch = cosine(g_ourPitch);
-    if (cosPitch != 0) {
-        /* signedRatio16 returns the DOS 16-bit word pattern; the sign lives in
-         * bit 15, so recover it as int16 before abs (a plain (int) leaves a
-         * negative ratio as a huge positive and garbles the decoded angle). */
-        if (abs(g_orientMatrix[2]) < 0x5a81) {
-            g_ourHead = valueToAngle(abs((int16)signedRatio16(g_orientMatrix[2], cosPitch)));
-        } else {
-            g_ourHead = complementAngle(abs((int16)signedRatio16(g_orientMatrix[8], cosPitch)));
-        }
-        if (g_orientMatrix[2] <= 0 && g_orientMatrix[8] < 0) {
-            (*((char *)&g_ourHead + 1)) += 0x80;
-        }
-        if (g_orientMatrix[2] > 0 && g_orientMatrix[8] < 0) {
-            g_ourHead = 0x8000 - g_ourHead;
-        }
-        if (g_orientMatrix[2] < 0 && g_orientMatrix[8] > 0) {
-            g_ourHead = -g_ourHead;
-        }
-        if (abs(g_orientMatrix[3]) < 0x5a81) {
-            g_ourRoll = valueToAngle(abs((int16)signedRatio16(g_orientMatrix[3], cosPitch)));
-        } else {
-            g_ourRoll = complementAngle(abs((int16)signedRatio16(g_orientMatrix[4], cosPitch)));
-        }
-        if (g_orientMatrix[3] <= 0 && g_orientMatrix[4] < 0) {
-            *((char *)&g_ourRoll + 1) += 0x80;
-        }
-        if (g_orientMatrix[3] > 0 && g_orientMatrix[4] < 0) {
-            g_ourRoll = 0x8000 - g_ourRoll;
-        }
-        if (g_orientMatrix[3] < 0 && g_orientMatrix[4] > 0) {
-            /* Force MSC to emit sub ax, ax; sub ax, g_ourRoll. */
-            g_ourRoll = 0x10000 - g_ourRoll;
-        }
-    } else {
-        g_ourRoll = 0;
-        g_ourHead = valueToAngle(g_orientMatrix[1]);
-        if (g_orientMatrix[3] <= 0 && g_orientMatrix[4] < 0) {
-            (*((char *)&g_ourHead + 1)) += 0x80;
-        }
-        if (g_orientMatrix[3] > 0 && g_orientMatrix[4] < 0) {
-            g_ourHead = 0x8000 - g_ourHead;
-        }
-        if (g_orientMatrix[3] < 0 && g_orientMatrix[4] > 0) {
-            g_ourHead = -g_ourHead;
-        }
-    }
-    if (g_ourPitch > 0x38e3 && g_ourPitch < 0x4001) {
-        g_orientationDirty = 1;
-    }
-    if (g_ourPitch < (int16)0xc71d && g_ourPitch > (int16)0xbfff) {
-        g_orientationDirty = 1;
-    }
-    if (g_rollWasNonzero != 0 && g_ourRoll == 0) {
-        g_orientationDirty = 1;
-    }
+    namespace legacy = f15::math::legacy;
+    const legacy::Math math(g_angleLut);
+    const auto recovered = math.recover(g_orientMatrix, g_rollWasNonzero != 0);
+    g_ourHead = static_cast<int16>(legacy::Codec::angleWord(recovered.angles.yaw));
+    g_ourPitch = static_cast<int16>(legacy::Codec::angleWord(recovered.angles.pitch));
+    g_ourRoll = static_cast<int16>(legacy::Codec::angleWord(recovered.angles.roll));
+    if (recovered.needsRefresh) g_orientationDirty = 1;
 }
 
 void rebuildOrientation() {
-    buildRotationMatrixFar(g_orientMatrix, g_ourHead, g_ourPitch, g_ourRoll);
+    namespace legacy = f15::math::legacy;
+    const legacy::Math math(g_angleLut);
+    const auto angles = legacy::angles(g_ourHead, g_ourPitch, g_ourRoll);
+    g_orientMatrix = math.rotation(angles);
+    legacy::storeTerms(math.terms(angles), g_rotSinYaw, g_rotCosYaw,
+                       g_sphereRadius, g_sphereDistZ, g_spherePitch, g_sphereRoll);
     g_orientationDirty = 0;
     g_rotationCounter = 0;
 }

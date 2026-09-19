@@ -2,7 +2,8 @@
 
 Status: 2026-09-19. Typed fixed and double-precision rotation backends are
 implemented in `src/math/rotation.hpp`. Production matrix builders, matrix
-multiplication and camera rotation now use the typed fixed implementation.
+multiplication, camera rotation, persistent aircraft orientation matrices and
+attitude recovery now use the typed fixed implementation.
 This is the first migrated subsystem, not a complete interchangeable simulation
 backend. No whole-game floating-point backend selector is exposed.
 
@@ -10,7 +11,7 @@ backend. No whole-game floating-point backend selector is exposed.
 
 * `Angle`, `Coefficient`, `EulerAngles` and `Matrix3` carry backend types. Storage
   is private; primitive construction/extraction and mixed-backend operations
-  are not public APIs. Eight negative compilation tests enforce representative
+  are not public APIs. Ten negative compilation tests enforce representative
   misuse cases, with a positive compilation control.
 * Fixed builders preserve intermediate rounding, word wrapping, LUT interpolation
   and matrix-product truncation. The production adapters also preserve the six
@@ -32,6 +33,21 @@ backend. No whole-game floating-point backend selector is exposed.
   arbitrary word-matrix products, camera and flight rotation/rebuild callers,
   and 2,000 production internal object-builder cases. The LUT is still shared
   with production; this is current-port compatibility evidence, not DOS binary proof.
+* `g_orientMatrix` and its product scratch value are now `Matrix3<FixedBackend>`,
+  not word arrays. `applyRotationDelta` accepts typed matrices only. The three
+  global per-axis arrays have been removed; typed axis-delta builders preserve
+  their exact fixed coefficients, including the unchanged-axis 32767 value.
+* Recovery is a pure backend operation returning typed Euler angles and a refresh
+  request. Fixed recovery retains the old interpolated inverse trig, quotient
+  word wrapping, quadrant rules, pole fallback and dirty bands. Modern recovery
+  uses atan2/hypot, with roll zero at a pole; it does not apply legacy refresh
+  bands. It is not yet wired into a selectable modern flight simulation.
+* `tests/math_attitude_reference.hpp` freezes pre-migration recovery from
+  `4d0efd4`. Differential tests cover 65,536 generated orientations and all signed
+  pitch-component inputs; all 65,536 angle words are checked for each axis delta.
+  Caller tests cover 4,096 persistent updates and 8,192 roll/pitch/yaw update,
+  recovery and refresh cycles. Existing original-behavior assertions remain;
+  their raw fixture arrays now enter through explicit test boundary adapters.
 
 Verification at this checkpoint: Linux Release build and all 44 CTests pass.
 Clang analysis of the typed test translation unit reports no diagnostics.
@@ -41,12 +57,12 @@ browser, live-flight and external-asset validation were not run in this checkpoi
 
 ### Next acceptance boundary
 
-Persistent orientation state, attitude recovery and refresh policy must move
-together before selecting modern flight math. `applyRotationDelta` and
-`rebuildOrientation` are regression-covered callers, but their matrices and Euler
-globals remain raw words. Do not enable a floating option that writes each result
-back into those globals. Characterize the inverse-angle endpoint behavior first,
-then migrate flight position/velocity/forces and their consumers with explicit
+The orientation matrix is typed, but Euler globals and flight-control inputs
+remain raw words. Migrate them and their callers before selecting modern flight
+math: a floating matrix with recovery stored into word Euler globals still loses
+precision. Keep modern refresh policy distinct from the original periodic rebuild,
+which intentionally quantizes fixed state. Then migrate flight
+position/velocity/forces and their consumers with explicit
 units, frames and file/render adapters. Projection, terrain, combat and AI remain
 unmigrated. The final acceptance requirements below still apply.
 
@@ -85,7 +101,7 @@ input widths or introduce new flight-model formulas.
 | Angles/trigonometry | Typed fixed/double rotation angles and trig; imported inverse trig | Inverse-trig endpoint contracts and remaining scalar trig callers |
 | Fixed products | Q15, rounded result, high-word products and carry variants | Audit every caller's rounding and destination narrowing; Q15 inputs are signed words |
 | Long arithmetic | WordPair32, shifts, full/saturated division | Document valid domains, divide-by-zero behavior and overflow policy per operation |
-| Orientation | Typed fixed/double builders and product; fixed production routing | Extract stateful attitude recovery and orientation refresh from egflight.c |
+| Orientation | Typed persistent fixed matrix, fixed/double recovery and axis deltas; tested refresh callers | Typed Euler globals/control inputs and modern refresh integration |
 | Projection/HUD | Selected projection, clipping, HUD rotation helpers | Verify against current rasterizer and HUD state, including invalid/depth sentinels |
 | Range/bearing | Legacy approximation and bearing helpers | Keep gameplay distance approximation distinct from Euclidean distance |
 | Camera precision | Not complete | sinMulQ8/cosMulQ8, camera fractional remainders, fine-coordinate bearing/range in egmath.c |

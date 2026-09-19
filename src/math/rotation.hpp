@@ -31,6 +31,11 @@ template<class B> struct EulerAngles {
     Angle<B> yaw, pitch, roll;
 };
 
+template<class B> struct RecoveredAttitude {
+    EulerAngles<B> angles;
+    bool needsRefresh;
+};
+
 template<class B> class Coefficient {
     using Rep = std::conditional_t<std::is_same_v<B, FixedBackend>, std::int16_t, double>;
     Rep value_{};
@@ -50,6 +55,15 @@ template<class B> class Matrix3 {
     friend struct Boundary<B>;
 public:
     Matrix3() = default;
+    static Matrix3 identity() {
+        if constexpr (std::is_same_v<B, FixedBackend>) {
+            Rep result;
+            result(0, 0) = result(1, 1) = result(2, 2) = 32767;
+            return Matrix3(result);
+        } else {
+            return Matrix3({1, 0, 0, 0, 1, 0, 0, 0, 1});
+        }
+    }
     Matrix3 operator*(const Matrix3 &other) const {
         if constexpr (std::is_same_v<B, FixedBackend>) {
             return Matrix3(value_ * other.value_);
@@ -70,6 +84,17 @@ template<class B> struct RotationTerms {
 
 template<> class RotationMath<FixedBackend> {
     const std::int16_t *table_;
+    Matrix3<FixedBackend> axisDelta(Angle<FixedBackend> angle, int axis) const {
+        auto result = Matrix3<FixedBackend>::identity();
+        const auto s = sine(angle).value_, c = cosine(angle).value_;
+        const int a = axis == 0 ? 4 : 0, b = axis == 2 ? 4 : 8;
+        const int positive = axis == 0 ? 7 : axis == 1 ? 2 : 1;
+        const int negative = axis == 0 ? 5 : axis == 1 ? 6 : 3;
+        result.value_(a / 3, a % 3) = result.value_(b / 3, b % 3) = c;
+        result.value_(positive / 3, positive % 3) = s;
+        result.value_(negative / 3, negative % 3) = static_cast<std::int16_t>(-s);
+        return result;
+    }
 public:
     template<std::size_t N>
     explicit RotationMath(const std::int16_t (&table)[N]) : table_(table) {
@@ -93,6 +118,37 @@ public:
     Matrix3<FixedBackend> objectRotation(EulerAngles<FixedBackend> angles) const {
         return Matrix3<FixedBackend>(fixed::Matrix3x3Q15::inverseRotation(
             angles.yaw.value_, angles.pitch.value_, angles.roll.value_, table_));
+    }
+    Matrix3<FixedBackend> yawDelta(Angle<FixedBackend> angle) const { return axisDelta(angle, 1); }
+    Matrix3<FixedBackend> pitchDelta(Angle<FixedBackend> angle) const { return axisDelta(angle, 0); }
+    Matrix3<FixedBackend> rollDelta(Angle<FixedBackend> angle) const { return axisDelta(angle, 2); }
+
+    RecoveredAttitude<FixedBackend> recover(const Matrix3<FixedBackend> &matrix,
+                                           bool rollWasNonzero) const {
+        const auto &m = matrix.value_.values();
+        const auto pitch = fixed::valueToAngle(-static_cast<int>(m[5]), table_);
+        const int cp = fixed::cosine(pitch, table_).raw();
+        auto fold = [](fixed::Angle16 angle, int s, int c) {
+            if (s <= 0 && c < 0) angle = angle + fixed::Angle16(0x8000);
+            if (s > 0 && c < 0) angle = fixed::Angle16(0x8000) - angle;
+            if (s < 0 && c > 0) angle = -angle;
+            return angle;
+        };
+        auto axis = [&](int s, int c) {
+            const int component = std::abs(s) < 0x5a81 ? s : c;
+            const auto bits = fixed::signedRatio16Bits(component, cp);
+            const int ratio = bits <= 32767 ? bits : static_cast<int>(bits) - 65536;
+            auto angle = fixed::valueToAngle(std::abs(ratio), table_);
+            if (std::abs(s) >= 0x5a81) angle = fixed::Angle16(0x4000) - angle;
+            return fold(angle, s, c);
+        };
+        const auto yaw = cp ? axis(m[2], m[8]) : fold(fixed::valueToAngle(m[1], table_), m[3], m[4]);
+        const auto roll = cp ? axis(m[3], m[4]) : fixed::Angle16{};
+        const int signedPitch = pitch.raw() <= 32767 ? pitch.raw() : static_cast<int>(pitch.raw()) - 65536;
+        const bool refresh = (signedPitch > 0x38e3 && signedPitch < 0x4001) ||
+                             (signedPitch < -0x38e3 && signedPitch > -0x4001) ||
+                             (rollWasNonzero && roll.raw() == 0);
+        return {{Angle<FixedBackend>(yaw), Angle<FixedBackend>(pitch), Angle<FixedBackend>(roll)}, refresh};
     }
 };
 
@@ -125,6 +181,25 @@ public:
             for (int col = 0; col < 3; ++col)
                 result[row * 3 + col] = negated.value_[col * 3 + row];
         return Matrix3<ModernBackend>(result);
+    }
+    Matrix3<ModernBackend> yawDelta(Angle<ModernBackend> angle) const {
+        return rotation({angle, {}, {}});
+    }
+    Matrix3<ModernBackend> pitchDelta(Angle<ModernBackend> angle) const {
+        return rotation({{}, angle, {}});
+    }
+    Matrix3<ModernBackend> rollDelta(Angle<ModernBackend> angle) const {
+        return rotation({{}, {}, -angle});
+    }
+    RecoveredAttitude<ModernBackend> recover(const Matrix3<ModernBackend> &matrix,
+                                            bool /*rollWasNonzero*/) const {
+        const auto &m = matrix.value_;
+        const double cp = std::hypot(m[3], m[4]);
+        const double pitch = std::atan2(-m[5], cp);
+        // At a pole only the combined yaw/roll is observable. Choose roll zero.
+        const double yaw = cp > 1e-12 ? std::atan2(m[2], m[8]) : std::atan2(-m[6], m[0]);
+        const double roll = cp > 1e-12 ? std::atan2(m[3], m[4]) : 0;
+        return {{Angle<ModernBackend>(yaw), Angle<ModernBackend>(pitch), Angle<ModernBackend>(roll)}, false};
     }
 };
 

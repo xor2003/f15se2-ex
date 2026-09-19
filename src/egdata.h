@@ -6,6 +6,7 @@
 #include "comm.h"
 #include <stdio.h>
 #include "egtypes.h"
+#include "math/rotation.hpp"
 
 typedef struct SDL_IOStream SDL_IOStream;
 
@@ -144,11 +145,8 @@ extern uint8 joyAxes[];
 extern uint8 g_joyRawX;
 extern uint8 g_joyRawY;
 extern const uint8 g_rollGeeTable[];
-extern int16 g_orientMatrix[];
-extern int16 g_yawMatrix[9];
-extern int16 g_pitchMatrix[9];
-extern int16 g_rollMatrix[9];
-extern int16 g_matrixScratch[];
+extern f15::math::Matrix3<f15::math::FixedBackend> g_orientMatrix;
+extern f15::math::Matrix3<f15::math::FixedBackend> g_matrixScratch;
 extern int16 g_ourHead;
 extern int16 g_ourPitch;
 extern int16 g_ourRoll;

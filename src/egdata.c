@@ -1857,22 +1857,14 @@ extern const uint8 g_rollGeeTable[128] = {
 };
 
 /* g_orientMatrix: current 3x3 orientation matrix (Q15 identity init). */
-int16 g_orientMatrix[9] = {0x7FFF, 0, 0, 0, 0x7FFF, 0, 0, 0, 0x7FFF};
-
-/* Per-axis delta rotation matrices rebuilt each frame from sin/cos of the
-   heading/pitch/roll change and composited into g_orientMatrix by applyRotationDelta.
-   g_yawMatrix = yaw (Y axis), g_pitchMatrix = pitch (X axis), g_rollMatrix = roll
-   (Z axis); the fixed 0x7FFF entry is the unchanged on-axis component. */
-int16 g_yawMatrix[9] = {0, 0, 0, 0, 0x7FFF, 0, 0, 0, 0};
-int16 g_pitchMatrix[9] = {0x7FFF, 0, 0, 0, 0, 0, 0, 0, 0};
-int16 g_rollMatrix[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0x7FFF};
+f15::math::Matrix3<f15::math::FixedBackend> g_orientMatrix =
+    f15::math::Matrix3<f15::math::FixedBackend>::identity();
 
 /* bulletTracks: 3D projectile table (player rounds + threat shots), HUD-projected. */
 struct BulletTrack bulletTracks[20];
 
-/* 3x3 rotation matrix scratch buffers (9 words): written by
- * multiplyMatrix3x3Far/buildRotationMatrixFar, read as [axis]/[3+axis]/[6+axis]. */
-int16 g_matrixScratch[9];
+/* Product staging keeps both operands valid when the current matrix is one. */
+f15::math::Matrix3<f15::math::FixedBackend> g_matrixScratch;
 /* 16-bit word-degree angles: arithmetic must wrap at 16 bits (e.g. 0x10000 - roll,
    -head). Keep these int16 so assignments wrap on store as the DOS build did.
    g_ourPitch matters too: valueToAngle() returns 0xc000 (=-90deg) when vertical;

@@ -14,7 +14,8 @@ if(NOT result EQUAL 0)
     message(FATAL_ERROR "Valid typed math example failed: ${out}\n${err}")
 endif()
 foreach(case PRIMITIVE_ANGLE PRIMITIVE_EULER RAW_EXTRACTION BACKEND_MIXING
-             MATRIX_MIXING QUANTITY_MIXING PRIVATE_STORAGE UNGUARDED_BOUNDARY)
+             MATRIX_MIXING QUANTITY_MIXING PRIVATE_STORAGE UNGUARDED_BOUNDARY
+             MATRIX_INDEX MATRIX_POINTER)
     execute_process(COMMAND "${CXX}" ${flags} "${define}TEST_${case}"
         RESULT_VARIABLE result OUTPUT_VARIABLE out ERROR_VARIABLE err)
     if(result EQUAL 0)
