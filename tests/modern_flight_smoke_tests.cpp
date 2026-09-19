@@ -8,6 +8,9 @@
 #include "egflight.h"
 #include "comm.h"
 #include "input.h"
+#include "gfx.h"
+#include "gfx_impl.h"
+#include "headless.h"
 #include <SDL3/SDL.h>
 #include <cstdio>
 #include <cstdlib>
@@ -15,6 +18,8 @@
 
 void stepFlightModel();
 void rebuildOrientation();
+void setupInstrumentLayoutFar();
+void drawInstrumentGaugesFar();
 
 using namespace f15::math;
 static_assert(std::is_same_v<GameBackend, ModernBackend>);
@@ -31,6 +36,16 @@ int main() {
     using Altitudes = AltitudeBoundary<ModernBackend>;
     using Speeds = AirspeedBoundary<ModernBackend>;
     using Controls = ControlBoundary<ModernBackend>;
+    test_headless_init();
+    gfx_videoInit();
+    gfx_setMode13();
+    setupInstrumentLayoutFar();
+    for (int altitude : {999, 1000, 65000, 65535, 65536, 90000}) {
+        g_altitude = Altitudes::altitude(altitude);
+        drawInstrumentGaugesFar();
+        require(g_altRemainder == (altitude % 65536) % 1000,
+                "legacy altitude tape baseline changed");
+    }
     auto rollCommand = Controls::radiansPerSecond<RollAxis>(0.123456789);
     auto pitchCommand = Controls::radiansPerSecond<PitchAxis>(-0.234567891);
     require(legacy::updateControlFromWords(rollCommand, pitchCommand,
