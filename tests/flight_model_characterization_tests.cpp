@@ -82,7 +82,9 @@ void thrustAndFuel() {
     for (bool gearUp : {false, true})
     for (bool airBrake : {false, true})
     for (bool fuelTick : {false, true})
-    for (int autopilotCase : {0, 1, 2, 3, 4}) {
+    for (int autopilotCase : {0, 1, 2, 3, 4})
+    for (int heading : {0, 1, -1, 32767, -32768}) {
+        if (!autopilotCase && heading != 0) continue;
         // Add a focused autopilot grid without multiplying unrelated fuel and
         // engine cases. Neutral stick is required for altitude hold to survive.
         if (autopilotCase && (initial != 100 || requested != 100 || damage != 0 ||
@@ -128,7 +130,7 @@ void thrustAndFuel() {
         require(input_preferGamepad(), "flight selects virtual joystick");
         g_ViewX = legacy::viewX(0);
         g_ViewY = legacy::viewY(0);
-        g_ourHead = {};
+        g_ourHead = legacy::angleFromWord(heading);
         g_ourPitch = legacy::angleFromWord(pitch);
         g_ourRoll = legacy::angleFromWord(roll);
         g_stallSpeed = {};
@@ -159,7 +161,7 @@ void thrustAndFuel() {
         int rollCommand = 0;
         if (autopilotCase) {
             const int offset = autopilotCase >= 3 ? (g_missionTick & 15) * 256 - 2048 : 0;
-            const int headingError = std::clamp(int(word(offset + bearingTarget)), -5120, 5120) * 2;
+            const int headingError = std::clamp(int(word(offset - heading + bearingTarget)), -5120, 5120) * 2;
             rollCommand = -std::clamp(int(floorDivide(word(headingError - roll), 64)), -24, 24);
             const int altitudeError = std::clamp((altitudeTarget - sceneHeight) * 16 - initialTrim, -5120, 3072);
             pitchCommand = std::clamp(int(floorDivide(altitudeError - pitch, 128)), -8, 8);
@@ -199,7 +201,7 @@ void thrustAndFuel() {
         const int pitchStep = word(pitchCommand * 128) / hz;
         const int rollStep = rollCommand * 128 / hz;
         const int yawStep = yawRate / hz;
-        auto expectedMatrix = rotation_reference::rotation(0, pitch, roll, g_angleLut);
+        auto expectedMatrix = rotation_reference::rotation(heading, pitch, roll, g_angleLut);
         if (rollStep) {
             const int16 s = rotation_reference::sine(rollStep, g_angleLut);
             const int16 c = rotation_reference::sine(rollStep + 16384, g_angleLut);

@@ -14,6 +14,19 @@ snapshot interpolation now use axis-specific types.
 This is the first migrated subsystem, not a complete interchangeable simulation
 backend. No whole-game floating-point backend selector is exposed.
 
+## Heading-wrap caller characterization
+
+The full-flight characterization test now exercises normal altitude hold at
+heading words 0, 1, -1, 32767 and -32768. Its independent scalar oracle includes
+heading subtraction before signed-word narrowing and starts the expected
+orientation matrix at the actual heading. This expands altitude-hold coverage
+from 864 to 4,320 cases while preserving the original 1,166,400 manual-flight
+cases. Production code is unchanged in this checkpoint.
+
+The expanded caller test passes against `3980833`; Clang static analysis of the
+test translation unit reports no diagnostics. This does not characterize runway
+or carrier recovery guidance, ground contact, or complete recorded sorties.
+
 ## Blackbox integration checkpoint
 
 The deterministic-blackbox branch is integrated with the current typed state.
