@@ -117,6 +117,9 @@ void thrustAndFuel() {
         g_liftForce = g_rollPitchTrim = {};
         g_orientationDirty = g_rotationCounter = g_rollWasNonzero = 0;
         rebuildOrientation();
+        // Preserve the pre-correction matrix output even if stall recovery
+        // rebuilds g_orientMatrix later in the step.
+        g_matrixScratch = g_orientMatrix;
 
         const int target = damage ? std::min(requested, std::max(0, 144 - damage * 4)) : requested;
         int expected = initial + ((target - initial) / 4) / hz;
@@ -159,7 +162,34 @@ void thrustAndFuel() {
         const int trim = word(floorDivide(std::int64_t(word(lift - 768)) *
             rotation_reference::sine(roll + 16384, g_angleLut) + 16384, 32768));
 
+        // Characterize aerodynamic yaw at 742431d before migrating it. The
+        // old expression narrows after division and again after cosine scaling.
+        const int bankTurn = word(floorDivide(
+            std::int64_t(rotation_reference::sine(roll, g_angleLut)) * word(gees * 16) + 16384, 32768));
+        const int dividedYaw = word(bankTurn * 128 / (word(floorDivide(velocity, 512)) + 32));
+        const int yawRate = word(floorDivide(
+            std::int64_t(rotation_reference::sine(pitch + 16384, g_angleLut)) * dividedYaw + 16384, 32768));
+        const int pitchStep = word(pitchCommand * 128) / hz;
+        const int yawStep = yawRate / hz;
+        auto expectedMatrix = rotation_reference::rotation(0, pitch, roll, g_angleLut);
+        if (pitchStep) {
+            const int16 s = rotation_reference::sine(pitchStep, g_angleLut);
+            const int16 c = rotation_reference::sine(pitchStep + 16384, g_angleLut);
+            const rotation_reference::Matrix delta{32767, 0, 0, 0, c, word(-s), 0, s, c};
+            expectedMatrix = rotation_reference::multiply(expectedMatrix, delta);
+        }
+        if (yawStep) {
+            const int16 s = rotation_reference::sine(yawStep, g_angleLut);
+            const int16 c = rotation_reference::sine(yawStep + 16384, g_angleLut);
+            const rotation_reference::Matrix delta{c, 0, s, 0, 32767, 0, word(-s), 0, c};
+            expectedMatrix = rotation_reference::multiply(delta, expectedMatrix);
+        }
+
         stepFlightModel();
+        rotation_reference::Matrix actualMatrix{};
+        legacy::Codec::matrixWords(g_matrixScratch, actualMatrix.data());
+        require(actualMatrix == expectedMatrix,
+                "full flight model pitch/yaw matrix differs from frozen scalar formula");
         require(joyAxes[0] == 128 && joyAxes[1] == stickPitch, "flight input reaches requested position");
         require(legacy::thrustUnits(g_thrust) == expected, "full flight model thrust response changed");
         require(g_fuelRemaining == remaining, "full flight model fuel cadence/depletion changed");

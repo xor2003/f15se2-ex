@@ -41,6 +41,16 @@ Before using recordings to certify migration, complete these checks:
 
 ## Tests-first gate for further migration
 
+Aerodynamic-yaw caller checkpoint (baseline `742431d`): the full-flight
+characterization harness now compares `g_matrixScratch` against a frozen scalar
+yaw formula and independent matrix products in all 1,166,400 existing cases.
+The assertion observes the pitch-then-world-yaw rotation before a later stall
+correction can rebuild the attitude matrix. It preserves both signed-word yaw
+stores, rounded lookup-table products and post-braking speed sampling. Production
+yaw remains unchanged at this checkpoint. This grid starts at speed 8100 and
+uses neutral roll input; it is not exhaustive coverage of speed, ground steering,
+Android attitude override or simultaneous nonzero roll commands.
+
 Before changing each remaining production path, add characterization tests that
 run that unchanged path, verify them, and commit the tests separately. Keep their
 fixed-backend expectations unchanged through migration. Add separate modern
