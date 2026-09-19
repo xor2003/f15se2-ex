@@ -17,9 +17,13 @@ inline int updateControlFromWords(RollCommand<GameBackend> &roll, PitchCommand<G
                                  int (*update)(int *, std::int16_t *)) {
     int r = rollInput(roll);
     auto p = pitchInput(pitch);
+    const auto originalRoll = r;
+    const auto originalPitch = p;
     const int result = update(&r, &p);
-    roll = rollCommand(r);
-    pitch = pitchCommand(p);
+    // A legacy callback can only express word-sized changes. Preserve the
+    // caller's fractional state on axes the callback leaves untouched.
+    if (r != originalRoll) roll = rollCommand(r);
+    if (p != originalPitch) pitch = pitchCommand(p);
     return result;
 }
 } // namespace f15::math::legacy

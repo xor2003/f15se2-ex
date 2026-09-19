@@ -3,6 +3,7 @@
 #include "math/legacy_horizontal.hpp"
 #include "math/legacy_airspeed.hpp"
 #include "math/legacy_propulsion.hpp"
+#include "math/legacy_flight_control.hpp"
 #include "egdata.h"
 #include "egflight.h"
 #include "comm.h"
@@ -29,6 +30,23 @@ int main() {
     using Angles = Boundary<ModernBackend>;
     using Altitudes = AltitudeBoundary<ModernBackend>;
     using Speeds = AirspeedBoundary<ModernBackend>;
+    using Controls = ControlBoundary<ModernBackend>;
+    auto rollCommand = Controls::radiansPerSecond<RollAxis>(0.123456789);
+    auto pitchCommand = Controls::radiansPerSecond<PitchAxis>(-0.234567891);
+    require(legacy::updateControlFromWords(rollCommand, pitchCommand,
+        [](int *, std::int16_t *) { return 0; }) == 0,
+        "inactive control adapter changed callback result");
+    require(Controls::radiansPerSecond(rollCommand) == 0.123456789 &&
+            Controls::radiansPerSecond(pitchCommand) == -0.234567891,
+            "inactive control adapter quantized modern rates");
+    auto rollAngle = Angles::radians(0.123456789);
+    auto pitchAngle = Angles::radians(-0.234567891);
+    require(legacy::updateAttitudeFromWords(rollAngle, pitchAngle,
+        [](std::int16_t *roll, std::int16_t *) { *roll = 16384; return 1; }) == 1,
+        "active attitude adapter changed callback result");
+    require(std::abs(Angles::radians(rollAngle) - 1.5707963267948966) < 1e-15 &&
+            Angles::radians(pitchAngle) == -0.234567891,
+            "single-axis attitude override quantized untouched axis");
     g_frameRateScaling = 120;
     g_ourHead = g_ourPitch = g_ourRoll = {};
     rebuildOrientation();

@@ -23,9 +23,11 @@ inline AircraftAngle angleFromWord(int word) {
 inline int updateAttitudeFromWords(AircraftAngle &roll, AircraftAngle &pitch,
                                   int (*update)(std::int16_t *, std::int16_t *)) {
     auto rollWord = signedAngle(roll), pitchWord = signedAngle(pitch);
+    const auto originalRoll = rollWord;
+    const auto originalPitch = pitchWord;
     const int result = update(&rollWord, &pitchWord);
-    roll = angleFromWord(rollWord);
-    pitch = angleFromWord(pitchWord);
+    if (rollWord != originalRoll) roll = angleFromWord(rollWord);
+    if (pitchWord != originalPitch) pitch = angleFromWord(pitchWord);
     return result;
 }
 
