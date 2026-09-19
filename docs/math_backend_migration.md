@@ -14,6 +14,22 @@ snapshot interpolation now use axis-specific types.
 This is the first migrated subsystem, not a complete interchangeable simulation
 backend. No whole-game floating-point backend selector is exposed.
 
+## Tests-first gate for further migration
+
+Before changing each remaining production path, add characterization tests that
+run that unchanged path, verify them, and commit the tests separately. Keep their
+fixed-backend expectations unchanged through migration. Add separate modern
+precision and outcome tests; helper-only coverage does not establish caller parity.
+
+`flight_model_characterization_tests` establishes a baseline against `dbfb4ab`
+without production edits or math/flight-model test doubles. Its 900 independent
+level-flight ticks cover thrust ramp-up/down, damage caps, fuel burn cadence and
+exhaustion, neutral load factor, corner/stall thresholds, and target-speed to
+acceleration ordering at 4 and 15 Hz. Expected values are frozen integer
+expressions, not calls to the new backend. This is bounded caller coverage, not
+full flight-model coverage: turns, assists, ejection, landing, multi-tick sorties
+and the remaining branches still need baselines before their migration.
+
 ## Rotation migration checkpoint
 
 * `Angle`, `Coefficient`, `EulerAngles` and `Matrix3` carry backend types. Storage
