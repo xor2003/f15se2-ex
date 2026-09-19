@@ -8,6 +8,7 @@
 #include "math/guidance.hpp"
 #include "egdata.h"
 #include "egflight.h"
+#include "egkeys.h"
 #include "comm.h"
 #include "input.h"
 #include "gfx.h"
@@ -183,6 +184,15 @@ int main() {
         require(std::abs(Speeds::speed(g_velocity) - expectedSpeed) < 1e-10,
                 "high-altitude propulsion used a wrapped scene height");
     }
+    g_autopilotAltitude = 0;
+    g_altitude = Altitudes::altitude(131072);
+    g_ourPitch = g_rollPitchTrim = {};
+    advanceFlightAltitude();
+    keyDispatch(SCAN_P);
+    require(g_autopilotAltitude == 1000,
+            "legacy high-altitude autopilot capture baseline changed");
+    keyDispatch(SCAN_P);
+    require(g_autopilotAltitude == 0, "autopilot toggle did not clear target");
     gameData = nullptr;
     commData = nullptr;
     SDL_Quit();
