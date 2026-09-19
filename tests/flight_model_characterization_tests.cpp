@@ -3,10 +3,14 @@
 #include "math/legacy_rotation.hpp"
 #include "math/legacy_horizontal.hpp"
 #include "math/legacy_propulsion.hpp"
+#include "math/legacy_flight_control.hpp"
 #include "math_rotation_reference.hpp"
 #include "egdata.h"
 #include "egflight.h"
 #include "comm.h"
+#include "joystick.h"
+#include "input.h"
+#include <filesystem>
 #include <cstdio>
 #include <cstdlib>
 #include <algorithm>
@@ -19,10 +23,48 @@ using namespace f15::math;
 void require(bool ok, const char *message) {
     if (!ok) { std::fprintf(stderr, "%s\n", message); std::exit(1); }
 }
+// Frozen Newton approximation: new non-neutral loads include results that are
+// not floor(sqrt(value)), such as 24 -> 5. Do not call migrated math here.
+int cornerRoot(int value) {
+    if (value < 4) return 1;
+    int guess = value / 4, quotient;
+    do {
+        quotient = value / guess;
+        guess = (guess + quotient) / 2;
+    } while (std::abs(guess - quotient) > 1);
+    return guess;
+}
 
 // Characterize dbfb4ab before migrating thrust and target-speed generation.
+// Non-neutral input/load coverage added against 9371b5b before load migration.
 // No flight-model or math functions are replaced with test doubles.
 void thrustAndFuel() {
+    const auto config = std::filesystem::temp_directory_path() /
+        ("f15-flight-characterization-" + std::to_string(SDL_GetPerformanceCounter()));
+    std::filesystem::create_directories(config);
+    SDL_setenv_unsafe("F15_JOY_CONFIG_DIR", config.string().c_str(), 1);
+    SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1");
+    require(SDL_Init(SDL_INIT_GAMEPAD), "initialize virtual flight input");
+    SDL_VirtualJoystickDesc desc{};
+    SDL_INIT_INTERFACE(&desc);
+    desc.type = SDL_JOYSTICK_TYPE_FLIGHT_STICK;
+    desc.naxes = 2;
+    desc.name = "Flight characterization";
+    const auto id = SDL_AttachVirtualJoystick(&desc);
+    require(id != 0, "attach flight joystick");
+    auto *stick = SDL_OpenJoystick(id);
+    require(stick != nullptr, "open flight joystick");
+    SDL_Event added{};
+    added.type = SDL_EVENT_JOYSTICK_ADDED;
+    added.jdevice.which = id;
+    joy_handleEvent(&added);
+    joy_init();
+    input_setMode(INPUT_MODE_FLIGHT);
+    input_setJoystickSetup(false);
+    SDL_Event focus{};
+    focus.type = SDL_EVENT_WINDOW_FOCUS_GAINED;
+    require(SDL_PushEvent(&focus), "focus flight input");
+    input_pumpEvents();
     Game game{};
     GameComm comm{};
     gameData = &game;
@@ -36,6 +78,7 @@ void thrustAndFuel() {
     for (int height : {2000, 4095, 8192, 16383, 16384, 60000})
     for (int pitch : {-4096, 0, 4096})
     for (int roll : {-8192, 0, 8192, 12288, 16384, 24576})
+    for (int stickPitch : {1, 128, 254})
     for (bool gearUp : {false, true})
     for (bool airBrake : {false, true})
     for (bool fuelTick : {false, true}) {
@@ -59,7 +102,12 @@ void thrustAndFuel() {
         g_playerPlaneFlags = (gearUp ? 1 : 0) | (airBrake ? 8 : 0);
         g_gearDownArmed = 0;
         g_cornerSpeed = 100;
-        g_joyRawX = g_joyRawY = 128;
+        g_kbdSensitivity = 2;
+        require(SDL_SetJoystickVirtualAxis(stick, 1,
+            stickPitch == 1 ? -32768 : stickPitch == 254 ? 32767 : 0), "set pitch axis");
+        SDL_UpdateJoysticks();
+        input_pumpEvents();
+        require(input_preferGamepad(), "flight selects virtual joystick");
         g_ViewX = legacy::viewX(0);
         g_ViewY = legacy::viewY(0);
         g_ourHead = {};
@@ -82,7 +130,18 @@ void thrustAndFuel() {
         // uses the frozen LUT interpolator, never production math operations.
         using rotation_reference::floorDivide;
         using rotation_reference::word;
-        const int gees = std::min(128, int(g_rollGeeTable[(std::abs(roll) / 256) & 127]));
+        int pitchCommand = (stickPitch / 16) - 8;
+        if (pitchCommand < 0) ++pitchCommand;
+        pitchCommand *= 6;
+        if (pitchCommand < 0) pitchCommand /= 2;
+        const int bankLoad = g_rollGeeTable[(std::abs(roll) / 256) & 127];
+        const int gees = std::min(128, bankLoad + pitchCommand / 2);
+        if (bankLoad + pitchCommand / 2 > 128) {
+            const int limit = 128 - bankLoad;
+            // Preserve the original ordered clamp even when its upper bound
+            // is negative: it is not equivalent to std::clamp/min(max()).
+            pitchCommand = limit > pitchCommand ? pitchCommand : std::max(0, limit);
+        }
         const int pitchDrag = word(floorDivide(
             std::int64_t(rotation_reference::sine(pitch, g_angleLut)) * 80 + 16384, 32768));
         int targetSpeed = word((expected - pitchDrag) * 800 / 100);
@@ -93,8 +152,7 @@ void thrustAndFuel() {
         targetSpeed = std::clamp(targetSpeed, 0, 899) * 27;
         const int beforeBrakes = 8100 + ((targetSpeed - 8100) / 16) / hz;
         const int velocity = beforeBrakes - (airBrake ? (beforeBrakes / 16) / hz : 0);
-        int root = 0;
-        while ((root + 1) * (root + 1) <= gees * 4) ++root;
+        const int root = cornerRoot(gees * 4);
         const int corner = std::abs(word(root * word(100 * (height / 64 + 1024) / 1024) / 8));
         int lift = word(word(corner * 27) * 3072 / (std::abs(beforeBrakes) + 1));
         if (std::uint16_t(lift) > 8192) lift = 8192;
@@ -102,10 +160,15 @@ void thrustAndFuel() {
             rotation_reference::sine(roll + 16384, g_angleLut) + 16384, 32768));
 
         stepFlightModel();
+        require(joyAxes[0] == 128 && joyAxes[1] == stickPitch, "flight input reaches requested position");
         require(legacy::thrustUnits(g_thrust) == expected, "full flight model thrust response changed");
         require(g_fuelRemaining == remaining, "full flight model fuel cadence/depletion changed");
         require(g_setThrust == target, "damage thrust limit changed");
-        require(g_gees == gees, "neutral banked-flight load changed");
+        if (g_gees != gees)
+            std::fprintf(stderr, "hz=%d height=%d roll=%d stick=%d raw=%d pitch=%d load=%d expected=%d\n",
+                hz, height, roll, stickPitch, int(g_joyRawY), legacy::pitchInput(g_pitchInput), g_gees, gees);
+        require(g_gees == gees, "bank and pitch-command load changed");
+        require(legacy::pitchInput(g_pitchInput) == pitchCommand, "load cap pitch-command reduction changed");
         require(g_cornerSpeed == corner && AirspeedBoundary<FixedBackend>::stall(g_stallSpeed) == corner * 27,
                 "full flight model corner/stall threshold changed");
         require(legacy::speedUnits(g_velocity) == velocity && g_knots == velocity / 27,
@@ -115,6 +178,12 @@ void thrustAndFuel() {
     }
     gameData = nullptr;
     commData = nullptr;
+    joy_shutdown();
+    SDL_CloseJoystick(stick);
+    require(SDL_DetachVirtualJoystick(id), "detach flight joystick");
+    SDL_Quit();
+    SDL_unsetenv_unsafe("F15_JOY_CONFIG_DIR");
+    std::filesystem::remove_all(config);
 }
 }
 int main() { thrustAndFuel(); }
