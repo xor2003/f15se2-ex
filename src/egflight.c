@@ -1,4 +1,9 @@
 #include "math/legacy_horizontal.hpp"
+#include "math/legacy_airspeed.hpp"
+using f15::math::legacy::speedUnits;
+using f15::math::legacy::speedWord;
+using f15::math::legacy::speedFromUnits;
+using SpeedMath = f15::math::AirspeedMath<f15::math::FixedBackend>;
 using f15::math::legacy::fineUnits;
 #include "eg3dview.h"
 #include "egcode.h"
@@ -81,13 +86,30 @@ void advanceFlightAltitude() {
     using VerticalMath = f15::math::AltitudeMath<f15::math::FixedBackend>;
     using Altitudes = f15::math::legacy::Altitudes;
     const f15::math::legacy::Math rotation(g_angleLut);
-    g_climbRate = VerticalMath::climb(Altitudes::speed(static_cast<uint16>(g_velocity)),
+    g_climbRate = VerticalMath::climb(SpeedMath::verticalSample(g_velocity),
         rotation.sine(g_ourPitch - angleFromWord(g_rollPitchTrim)));
     if (g_autoLandingActive == 0)
         g_altitude = VerticalMath::integrate(g_altitude, g_climbRate,
             f15::math::legacy::Controls::frequency(g_frameRateScaling));
     g_altitude = VerticalMath::constrain(g_altitude, Altitudes::ground(g_groundAltitude));
     g_viewZ = Altitudes::render(VerticalMath::renderHeight(g_altitude));
+}
+
+void accelerateFlightSpeed(f15::math::FlightSpeed<f15::math::FixedBackend> target) {
+    g_velocity = SpeedMath::accelerate(g_velocity, target,
+        f15::math::legacy::Controls::frequency(g_frameRateScaling));
+}
+
+void brakeFlightSpeed() {
+    if (*((uint8 *)&g_playerPlaneFlags) & 8) {
+        const auto step = f15::math::legacy::Controls::frequency(g_frameRateScaling);
+        if (g_groundAltitude == g_viewZ) {
+            g_velocity = SpeedMath::groundBrake(g_velocity,
+                f15::math::legacy::Airspeeds::deceleration((32 - gameData->unk4 * 8) * 27), step);
+            if (g_groundAltitude != 0) g_velocity = SpeedMath::carrierStop(g_velocity);
+        } else g_velocity = SpeedMath::airBrake(g_velocity, step);
+    }
+    g_velocity = SpeedMath::constrain(g_velocity);
 }
 
 void stepFlightModel(void) {
@@ -100,7 +122,8 @@ void stepFlightModel(void) {
     int16 ab, tgtIdx, bearing;              // dummy=ab at bp-0x12, var_10=tgtIdx at bp-0x10, var_E=bearing at bp-0x0e (bucket 3)
     int16 yaw, tmpVal;
     int16 ad, u, targetVel;                 // dummies at bp-0x1e,bp-0x1c, var_1A=targetVel at bp-0x1a (bucket 5)
-    int16 turbulence, horizVel;
+    int16 turbulence;
+    f15::math::HorizontalSpeed<f15::math::FixedBackend> horizVel;
     int16 w;
     int16 headingErr, dx;                   // var_2C=headingErr at bp-0x2c, var_2A=dx at bp-0x2a (bucket 8)
     int16 i, y;                             // dummies: bp-0x2e, bp-0x30 (bucket 9)
@@ -116,7 +139,8 @@ void stepFlightModel(void) {
     if (g_initPhase == 0) {
         g_ourPitch = g_ourRoll = {};
         g_altitude = {};
-        g_viewZ = g_velocity =
+        g_velocity = {};
+        g_viewZ =
                     g_setThrust =
                         g_thrust = 0;
 
@@ -229,7 +253,7 @@ void stepFlightModel(void) {
         *((uint8 *)&g_playerPlaneFlags) ^= 8;
     post_key_B_check:
         if (!(*((uint8 *)&g_playerPlaneFlags) & 8) && g_groundAltitude != 0 && g_setThrust == 100) {
-            g_velocity = 1350;
+            g_velocity = speedFromUnits(1350);
             makeSound(28, 2);
         }
         goto switch_break;
@@ -310,7 +334,7 @@ switch_break:
     const bool attitudeControlAllowed =
         g_autopilotAltitude == 0 && g_inputDisabled == 0 &&
         g_ejectState == 0 && g_autoCrashDive == 0 &&
-        (uint16)g_velocity > (uint16)g_stallSpeed &&
+        speedWord(g_velocity) > (uint16)g_stallSpeed &&
         (g_groundAltitude != g_viewZ || g_knots >= g_cornerSpeed);
     androidFlightControl = attitudeControlAllowed
                                ? f15::math::legacy::updateControlFromWords(
@@ -458,7 +482,7 @@ switch_break:
         g_pitchInput += pitchCommand((randomRange(turbulence) - (turbulence >> 1)) >> 1);
     }
 
-    if ((g_playerPlaneFlags & 1) && (g_pitchInput.isNegative() || g_pitchInput.isZero()) && ((uint16)g_stallSpeed) < ((uint16)g_velocity) && gameData->unk4 < 2 && abs((int16)signedAngle(g_ourRoll)) < 0x3000 && g_gunFiredFlag == 0) {
+    if ((g_playerPlaneFlags & 1) && (g_pitchInput.isNegative() || g_pitchInput.isZero()) && ((uint16)g_stallSpeed) < (speedWord(g_velocity)) && gameData->unk4 < 2 && abs((int16)signedAngle(g_ourRoll)) < 0x3000 && g_gunFiredFlag == 0) {
         tmpVal = ((((g_rollPitchTrim) - (signedAngle(g_ourPitch))) >> 2) - g_viewZ + 300) >> 2;
         if (tmpVal > 0) {
             g_pitchInput = pitchCommand(clampRange(tmpVal, 0, 32));
@@ -493,8 +517,8 @@ switch_break:
             g_hitAlt = 0;
             g_hitEffectTimer = -8;
             makeSound(2, 2);
-            g_velocity =
-                g_setThrust = 0;
+            g_velocity = {};
+            g_setThrust = 0;
         }
 
         if ((g_ejectState & 0xFFFC) == 0x10 && (frameTick & 3) == 1) {
@@ -581,32 +605,21 @@ switch_break:
     g_stallSpeed = g_cornerSpeed * 27;
     targetVel = clampRange(speedCalc, 0, 899) * 27;
 
-    g_velocity += ((((int32)targetVel - g_velocity) / 16) / (int32)g_frameRateScaling);
+    accelerateFlightSpeed(speedFromUnits(targetVel));
 
-    g_liftForce = ((int32)g_stallSpeed * 3072) / (abs(g_velocity) + 1);
+    g_liftForce = ((int32)g_stallSpeed * 3072) / (abs(speedUnits(g_velocity)) + 1);
     if ((uint16)g_liftForce > 0x2000) g_liftForce = 0x2000;
 
     g_rollPitchTrim = cosMul(signedAngle(g_ourRoll), g_liftForce - 0x300);
 
-    if (*((uint8 *)&g_playerPlaneFlags) & 8) {
-        if (g_groundAltitude == g_viewZ) {
-            g_velocity -= (-((gameData->unk4 * 8) - 32) * 27) / g_frameRateScaling;
-            if (g_groundAltitude != 0 && (uint16)g_velocity < 0x1B0) {
-                g_velocity = 0;
-            }
-        } else {
-            g_velocity -= ((uint16)g_velocity >> 4) / g_frameRateScaling;
-        }
-    }
+    brakeFlightSpeed();
 
-    if ((uint16)g_velocity > 0xAFC8) g_velocity = 0;
-
-    horizVel = cosMul(signedAngle(g_ourPitch), g_velocity);
-    g_knots = (uint16)g_velocity / 27;
+    horizVel = SpeedMath::horizontalSample(g_velocity, f15::math::legacy::Math(g_angleLut).cosine(g_ourPitch));
+    g_knots = speedWord(g_velocity) / 27;
 
     audio_setEnginePitch(g_knots, g_thrust);
 
-    yaw = (((int32)sinMul(signedAngle(g_ourRoll), g_gees << 4)) << 7) / ((int32)((int16)((uint16)g_velocity >> 9) + 0x20));
+    yaw = (((int32)sinMul(signedAngle(g_ourRoll), g_gees << 4)) << 7) / ((int32)((int16)(speedWord(g_velocity) >> 9) + 0x20));
 
     yaw = cosMul(signedAngle(g_ourPitch), yaw);
 
@@ -631,9 +644,8 @@ switch_break:
 
     if (g_autoCrashDive != 0) {
         g_pitchInput = pitchCommand(-0x400 - signedAngle(g_ourPitch));
-        // (ref stores velocity then setThrust; chains store right-to-left)
-        g_setThrust =
-            g_velocity = 0;
+        g_velocity = {};
+        g_setThrust = 0;
     }
 
 #if defined(__ANDROID__)
@@ -659,8 +671,8 @@ switch_break:
         advanceFlightOrientation(deltas);
     }
 
-    if ((uint16)g_stallSpeed > (uint16)g_velocity && (uint16)g_groundAltitude < (uint16)g_viewZ) {
-        g_ourPitch -= angleFromWord(((uint16)g_stallSpeed - (uint16)g_velocity) >> ((gameData->unk4 == 2 || g_gunHits > 8) ? 1 : 2));
+    if ((uint16)g_stallSpeed > speedWord(g_velocity) && (uint16)g_groundAltitude < (uint16)g_viewZ) {
+        g_ourPitch -= angleFromWord(((uint16)g_stallSpeed - speedWord(g_velocity)) >> ((gameData->unk4 == 2 || g_gunHits > 8) ? 1 : 2));
         g_orientationDirty = 1;
         if (signedAngle(g_ourPitch) < 0 || (uint16)g_viewZ < 200) {
             makeSound(20, 1);
@@ -694,7 +706,7 @@ switch_break:
     prevAlt = altitudeUnits(g_altitude);
     advanceFlightAltitude();
 
-    advanceFlightHorizontal(f15::math::legacy::Horizontal::speed(horizVel));
+    advanceFlightHorizontal(horizVel);
 
     if (g_groundAltitude == g_viewZ) {
         if (prevAlt > g_groundAltitude && g_inLandingCorridor != 0) {

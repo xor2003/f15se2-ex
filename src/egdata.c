@@ -2107,7 +2107,7 @@ int16 g_stallSpeed;
  * [66] = 64 grid bytes + 2 pad. */
 uint8 g_topLodGrid[66];
 int16 g_lastMissileSlot;
-int g_velocity;
+f15::math::FlightSpeed<f15::math::FixedBackend> g_velocity;
 int16 g_enemyThreatCount;
 int16 g_camRotMatrix[9];
 struct ViewSnapshot g_viewSnapshotRing[16];

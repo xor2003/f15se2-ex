@@ -10,6 +10,7 @@
 #include "math/flight_control.hpp"
 #include "math/altitude.hpp"
 #include "math/horizontal.hpp"
+#include "math/airspeed.hpp"
 
 typedef struct SDL_IOStream SDL_IOStream;
 
@@ -257,7 +258,7 @@ extern uint8 buf_3dt[]; // #define MAX_TILE_DATA
 extern int16 g_stallSpeed;
 extern uint8 g_topLodGrid[];
 extern int16 g_lastMissileSlot;
-extern int g_velocity;
+extern f15::math::FlightSpeed<f15::math::FixedBackend> g_velocity;
 extern int16 g_enemyThreatCount;
 extern int16 g_camRotMatrix[];
 extern struct ViewSnapshot g_viewSnapshotRing[];

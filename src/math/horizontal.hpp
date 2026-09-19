@@ -63,6 +63,7 @@ template<class B> class HorizontalSpeed {
     explicit HorizontalSpeed(Rep v) : value_(v) {}
     friend class HorizontalMath<B>;
     friend struct HorizontalBoundary<B>;
+    friend class AirspeedMath<B>;
 public:
     HorizontalSpeed() = default;
 };

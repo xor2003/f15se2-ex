@@ -29,6 +29,7 @@ template<class B, class Unit> class VerticalQuantity {
     }
     friend struct AltitudeBoundary<B>;
     friend class AltitudeMath<B>;
+    friend class AirspeedMath<B>;
 public:
     VerticalQuantity() = default;
     bool isZero() const { return value_ == 0; }

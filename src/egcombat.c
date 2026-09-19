@@ -1,4 +1,5 @@
 #include "math/legacy_horizontal.hpp"
+#include "math/legacy_airspeed.hpp"
 using f15::math::legacy::fineUnits;
 // seg000 optimized code (/Ot)
 #include "eg3dmap.h"
@@ -726,7 +727,7 @@ void fireMissile() {
     g_projectiles[slot].fineX = (((int32)(uint16)g_viewX_ << 5) + ((fineUnits(g_ViewX) + 0x10) & 0x1f)) & 0x1FFFFF;
     g_projectiles[slot].fineY = (((int32)(uint16)g_viewY_ << 5) + (0x1f - ((fineUnits(g_ViewY) + 0x10) & 0x1f))) & 0x1FFFFF;
     g_projectiles[slot].alt = g_viewZ - 20;
-    g_projectiles[slot].speed = (uint16)g_velocity >> 11;
+    g_projectiles[slot].speed = f15::math::legacy::speedWord(g_velocity) >> 11;
     g_projectiles[slot].worldX = signedAngle(g_ourHead);
     g_projectiles[slot].worldY = signedAngle(g_ourPitch);
     g_projectiles[slot].worldZ = signedAngle(g_ourRoll);

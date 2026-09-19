@@ -172,8 +172,8 @@ is not instrumented. Windows, Android, browser and live-flight checks were not r
   instead of relying on formerly undefined signed C++ overflow.
 * Modern movement stores double-precision fine coordinates and retains fractional
   steps. It does not wrap at signed 32-bit limits. These are still engine fine
-  units, not an assertion of an SI conversion. The raw velocity-to-horizontal-speed
-  producer in `stepFlightModel` is not yet migrated.
+  units, not an assertion of an SI conversion. The velocity-to-horizontal-speed
+  producer is now typed as described in the airspeed checkpoint below.
 * `advanceFlightHorizontal` is the production movement caller. It skips movement
   during automatic landing. Map slewing uses typed displacements, and landing
   easing uses a typed operation. Old target/camera/terrain/render consumers have
@@ -196,11 +196,51 @@ reports no diagnostics; its ASan/UBSan run passes. Only the test translation uni
 and inline math are instrumented, not the linked production core. Windows,
 Android, browser and live-flight verification remain outstanding.
 
+## Airspeed checkpoint
+
+* `FlightSpeed<B>` is persistent native-width velocity state, separate from
+  `Deceleration<B>`, signed horizontal speed and unsigned vertical speed samples.
+  `g_velocity` is now `FlightSpeed<FixedBackend>`; primitives cannot be assigned,
+  extracted or passed by writable pointer. Initial conditions and projectile,
+  HUD, stall and lift consumers use explicit transitional adapters.
+* `AirspeedMath` implements acceleration, ground/air braking, carrier stopping,
+  speed limits and typed horizontal/vertical samples. Fixed acceleration keeps
+  signed 32-bit storage and the original two divisions. Ground/air braking,
+  carrier stopping and limiting preserve the precise unsigned-low-word reads.
+  Projection deliberately samples a signed word, matching `cosMul`'s argument;
+  climb samples an unsigned word. Native storage has not been narrowed to 16 bits.
+* Overflowing fixed acceleration differences and braking results are rejected:
+  those native signed overflows had no defined C++ result. This is not a claim
+  of parity for undefined inputs. Lift's old scalar `abs(speed) + 1` extreme-value
+  behavior remains outside the migrated scope.
+* Modern acceleration/braking retain double precision. The modern speed limit
+  clamps to [0, 45000] instead of low-word wrapping/resetting; this is a deliberate
+  modern policy, not fixed parity. Engine velocity units remain 27 per indicated
+  knot. No new SI assumption or file-layout conversion is introduced.
+* Production helpers `accelerateFlightSpeed` and `brakeFlightSpeed` preserve the
+  existing order around lift computation. Horizontal speed is sampled before
+  attitude updates as before; vertical speed is sampled at the vertical update.
+* `typed_airspeed_tests` freezes expressions from `08b8c7b`: all 65,536 word
+  values in three native-width bands, five frequencies, four difficulty braking
+  rates, all headings at signed-speed boundaries, native-int limits, and 24,000
+  persistent production acceleration/braking steps. Modern tests include 12,000
+  fractional acceleration/braking steps and a typed speed-to-X/Y/altitude pipeline
+  compared to independent double expressions. Compile-fail cases reject raw speed,
+  unit/backend mixing, pointer extraction and unguarded conversion access.
+
+Verification: Linux Release build and all 48 CTests pass, including 49 negative
+compiler cases plus a positive control. Clang analysis of
+`typed_airspeed_tests.cpp` reports no diagnostics. Its ASan/UBSan run passes with
+the test, inline library and `egflight.c` instrumented, exercising the production
+acceleration/braking helpers. Other linked core files are not instrumented and
+this does not execute an entire sortie. Windows, Android, browser, external-asset
+validation and live-flight checks remain outstanding.
+
 ### Next acceptance boundary
 
-Aircraft Euler, command, altitude, climb and fine horizontal position storage are
-typed, but most scalar control producers and consumers remain legacy math.
-Migrate velocity, forces, object state and remaining
+Aircraft Euler, command, altitude, climb, airspeed and fine horizontal position
+storage are typed, but most scalar control producers and consumers remain legacy
+math. Migrate target-speed generation, lift, stall, forces, object state and remaining
 read adapters before selecting modern flight math; changing the angle backend
 alone would still quantize at these consumers. Keep modern refresh policy distinct from the original periodic rebuild,
 which intentionally quantizes fixed state. Then migrate flight

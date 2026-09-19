@@ -3,6 +3,7 @@
 #include "math/flight_control.hpp"
 #include "math/altitude.hpp"
 #include "math/horizontal.hpp"
+#include "math/airspeed.hpp"
 #include <type_traits>
 
 using namespace f15::math;
@@ -27,6 +28,9 @@ static_assert(!std::is_constructible_v<SimulationStep<ModernBackend>, double>);
 #if defined(TEST_UNGUARDED_HORIZONTAL_BOUNDARY)
 #include "math/horizontal_boundary.hpp"
 #endif
+#if defined(TEST_UNGUARDED_AIRSPEED_BOUNDARY)
+#include "math/airspeed_boundary.hpp"
+#endif
 
 int main() {
     RotationMath<ModernBackend> math;
@@ -36,6 +40,7 @@ int main() {
     RollCommand<ModernBackend> roll;
     roll += RollCommand<ModernBackend>{};
     (void)roll.isZero();
+    (void)AirspeedMath<ModernBackend>::verticalSample(FlightSpeed<ModernBackend>{});
 #if defined(TEST_PRIMITIVE_ANGLE)
     (void)math.sine(1.0);
 #elif defined(TEST_PRIMITIVE_EULER)
@@ -110,6 +115,21 @@ int main() {
     ViewDisplacement<ModernBackend, ViewXAxis> delta(1.0);
 #elif defined(TEST_HORIZONTAL_SPEED)
     HorizontalSpeed<ModernBackend> speed = 1.0;
+#elif defined(TEST_AIRSPEED_PRIMITIVE)
+    FlightSpeed<FixedBackend> speed = 10;
+#elif defined(TEST_AIRSPEED_EXTRACTION)
+    double speed = FlightSpeed<ModernBackend>{};
+#elif defined(TEST_AIRSPEED_BACKEND)
+    (void)AirspeedMath<ModernBackend>::verticalSample(FlightSpeed<FixedBackend>{});
+#elif defined(TEST_AIRSPEED_RATE)
+    FlightSpeed<ModernBackend> speed = Deceleration<ModernBackend>{};
+#elif defined(TEST_AIRSPEED_STEP)
+    (void)AirspeedMath<ModernBackend>::accelerate({}, {}, 1.0);
+#elif defined(TEST_AIRSPEED_POINTER)
+    FlightSpeed<FixedBackend> speed;
+    int *raw = &speed;
+#elif defined(TEST_AIRSPEED_SAMPLE)
+    FlightSpeed<FixedBackend> speed = AirspeedSample<FixedBackend>{};
 #elif defined(TEST_COORDINATE_POINTER)
     ViewCoordinate<FixedBackend, ViewXAxis> point;
     int *raw = &point;

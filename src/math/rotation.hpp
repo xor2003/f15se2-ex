@@ -7,6 +7,7 @@
 #include <type_traits>
 
 namespace f15::math {
+template<class B> class AirspeedMath;
 
 struct FixedBackend {};
 struct ModernBackend {};
@@ -67,6 +68,7 @@ template<class B> class Coefficient {
     friend class RotationMath<B>;
     friend class AltitudeMath<B>;
     friend class HorizontalMath<B>;
+    friend class AirspeedMath<B>;
     friend struct Boundary<B>;
 public:
     Coefficient() = default;

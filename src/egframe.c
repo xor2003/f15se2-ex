@@ -1,4 +1,5 @@
 #include "math/legacy_horizontal.hpp"
+#include "math/legacy_airspeed.hpp"
 using f15::math::legacy::fineUnits;
 using f15::math::legacy::viewX;
 using f15::math::legacy::viewY;
@@ -119,7 +120,7 @@ void updateFrame(void) {
         if (g_missionStatus == 0 || g_autopilotEngaged != 0) {
             g_northSouthSign = ((uint16)(g_viewY_ - waypoints[1].mapY) < 0x8000u) ? 1 : -1;
             g_altitude = altitudeFromUnits(2000);
-            g_velocity = 8100;
+            g_velocity = f15::math::legacy::speedFromUnits(8100);
             g_setThrust = 100;
             UpdateThrottleState();
             *(char *)&g_playerPlaneFlags |= 1;
@@ -370,7 +371,8 @@ skip_target_section:
         if ((g_landingDoneFlag == 0) && (g_missionStatus == 0) && g_playerPlaneFlags & 0x6000) {
             if (abs(g_viewX_ - g_planeTable.planes[g_closestThreatIndex].mapX) < 0x10 && abs(g_viewY_ - g_planeTable.planes[g_closestThreatIndex].mapY) < 0x10) {
                 g_altitude = {};
-                g_setThrust = g_velocity = 0;
+                g_velocity = {};
+                g_setThrust = 0;
                 g_ViewX = viewX((int32)g_planeTable.planes[g_closestThreatIndex].mapX << 5);
                 g_ViewY = viewY((int32)(0x8000 - g_planeTable.planes[g_closestThreatIndex].mapY) << 5);
             } else {
@@ -380,7 +382,7 @@ skip_target_section:
                 if (i > 14) {
                     i = 14;
                 }
-                g_velocity = 5400;
+                g_velocity = f15::math::legacy::speedFromUnits(5400);
                 g_altitude = f15::math::AltitudeMath<f15::math::FixedBackend>::landingApproach(
                     g_altitude, f15::math::legacy::Altitudes::ground(g_groundAltitude), i);
                 using HorizontalMath = f15::math::HorizontalMath<f15::math::FixedBackend>;

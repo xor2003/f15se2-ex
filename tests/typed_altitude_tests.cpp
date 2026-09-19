@@ -1,4 +1,5 @@
 #include "math/legacy_altitude.hpp"
+#include "math/legacy_airspeed.hpp"
 #include "math/legacy_rotation.hpp"
 #include "math/legacy_flight_control.hpp"
 #include "math_rotation_reference.hpp"
@@ -93,7 +94,7 @@ void productionCaller() {
         g_altitude = FC::altitude(initial);
         g_ourPitch = Boundary<F>::angleWord(pitch);
         g_rollPitchTrim = trim;
-        g_velocity = speed;
+        g_velocity = legacy::speedFromUnits(speed);
         g_groundAltitude = ground;
         g_frameRateScaling = hz;
         g_autoLandingActive = tick % 2;
