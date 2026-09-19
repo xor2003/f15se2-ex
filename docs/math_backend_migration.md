@@ -922,9 +922,17 @@ toggle-off at altitude 131072.25. Zero remains the existing inactive sentinel.
 Input cancellation, mission resets, recovery setup, and map indicators use the
 typed state rather than implicit integer assignments or comparisons.
 
+Flight-model ground equality and airborne tests now compare typed scene and
+terrain heights. Fixed builds preserve the stored word and the original unsigned
+ordering where used. Modern builds derive current height from continuous flight
+altitude. Production braking tests cover actual ground, a fractional airborne
+height, and the scene-word wrap at altitude 229376; the high-altitude flight-loop
+regression covers both 131072 and 229376.
+
 Other `g_viewZ` consumers still require migration, including ground-state checks
-and camera state. These tests do not establish unrestricted high-altitude flight
-or rendering stability.
+outside `egflight.c`, stall-warning height, particle/snapshot storage, and camera
+state. These tests do not establish unrestricted high-altitude flight or
+rendering stability.
 
 For whole-sortie migration, capture a fixed seed, initial state and tick-indexed
 inputs. Compare fixed-backend state after each tick exactly. For floating point,

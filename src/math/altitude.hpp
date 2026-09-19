@@ -55,6 +55,14 @@ template<class B> class AltitudeMath {
         return (height - 12288) * 4 + 16384;
     }
 public:
+    static bool atGround(RenderHeight<B> height, TerrainHeight<B> ground) {
+        return height.value_ == ground.value_;
+    }
+    static bool aboveGround(RenderHeight<B> height, TerrainHeight<B> ground) {
+        if constexpr (std::is_same_v<B, FixedBackend>)
+            return static_cast<std::uint16_t>(height.value_) > static_cast<std::uint16_t>(ground.value_);
+        else return height.value_ > ground.value_;
+    }
     static RenderHeight<B> captureAltitudeHold(RenderHeight<B> height) {
         // Minimum capture height is autopilot policy in scene-height units.
         return height.value_ < 1000 ? RenderHeight<B>(1000) : height;

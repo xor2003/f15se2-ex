@@ -159,9 +159,10 @@ int main() {
     }
     for (int difficulty : {1, 2})
     for (bool autopilot : {false, true})
+    for (double altitude : {131072.0, 229376.0})
     for (int i = 0; i < 8; ++i) {
         game.unk4 = difficulty;
-        g_altitude = Altitudes::altitude(131072);
+        g_altitude = Altitudes::altitude(altitude);
         g_velocity = Speeds::speed(8100);
         g_knots = 300;
         g_thrust = legacy::thrustFromUnits(100);
@@ -195,6 +196,18 @@ int main() {
             "high-altitude autopilot capture lost range or precision");
     keyDispatch(SCAN_P);
     require(g_autopilotAltitude.isZero(), "autopilot toggle did not clear target");
+    game.unk4 = 2;
+    for (double altitude : {0.0, 0.125, 229376.0, 262144.0}) {
+        g_altitude = Altitudes::altitude(altitude);
+        g_velocity = Speeds::speed(1000);
+        g_ourPitch = g_rollPitchTrim = {};
+        advanceFlightAltitude();
+        g_playerPlaneFlags = 9;
+        brakeFlightSpeed();
+        const double decrement = altitude == 0 ? 16.0 * 27 / 15 : 1000.0 / (16 * 15);
+        require(std::abs(Speeds::speed(g_velocity) - (1000 - decrement)) < 1e-12,
+                "scene-height wrap or quantization selected the wrong braking mode");
+    }
     gameData = nullptr;
     commData = nullptr;
     SDL_Quit();

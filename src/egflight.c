@@ -63,6 +63,16 @@ static f15::math::RenderHeight<f15::math::GameBackend> flightControlHeight() {
 #endif
 }
 
+static bool flightAtGround() {
+    return f15::math::AltitudeMath<f15::math::GameBackend>::atGround(
+        flightControlHeight(), f15::math::legacy::Altitudes::ground(g_groundAltitude));
+}
+
+static bool flightAboveGround() {
+    return f15::math::AltitudeMath<f15::math::GameBackend>::aboveGround(
+        flightControlHeight(), f15::math::legacy::Altitudes::ground(g_groundAltitude));
+}
+
 void stepFlightModel();
 void applyRotationDelta(const f15::math::Matrix3<f15::math::GameBackend> &matA,
                         const f15::math::Matrix3<f15::math::GameBackend> &matB);
@@ -119,7 +129,7 @@ void updateFlightLift() {
 }
 
 bool correctFlightStall() {
-    if ((uint16)g_groundAltitude >= (uint16)g_viewZ || !Aero::belowStall(g_velocity, g_stallSpeed)) return false;
+    if (!flightAboveGround() || !Aero::belowStall(g_velocity, g_stallSpeed)) return false;
     const auto severity = gameData->unk4 == 2 || g_gunHits > 8
         ? f15::math::StallSeverity::Severe : f15::math::StallSeverity::Normal;
     const auto response = Aero::stallResponse(g_velocity, g_stallSpeed, severity,
@@ -137,7 +147,7 @@ void accelerateFlightSpeed(f15::math::FlightSpeed<f15::math::GameBackend> target
 void brakeFlightSpeed() {
     if (*((uint8 *)&g_playerPlaneFlags) & 8) {
         const auto step = f15::math::legacy::Controls::frequency(g_frameRateScaling);
-        if (g_groundAltitude == g_viewZ) {
+        if (flightAtGround()) {
             g_velocity = SpeedMath::groundBrake(g_velocity,
                 f15::math::legacy::Airspeeds::deceleration((32 - gameData->unk4 * 8) * 27), step);
             if (g_groundAltitude != 0) g_velocity = SpeedMath::carrierStop(g_velocity);
@@ -365,7 +375,7 @@ switch_break:
         g_autopilotAltitude.isZero() && g_inputDisabled == 0 &&
         g_ejectState == 0 && g_autoCrashDive == 0 &&
         Aero::aboveStall(g_velocity, g_stallSpeed) &&
-        (g_groundAltitude != g_viewZ || g_knots >= g_cornerSpeed);
+        (!flightAtGround() || g_knots >= g_cornerSpeed);
     androidFlightControl = attitudeControlAllowed
                                ? f15::math::legacy::updateControlFromWords(
                                      g_rollInput, g_pitchInput, android_ar_overrideFlightInput)
@@ -384,7 +394,7 @@ switch_break:
         }
     }
 
-    if (g_groundAltitude == g_viewZ && g_pitchInput.isNegative() && signedAngle(g_ourPitch) <= 0) {
+    if (flightAtGround() && g_pitchInput.isNegative() && signedAngle(g_ourPitch) <= 0) {
         g_pitchInput = {};
     }
 
@@ -395,7 +405,7 @@ switch_break:
         makeSound(32, 2);
     }
 
-    if (g_groundAltitude == g_viewZ && g_setThrust == 0 && !(*((uint8 *)&g_playerPlaneFlags) & 8)) {
+    if (flightAtGround() && g_setThrust == 0 && !(*((uint8 *)&g_playerPlaneFlags) & 8)) {
         *((uint8 *)&g_playerPlaneFlags) |= 8;
         hudMessage("Brakes on");
     }
@@ -448,7 +458,7 @@ switch_break:
                 *((uint8 *)&g_playerPlaneFlags) &= 0xFE;
             }
 
-            if (g_groundAltitude == g_viewZ) {
+            if (flightAtGround()) {
                 g_setThrust = 0;
                 g_rollInput = {};
                 g_playerPlaneFlags |= 8;
@@ -470,7 +480,7 @@ switch_break:
         turbulence += clampRange((g_knots - 200) >> 5, 0, 32);
     }
 
-    if (turbulence > 0 && ((uint16)g_groundAltitude) < ((uint16)g_viewZ)) {
+    if (turbulence > 0 && flightAboveGround()) {
         g_rollInput += rollCommand(randomRange(turbulence) - (turbulence >> 1));
         g_pitchInput += pitchCommand((randomRange(turbulence) - (turbulence >> 1)) >> 1);
     }
@@ -506,7 +516,7 @@ switch_break:
             }
         }
 
-        if (g_viewZ == 0 && g_smokeSourceIdx == -1) {
+        if (flightControlHeight().isZero() && g_smokeSourceIdx == -1) {
             g_smokeSourceIdx = 0;
             g_planeTable.planes[0].mapX = g_viewX_;
             g_planeTable.planes[0].mapY = g_viewY_;
@@ -563,7 +573,7 @@ switch_break:
     }
 
     const auto load = Aero::loadResponse(Aero::bankLoad(g_ourRoll, g_rollGeeTable), g_pitchInput,
-        ((uint16)g_groundAltitude) < ((uint16)g_viewZ));
+        flightAboveGround());
     g_gees = load.load;
     g_pitchInput = load.pitch;
 
@@ -609,7 +619,7 @@ switch_break:
         f15::math::legacy::updateControlFromWords(g_rollInput, g_pitchInput, android_ar_overrideFlightInput);
     }
 
-    if (g_groundAltitude == g_viewZ) {
+    if (flightAtGround()) {
         yaw = ControlMath::groundYaw(g_rollInput);
         g_rollInput = {};
         if (g_knots < g_cornerSpeed) {
@@ -652,7 +662,7 @@ switch_break:
         }
     }
 
-    if (g_groundAltitude == g_viewZ) {
+    if (flightAtGround()) {
         if (signedAngle(g_ourRoll) != 0) {
             g_ourRoll = {};
             g_orientationDirty = 1;
@@ -681,7 +691,7 @@ switch_break:
 
     advanceFlightHorizontal(horizVel);
 
-    if (g_groundAltitude == g_viewZ) {
+    if (flightAtGround()) {
         if (prevAlt > g_groundAltitude && g_inLandingCorridor != 0) {
             makeSound(12, 2);
             // temp_bx = g_closestThreatIndex << 4;

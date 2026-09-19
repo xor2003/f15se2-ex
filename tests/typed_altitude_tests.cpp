@@ -109,6 +109,21 @@ void productionCaller() {
 }
 
 void modernMath() {
+    for (int ground : {-32768, -1, 0, 1, 128, 32767})
+    for (int height : {-32768, -1, 0, 1, 128, 32767}) {
+        require(FM::atGround(FC::render(height), FC::ground(ground)) == (height == ground),
+                "fixed ground equality changed");
+        require(FM::aboveGround(FC::render(height), FC::ground(ground)) ==
+                    (std::uint16_t(height) > std::uint16_t(ground)),
+                "fixed unsigned airborne comparison changed");
+    }
+    for (double ground : {0.0, 128.0, 32768.0})
+    for (double offset : {-0.125, 0.0, 0.125, 65536.0}) {
+        require(MM::atGround(MC::render(ground + offset), MC::ground(ground)) == (offset == 0),
+                "modern ground equality lost fractional height");
+        require(MM::aboveGround(MC::render(ground + offset), MC::ground(ground)) == (offset > 0),
+                "modern airborne comparison wrapped or quantized");
+    }
     for (int height = -32768; height <= 32767; ++height)
         require(FC::render(FM::captureAltitudeHold(FC::render(height))) ==
                     (height < 1000 ? 1000 : height),
