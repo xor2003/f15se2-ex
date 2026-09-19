@@ -23,6 +23,21 @@ template<class B> class AerodynamicsMath {
         return bits < 32768 ? int(bits) : int(bits) - 65536;
     }
 public:
+    // The table is legacy aerodynamic data, not an untyped runtime quantity.
+    static FlightLoad<B> bankLoad(Angle<B> roll, const std::uint8_t (&table)[128]) {
+        if constexpr (std::is_same_v<B, FixedBackend>) {
+            const int angle = signedWord(roll.value_.raw());
+            return FlightLoad<B>(table[(std::abs(angle) / 256) & 127]);
+        } else {
+            constexpr double pi = 3.141592653589793238462643383279502884;
+            const double position = std::abs(roll.value_) * (128 / pi);
+            if (!std::isfinite(position)) throw std::domain_error("non-finite bank angle");
+            const int bin = static_cast<int>(position);
+            const double fraction = position - bin;
+            const double lower = table[bin & 127];
+            return FlightLoad<B>(lower + fraction * (double(table[(bin + 1) & 127]) - lower));
+        }
+    }
     static LoadResponse<B> loadResponse(FlightLoad<B> bank, PitchCommand<B> pitch, bool airborne) {
         if constexpr (std::is_same_v<B, FixedBackend>) {
             const auto load = std::int64_t(bank.value_) + (airborne ? pitch.value_ / pitchLoadDivisor : 0);

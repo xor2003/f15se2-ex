@@ -2293,7 +2293,7 @@ uint8 g_missionEndedFlag[2];
 struct Proj3d g_proj3d;
 int16 g_viewHeadingOffset;
 int16 gfxBufPtr;
-int g_gees;
+f15::math::FlightLoad<f15::math::FixedBackend> g_gees;
 f15::math::ClimbRate<f15::math::FixedBackend> g_climbRate;
 /* size3d3_7: vertex count for the secondary (g_modelOffsetTable) loader buffer. */
 size_t size3d3_7;

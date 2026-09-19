@@ -586,16 +586,17 @@ switch_break:
         g_fuelRemaining = 0;
     }
 
-    const auto load = Aero::loadResponse(f15::math::legacy::loadFromSixteenths(
-        g_rollGeeTable[(abs((int16)signedAngle(g_ourRoll)) >> 8) & 0x7f]), g_pitchInput,
+    const auto load = Aero::loadResponse(Aero::bankLoad(g_ourRoll, g_rollGeeTable), g_pitchInput,
         ((uint16)g_groundAltitude) < ((uint16)g_viewZ));
-    g_gees = f15::math::legacy::loadSixteenths(load.load);
+    g_gees = load.load;
     g_pitchInput = load.pitch;
 
-    strcpy(g_geeStringBuf, itoa(g_gees / 16, strBuf, 10));
+    // Display/debug output and the not-yet-migrated yaw expression use legacy units.
+    const int legacyLoad = f15::math::legacy::loadSixteenths(g_gees);
+    strcpy(g_geeStringBuf, itoa(legacyLoad / 16, strBuf, 10));
     strcat(g_geeStringBuf, ".");
 
-    strcat(g_geeStringBuf, itoa((abs(g_gees) & 0xF) >> 1, strBuf, 10));
+    strcat(g_geeStringBuf, itoa((abs(legacyLoad) & 0xF) >> 1, strBuf, 10));
     strcat(g_geeStringBuf, "G");
 
     const auto corner = Aero::cornerSpeed(g_altitude, load.load);
@@ -617,7 +618,7 @@ switch_break:
 
     audio_setEnginePitch(g_knots, thrustUnits(g_thrust));
 
-    yaw = (((int32)sinMul(signedAngle(g_ourRoll), g_gees << 4)) << 7) / ((int32)((int16)(speedWord(g_velocity) >> 9) + 0x20));
+    yaw = (((int32)sinMul(signedAngle(g_ourRoll), legacyLoad << 4)) << 7) / ((int32)((int16)(speedWord(g_velocity) >> 9) + 0x20));
 
     yaw = cosMul(signedAngle(g_ourPitch), yaw);
 
@@ -648,7 +649,7 @@ switch_break:
 
 #if defined(__ANDROID__)
     android_ar_setFlightDebug(signedAngle(g_ourHead), yaw, rollInput(g_rollInput), pitchInput(g_pitchInput),
-                              g_knots, g_gees, turbulence,
+                              g_knots, legacyLoad, turbulence,
                               g_autopilotAltitude, g_autopilotEngaged,
                               g_directorMode, g_frameRateScaling);
 #endif

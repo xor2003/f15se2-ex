@@ -203,6 +203,33 @@ harness and full flight-model characterization, with `egflight.c` instrumented;
 the rest of the linked core is not instrumented. Whole-sortie blackbox replay,
 Windows, Android, and browser verification remain outstanding.
 
+## Bank lookup and load storage checkpoint
+
+After the load-response checkpoint, `g_gees` becomes `FlightLoad<FixedBackend>`.
+The stored quantity can no longer be assigned a primitive or used directly in
+integer arithmetic. Display/debug output and the pending yaw migration retain
+one explicit legacy conversion; those consumers are not yet modern-backend
+ready.
+
+`AerodynamicsMath::bankLoad` takes a typed angle and a size-checked 128-byte
+legacy table. Fixed mode preserves the original magnitude, 256-word binning,
+and masked index, including the half-turn alias to bin zero. Modern mode
+interpolates the same data instead of guessing a replacement aerodynamic
+formula. Its last bin interpolates into bin zero at the half-turn boundary.
+This deliberately changes fractional modern results, not fixed results.
+
+The committed full-flight baseline from `a875575` covers the migrated caller;
+only explicit result extraction changes in that harness. Unit tests additionally
+compare every fixed angle word against the frozen lookup expression, and check
+modern bin fractions, positive/negative symmetry and half-turn wrap. Additional
+compile-negative cases reject primitive angles, backend mixing, wrong table
+sizes, and primitive assignment/extraction of load.
+
+The full Linux build and all 52 tests pass at this checkpoint. Clang analysis
+of the aerodynamic harness and both scoped ASan/UBSan harnesses pass, with the
+same instrumentation limits described above. No whole-sortie or cross-platform
+parity claim is made.
+
 ## Rotation migration checkpoint
 
 * `Angle`, `Coefficient`, `EulerAngles` and `Matrix3` carry backend types. Storage

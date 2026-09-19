@@ -161,6 +161,29 @@ void cornerMath() {
     rejects([] { MM::cornerSpeed(AltitudeBoundary<M>::altitude(1e308), PropulsionBoundary<M>::load(1e308)); });
     rejects([] { MM::stallThreshold(MC::corner(1e308)); });
 }
+void bankMath() {
+    for (int bits = 0; bits < 65536; ++bits) {
+        // Original egflight.c lookup, before moving it behind the typed API.
+        const int signedRoll = bits < 32768 ? bits : bits - 65536;
+        const int expected = g_rollGeeTable[(std::abs(signedRoll) >> 8) & 127];
+        require(PropulsionBoundary<F>::load(FM::bankLoad(Boundary<F>::angleWord(bits), g_rollGeeTable)) == expected,
+                "fixed bank table lookup changed");
+    }
+    constexpr double pi = 3.141592653589793238462643383279502884;
+    for (int bin = 0; bin < 128; ++bin)
+    for (double fraction : {0.0, .125, .5, .875})
+    for (int sign : {-1, 1}) {
+        const double angle = sign * (bin + fraction) * pi / 128;
+        const double expected = g_rollGeeTable[bin] * (1 - fraction) +
+            g_rollGeeTable[(bin + 1) % 128] * fraction;
+        const auto value = MM::bankLoad(Boundary<M>::radians(angle), g_rollGeeTable);
+        require(std::abs(PropulsionBoundary<M>::load(value) - expected) < 1e-10,
+                "modern bank lookup loses fraction or symmetry");
+    }
+    for (double angle : {-pi, pi, 3 * pi})
+        require(PropulsionBoundary<M>::load(MM::bankLoad(Boundary<M>::radians(angle), g_rollGeeTable)) ==
+                g_rollGeeTable[0], "bank lookup half-turn wrap changed");
+}
 void loadMath() {
     for (int bank = 0; bank <= 255; ++bank)
     for (int pitch = -32768; pitch <= 32767; ++pitch)
@@ -197,4 +220,4 @@ void loadMath() {
     rejects([] { FM::loadResponse(PropulsionBoundary<F>::load(INT32_MIN), ControlBoundary<F>::pitch(-2), true); });
 }
 }
-int main() { fixedMath(); productionCaller(); modernMath(); cornerMath(); loadMath(); }
+int main() { fixedMath(); productionCaller(); modernMath(); cornerMath(); bankMath(); loadMath(); }

@@ -164,10 +164,11 @@ void thrustAndFuel() {
         require(legacy::thrustUnits(g_thrust) == expected, "full flight model thrust response changed");
         require(g_fuelRemaining == remaining, "full flight model fuel cadence/depletion changed");
         require(g_setThrust == target, "damage thrust limit changed");
-        if (g_gees != gees)
+        const int actualLoad = legacy::loadSixteenths(g_gees);
+        if (actualLoad != gees)
             std::fprintf(stderr, "hz=%d height=%d roll=%d stick=%d raw=%d pitch=%d load=%d expected=%d\n",
-                hz, height, roll, stickPitch, int(g_joyRawY), legacy::pitchInput(g_pitchInput), g_gees, gees);
-        require(g_gees == gees, "bank and pitch-command load changed");
+                hz, height, roll, stickPitch, int(g_joyRawY), legacy::pitchInput(g_pitchInput), actualLoad, gees);
+        require(actualLoad == gees, "bank and pitch-command load changed");
         require(legacy::pitchInput(g_pitchInput) == pitchCommand, "load cap pitch-command reduction changed");
         require(g_cornerSpeed == corner && AirspeedBoundary<FixedBackend>::stall(g_stallSpeed) == corner * 27,
                 "full flight model corner/stall threshold changed");

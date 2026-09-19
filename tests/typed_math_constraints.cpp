@@ -52,6 +52,10 @@ int main() {
     (void)PropulsionMath<ModernBackend>::limitForDamage(EngineThrust<ModernBackend>{}, 0);
     (void)PropulsionMath<ModernBackend>::targetSpeed({}, math.sine(angle), {}, {}, {}, LandingGear::Retracted);
     (void)AerodynamicsMath<ModernBackend>::stallThreshold(AerodynamicsMath<ModernBackend>::cornerSpeed({}, {}));
+    const std::uint8_t bankTable[128]{};
+    (void)AerodynamicsMath<ModernBackend>::loadResponse(
+        AerodynamicsMath<ModernBackend>::bankLoad(angle, bankTable), {}, true);
+    (void)AerodynamicsMath<FixedBackend>::bankLoad({}, bankTable);
     static_assert(std::is_same_v<decltype(PropulsionMath<ModernBackend>::advance(
         {}, {}, std::declval<SimulationStep<ModernBackend>>())), EngineThrust<ModernBackend>>);
     static_assert(std::is_same_v<decltype(AerodynamicsMath<ModernBackend>::stallResponse(
@@ -220,6 +224,20 @@ int main() {
     FlightSpeed<FixedBackend> speed = AirspeedSample<FixedBackend>{};
 #elif defined(TEST_LOAD_RESPONSE_RAW)
     (void)AerodynamicsMath<FixedBackend>::loadResponse(16, 2, true);
+#elif defined(TEST_BANK_RAW)
+    const std::uint8_t table[128]{};
+    (void)AerodynamicsMath<FixedBackend>::bankLoad(42, table);
+#elif defined(TEST_BANK_BACKEND)
+    const std::uint8_t table[128]{};
+    (void)AerodynamicsMath<FixedBackend>::bankLoad(Angle<ModernBackend>{}, table);
+#elif defined(TEST_BANK_TABLE_SIZE)
+    const std::uint8_t table[127]{};
+    (void)AerodynamicsMath<FixedBackend>::bankLoad({}, table);
+#elif defined(TEST_LOAD_EXTRACTION)
+    int raw = FlightLoad<FixedBackend>{};
+#elif defined(TEST_LOAD_ASSIGN)
+    FlightLoad<FixedBackend> load;
+    load = 16;
 #elif defined(TEST_LOAD_RESPONSE_AXIS)
     (void)AerodynamicsMath<FixedBackend>::loadResponse({}, RollCommand<FixedBackend>{}, true);
 #elif defined(TEST_LOAD_RESPONSE_BACKEND)
