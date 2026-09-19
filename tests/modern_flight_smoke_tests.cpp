@@ -76,6 +76,18 @@ int main() {
     advanceFlightAltitude();
     require(Altitudes::altitude(g_altitude) == 90000.25,
             "production modern altitude still has the fixed ceiling");
+    // Characterize the remaining scene-height narrowing before migrating its
+    // gameplay consumers. It must not be mistaken for a flight-altitude limit.
+    for (int altitude : {98303, 98304, 128000, 131072}) {
+        g_altitude = Altitudes::altitude(altitude);
+        advanceFlightAltitude();
+        const int sceneHeight = (altitude - 16384) / 4 + 12288;
+        const int signedWord = sceneHeight < 32768 ? sceneHeight : sceneHeight - 65536;
+        require(Altitudes::altitude(g_altitude) == altitude,
+                "high-altitude state changed during level flight");
+        require(g_viewZ == signedWord,
+                "scene-height narrowing baseline changed");
+    }
     g_velocity = Speeds::speed(50000.25);
     g_playerPlaneFlags = 1;
     brakeFlightSpeed();
