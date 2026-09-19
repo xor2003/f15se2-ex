@@ -8,6 +8,7 @@ void advanceFlightOrientation(const f15::math::RotationDeltas<f15::math::GameBac
 void advanceFlightAltitude();
 void updateFlightLift();
 bool correctFlightStall();
+bool flightStallWarningRequired();
 void accelerateFlightSpeed(f15::math::FlightSpeed<f15::math::GameBackend> target);
 void brakeFlightSpeed();
 void advanceFlightHorizontal(f15::math::HorizontalSpeed<f15::math::GameBackend> speed);

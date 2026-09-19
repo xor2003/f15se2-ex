@@ -68,6 +68,10 @@ static bool flightAtGround() {
         flightControlHeight(), f15::math::legacy::Altitudes::ground(g_groundAltitude));
 }
 
+bool flightStallWarningRequired() {
+    return signedAngle(g_ourPitch) < 0 || (uint16)g_viewZ < 200;
+}
+
 static bool flightAboveGround() {
     return f15::math::AltitudeMath<f15::math::GameBackend>::aboveGround(
         flightControlHeight(), f15::math::legacy::Altitudes::ground(g_groundAltitude));
@@ -657,7 +661,7 @@ switch_break:
     }
 
     if (correctFlightStall()) {
-        if (signedAngle(g_ourPitch) < 0 || (uint16)g_viewZ < 200) {
+        if (flightStallWarningRequired()) {
             makeSound(20, 1);
         }
     }

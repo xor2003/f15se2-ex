@@ -56,6 +56,13 @@ void fixedMath() {
     rejects([] { FM::stallResponse({}, {}, static_cast<StallSeverity>(99), ControlBoundary<F>::frequency(15)); });
 }
 void productionCaller() {
+    for (int height = -32768; height <= 32767; ++height)
+    for (int pitch : {-32768, -1, 0, 1, 32767}) {
+        g_viewZ = height;
+        g_ourPitch = legacy::angleFromWord(pitch);
+        require(flightStallWarningRequired() == (pitch < 0 || std::uint16_t(height) < 200),
+                "production stall warning differs from original pitch/height policy");
+    }
     Game data{};
     auto *saved = gameData;
     gameData = &data;
