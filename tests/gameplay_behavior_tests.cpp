@@ -1,3 +1,6 @@
+#include "math/legacy_rotation.hpp"
+using f15::math::legacy::signedAngle;
+using f15::math::legacy::angleFromWord;
 // EGAME combat/flight gameplay behavior tests (LINK_CORE + headless).
 //
 // Exercises the real threat/combat/target/flight/keys logic against the linked
@@ -62,7 +65,7 @@ void resetGameplayState() {
     strBuf[0] = '\0';
     g_viewX_ = g_viewY_ = 0;
     g_viewZ = 0;
-    g_ourHead = 0;
+    g_ourHead = angleFromWord(0);
     g_frameRateScaling = 60;
     g_missionStatus = 0;
     g_difficultyTier = 0;
@@ -270,7 +273,7 @@ int main() {
     g_viewX_ = 0x1234;
     g_viewY_ = 0x2345;
     g_viewZ = 0x3456;
-    g_ourHead = 0x6789;
+    g_ourHead = angleFromWord(0x6789);
     g_planeScanCount = 1;
     g_planeTable.planes[0].active = 1;
     g_planeTable.planes[0].alertLevel = 300; // above the 255 cap
@@ -318,7 +321,7 @@ int main() {
     g_projectiles[0].mapY = 1000;
     g_projectiles[0].speed = 10;
     g_projectiles[0].worldX = 0;
-    g_ourHead = 0x8000;
+    g_ourHead = angleFromWord(0x8000);
     g_frameRateScaling = 20;
     require(samCanAcquireTarget(0, 3000, 1000, 0, 0) == 0,
             "samCanAcquireTarget mode 0 requires the forward-heading cone");
@@ -328,7 +331,7 @@ int main() {
     g_projectiles[0].mapY = 1000;
     g_projectiles[0].speed = 1;
     g_projectiles[0].worldX = static_cast<int16>(0x8000);
-    g_ourHead = 0;
+    g_ourHead = angleFromWord(0);
     g_frameRateScaling = 20;
     require(samCanAcquireTarget(0, 1000, 3000, 0, 0) == 1,
             "samCanAcquireTarget mode 0 preserves original int16 abs(-32768) heading seam");
@@ -338,7 +341,7 @@ int main() {
     g_projectiles[0].mapY = 1000;
     g_projectiles[0].speed = 1;
     g_projectiles[0].worldX = static_cast<int16>(0x8000);
-    g_ourHead = 0;
+    g_ourHead = angleFromWord(0);
     g_frameRateScaling = 20;
     require(samCanAcquireTarget(0, 1000, -1000, 0, 1) == 1,
             "samCanAcquireTarget preserves original int16 abs(-32768) acquisition seam");

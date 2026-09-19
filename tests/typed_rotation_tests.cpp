@@ -1,8 +1,12 @@
+#include "math/legacy_rotation.hpp"
+using f15::math::legacy::signedAngle;
+using f15::math::legacy::angleFromWord;
 #define F15_MATH_BOUNDARY_ACCESS
 #include "math/boundary.hpp"
 #undef F15_MATH_BOUNDARY_ACCESS
 #include "math_rotation_reference.hpp"
 #include "math_attitude_reference.hpp"
+#include "math/interpolation.hpp"
 #include "egdata.h"
 #include "egcode.h"
 #include "eg3dcam.h"
@@ -10,6 +14,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <limits>
+#include <utility>
 
 extern void applyRotationDelta(const f15::math::Matrix3<f15::math::FixedBackend> &,
                                const f15::math::Matrix3<f15::math::FixedBackend> &);
@@ -93,7 +98,7 @@ void fixedAndCallers() {
         require(product == words(g_orientMatrix) &&
                 product == words(g_matrixScratch) &&
                 g_rotationCounter == 8 && g_orientationDirty == 1, "flight rotation caller changed");
-        g_ourHead = static_cast<int16>(yaw); g_ourPitch = static_cast<int16>(pitch); g_ourRoll = static_cast<int16>(roll);
+        g_ourHead = angleFromWord(static_cast<int16>(yaw)); g_ourPitch = angleFromWord(static_cast<int16>(pitch)); g_ourRoll = angleFromWord(static_cast<int16>(roll));
         rebuildOrientation();
         require(expected == words(g_orientMatrix) &&
                 g_rotationCounter == 0 && g_orientationDirty == 0, "flight rebuild caller changed");
@@ -173,8 +178,8 @@ void attitudeAndDeltas() {
         g_orientationDirty = 0;
         g_rollWasNonzero = previousRoll;
         computeAttitudeAngles();
-        require(g_ourHead == reference.yaw && g_ourPitch == reference.pitch &&
-                g_ourRoll == reference.roll && bool(g_orientationDirty) == reference.dirty,
+        require(signedAngle(g_ourHead) == reference.yaw && signedAngle(g_ourPitch) == reference.pitch &&
+                signedAngle(g_ourRoll) == reference.roll && bool(g_orientationDirty) == reference.dirty,
                 "production recovery differs from frozen reference");
     };
     for (int raw = 0; raw < 65536; ++raw) {
@@ -231,7 +236,7 @@ void attitudeAndDeltas() {
         dirty = dirty || attitude.dirty;
         computeAttitudeAngles();
         require(g_rotationCounter == rotations && bool(g_orientationDirty) == dirty &&
-                g_ourHead == attitude.yaw && g_ourPitch == attitude.pitch && g_ourRoll == attitude.roll,
+                signedAngle(g_ourHead) == attitude.yaw && signedAngle(g_ourPitch) == attitude.pitch && signedAngle(g_ourRoll) == attitude.roll,
                 "fixed update/recovery refresh schedule changed");
         if (dirty) {
             expected = rotation_reference::rotation(attitude.yaw, attitude.pitch, attitude.roll, g_angleLut);
@@ -242,11 +247,65 @@ void attitudeAndDeltas() {
         require(words(g_orientMatrix) == expected, "fixed complete orientation sequence changed");
     }
 }
+
+void typedEulerState() {
+    using Pose = PoseInterpolation<F>;
+    for (int word = 0; word < 65536; ++word) {
+        const auto a = FC::angleWord(word);
+        require(signedAngle(a) == rotation_reference::word(word), "angle signed boundary changed");
+        const auto advanced = a + Angle<F>::quarterTurn();
+        require(FC::angleWord(advanced) == static_cast<uint16>(word + 16384), "typed angle wrap changed");
+        for (int delta : {-32768, -16385, -16384, -16383, -257, -1, 0, 1, 257, 16383, 16384, 32767}) {
+            const auto b = FC::angleWord(word + delta);
+            const auto actual = Pose::interpolate({a, a, a}, {b, b, b}, FrameFraction::fromTicks(1, 3));
+            const auto expected = static_cast<uint16>((delta <= -16384 || delta >= 16384) ?
+                                                     word + delta : word + delta / 3);
+            require(FC::angleWord(actual.yaw) == expected && FC::angleWord(actual.pitch) == expected &&
+                    FC::angleWord(actual.roll) == expected, "fixed pose interpolation changed");
+        }
+    }
+    const auto zero = angles<F>(0, 0, 0), flip = angles<F>(100, 0x4000, 50);
+    const auto snapped = Pose::interpolate(zero, flip, FrameFraction::fromTicks(1, 2));
+    require(snapped.yaw == flip.yaw && snapped.pitch == flip.pitch && snapped.roll == flip.roll,
+            "gimbal snap failed to keep Euler triple coherent");
+
+    auto roll = FC::angleWord(0x8000), pitch = FC::angleWord(0xffff);
+    const int changed = f15::math::legacy::updateAttitudeFromWords(roll, pitch,
+        [](int16 *r, int16 *p) {
+            require(*r == -32768 && *p == -1, "platform attitude input changed");
+            *r = 123; *p = -456;
+            return 1;
+        });
+    require(changed == 1 && signedAngle(roll) == 123 && signedAngle(pitch) == -456,
+            "platform attitude output changed");
+    require(f15::math::legacy::updateAttitudeFromWords(roll, pitch, [](int16 *, int16 *) { return 0; }) == 0 &&
+            signedAngle(roll) == 123 && signedAngle(pitch) == -456, "inactive platform adapter changed state");
+
+    using ModernPose = PoseInterpolation<M>;
+    const auto tiny = MC::radians(1e-9);
+    const auto interpolated = ModernPose::interpolate({}, {tiny, tiny, tiny}, FrameFraction::fromTicks(1, 3));
+    require(std::abs(MC::radians(interpolated.pitch) - 1e-9 / 3) < 1e-23,
+            "modern interpolation quantized fractional angles");
+    require(Angle<M>::halfTurn() == -Angle<M>::halfTurn(), "modern angle has inconsistent half-turn representation");
+    const auto wrapA = MC::radians(3.14159265358979323846 - 0.01);
+    const auto wrapB = MC::radians(-3.14159265358979323846 + 0.01);
+    const auto middle = ModernPose::interpolate({wrapA, {}, {}}, {wrapB, {}, {}}, FrameFraction::fromTicks(1, 2));
+    require(std::abs(std::abs(MC::radians(middle.yaw)) - 3.14159265358979323846) < 1e-14,
+            "modern pose did not use shortest wraparound arc");
+    for (const auto interval : {std::pair<int64, int64>{0, 0}, {-1, 10}, {11, 10},
+                                {std::numeric_limits<int64>::max(), std::numeric_limits<int64>::max()}}) {
+        bool rejected = false;
+        try { (void)FrameFraction::fromTicks(interval.first, interval.second); }
+        catch (const std::domain_error &) { rejected = true; }
+        require(rejected, "invalid interpolation interval accepted");
+    }
+}
 } // namespace
 
 int main() {
     fixedAndCallers();
     modernPrecision();
     attitudeAndDeltas();
+    typedEulerState();
     std::puts("typed rotation backends and production callers passed");
 }

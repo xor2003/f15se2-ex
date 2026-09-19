@@ -23,6 +23,8 @@
 #include "input.h"
 #include "joystick.h"
 #include "math/legacy_rotation.hpp"
+using f15::math::legacy::signedAngle;
+using f15::math::legacy::angleFromWord;
 
 #include <dos.h>
 #include <stdio.h>
@@ -66,27 +68,24 @@ void stepFlightModel(void) {
     int pointerThrottle = 0;
 
     if (g_initPhase == 0) {
-        // (MSC stores chained assignments right-to-left:
-        // ref store order is thrust, setThrust, velocity, 380D0, viewZ, roll, pitch)
-        g_ourPitch =
-            g_ourRoll =
-                g_viewZ =
-                    g_altitude =
-                        g_velocity =
-                            g_setThrust =
-                                g_thrust = 0;
+        g_ourPitch = g_ourRoll = {};
+        g_viewZ =
+            g_altitude =
+                g_velocity =
+                    g_setThrust =
+                        g_thrust = 0;
 
         if (gameData->difficulty == 0) {
 
-            g_ourHead = ((g_viewY_ - (waypoints[1].mapY)) < 0x8000) ? 0 : 0x8000;
+            g_ourHead = angleFromWord(((g_viewY_ - (waypoints[1].mapY)) < 0x8000) ? 0 : 0x8000);
         } else {
-            g_ourHead = (gameData->theater == 6)
+            g_ourHead = angleFromWord((gameData->theater == 6)
                             ? 0                                       // If true, the result is 0
-                            : ((gameData->theater & 1) ? 0 : 0x8000); // Else, evaluate the second condition
+                            : ((gameData->theater & 1) ? 0 : 0x8000)); // Else, evaluate the second condition
         }
 
         if (g_planeTable.planes[g_targetSlots[0].viewIndex].flags & 0x200) {
-            *((uint8 *)&g_ourHead + 1) += 4;
+            g_ourHead += angleFromWord(0x400);
         }
 
         rebuildOrientation();
@@ -99,7 +98,7 @@ void stepFlightModel(void) {
      * feedback for target-angle controls, never as an integrated turn rate. */
     android_ar_setAutopilotActive(g_autopilotAltitude != 0 ||
                                   g_autopilotEngaged != 0);
-    android_ar_setGameAttitude(g_ourPitch, g_ourRoll);
+    android_ar_setGameAttitude(signedAngle(g_ourPitch), signedAngle(g_ourRoll));
 #endif
 
     keyScancode = 0;
@@ -287,12 +286,12 @@ switch_break:
          * the legacy matrix from that attitude so its yaw/lift calculations
          * remain intact without a feedback loop chasing decoded Euler jumps.
          */
-        if (android_ar_overrideFlightAttitude(&g_ourRoll, &g_ourPitch)) {
+        if (f15::math::legacy::updateAttitudeFromWords(g_ourRoll, g_ourPitch, android_ar_overrideFlightAttitude)) {
             rebuildOrientation();
         }
     }
 
-    if (g_groundAltitude == g_viewZ && g_pitchInput < 0 && g_ourPitch <= 0) {
+    if (g_groundAltitude == g_viewZ && g_pitchInput < 0 && signedAngle(g_ourPitch) <= 0) {
         g_pitchInput = 0;
     }
 
@@ -316,13 +315,13 @@ switch_break:
         headingErr = (g_autopilotEngaged != 0) ? ((g_missionTick & 0xF) << 8) - 0x800
                                                : 0;
 
-        headingErr = egClampValue((int16)(headingErr - g_ourHead + g_waypointBearing), -5120, 0x1400) * 2;
+        headingErr = egClampValue((int16)(headingErr - signedAngle(g_ourHead) + g_waypointBearing), -5120, 0x1400) * 2;
 
-        g_rollInput = -clampRange((int16)(headingErr - g_ourRoll) >> 6, -24, 24);
+        g_rollInput = -clampRange((int16)(headingErr - signedAngle(g_ourRoll)) >> 6, -24, 24);
 
         tmpVal = egClampValue(((g_autopilotAltitude - g_viewZ) << 4) - g_rollPitchTrim, -5120, 0xC00);
 
-        g_pitchInput = clampRange((tmpVal - g_ourPitch) >> 7, -8, 8);
+        g_pitchInput = clampRange((tmpVal - signedAngle(g_ourPitch)) >> 7, -8, 8);
 
         if (waypointIndex == 3) {
             nsSign = g_northSouthSign;
@@ -339,11 +338,11 @@ switch_break:
 
             dy += ((g_planeTable.planes[tgtIdx].flags & 0x200) ? 30 : 0x40) * nsSign;
 
-            headingErr = abs((int16)g_ourHead);
+            headingErr = abs((int16)signedAngle(g_ourHead));
             if (nsSign == -1) {
                 dx = -dx;
                 dy = -dy;
-                headingErr = abs((int16)(g_ourHead - 0x8000));
+                headingErr = abs((int16)(signedAngle(g_ourHead) - 0x8000));
             }
 
             tmpVal = clampRange((abs(dx) + abs(dy)) * 2 + headingErr / 32, 50, 0x1000);
@@ -378,20 +377,20 @@ switch_break:
             bearing = computeBearing(dx - g_viewX_, g_viewY_ - dy);
             knotsScale = g_knots / 16;
 
-            headingErr = egClampValue((int16)(bearing - g_ourHead), (-knotsScale) << 8, knotsScale << 8) * 2;
+            headingErr = egClampValue((int16)(bearing - signedAngle(g_ourHead)), (-knotsScale) << 8, knotsScale << 8) * 2;
 
             if (inRecoveryCorridor) {
                 headingErr = 0;
             }
 
-            g_rollInput = -clampRange((int16)(headingErr - g_ourRoll) >> 6, -32, 32);
+            g_rollInput = -clampRange((int16)(headingErr - signedAngle(g_ourRoll)) >> 6, -32, 32);
 
             g_setThrust = clampRange((abs(headingErr) / 256) + (tmpVal / 64), 35, 80);
             UpdateThrottleState();
 
             tmpVal = egClampValue(((tmpVal - g_viewZ) >> 3) + (g_rollPitchTrim >> 7), -24, 24);
 
-            g_pitchInput = clampRange(tmpVal - (g_ourPitch >> 7), -16, 16);
+            g_pitchInput = clampRange(tmpVal - (signedAngle(g_ourPitch) >> 7), -16, 16);
 
             if (g_knots < 350) {
                 *((uint8 *)&g_playerPlaneFlags) &= 0xFE;
@@ -420,8 +419,8 @@ switch_break:
         g_pitchInput += (randomRange(turbulence) - (turbulence >> 1)) >> 1;
     }
 
-    if ((g_playerPlaneFlags & 1) && g_pitchInput <= 0 && ((uint16)g_stallSpeed) < ((uint16)g_velocity) && gameData->unk4 < 2 && abs((int16)g_ourRoll) < 0x3000 && g_gunFiredFlag == 0) {
-        tmpVal = ((((g_rollPitchTrim) - (g_ourPitch)) >> 2) - g_viewZ + 300) >> 2;
+    if ((g_playerPlaneFlags & 1) && g_pitchInput <= 0 && ((uint16)g_stallSpeed) < ((uint16)g_velocity) && gameData->unk4 < 2 && abs((int16)signedAngle(g_ourRoll)) < 0x3000 && g_gunFiredFlag == 0) {
+        tmpVal = ((((g_rollPitchTrim) - (signedAngle(g_ourPitch))) >> 2) - g_viewZ + 300) >> 2;
         if (tmpVal > 0) {
             g_pitchInput = clampRange(tmpVal, 0, 32);
         }
@@ -430,7 +429,7 @@ switch_break:
     if (g_ejectState != 0) {
         g_rollInput = 0x40;
 
-        g_pitchInput = (abs((int16)g_ourRoll) > 0x4000) ? 0x10 : -8; // pitch_input_modifier
+        g_pitchInput = (abs((int16)signedAngle(g_ourRoll)) > 0x4000) ? 0x10 : -8; // pitch_input_modifier
 
         // g_ejectState++;
         g_crashCamZ += clampRange(
@@ -477,7 +476,7 @@ switch_break:
             g_hitEffectTimer = -8;
             makeSound(0, 2);
 
-            g_ourPitch = -0x4000;
+            g_ourPitch = -f15::math::Angle<f15::math::FixedBackend>::quarterTurn();
             g_orientationDirty = 1;
         }
     }
@@ -506,14 +505,14 @@ switch_break:
         g_fuelRemaining = 0;
     }
 
-    g_gees = g_rollGeeTable[(abs((int16)g_ourRoll) >> 8) & 0x7f];
+    g_gees = g_rollGeeTable[(abs((int16)signedAngle(g_ourRoll)) >> 8) & 0x7f];
     if (((uint16)g_groundAltitude) < ((uint16)g_viewZ)) {
         g_gees += g_pitchInput / 2;
     }
 
     if (g_gees > 0x80) {
         g_gees = 0x80;
-        g_pitchInput = clampRange(0x80 - g_rollGeeTable[(abs((int16)g_ourRoll) >> 8) & 0x7f], 0, g_pitchInput);
+        g_pitchInput = clampRange(0x80 - g_rollGeeTable[(abs((int16)signedAngle(g_ourRoll)) >> 8) & 0x7f], 0, g_pitchInput);
     }
 
     strcpy(g_geeStringBuf, itoa(g_gees / 16, strBuf, 10));
@@ -522,7 +521,7 @@ switch_break:
     strcat(g_geeStringBuf, itoa((abs(g_gees) & 0xF) >> 1, strBuf, 10));
     strcat(g_geeStringBuf, "G");
 
-    speedCalc = ((int32)(g_thrust - sinMul(g_ourPitch, 80)) * 800L) / 100L;
+    speedCalc = ((int32)(g_thrust - sinMul(signedAngle(g_ourPitch), 80)) * 800L) / 100L;
 
     g_cornerSpeed = 100;
     speedCalc = ((((uint16)g_viewZ >> 7) + 0x0400) * (int32)(speedCalc & speedCalc)) >> 10; // speedCalc & speedCalc folds to a plain load but ranks the operand "heavy", so the shift-expr is evaluated/pushed first like the ref
@@ -548,7 +547,7 @@ switch_break:
     g_liftForce = ((int32)g_stallSpeed * 3072) / (abs(g_velocity) + 1);
     if ((uint16)g_liftForce > 0x2000) g_liftForce = 0x2000;
 
-    g_rollPitchTrim = cosMul(g_ourRoll, g_liftForce - 0x300);
+    g_rollPitchTrim = cosMul(signedAngle(g_ourRoll), g_liftForce - 0x300);
 
     if (*((uint8 *)&g_playerPlaneFlags) & 8) {
         if (g_groundAltitude == g_viewZ) {
@@ -563,14 +562,14 @@ switch_break:
 
     if ((uint16)g_velocity > 0xAFC8) g_velocity = 0;
 
-    horizVel = cosMul(g_ourPitch, g_velocity);
+    horizVel = cosMul(signedAngle(g_ourPitch), g_velocity);
     g_knots = (uint16)g_velocity / 27;
 
     audio_setEnginePitch(g_knots, g_thrust);
 
-    yaw = (((int32)sinMul(g_ourRoll, g_gees << 4)) << 7) / ((int32)((int16)((uint16)g_velocity >> 9) + 0x20));
+    yaw = (((int32)sinMul(signedAngle(g_ourRoll), g_gees << 4)) << 7) / ((int32)((int16)((uint16)g_velocity >> 9) + 0x20));
 
-    yaw = cosMul(g_ourPitch, yaw);
+    yaw = cosMul(signedAngle(g_ourPitch), yaw);
 
     /*
      * Turbulence and other legacy assists modify the stick earlier in this
@@ -592,14 +591,14 @@ switch_break:
     }
 
     if (g_autoCrashDive != 0) {
-        g_pitchInput = -0x400 - g_ourPitch;
+        g_pitchInput = -0x400 - signedAngle(g_ourPitch);
         // (ref stores velocity then setThrust; chains store right-to-left)
         g_setThrust =
             g_velocity = 0;
     }
 
 #if defined(__ANDROID__)
-    android_ar_setFlightDebug(g_ourHead, yaw, g_rollInput, g_pitchInput,
+    android_ar_setFlightDebug(signedAngle(g_ourHead), yaw, g_rollInput, g_pitchInput,
                               g_knots, g_gees, turbulence,
                               g_autopilotAltitude, g_autopilotEngaged,
                               g_directorMode, g_frameRateScaling);
@@ -613,8 +612,8 @@ switch_break:
          * matrix back to Euler angles can alternate between equivalent
          * azimuths and make a banked aircraft shake toward its old heading.
          */
-        g_ourHead = (int16)(g_ourHead + yawAngle);
-        android_ar_overrideFlightAttitude(&g_ourRoll, &g_ourPitch);
+        g_ourHead += angleFromWord(yawAngle);
+        f15::math::legacy::updateAttitudeFromWords(g_ourRoll, g_ourPitch, android_ar_overrideFlightAttitude);
         g_orientationDirty = 1;
     } else {
         rollAngle = (((int32)g_rollInput) << 7) / ((int32)g_frameRateScaling);
@@ -637,21 +636,21 @@ switch_break:
     }
 
     if ((uint16)g_stallSpeed > (uint16)g_velocity && (uint16)g_groundAltitude < (uint16)g_viewZ) {
-        g_ourPitch -= ((uint16)g_stallSpeed - (uint16)g_velocity) >> ((gameData->unk4 == 2 || g_gunHits > 8) ? 1 : 2);
+        g_ourPitch -= angleFromWord(((uint16)g_stallSpeed - (uint16)g_velocity) >> ((gameData->unk4 == 2 || g_gunHits > 8) ? 1 : 2));
         g_orientationDirty = 1;
-        if (g_ourPitch < 0 || (uint16)g_viewZ < 200) {
+        if (signedAngle(g_ourPitch) < 0 || (uint16)g_viewZ < 200) {
             makeSound(20, 1);
         }
     }
 
     if (g_groundAltitude == g_viewZ) {
-        if (g_ourRoll != 0) {
-            g_ourRoll = 0;
+        if (signedAngle(g_ourRoll) != 0) {
+            g_ourRoll = {};
             g_orientationDirty = 1;
         }
-        if (g_ourPitch < 0 || (g_ourPitch > 0 && g_knots < g_cornerSpeed)) {
+        if (signedAngle(g_ourPitch) < 0 || (signedAngle(g_ourPitch) > 0 && g_knots < g_cornerSpeed)) {
             if (g_autoCrashDive == 0) {
-                g_ourPitch = 0;
+                g_ourPitch = {};
             }
             g_orientationDirty = 1;
         }
@@ -659,7 +658,7 @@ switch_break:
 
     g_autoCrashDive = 0;
 
-    g_highGeeFlag[0] = ((abs(g_ourPitch)) - (abs((int16)g_ourRoll) / 2) > 0x1000) ? 1 : 0;
+    g_highGeeFlag[0] = ((abs(signedAngle(g_ourPitch))) - (abs((int16)signedAngle(g_ourRoll)) / 2) > 0x1000) ? 1 : 0;
 
     /* Keep the stall and ground corrections above. Reapplying handset attitude
      * here would erase their nose drop and permit flight below stall speed. */
@@ -669,14 +668,14 @@ switch_break:
     }
 
     prevAlt = g_altitude;
-    g_climbRate = fixedMulQ14((((uint16)g_velocity) / 10), sine(g_ourPitch - g_rollPitchTrim));
+    g_climbRate = fixedMulQ14((((uint16)g_velocity) / 10), sine(signedAngle(g_ourPitch) - g_rollPitchTrim));
 
     if (g_autoLandingActive == 0) {
         g_altitude += (g_climbRate / g_frameRateScaling);
 
-        g_ViewX += fixedMulQ14(horizVel, sine(g_ourHead)) / 10 / g_frameRateScaling;
+        g_ViewX += fixedMulQ14(horizVel, sine(signedAngle(g_ourHead))) / 10 / g_frameRateScaling;
 
-        g_ViewY += fixedMulQ14(horizVel, cosine(g_ourHead)) / 10 / g_frameRateScaling;
+        g_ViewY += fixedMulQ14(horizVel, cosine(signedAngle(g_ourHead))) / 10 / g_frameRateScaling;
     }
 
     if ((uint16)g_altitude > 0xf230 || (uint16)g_altitude < (uint16)g_groundAltitude) {
@@ -702,7 +701,7 @@ switch_break:
                 (((((g_planeTable.planes[g_closestThreatIndex].flags & 0x200) ? 0x100 : 0x80) < ((int16)(-g_climbRate * g_missionStatus) / 2))) ||
                 ((gameData->unk4 != 0 &&
                   (((g_playerPlaneFlags & 1) != 0) ||
-                   (((int16)abs(g_ourRoll)) > (int16)((0x30 / (g_missionStatus + 1)) << 8))))))) {
+                   (((int16)abs(signedAngle(g_ourRoll))) > (int16)((0x30 / (g_missionStatus + 1)) << 8))))))) {
                 makeSound(0, 2);
                 waitFrameSync(60);
                 finalizeMission(5);
@@ -712,9 +711,9 @@ switch_break:
     }
 
     idx = frameTick & 0xF;
-    g_viewSnapshotRing[idx].heading = g_ourHead;
-    g_viewSnapshotRing[idx].pitch = g_ourPitch;
-    g_viewSnapshotRing[idx].roll = g_ourRoll;
+    g_viewSnapshotRing[idx].heading = signedAngle(g_ourHead);
+    g_viewSnapshotRing[idx].pitch = signedAngle(g_ourPitch);
+    g_viewSnapshotRing[idx].roll = signedAngle(g_ourRoll);
     *(int32 *)&g_viewSnapshotRing[idx].worldX = g_ViewX;
     *(int32 *)&g_viewSnapshotRing[idx].worldY = g_ViewY;
     g_viewSnapshotRing[idx].alt = g_viewZ;
@@ -729,12 +728,12 @@ switch_break:
 
         idx = (frameTick - idx) & 0xF;
 
-        headingErr = g_ourHead - g_viewSnapshotRing[idx].heading;
-        tmpVal = g_ourPitch - g_viewSnapshotRing[idx].pitch;
+        headingErr = signedAngle(g_ourHead) - g_viewSnapshotRing[idx].heading;
+        tmpVal = signedAngle(g_ourPitch) - g_viewSnapshotRing[idx].pitch;
 
-        g_aamSeekerX = cosMul(g_ourRoll, ((-headingErr) >> 2)) + sinMul(g_ourRoll, (tmpVal >> 2));
+        g_aamSeekerX = cosMul(signedAngle(g_ourRoll), ((-headingErr) >> 2)) + sinMul(signedAngle(g_ourRoll), (tmpVal >> 2));
 
-        g_aamSeekerY = sinMul(g_ourRoll, (headingErr >> 2)) + cosMul(g_ourRoll, (tmpVal >> 1));
+        g_aamSeekerY = sinMul(signedAngle(g_ourRoll), (headingErr >> 2)) + cosMul(signedAngle(g_ourRoll), (tmpVal >> 1));
     }
 }
 
@@ -752,16 +751,16 @@ void computeAttitudeAngles(void) {
     namespace legacy = f15::math::legacy;
     const legacy::Math math(g_angleLut);
     const auto recovered = math.recover(g_orientMatrix, g_rollWasNonzero != 0);
-    g_ourHead = static_cast<int16>(legacy::Codec::angleWord(recovered.angles.yaw));
-    g_ourPitch = static_cast<int16>(legacy::Codec::angleWord(recovered.angles.pitch));
-    g_ourRoll = static_cast<int16>(legacy::Codec::angleWord(recovered.angles.roll));
+    g_ourHead = recovered.angles.yaw;
+    g_ourPitch = recovered.angles.pitch;
+    g_ourRoll = recovered.angles.roll;
     if (recovered.needsRefresh) g_orientationDirty = 1;
 }
 
 void rebuildOrientation() {
     namespace legacy = f15::math::legacy;
     const legacy::Math math(g_angleLut);
-    const auto angles = legacy::angles(g_ourHead, g_ourPitch, g_ourRoll);
+    const f15::math::EulerAngles<f15::math::FixedBackend> angles{g_ourHead, g_ourPitch, g_ourRoll};
     g_orientMatrix = math.rotation(angles);
     legacy::storeTerms(math.terms(angles), g_rotSinYaw, g_rotCosYaw,
                        g_sphereRadius, g_sphereDistZ, g_spherePitch, g_sphereRoll);
@@ -886,24 +885,24 @@ void renderFrame() {
     switch (g_viewMode) {
     case VIEW_COCKPIT:
     case VIEW_FORWARD:
-        g_viewHeading = g_ourHead;
-        g_viewPitch = g_ourPitch;
-        g_viewRoll = g_ourRoll;
+        g_viewHeading = signedAngle(g_ourHead);
+        g_viewPitch = signedAngle(g_ourPitch);
+        g_viewRoll = signedAngle(g_ourRoll);
         break;
     case VIEW_REAR:
-        g_viewHeading = g_ourHead + 0x8000;
-        g_viewPitch = -g_ourPitch;
-        g_viewRoll = -g_ourRoll;
+        g_viewHeading = signedAngle(g_ourHead) + 0x8000;
+        g_viewPitch = -signedAngle(g_ourPitch);
+        g_viewRoll = -signedAngle(g_ourRoll);
         break;
     case VIEW_RIGHT:
-        g_viewHeading = g_ourHead + 0x4000;
-        g_viewPitch = -g_ourRoll;
-        g_viewRoll = g_ourPitch;
+        g_viewHeading = signedAngle(g_ourHead) + 0x4000;
+        g_viewPitch = -signedAngle(g_ourRoll);
+        g_viewRoll = signedAngle(g_ourPitch);
         break;
     case VIEW_LEFT:
-        g_viewHeading = g_ourHead - 0x4000;
-        g_viewPitch = g_ourRoll;
-        g_viewRoll = -g_ourPitch;
+        g_viewHeading = signedAngle(g_ourHead) - 0x4000;
+        g_viewPitch = signedAngle(g_ourRoll);
+        g_viewRoll = -signedAngle(g_ourPitch);
         break;
     case VIEW_EXT_DYNAMIC: {
         /* The trailing replay camera reads a pose from the per-sim-step history
@@ -931,13 +930,13 @@ void renderFrame() {
         break;
     }
     case VIEW_EXT_SIDE:
-        g_viewHeading = g_ourHead - 0x4000;
+        g_viewHeading = signedAngle(g_ourHead) - 0x4000;
         g_viewPitch = 0;
         g_viewRoll = 0;
         /* Q8 eye: a whole-fine-unit eye position lurches visibly at close cam
          * distance as the offset rotates with the (smoothly interpolated) heading. */
-        g_camEyeX = eyeFromQ8(sinMulQ8(g_ourHead + 0x4000, 0x18 << camDist) + ((long)g_ViewX << 8), &g_camEyeFracX);
-        g_camEyeY = eyeFromQ8(cosMulQ8(g_ourHead + 0x4000, 0x18 << camDist) + ((long)g_ViewY << 8), &g_camEyeFracY);
+        g_camEyeX = eyeFromQ8(sinMulQ8(signedAngle(g_ourHead) + 0x4000, 0x18 << camDist) + ((long)g_ViewX << 8), &g_camEyeFracX);
+        g_camEyeY = eyeFromQ8(cosMulQ8(signedAngle(g_ourHead) + 0x4000, 0x18 << camDist) + ((long)g_ViewY << 8), &g_camEyeFracY);
         break;
     case VIEW_EXT_UNUSED:
         g_viewHeading = 0x8000;
@@ -946,11 +945,11 @@ void renderFrame() {
         g_camEyeY = (0x18 << camDist) + g_ViewY;
         break;
     case VIEW_EXT_FOLLOW:
-        g_viewHeading = g_ourHead;
+        g_viewHeading = signedAngle(g_ourHead);
         g_viewPitch = 0;
         g_viewRoll = 0;
-        g_camEyeX = eyeFromQ8(sinMulQ8(g_ourHead + 0x8000, 0x18 << camDist) + ((long)g_ViewX << 8), &g_camEyeFracX);
-        g_camEyeY = eyeFromQ8(cosMulQ8(g_ourHead + 0x8000, 0x18 << camDist) + ((long)g_ViewY << 8), &g_camEyeFracY);
+        g_camEyeX = eyeFromQ8(sinMulQ8(signedAngle(g_ourHead) + 0x8000, 0x18 << camDist) + ((long)g_ViewX << 8), &g_camEyeFracX);
+        g_camEyeY = eyeFromQ8(cosMulQ8(signedAngle(g_ourHead) + 0x8000, 0x18 << camDist) + ((long)g_ViewY << 8), &g_camEyeFracY);
         g_camEyeZ = (4 << camDist) + g_viewZ;
         break;
     case VIEW_EXT_TARGET:
@@ -976,8 +975,8 @@ void renderFrame() {
                     g_viewTargetY = (uint32)g_projInterpY[g_viewTargetObj];
                     g_viewTargetAlt = g_projectiles[g_viewTargetObj].alt;
                 } else {
-                    g_projectiles[g_viewTargetObj].worldX = g_ourHead;
-                    g_projectiles[g_viewTargetObj].worldY = g_ourPitch;
+                    g_projectiles[g_viewTargetObj].worldX = signedAngle(g_ourHead);
+                    g_projectiles[g_viewTargetObj].worldY = signedAngle(g_ourPitch);
                     if (g_directorMode != 0) g_viewMode = VIEW_EXT_FOLLOW;
                 }
                 camDist = 5;

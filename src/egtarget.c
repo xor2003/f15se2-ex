@@ -4,6 +4,8 @@
 #include "egcode.h"
 #include "egcombat.h"
 #include "egdata.h"
+#include "math/legacy_rotation.hpp"
+using f15::math::legacy::signedAngle;
 #include "egflight.h"
 #include "egframe.h"
 #include "egmath.h"
@@ -89,7 +91,7 @@ void updateTargetLock(void) {
     /* Fire at g_viewMode == 0x8b (sidewinder lock) */
     if (g_viewMode == VIEW_TARGET) {
         drawWorldObject(6, (int32)g_ViewX, 0x01000000L - g_ViewY,
-                        g_viewZ + 0x10, g_ourHead, g_ourPitch, g_ourRoll, 2);
+                        g_viewZ + 0x10, signedAngle(g_ourHead), signedAngle(g_ourPitch), signedAngle(g_ourRoll), 2);
     }
 
     if (g_aamLockCooldown != 0) {
@@ -120,7 +122,7 @@ void updateTargetLock(void) {
         if (idx < 3) {
             lockedRange -= 0x0a00;
         }
-        if (abs((int16)(g_ourHead + g_viewHeadingOffset - g_targetBearing)) > 0x2000) {
+        if (abs((int16)(signedAngle(g_ourHead) + g_viewHeadingOffset - g_targetBearing)) > 0x2000) {
             lockedRange = -32000;
             goto after_lock;
         }
@@ -134,7 +136,7 @@ void updateTargetLock(void) {
     best = -1;
     for (idx = 1; idx < g_planeCount; idx++) {
         computeMapTargetRange(idx);
-        if (abs((int16)(g_ourHead + g_viewHeadingOffset - g_targetBearing)) < 0x1800 &&
+        if (abs((int16)(signedAngle(g_ourHead) + g_viewHeadingOffset - g_targetBearing)) < 0x1800 &&
             idx + 0x80 != g_groundTargetLock && !(g_planeTable.planes[idx].flags & 0x80)) {
             if (g_planeTable.planes[idx].active != 0) {
                 g_targetRange -= 0x280;
@@ -215,7 +217,7 @@ skip_aam:
         if (g_airTargetLock != -1) {
             idx = g_airTargetLock - 0x80;
             lockedRange = computeTargetBearing(g_simObjects[idx].posX, g_simObjects[idx].posY, 1);
-            if (abs((int16)(g_ourHead + g_viewHeadingOffset - g_targetBearing)) > 0x2000) {
+            if (abs((int16)(signedAngle(g_ourHead) + g_viewHeadingOffset - g_targetBearing)) > 0x2000) {
                 lockedRange = 0;
             }
         } else {
@@ -244,7 +246,7 @@ skip_aam:
             !(g_simObjects[idx].flags.b[0] & 0x20) &&
             g_simObjects[idx].speed != 0) {
             computeTargetBearing(g_simObjects[idx].posX, g_simObjects[idx].posY, 1);
-            if (abs((int16)(g_ourHead + g_viewHeadingOffset - g_targetBearing)) < 0x2000) {
+            if (abs((int16)(signedAngle(g_ourHead) + g_viewHeadingOffset - g_targetBearing)) < 0x2000) {
                 range = g_targetRange;
                 best = idx;
             }
@@ -338,13 +340,13 @@ skip_aam:
     if (g_viewZ == 0 && g_ejectState != 0) goto done;
 
     drawWorldObject(((g_playerPlaneFlags & 1) == 0) + 6, (int32)g_ViewX,
-                    0x01000000L - g_ViewY, g_viewZ + 0x10, g_ourHead, g_ourPitch, g_ourRoll,
+                    0x01000000L - g_ViewY, g_viewZ + 0x10, signedAngle(g_ourHead), signedAngle(g_ourPitch), signedAngle(g_ourRoll),
                     2 - depthShift);
 
     if ((uint16)g_viewZ < 1000 && g_nightMode == 0) {
         drawAircraftShadow(((g_playerPlaneFlags & 1) == 0) + 6,
                         (int32)g_ViewX, 0x01000000L - g_ViewY,
-                        g_groundAltitude, g_ourHead, g_ourPitch, g_ourRoll, 2);
+                        g_groundAltitude, signedAngle(g_ourHead), signedAngle(g_ourPitch), signedAngle(g_ourRoll), 2);
     }
 
 done:;
@@ -757,7 +759,7 @@ void drawHudWorldOverlay(void) {
                     drawStringActivePage("No Target", 252, 142, 0x0f);
                 }
 
-                if (abs((int16)((g_ourHead + g_viewHeadingOffset) - g_targetBearing)) > 0x2000) {
+                if (abs((int16)((signedAngle(g_ourHead) + g_viewHeadingOffset) - g_targetBearing)) > 0x2000) {
                     g_groundTargetLock = -1;
                 }
             }
@@ -848,14 +850,14 @@ void drawHudWorldOverlay(void) {
     if (g_currentWeaponType == 2 && g_viewMode == VIEW_COCKPIT) {
         missileSpecD = missiles[missleSpec[missileSpecIndex].weaponIdx].specIndex;
 
-        if (missileSpecD == 30 && abs((int16)g_ourRoll) < 0x2000) {
+        if (missileSpecD == 30 && abs((int16)signedAngle(g_ourRoll)) < 0x2000) {
             tmp = computeLoftAngle();
             loftDist = cosMul(tmp, g_altitude) / (sinMul(-tmp, 0x20) + 1);
-            pointX = sinMul(g_ourHead, loftDist) + g_viewX_;
-            pointY = g_viewY_ - cosMul(g_ourHead, loftDist);
+            pointX = sinMul(signedAngle(g_ourHead), loftDist) + g_viewX_;
+            pointY = g_viewY_ - cosMul(signedAngle(g_ourHead), loftDist);
             projectWorldToHud(pointX, pointY, 0);
             if (vtxScratch.vproj.x.lo == -1) {
-                vtxScratch.vproj.x.lo = (sinMul(g_ourRoll, 96 - g_flightPathMarkerY) << 2) / 3 + 160;
+                vtxScratch.vproj.x.lo = (sinMul(signedAngle(g_ourRoll), 96 - g_flightPathMarkerY) << 2) / 3 + 160;
                 vtxScratch.vproj.y.lo = 96;
             } else {
                 setDrawColor(COLOR_LIGHTRED);
@@ -866,8 +868,8 @@ void drawHudWorldOverlay(void) {
         }
 
         if ((missileSpecD == 30 || missileSpecD == 29) && g_groundTargetLock >= 0) {
-            projectWorldToHud(g_planeTable.planes[g_groundTargetLock].mapX + sinMul(g_ourHead, 0x80),
-                              g_planeTable.planes[g_groundTargetLock].mapY - cosMul(g_ourHead, 0x80),
+            projectWorldToHud(g_planeTable.planes[g_groundTargetLock].mapX + sinMul(signedAngle(g_ourHead), 0x80),
+                              g_planeTable.planes[g_groundTargetLock].mapY - cosMul(signedAngle(g_ourHead), 0x80),
                               g_viewZ);
 
             if (vtxScratch.vproj.x.lo != -1) {

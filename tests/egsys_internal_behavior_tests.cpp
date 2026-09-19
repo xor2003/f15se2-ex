@@ -1,3 +1,6 @@
+#include "math/legacy_rotation.hpp"
+using f15::math::legacy::signedAngle;
+using f15::math::legacy::angleFromWord;
 #include "egdata.h"
 #include "egtypes.h"
 #include "struct.h"
@@ -41,9 +44,9 @@ void seedCameraState(int base) {
     g_ViewX = base + 10;
     g_ViewY = base + 20;
     g_viewZ = static_cast<int16>(base + 30);
-    g_ourHead = static_cast<int16>(base + 40);
-    g_ourPitch = base + 50;
-    g_ourRoll = static_cast<int16>(base + 60);
+    g_ourHead = angleFromWord(static_cast<int16>(base + 40));
+    g_ourPitch = angleFromWord(base + 50);
+    g_ourRoll = angleFromWord(static_cast<int16>(base + 60));
     g_viewX_ = static_cast<int16>(base + 70);
     g_viewY_ = static_cast<int16>(base + 80);
     g_crashCamX = static_cast<int16>(base + 90);
@@ -91,7 +94,7 @@ int main() {
     require(g_ViewX == 1510 &&
                 g_ViewY == 1520 &&
                 g_viewZ == 1530 &&
-                g_ourPitch == 1550 &&
+                signedAngle(g_ourPitch) == 1550 &&
                 g_viewX_ == 1570 &&
                 g_crashCamZ == 1610 &&
                 g_wreckX == 1620 &&
@@ -102,19 +105,26 @@ int main() {
                 g_viewY_ == 2080 &&
                 g_wreckAlt == 2140,
             "camRestore restores the authoritative next camera snapshot");
+    require(g_ourHead == next.head && g_ourPitch == next.pitch && g_ourRoll == next.roll,
+            "camRestore preserves typed attitude without converting through scalar words");
+    bool invalidInterval = false;
+    try { camApplyInterp(&prev, &next, 0, 0); }
+    catch (const std::domain_error &) { invalidInterval = true; }
+    require(invalidInterval && g_ViewX == 2010 && g_ourHead == next.head,
+            "invalid interpolation interval must not partially overwrite camera state");
 
-    prev.head = 0x0100;
-    next.head = 0xFF00;
-    prev.pitch = 0x0100;
-    next.pitch = 0xFF00;
-    prev.roll = 0x0100;
-    next.roll = 0xFF00;
+    prev.head = angleFromWord(0x0100);
+    next.head = angleFromWord(0xFF00);
+    prev.pitch = angleFromWord(0x0100);
+    next.pitch = angleFromWord(0xFF00);
+    prev.roll = angleFromWord(0x0100);
+    next.roll = angleFromWord(0xFF00);
     prev.wreckAlt = 100;
     next.wreckAlt = 100;
     camApplyInterp(&prev, &next, kHalfNumerator, kHalfDenominator);
-    require(g_ourHead == 0 &&
-                g_ourPitch == 0 &&
-                g_ourRoll == 0,
+    require(signedAngle(g_ourHead) == 0 &&
+                signedAngle(g_ourPitch) == 0 &&
+                signedAngle(g_ourRoll) == 0,
             "camApplyInterp interpolates angles through 16-bit wraparound");
 
     prev.wreckX = 0;

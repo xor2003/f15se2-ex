@@ -1,3 +1,6 @@
+#include "math/legacy_rotation.hpp"
+using f15::math::legacy::signedAngle;
+using f15::math::legacy::angleFromWord;
 // EGAME flight-math + attitude/orientation behavior tests (LINK_CORE).
 //
 // Exercises the real deterministic math against the linked core library: the
@@ -307,7 +310,7 @@ int main() {
     // Orientation math is pure: rebuildOrientation builds g_orientMatrix from the
     // Euler attitude via the typed fixed builder; computeAttitudeAngles recovers
     // the attitude with the original inverse-trig and signed quotient rules.
-    g_ourHead = g_ourPitch = g_ourRoll = 0;
+    g_ourHead = g_ourPitch = g_ourRoll = {};
     g_orientationDirty = 1;
     g_rotationCounter = 99;
     rebuildOrientation();
@@ -320,7 +323,7 @@ int main() {
             "rebuildOrientation rebuilds the original zero-angle matrix and clears dirty state");
     g_orientMatrix = OrientationCodec::matrixWords(orientationWords);
     computeAttitudeAngles();
-    require(g_ourHead == 0 && g_ourPitch == 0 && g_ourRoll == 0,
+    require(signedAngle(g_ourHead) == 0 && signedAngle(g_ourPitch) == 0 && signedAngle(g_ourRoll) == 0,
             "computeAttitudeAngles recovers original zero attitude from identity orientation");
 
     std::memset(orientationWords, 0, sizeof(orientationWords));
@@ -331,9 +334,9 @@ int main() {
     orientationWords[8] = kAttitudeNarrowComponent;
     g_orientMatrix = OrientationCodec::matrixWords(orientationWords);
     computeAttitudeAngles();
-    require(g_ourHead == complementAngle(std::abs(static_cast<int>(
+    require(signedAngle(g_ourHead) == complementAngle(std::abs(static_cast<int>(
                 static_cast<int16>(expectedSignedRatio16(kAttitudeNarrowComponent, kQ15Identity))))) &&
-                g_ourRoll == complementAngle(std::abs(static_cast<int>(
+                signedAngle(g_ourRoll) == complementAngle(std::abs(static_cast<int>(
                 static_cast<int16>(expectedSignedRatio16(kAttitudeNarrowComponent, kQ15Identity))))),
             "computeAttitudeAngles uses original complement-angle path for wide heading and roll components");
 
@@ -345,9 +348,9 @@ int main() {
     orientationWords[8] = -kAttitudeNarrowComponent;
     g_orientMatrix = OrientationCodec::matrixWords(orientationWords);
     computeAttitudeAngles();
-    require(g_ourHead == 0x8000 - valueToAngle(std::abs(static_cast<int>(
+    require(signedAngle(g_ourHead) == 0x8000 - valueToAngle(std::abs(static_cast<int>(
                 static_cast<int16>(expectedSignedRatio16(kAttitudeNarrowComponent, kQ15Identity))))) &&
-                g_ourRoll == 0x8000 - valueToAngle(std::abs(static_cast<int>(
+                signedAngle(g_ourRoll) == 0x8000 - valueToAngle(std::abs(static_cast<int>(
                 static_cast<int16>(expectedSignedRatio16(kAttitudeNarrowComponent, kQ15Identity))))),
             "computeAttitudeAngles preserves original positive/negative quadrant folding");
 
@@ -359,9 +362,9 @@ int main() {
     orientationWords[8] = kAttitudeNarrowComponent;
     g_orientMatrix = OrientationCodec::matrixWords(orientationWords);
     computeAttitudeAngles();
-    require(static_cast<uint16>(g_ourHead) == static_cast<uint16>(-valueToAngle(std::abs(static_cast<int>(
+    require(static_cast<uint16>(signedAngle(g_ourHead)) == static_cast<uint16>(-valueToAngle(std::abs(static_cast<int>(
                 static_cast<int16>(expectedSignedRatio16(-kAttitudeNarrowComponent, kQ15Identity)))))) &&
-                static_cast<uint16>(g_ourRoll) == static_cast<uint16>(0x10000 - valueToAngle(std::abs(static_cast<int>(
+                static_cast<uint16>(signedAngle(g_ourRoll)) == static_cast<uint16>(0x10000 - valueToAngle(std::abs(static_cast<int>(
                 static_cast<int16>(expectedSignedRatio16(-kAttitudeNarrowComponent, kQ15Identity)))))),
             "computeAttitudeAngles preserves original negative/positive quadrant folding");
 
@@ -372,8 +375,8 @@ int main() {
     orientationWords[5] = kAttitudePitchQuarterTurnInput;
     g_orientMatrix = OrientationCodec::matrixWords(orientationWords);
     computeAttitudeAngles();
-    require(g_ourRoll == 0 &&
-                g_ourHead == 0x8000 - valueToAngle(kAttitudeNarrowComponent),
+    require(signedAngle(g_ourRoll) == 0 &&
+                signedAngle(g_ourHead) == 0x8000 - valueToAngle(kAttitudeNarrowComponent),
             "computeAttitudeAngles preserves original vertical-pitch heading quadrant fallback");
 
     std::memset(orientationWords, 0, sizeof(orientationWords));
@@ -384,8 +387,8 @@ int main() {
     orientationWords[8] = -kAttitudeNarrowComponent;
     g_orientMatrix = OrientationCodec::matrixWords(orientationWords);
     computeAttitudeAngles();
-    require(static_cast<uint16>(g_ourHead) == kAngleHalfTurn &&
-                static_cast<uint16>(g_ourRoll) == kAngleHalfTurn,
+    require(static_cast<uint16>(signedAngle(g_ourHead)) == kAngleHalfTurn &&
+                static_cast<uint16>(signedAngle(g_ourRoll)) == kAngleHalfTurn,
             "computeAttitudeAngles preserves original high-byte quadrant add for zero/negative axes");
 
     std::memset(orientationWords, 0, sizeof(orientationWords));
@@ -395,7 +398,7 @@ int main() {
     orientationWords[5] = kAttitudePitchQuarterTurnInput;
     g_orientMatrix = OrientationCodec::matrixWords(orientationWords);
     computeAttitudeAngles();
-    require(static_cast<uint16>(g_ourHead) ==
+    require(static_cast<uint16>(signedAngle(g_ourHead)) ==
                 static_cast<uint16>(valueToAngle(kAttitudeNarrowComponent) + kAngleHalfTurn),
             "computeAttitudeAngles preserves original vertical-pitch high-byte quadrant add");
 
@@ -406,7 +409,7 @@ int main() {
     orientationWords[5] = kAttitudePitchQuarterTurnInput;
     g_orientMatrix = OrientationCodec::matrixWords(orientationWords);
     computeAttitudeAngles();
-    require(static_cast<uint16>(g_ourHead) ==
+    require(static_cast<uint16>(signedAngle(g_ourHead)) ==
                 static_cast<uint16>(-valueToAngle(kAttitudeNarrowComponent)),
             "computeAttitudeAngles preserves original vertical-pitch negative heading fallback");
 
@@ -424,7 +427,7 @@ int main() {
     g_orientationDirty = 0;
     g_orientMatrix = OrientationCodec::matrixWords(orientationWords);
     computeAttitudeAngles();
-    require(g_ourRoll == 0 && g_orientationDirty == 1,
+    require(signedAngle(g_ourRoll) == 0 && g_orientationDirty == 1,
             "computeAttitudeAngles preserves original roll-was-nonzero dirty guard");
     g_rollWasNonzero = 0;
 

@@ -6,6 +6,7 @@
 #include "egtypes.h"
 #include "egcode.h"
 #include "egdata.h"
+#include "math/interpolation.hpp"
 #include "inttype.h"
 #include "gfx.h"
 #include "shared/common.h"
@@ -50,7 +51,7 @@ void updateFrame(void);
  * below). */
 typedef struct {
     int32 viewX, viewY, viewZ;
-    int32 head, pitch, roll;
+    f15::math::Angle<f15::math::FixedBackend> head, pitch, roll;
     int32 mapX, mapY; /* g_viewX_ / g_viewY_ */
     int32 crashX, crashY, crashZ;
     int32 wreckX, wreckY, wreckAlt; /* downed-aircraft wreck/parachute */
@@ -88,9 +89,9 @@ static void camRestore(const CamSnapshot *s) {
     g_ViewX = s->viewX;
     g_ViewY = s->viewY;
     g_viewZ = (int16)s->viewZ;
-    g_ourHead = (int16)s->head;
+    g_ourHead = s->head;
     g_ourPitch = s->pitch;
-    g_ourRoll = (int16)s->roll;
+    g_ourRoll = s->roll;
     g_viewX_ = (int16)s->mapX;
     g_viewY_ = (int16)s->mapY;
     g_crashCamX = (int16)s->crashX;
@@ -147,15 +148,15 @@ static void lerpPose(int32 h0, int32 p0, int32 r0, int32 h1, int32 p1, int32 r1,
 }
 
 static void camApplyInterp(const CamSnapshot *p, const CamSnapshot *n, int64 num, int64 den) {
-    int32 poseH, poseP, poseR;
+    using Pose = f15::math::PoseInterpolation<f15::math::FixedBackend>;
+    const auto pose = Pose::interpolate({p->head, p->pitch, p->roll}, {n->head, n->pitch, n->roll},
+                                       f15::math::FrameFraction::fromTicks(num, den));
     g_ViewX = lerpLinear(p->viewX, n->viewX, num, den);
     g_ViewY = lerpLinear(p->viewY, n->viewY, num, den);
     g_viewZ = (int16)lerpLinear(p->viewZ, n->viewZ, num, den);
-    lerpPose(p->head, p->pitch, p->roll, n->head, n->pitch, n->roll,
-             num, den, &poseH, &poseP, &poseR);
-    g_ourHead = (int16)poseH;
-    g_ourPitch = poseP;
-    g_ourRoll = (int16)poseR;
+    g_ourHead = pose.yaw;
+    g_ourPitch = pose.pitch;
+    g_ourRoll = pose.roll;
     g_viewX_ = (int16)lerpLinear(p->mapX, n->mapX, num, den);
     g_viewY_ = (int16)lerpLinear(p->mapY, n->mapY, num, den);
     g_crashCamX = (int16)lerpLinear(p->crashX, n->crashX, num, den);
@@ -172,7 +173,7 @@ static void camApplyInterp(const CamSnapshot *p, const CamSnapshot *n, int64 num
     }
     /* Gun-reticle vertical trim tracks the roll pose; snap it across the gimbal
      * flip with the pose (else it would swing through centre for one frame). */
-    g_rollPitchTrim = (int16)(angleSnaps(p->roll, n->roll)
+    g_rollPitchTrim = (int16)(Pose::snaps(p->roll, n->roll)
                                   ? n->rollPitchTrim
                                   : lerpLinear(p->rollPitchTrim, n->rollPitchTrim, num, den));
     /* Seeker head: snap on a lock switch (a large one-step jump), tween otherwise. */

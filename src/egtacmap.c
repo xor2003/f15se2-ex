@@ -4,6 +4,8 @@
 #include "egcode.h"
 #include "egcombat.h"
 #include "egdata.h"
+#include "math/legacy_rotation.hpp"
+using f15::math::legacy::signedAngle;
 #include "egframe.h"
 #include "egmath.h"
 #include "egtacmap.h"
@@ -166,7 +168,7 @@ void renderHudFrame(int unused) {
             if (g_autopilotAltitude != 0) {
                 drawStringBothPages("AUTOPILOT", 236, 90, 0xf);
             }
-            waypointMarkerX = clampRange((((int16)(g_waypointBearing - g_ourHead) >> 6) / 3) + 159, 89, 229);
+            waypointMarkerX = clampRange((((int16)(g_waypointBearing - signedAngle(g_ourHead)) >> 6) / 3) + 159, 89, 229);
             setDrawColor(COLOR_LIGHTCYAN);
             drawViewportLine(waypointMarkerX - 2, 15, waypointMarkerX, 17);
             drawViewportLine(waypointMarkerX, 17, waypointMarkerX + 2, 15);
@@ -259,9 +261,9 @@ static void renderTacMapContent(int centerX, int centerY) {
 
     drawPanelText(1, "Map", 0);
     idx = 72 << (9 - g_mapZoomLevel);
-    g_mapCenterX = clampRange(sinMul(g_ourHead, 0x4000 >> g_mapZoomLevel) + centerX, idx, 0x7fff - idx);
+    g_mapCenterX = clampRange(sinMul(signedAngle(g_ourHead), 0x4000 >> g_mapZoomLevel) + centerX, idx, 0x7fff - idx);
     idx = (56 << (9 - g_mapZoomLevel)) / 3 * 4;
-    g_mapCenterY = clampRange(centerY - cosMul(g_ourHead, 0x4000 >> g_mapZoomLevel), idx, 0x7fff - idx);
+    g_mapCenterY = clampRange(centerY - cosMul(signedAngle(g_ourHead), 0x4000 >> g_mapZoomLevel), idx, 0x7fff - idx);
     loadColorPalette(0);
     setDrawColor(g_horizonGroundColor);
     fillRectBoth(24, 112, 96, 168);
@@ -318,7 +320,7 @@ void renderTacMapOverlay(void) {
     }
     renderTacMapContent(g_viewX_, g_viewY_);
     if (objectToScreen(g_viewX_, g_viewY_, &sx, &sy)) {
-        blitSprite(sx - 1, sy - 1, ((g_ourHead + 0x1000) >> 0xd & 7) * 4 + 164, 4, 4, 4, 0);
+        blitSprite(sx - 1, sy - 1, ((signedAngle(g_ourHead) + 0x1000) >> 0xd & 7) * 4 + 164, 4, 4, 4, 0);
     }
 }
 

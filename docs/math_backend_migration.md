@@ -3,7 +3,9 @@
 Status: 2026-09-19. Typed fixed and double-precision rotation backends are
 implemented in `src/math/rotation.hpp`. Production matrix builders, matrix
 multiplication, camera rotation, persistent aircraft orientation matrices and
-attitude recovery now use the typed fixed implementation.
+attitude recovery now use the typed fixed implementation. Aircraft Euler state and
+its camera snapshots are typed as well; render interpolation has fixed and modern
+implementations.
 This is the first migrated subsystem, not a complete interchangeable simulation
 backend. No whole-game floating-point backend selector is exposed.
 
@@ -11,7 +13,7 @@ backend. No whole-game floating-point backend selector is exposed.
 
 * `Angle`, `Coefficient`, `EulerAngles` and `Matrix3` carry backend types. Storage
   is private; primitive construction/extraction and mixed-backend operations
-  are not public APIs. Ten negative compilation tests enforce representative
+  are not public APIs. Fourteen negative compilation tests enforce representative
   misuse cases, with a positive compilation control.
 * Fixed builders preserve intermediate rounding, word wrapping, LUT interpolation
   and matrix-product truncation. The production adapters also preserve the six
@@ -48,6 +50,24 @@ backend. No whole-game floating-point backend selector is exposed.
   Caller tests cover 4,096 persistent updates and 8,192 roll/pitch/yaw update,
   recovery and refresh cycles. Existing original-behavior assertions remain;
   their raw fixture arrays now enter through explicit test boundary adapters.
+* `g_ourHead`, `g_ourPitch` and `g_ourRoll` now store `Angle<FixedBackend>`. Recovery
+  assigns typed values directly, rebuild reads typed values, and camera snapshot
+  capture/restore does not pass through integer angles. Primitive assignment,
+  updates and taking an integer pointer to an angle are rejected by the API.
+* `PoseInterpolation` retains fixed shortest-arc truncation and whole-pose gimbal
+  snapping. Its `FrameFraction` validates scheduler intervals before camera state
+  changes. The modern implementation retains fractional radians. Modern angle
+  arithmetic normalizes to [-pi, pi), including a consistent half-turn value.
+* Unmigrated HUD, targeting, combat, map and flight scalar formulas read typed
+  Euler state through explicit `legacy::signedAngle` adapters. Eleven consumer
+  files were checked to differ only by these read adapters and includes. These
+  allowlisted bridges are migration debt, not completed typed domain math. The
+  Android pointer-based attitude API is isolated behind `updateAttitudeFromWords`;
+  its adapter is tested on desktop, not on Android hardware.
+* Euler tests exhaust all 65,536 word values with twelve interpolation offsets
+  each, and check signed extraction, wrap updates, coherent snaps, modern
+  sub-word interpolation, platform input/output and invalid interval rejection.
+  The original resource structures and file layouts are unchanged.
 
 Verification at this checkpoint: Linux Release build and all 44 CTests pass.
 Clang analysis of the typed test translation unit reports no diagnostics.
@@ -57,10 +77,10 @@ browser, live-flight and external-asset validation were not run in this checkpoi
 
 ### Next acceptance boundary
 
-The orientation matrix is typed, but Euler globals and flight-control inputs
-remain raw words. Migrate them and their callers before selecting modern flight
-math: a floating matrix with recovery stored into word Euler globals still loses
-precision. Keep modern refresh policy distinct from the original periodic rebuild,
+Aircraft Euler storage is typed, but flight-control inputs and most scalar
+consumers remain legacy math. Migrate the inputs, forces, integration and remaining
+read adapters before selecting modern flight math; changing the angle backend
+alone would still quantize at these consumers. Keep modern refresh policy distinct from the original periodic rebuild,
 which intentionally quantizes fixed state. Then migrate flight
 position/velocity/forces and their consumers with explicit
 units, frames and file/render adapters. Projection, terrain, combat and AI remain
@@ -101,7 +121,7 @@ input widths or introduce new flight-model formulas.
 | Angles/trigonometry | Typed fixed/double rotation angles and trig; imported inverse trig | Inverse-trig endpoint contracts and remaining scalar trig callers |
 | Fixed products | Q15, rounded result, high-word products and carry variants | Audit every caller's rounding and destination narrowing; Q15 inputs are signed words |
 | Long arithmetic | WordPair32, shifts, full/saturated division | Document valid domains, divide-by-zero behavior and overflow policy per operation |
-| Orientation | Typed persistent fixed matrix, fixed/double recovery and axis deltas; tested refresh callers | Typed Euler globals/control inputs and modern refresh integration |
+| Orientation | Typed persistent matrix/Euler state, fixed/double recovery, axis deltas and render pose interpolation | Typed control inputs, legacy scalar consumer removal and modern refresh integration |
 | Projection/HUD | Selected projection, clipping, HUD rotation helpers | Verify against current rasterizer and HUD state, including invalid/depth sentinels |
 | Range/bearing | Legacy approximation and bearing helpers | Keep gameplay distance approximation distinct from Euclidean distance |
 | Camera precision | Not complete | sinMulQ8/cosMulQ8, camera fractional remainders, fine-coordinate bearing/range in egmath.c |

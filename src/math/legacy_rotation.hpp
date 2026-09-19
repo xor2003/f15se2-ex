@@ -9,6 +9,25 @@
 namespace f15::math::legacy {
 using Codec = Boundary<FixedBackend>;
 using Math = RotationMath<FixedBackend>;
+using AircraftAngle = Angle<FixedBackend>;
+
+// Read-only adapters for consumers that have not migrated their scalar math yet.
+inline std::int16_t signedAngle(AircraftAngle angle) {
+    const auto bits = Codec::angleWord(angle);
+    return static_cast<std::int16_t>(bits <= 32767 ? bits : static_cast<int>(bits) - 65536);
+}
+inline AircraftAngle angleFromWord(int word) {
+    return Codec::angleWord(static_cast<std::uint16_t>(word));
+}
+
+inline int updateAttitudeFromWords(AircraftAngle &roll, AircraftAngle &pitch,
+                                  int (*update)(std::int16_t *, std::int16_t *)) {
+    auto rollWord = signedAngle(roll), pitchWord = signedAngle(pitch);
+    const int result = update(&rollWord, &pitchWord);
+    roll = angleFromWord(rollWord);
+    pitch = angleFromWord(pitchWord);
+    return result;
+}
 
 inline EulerAngles<FixedBackend> angles(int yaw, int pitch, int roll) {
     return {Codec::angleWord(static_cast<std::uint16_t>(yaw)),

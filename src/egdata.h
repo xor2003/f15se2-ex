@@ -147,9 +147,9 @@ extern uint8 g_joyRawY;
 extern const uint8 g_rollGeeTable[];
 extern f15::math::Matrix3<f15::math::FixedBackend> g_orientMatrix;
 extern f15::math::Matrix3<f15::math::FixedBackend> g_matrixScratch;
-extern int16 g_ourHead;
-extern int16 g_ourPitch;
-extern int16 g_ourRoll;
+extern f15::math::Angle<f15::math::FixedBackend> g_ourHead;
+extern f15::math::Angle<f15::math::FixedBackend> g_ourPitch;
+extern f15::math::Angle<f15::math::FixedBackend> g_ourRoll;
 /* g_viewZ: altitude-Z. int16 for most TUs; egtarget.c reads the same storage
    as uint16 (it #defines G_VIEWZ_UNSIGNED before including this header). */
 #ifdef G_VIEWZ_UNSIGNED

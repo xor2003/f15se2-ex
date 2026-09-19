@@ -18,6 +18,8 @@
 #include "egtypes.h"
 #include "egcode.h"
 #include "egdata.h"
+#include "math/legacy_rotation.hpp"
+using f15::math::legacy::signedAngle;
 #include "inttype.h"
 #include "struct.h"
 #include "gfx.h"
@@ -375,7 +377,7 @@ static void drawInstrumentGauges(void) {
 
     /* ---- compass strip ---- */
     {
-        uint16 head = (uint16)(g_ourHead - 0x2000);
+        uint16 head = (uint16)(signedAngle(g_ourHead) - 0x2000);
         uint8 head_hi = (uint8)((head >> 8) & 0xff);
         uint16 s = (uint16)((head & 0x1f80) << 1);
         uint16 prod = (uint16)((s >> 8) & 0xff) * (uint16)(uint8)g_headingPixPerDeg;
@@ -411,7 +413,7 @@ static void drawInstrumentGauges(void) {
 
             /* directional marker sprite (selected by heading modulo) */
             idx = g_compassMarkerPhase % (uint8)g_headingModulus;
-            if (g_ourHead & 0x2000) idx += g_headingWrapOffset;
+            if (signedAngle(g_ourHead) & 0x2000) idx += g_headingWrapOffset;
             if (idx >= g_headingModulus) idx -= g_headingModulus;
             di = idx * 2;
             if (g_halfScaleRender == 1)
@@ -453,7 +455,7 @@ static void drawInstrumentGauges(void) {
 
     /* ---- pitch ladder ---- */
     {
-        int16 pitch = g_ourPitch;
+        int16 pitch = signedAngle(g_ourPitch);
         uint16 apFull = (uint16)(pitch < 0 ? -pitch : pitch); /* full-precision |pitch| */
         uint16 ap = apFull >> 6;
         uint16 tScale = (uint16)hudPitchScale(ap);
@@ -651,7 +653,7 @@ static void drawInstrumentGauges(void) {
             si = 0;
             g_tapeCursorX += 11;
             {
-                int16 rollIdx = (((uint16)g_ourRoll >> 8) >> 2) & 0xff;
+                int16 rollIdx = (((uint16)signedAngle(g_ourRoll) >> 8) >> 2) & 0xff;
                 di = rollIdx * 2;
                 g_tapeRollOfsA0 = W16(g_timerTickByte + 0x1a + di);
                 g_tapeRollOfsA1 = W16(g_timerTickByte + 0x9a + di);
@@ -660,7 +662,7 @@ static void drawInstrumentGauges(void) {
                 /* +0x80 wraps in the original's 8-bit register before the >>2,
                  * keeping rollIdx in 0..63 (one curve); mask the byte sum, not
                  * the shifted result, or di overruns g_timerTickByte. */
-                rollIdx = ((((uint16)g_ourRoll >> 8) + 0x80) & 0xff) >> 2;
+                rollIdx = ((((uint16)signedAngle(g_ourRoll) >> 8) + 0x80) & 0xff) >> 2;
                 di = rollIdx * 2;
                 g_tapeRollOfsB0 = W16(g_timerTickByte + 0x1a + di);
                 g_tapeRollOfsB1 = W16(g_timerTickByte + 0x9a + di);

@@ -1,6 +1,8 @@
 // seg000 optimized code (/Ot)
 #include "egcode.h"
 #include "egdata.h"
+#include "math/legacy_rotation.hpp"
+using f15::math::legacy::signedAngle;
 #include "egmath.h"
 #include "egtacmap.h"
 #include "egthreat.h"
@@ -130,10 +132,10 @@ void drawTacticalMap(char page) {
                 /* HD plane icon (spun to relative heading) if present, else GL spins
                  * the base atlas icon, else software's 16 hand-drawn rotation frames. */
                 if (!hdsprite_drawRadarContact(altBand, g_scopeFx, g_scopeFy,
-                                               g_simObjects[i].heading.w - g_ourHead) &&
+                                               g_simObjects[i].heading.w - signedAngle(g_ourHead)) &&
                     !drawRotatedGaugeSprite(0, altBand, g_scopeFx, g_scopeFy,
-                                            g_simObjects[i].heading.w - g_ourHead)) {
-                    code = g_simObjects[i].heading.w - g_ourHead + 0x800;
+                                            g_simObjects[i].heading.w - signedAngle(g_ourHead))) {
+                    code = g_simObjects[i].heading.w - signedAngle(g_ourHead) + 0x800;
                     blitGaugeSprite((code >> 12) & 0xf, altBand, vtxScratch.vproj.x.lo, vtxScratch.vproj.y.lo);
                 }
             }
@@ -148,7 +150,7 @@ void drawTacticalMap(char page) {
                 }
                 code = 5;
                 if (g_planeTable.planes[i].flags & 0x201) {
-                    code = (((-g_ourHead + 0x1000) >> 13) & 3) + 8;
+                    code = (((-signedAngle(g_ourHead) + 0x1000) >> 13) & 3) + 8;
                 }
                 if (g_planeTable.planes[i].active != 0) {
                     code = 1;
@@ -163,7 +165,7 @@ void drawTacticalMap(char page) {
                  * base runway icon to the ownship heading; software uses the 4
                  * hand-drawn frames. Status blips (1/6/7) never rotate. */
                 if (code < 8 || code > 11 ||
-                    !drawRotatedGaugeSprite(8, 3, g_scopeFx, g_scopeFy, -g_ourHead)) {
+                    !drawRotatedGaugeSprite(8, 3, g_scopeFx, g_scopeFy, -signedAngle(g_ourHead))) {
                     blitGaugeSprite(code, 3, vtxScratch.vproj.x.lo, vtxScratch.vproj.y.lo);
                 }
             }
@@ -217,7 +219,7 @@ void drawTacticalMap(char page) {
                  * (sine/cosine over 32768, matching sinMul/cosMul without the Q15
                  * truncation) so the tick points in the true heading at a consistent
                  * length, like the scope's grid lines. */
-                code = g_projectiles[i].worldX - g_ourHead;
+                code = g_projectiles[i].worldX - signedAngle(g_ourHead);
                 /* Full weight (1.0), not the grid's thin 0.5 — an inbound weapon
                  * must read apart from the grid lines it overlays at a glance. */
                 scopeLine(g_scopeFx, g_scopeFy,
@@ -255,8 +257,8 @@ void projectMapPoint(int mapX, int mapY) {
     float inv = 1.0f / (float)(1 << shift);
     float fsx = (float)(int16)(mapX - g_viewX_) * inv;
     float fsy = (float)(int16)(g_viewY_ - mapY) * inv;
-    float c = (float)cosine(g_ourHead) * (1.0f / 32768.0f);
-    float s = (float)sine(g_ourHead) * (1.0f / 32768.0f);
+    float c = (float)cosine(signedAngle(g_ourHead)) * (1.0f / 32768.0f);
+    float s = (float)sine(signedAngle(g_ourHead)) * (1.0f / 32768.0f);
     float rx = c * fsx - s * fsy;
     float ry = c * fsy + s * fsx;
     g_projDepth = 0;

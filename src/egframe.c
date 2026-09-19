@@ -4,6 +4,8 @@
 #include "egcode.h"
 #include "egcombat.h"
 #include "egdata.h"
+#include "math/legacy_rotation.hpp"
+using f15::math::legacy::signedAngle;
 #include "egflight.h"
 #include "egframe.h"
 #include "android_ar.h"
@@ -124,7 +126,7 @@ void updateFrame(void) {
                         g_simObjects[i].posY = g_viewY_ - (i * 0x20 + 150) * g_northSouthSign;
                         g_simObjects[i].worldX = (int32)g_simObjects[i].posX * 32;
                         g_simObjects[i].worldY = (int32)g_simObjects[i].posY * 32;
-                        g_simObjects[i].heading.w = g_ourHead + 0x8000;
+                        g_simObjects[i].heading.w = signedAngle(g_ourHead) + 0x8000;
                     }
                 }
             }
@@ -137,7 +139,7 @@ void updateFrame(void) {
             g_wingmanY = 80 * g_northSouthSign + g_viewY_;
             g_simObjects[1].worldX = (int32)g_wingmanX * 32;
             g_simObjects[1].worldY = (int32)g_wingmanY * 32;
-            g_simObjects[1].heading.w = g_ourHead;
+            g_simObjects[1].heading.w = signedAngle(g_ourHead);
         }
         g_northSouthSign = tmp;
         initWeaponLoadout();
@@ -172,7 +174,7 @@ void updateFrame(void) {
          * skipping it keeps the moving blip from dirtying the cached page texture. */
         if (!r2d_hasNativeOverlay()) {
             gfx_restoreFromImage(g_eg2dBacking, 0, val - 3, screenY - 3, val - 3, screenY - 3, 6, 6);
-            blitSprite(val - 1, screenY - 1, ((g_ourHead + 0x1000) >> 0xd & 7) * 4 + 164, 4, 4, 4, 0);
+            blitSprite(val - 1, screenY - 1, ((signedAngle(g_ourHead) + 0x1000) >> 0xd & 7) * 4 + 164, 4, 4, 4, 0);
         }
         if (((int16)val < 32 || (int16)val > 88 || (int16)screenY < 118 || (int16)screenY > 162) && g_mapZoomLevel > 2) {
             g_mapZoomLevel--;
@@ -310,7 +312,7 @@ skip_target_section:
             if (g_viewZ == 0x80 && g_knots > 0x50) {
                 if ((uint16)(g_viewY_ - g_planeTable.planes[g_closestThreatIndex].mapY) * g_northSouthSign >= 0x10 && (uint16)(g_viewY_ - g_planeTable.planes[g_closestThreatIndex].mapY) * g_northSouthSign <= 0x14) {
                     if (!gameOptionsEnabled(GAME_OPTION_NO_DAMAGE) &&
-                        abs((int16)(g_ourHead - ((1 - g_northSouthSign) << 0xe))) < 0x2000) {
+                        abs((int16)(signedAngle(g_ourHead) - ((1 - g_northSouthSign) << 0xe))) < 0x2000) {
                         g_autoCrashDive = 1;
                         makeSound(22, 2);
                     }
@@ -540,8 +542,8 @@ void updateBulletsAndFire(void) {
     makeSound(4, 2);
     /* Round leaves the barrel along the airframe axis plus the M61's dispersion
      * cone; magnitude in fine units per step (the original 186 coarse/s). */
-    yaw = (int16)g_ourHead + gunSpreadAngle();
-    pitch = (int16)g_ourPitch + gunSpreadAngle();
+    yaw = (int16)signedAngle(g_ourHead) + gunSpreadAngle();
+    pitch = (int16)signedAngle(g_ourPitch) + gunSpreadAngle();
     mag = (186 << 5) / g_frameRateScaling;
     bulletTracks[slot].velZ = sinMul(pitch, mag);
     mag = cosMul(pitch, mag);

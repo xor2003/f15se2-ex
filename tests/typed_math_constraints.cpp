@@ -1,4 +1,5 @@
 #include "math/rotation.hpp"
+#include "math/interpolation.hpp"
 #include <type_traits>
 
 using namespace f15::math;
@@ -35,6 +36,14 @@ int main() {
     matrix[0] = 1.0;
 #elif defined(TEST_MATRIX_POINTER)
     const double *raw = matrix;
+#elif defined(TEST_PRIMITIVE_ASSIGN)
+    angle = 1;
+#elif defined(TEST_PRIMITIVE_UPDATE)
+    angle += 1;
+#elif defined(TEST_FRAME_FRACTION)
+    (void)PoseInterpolation<ModernBackend>::interpolate({}, {}, 0.5);
+#elif defined(TEST_ANGLE_POINTER)
+    double *raw = &angle;
 #endif
     return 0;
 }

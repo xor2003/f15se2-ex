@@ -11,20 +11,40 @@ namespace f15::math {
 struct FixedBackend {};
 struct ModernBackend {};
 template<class B> class RotationMath;
+template<class B> class PoseInterpolation;
 template<class B> struct Boundary;
 
 // Representation is deliberately absent from the public quantity API.
 template<class B> class Angle {
     using Rep = std::conditional_t<std::is_same_v<B, FixedBackend>, fixed::Angle16, double>;
     Rep value_{};
-    explicit Angle(Rep value) : value_(value) {}
+    explicit Angle(Rep value) : value_(value) {
+        if constexpr (std::is_same_v<B, ModernBackend>) {
+            constexpr double pi = 3.141592653589793238462643383279502884;
+            value_ = std::remainder(value_, 2 * pi);
+            if (value_ >= pi) value_ -= 2 * pi;
+        }
+    }
     friend class RotationMath<B>;
+    friend class PoseInterpolation<B>;
     friend struct Boundary<B>;
 public:
     Angle() = default;
     Angle operator-() const { return Angle(-value_); }
     Angle operator+(Angle other) const { return Angle(value_ + other.value_); }
     Angle operator-(Angle other) const { return Angle(value_ - other.value_); }
+    Angle &operator+=(Angle other) { return *this = *this + other; }
+    Angle &operator-=(Angle other) { return *this = *this - other; }
+    bool operator==(Angle other) const {
+        if constexpr (std::is_same_v<B, FixedBackend>) return value_.raw() == other.value_.raw();
+        else return value_ == other.value_;
+    }
+    bool operator!=(Angle other) const { return !(*this == other); }
+    static Angle quarterTurn() {
+        if constexpr (std::is_same_v<B, FixedBackend>) return Angle(fixed::Angle16(0x4000));
+        else return Angle(1.57079632679489661923);
+    }
+    static Angle halfTurn() { return quarterTurn() + quarterTurn(); }
 };
 
 template<class B> struct EulerAngles {

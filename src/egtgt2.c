@@ -5,6 +5,8 @@
 #include "egcode.h"
 #include "egcombat.h"
 #include "egdata.h"
+#include "math/legacy_rotation.hpp"
+using f15::math::legacy::signedAngle;
 #include "egflight.h"
 #include "egframe.h"
 #include "egmath.h"
@@ -233,7 +235,7 @@ int16 computeTargetBearing(int16 targetX, int16 targetY, int16 wantBearing) {
 
 // ==== seg000:0xc82d ====
 int16 computeLoftAngle() {
-    return (int16)((uint32)((int32)(0x4000 - abs(g_ourPitch)) << 12) / (uint32)(uint16)(g_viewZ + 0x1000)) - 0x4000;
+    return (int16)((uint32)((int32)(0x4000 - abs(signedAngle(g_ourPitch))) << 12) / (uint32)(uint16)(g_viewZ + 0x1000)) - 0x4000;
 }
 
 // ==== seg000:0xc864 ====

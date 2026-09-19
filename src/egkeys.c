@@ -2,6 +2,8 @@
 #include "egcode.h"
 #include "egcombat.h"
 #include "egdata.h"
+#include "math/legacy_rotation.hpp"
+using f15::math::legacy::signedAngle;
 #include "egframe.h"
 #include "egkeys.h"
 #include "egmath.h"
@@ -264,7 +266,7 @@ void keyDispatch(uint16 scanCode) {
         if (g_ejectState == 0) {
             makeSound(2, 2);
             makeSound(34, 2);
-            if ((abs((int16)g_ourRoll) >> 5) + (abs(g_ourPitch) >> 5) + g_knots > randomRange(500) + 500) {
+            if ((abs((int16)signedAngle(g_ourRoll)) >> 5) + (abs(signedAngle(g_ourPitch)) >> 5) + g_knots > randomRange(500) + 500) {
                 finalizeMission(6);
             } else {
                 commData->landingType = 2;

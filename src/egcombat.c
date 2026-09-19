@@ -4,6 +4,8 @@
 #include "egcombat.h"
 #include "game_options.h"
 #include "egdata.h"
+#include "math/legacy_rotation.hpp"
+using f15::math::legacy::signedAngle;
 #include "egframe.h"
 #include "egkeys.h"
 #include "egmath.h"
@@ -192,7 +194,7 @@ void updateThreatTargeting(void) {
                          (mode == 1 || mode == 2 ||
                           (mode == 3 &&
                            -(g_missionStatus * 12 - 0x40) >
-                               abs(abs((int16)(aimY - g_ourHead) >> 8) - 0x40))))) {
+                               abs(abs((int16)(aimY - signedAngle(g_ourHead)) >> 8) - 0x40))))) {
                         acq = samCanAcquireTarget(slot, mapEvents[scan].mapX,
                                                   mapEvents[scan].mapY, g_viewZ, mode);
                         if (acq != 0) {
@@ -509,7 +511,7 @@ int samCanAcquireTarget(int slot, int targetX, int targetY, int targetAlt, int m
         return 0;
     }
     if (mode == 0) {
-        if (abs16Compat((int16)(g_projectiles[slot].worldX - g_ourHead)) > 0x2000) {
+        if (abs16Compat((int16)(g_projectiles[slot].worldX - signedAngle(g_ourHead))) > 0x2000) {
             return 0;
         }
     }
@@ -517,7 +519,7 @@ int samCanAcquireTarget(int slot, int targetX, int targetY, int targetAlt, int m
         g_acqRange = range;
         return 1;
     }
-    bearDiff = abs16Compat((int16)(g_projectiles[slot].worldX - g_ourHead));
+    bearDiff = abs16Compat((int16)(g_projectiles[slot].worldX - signedAngle(g_ourHead)));
     if (abs(bearDiff - 0x4000) >= 0x2000 - g_missionStatus * 2048) {
         g_acqRange = range;
         return 1;
@@ -671,7 +673,7 @@ void bombTarget(void) {
 void fireMissile() {
     int16 spec, tmp, weaponIdx, slot;
 
-    if (abs(g_ourRoll) > 0x3000) return;
+    if (abs(signedAngle(g_ourRoll)) > 0x3000) return;
     if (g_inLandingCorridor != 0) return;
     if (g_ejectState != 0) return;
 
@@ -723,9 +725,9 @@ void fireMissile() {
     g_projectiles[slot].fineY = (((int32)(uint16)g_viewY_ << 5) + (0x1f - ((g_ViewY + 0x10) & 0x1f))) & 0x1FFFFF;
     g_projectiles[slot].alt = g_viewZ - 20;
     g_projectiles[slot].speed = (uint16)g_velocity >> 11;
-    g_projectiles[slot].worldX = g_ourHead;
-    g_projectiles[slot].worldY = g_ourPitch;
-    g_projectiles[slot].worldZ = g_ourRoll;
+    g_projectiles[slot].worldX = signedAngle(g_ourHead);
+    g_projectiles[slot].worldY = signedAngle(g_ourPitch);
+    g_projectiles[slot].worldZ = signedAngle(g_ourRoll);
 
     g_projectiles[slot].ttl = (int16)(((int32)sams[spec].lockRange << (6 - (sams[spec].weaponClass == 6 ? 3 : 2))) * (int32)g_frameRateScaling / (int32)((sams[spec].maxSpeed >> 6) + 1)) + 6;
 

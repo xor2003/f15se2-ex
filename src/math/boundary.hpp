@@ -29,7 +29,7 @@ template<> struct Boundary<FixedBackend> {
 template<> struct Boundary<ModernBackend> {
     static Angle<ModernBackend> radians(double radians) {
         if (!std::isfinite(radians)) throw std::domain_error("non-finite angle");
-        return Angle<ModernBackend>(std::remainder(radians, 2.0 * pi));
+        return Angle<ModernBackend>(radians);
     }
     static Angle<ModernBackend> angleWord(std::uint16_t word) {
         return radians(static_cast<double>(word) * (2.0 * pi / 65536.0));

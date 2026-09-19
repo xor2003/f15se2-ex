@@ -5,6 +5,8 @@
 #include "eg3dmap.h"
 #include "egcode.h"
 #include "egdata.h"
+#include "math/legacy_rotation.hpp"
+using f15::math::legacy::signedAngle;
 #include "egframe.h"
 #include "egmath.h"
 #include "egtacmap.h"
@@ -369,9 +371,9 @@ void drawTargetView(int shapeId, int32 worldX, int32 worldY, int altitude, int o
         relX = (int)(dxFine >> 5) << 4;
         relY = (int)(dyFine >> 5) << 4;
         relZ = (int)(dzFine >> 1);
-        g_trkBearing = g_ourHead;
+        g_trkBearing = signedAngle(g_ourHead);
         g_trkPitch = g_extViewPitch;
-        g_trkRoll = g_ourRoll;
+        g_trkRoll = signedAngle(g_ourRoll);
         g_trkScale = 0x20;
         g_extraScaleShift = 2;
     }

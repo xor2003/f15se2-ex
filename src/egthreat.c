@@ -2,6 +2,8 @@
 // Functions whose block scheduling only matches when compiled without /Zi.
 #include "egcombat.h"
 #include "egdata.h"
+#include "math/legacy_rotation.hpp"
+using f15::math::legacy::signedAngle;
 #include "egframe.h"
 #include "egkeys.h"
 #include "egmath.h"
@@ -198,7 +200,7 @@ void updateThreatAlert(void) {
         g_threatRefY = g_viewY_;
     }
     g_threatRefZ = g_viewZ;
-    g_threatRefHead = g_ourHead;
+    g_threatRefHead = signedAngle(g_ourHead);
     g_unusedEventHist0 = 0xFF;
     for (planeIdx = 0; planeIdx < g_planeScanCount; planeIdx++) {
         if (g_planeTable.planes[planeIdx].active != 0) {
@@ -362,9 +364,9 @@ void updateObjects(void) {
                         hdg += g_simObjects[objIdx].bank.w >> 2;
                     }
                     relBearing = (int16)(bearing - hdg) >> 13 & 7;
-                    hdg = g_ourHead;
-                    if (abs((int16)g_ourRoll) < 0x4000) {
-                        hdg += (int16)g_ourRoll >> 1;
+                    hdg = signedAngle(g_ourHead);
+                    if (abs((int16)signedAngle(g_ourRoll)) < 0x4000) {
+                        hdg += (int16)signedAngle(g_ourRoll) >> 1;
                     }
                     aspect = (((g_simObjects[objIdx].heading.w - hdg) >> 13) + 4) & 7;
                     {

@@ -1,3 +1,6 @@
+#include "math/legacy_rotation.hpp"
+using f15::math::legacy::signedAngle;
+using f15::math::legacy::angleFromWord;
 // 3D projection / tile-grid / map-geometry behavior tests (LINK_CORE + headless).
 //
 // Exercises the real deterministic geometry math against the linked core library:
@@ -481,7 +484,7 @@ int main() {
     // --- projectMapPoint radar-scope projection + clip (egui) ---------------
     g_viewX_ = 0x2000;
     g_viewY_ = 0x3000;
-    g_ourHead = 0;
+    g_ourHead = angleFromWord(0);
     g_radarScopeRange = 1;
     projectMapPoint(0x2100, 0x2F00);
     {
@@ -491,8 +494,8 @@ int main() {
         // to track the intended projection rather than the old pure-integer form.
         const int shift = kRadarBaseShift - static_cast<char>(g_radarScopeRange);
         const float inv = 1.0f / static_cast<float>(1 << shift);
-        const float c = static_cast<float>(cosine(g_ourHead)) / 32768.0f;
-        const float s = static_cast<float>(sine(g_ourHead)) / 32768.0f;
+        const float c = static_cast<float>(cosine(signedAngle(g_ourHead))) / 32768.0f;
+        const float s = static_cast<float>(sine(signedAngle(g_ourHead))) / 32768.0f;
         const float fsx = static_cast<float>(0x2100 - 0x2000) * inv;
         const float fsy = static_cast<float>(0x3000 - 0x2F00) * inv;
         const int expX = scopeRoundExpect(static_cast<float>(kRadarProjectionCenterX) + (c * fsx - s * fsy));
@@ -629,10 +632,10 @@ int main() {
             "computeSimObjectRange reads sim-object coordinates without updating bearing");
 
     // --- computeLoftAngle unsigned divide (egtgt2) --------------------------
-    g_ourPitch = 0x1000;
+    g_ourPitch = angleFromWord(0x1000);
     g_viewZ = 0x2000;
     require(computeLoftAngle() ==
-                static_cast<int>((static_cast<unsigned long>((0x4000 - std::abs(g_ourPitch)) << 12) /
+                static_cast<int>((static_cast<unsigned long>((0x4000 - std::abs(signedAngle(g_ourPitch))) << 12) /
                                   static_cast<unsigned int>(g_viewZ + 0x1000)) -
                                  0x4000),
             "computeLoftAngle matches original unsigned divide formula");

@@ -1865,14 +1865,11 @@ struct BulletTrack bulletTracks[20];
 
 /* Product staging keeps both operands valid when the current matrix is one. */
 f15::math::Matrix3<f15::math::FixedBackend> g_matrixScratch;
-/* 16-bit word-degree angles: arithmetic must wrap at 16 bits (e.g. 0x10000 - roll,
-   -head). Keep these int16 so assignments wrap on store as the DOS build did.
-   g_ourPitch matters too: valueToAngle() returns 0xc000 (=-90deg) when vertical;
-   as int that reads +49152 and breaks abs()/signed compares (eject, high-gee). */
-int16 g_ourPitch = 0;
-int16 g_ourRoll = 0;
+/* Fixed angles wrap as words; signed interpretation is explicit at legacy consumers. */
+f15::math::Angle<f15::math::FixedBackend> g_ourPitch;
+f15::math::Angle<f15::math::FixedBackend> g_ourRoll;
 /* player orientation/altitude view state, shared with egseg2 projection. */
-int16 g_ourHead = 0;
+f15::math::Angle<f15::math::FixedBackend> g_ourHead;
 
 int16 g_viewZ; /* altitude-Z */
 
