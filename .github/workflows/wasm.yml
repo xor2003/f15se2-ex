@@ -2,7 +2,7 @@ name: Browser build
 on:
   workflow_dispatch:
   push:
-    branches: [wasm-port]
+    branches: [wasm-port, feature/wasm-port]
 
 jobs:
   wasm:
