@@ -34,6 +34,45 @@ clean. This is bounded caller coverage, not full flight-model coverage: turn
 trajectories, assists, ejection, landing, multi-tick sorties and the remaining
 branches still need baselines before their migration.
 
+## Applied-thrust migration checkpoint
+
+The tests-first baselines are commits `c760498` and `a701aac`. After those
+checkpoints, `g_thrust` becomes `EngineThrust<FixedBackend>` and the covered
+damage limit and engine ramp use `PropulsionMath`. Full-tick expected results
+are unchanged; only fixture construction and extraction use the new adapter.
+
+The fixed ramp retains separate `/4` and `/frequency` truncations, then the
+one-unit increment and immediate downward clamp. Named constants document
+the 144-unit afterburner ceiling and four-unit damage penalty. These are game
+command units, not newtons. Damage-limit notification retains the old predicate
+even when severe damage leaves an already-zero command at zero.
+
+The modern ramp exactly integrates `dT/dt = (target - thrust)/4 + 15` until
+the target is reached. The additive term is calibrated to the current 15 Hz
+simulation, while substeps retain fractions and give the same elapsed-time
+result. Downward commands remain immediate. This is an explicit modern model
+choice, not a claim of bit-for-bit equivalence to the fixed ramp.
+
+`typed_propulsion_tests` checks every signed-word current value against eight
+targets and four frequencies, plus nine damage counts. Modern tests check
+subunit values, bounded response, elapsed-time equivalence, and invalid values.
+Compiler tests prohibit raw construction/extraction, private storage access,
+backend/quantity mixing, primitive timesteps and raw pointers. Raw propulsion
+adapters are included in the boundary checker and its regression tests.
+
+Requested throttle (`g_setThrust`), fuel and target-speed generation remain
+scalar. Applied thrust still has explicit transitional conversions for the
+unmigrated target-speed formula and the audio interface. Input/autopilot paths
+need their own pre-migration caller coverage before requested throttle changes.
+No whole-game modern backend selector is available yet.
+
+Verification: Linux Release build and all 52 CTests pass, including 69
+compiler-negative cases and the positive control. Clang analysis of the
+propulsion test is clean. ASan/UBSan pass for the standalone propulsion test
+and the full-tick characterization harness linked with instrumented `egflight.c`
+(the remaining core is uninstrumented). Windows/Android/browser builds and
+interactive flight scenarios have not been verified for this checkpoint.
+
 ## Rotation migration checkpoint
 
 * `Angle`, `Coefficient`, `EulerAngles` and `Matrix3` carry backend types. Storage

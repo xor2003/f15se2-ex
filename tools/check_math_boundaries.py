@@ -14,6 +14,7 @@ ALLOWED = {
     "src/math/horizontal.hpp", "src/math/horizontal_boundary.hpp", "src/math/legacy_horizontal.hpp",
     "src/math/airspeed.hpp", "src/math/airspeed_boundary.hpp", "src/math/legacy_airspeed.hpp",
     "src/math/aerodynamics.hpp",
+    "src/math/propulsion.hpp", "src/math/propulsion_boundary.hpp", "src/math/legacy_propulsion.hpp",
     "src/replacement_terrain_collision.h",
     "src/eg3drast.c", "src/eg3dcam.c", "src/egflight.c",
     # Temporary Euler consumers; remove each entry as its scalar math is migrated.
@@ -21,8 +22,8 @@ ALLOWED = {
     "src/egtgt2.c", "src/egcombat.c", "src/egframe.c", "src/egtacmap.c", "src/egthreat.c",
     "src/egui.c",
 }
-ACCESS = re.compile(r"F15_MATH_BOUNDARY_ACCESS|\b(?:Control|Altitude|Horizontal|Airspeed)?Boundary\s*<|math::legacy|\bfixed\s*::|"
-                    r'#\s*include\s*[<"](?:math/)?(?:boundary|control_boundary|altitude_boundary|horizontal_boundary|airspeed_boundary|legacy_rotation|legacy_flight_control|legacy_altitude|legacy_horizontal|legacy_airspeed)\.hpp[>"]|'
+ACCESS = re.compile(r"F15_MATH_BOUNDARY_ACCESS|\b(?:Control|Altitude|Horizontal|Airspeed|Propulsion)?Boundary\s*<|math::legacy|\bfixed\s*::|"
+                    r'#\s*include\s*[<"](?:math/)?(?:boundary|control_boundary|altitude_boundary|horizontal_boundary|airspeed_boundary|propulsion_boundary|legacy_rotation|legacy_flight_control|legacy_altitude|legacy_horizontal|legacy_airspeed|legacy_propulsion)\.hpp[>"]|'
                     r'#\s*include\s*[<"]fixed_math\.hpp[>"]')
 
 def violations(root):

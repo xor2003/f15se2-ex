@@ -11,6 +11,7 @@
 #include "math/altitude.hpp"
 #include "math/horizontal.hpp"
 #include "math/airspeed.hpp"
+#include "math/propulsion.hpp"
 
 typedef struct SDL_IOStream SDL_IOStream;
 
@@ -267,7 +268,7 @@ extern struct GroundTargetTable g_planeTable;
 extern int16 g_unusedViewXSnap;
 extern uint8 buf3d3_1[];
 extern int16 g_bulletTrackCount;
-extern int16 g_thrust;
+extern f15::math::EngineThrust<f15::math::FixedBackend> g_thrust;
 extern int16 g_northSouthSign;
 extern int16 g_unusedViewYSnap;
 extern uint8 g_mapCellFlags[];

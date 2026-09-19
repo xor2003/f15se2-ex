@@ -2224,7 +2224,7 @@ char tempString[80];
 int16 g_scopeArcStart;
 int16 g_scopeArcEnd;
 int16 g_gunHits;
-int16 g_thrust;
+f15::math::EngineThrust<f15::math::FixedBackend> g_thrust;
 /* regs: shared int86/int86x register union for INT 10h/16h calls. */
 union REGS regs;
 int16 g_unusedEventHist1;

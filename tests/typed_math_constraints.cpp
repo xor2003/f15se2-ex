@@ -5,6 +5,7 @@
 #include "math/horizontal.hpp"
 #include "math/airspeed.hpp"
 #include "math/aerodynamics.hpp"
+#include "math/propulsion.hpp"
 #include <type_traits>
 #include <utility>
 
@@ -33,6 +34,9 @@ static_assert(!std::is_constructible_v<SimulationStep<ModernBackend>, double>);
 #if defined(TEST_UNGUARDED_AIRSPEED_BOUNDARY)
 #include "math/airspeed_boundary.hpp"
 #endif
+#if defined(TEST_UNGUARDED_PROPULSION_BOUNDARY)
+#include "math/propulsion_boundary.hpp"
+#endif
 
 int main() {
     RotationMath<ModernBackend> math;
@@ -45,6 +49,9 @@ int main() {
     (void)AirspeedMath<ModernBackend>::verticalSample(FlightSpeed<ModernBackend>{});
     (void)AerodynamicsMath<ModernBackend>::pitchTrim(angle, math.cosine(angle));
     (void)AerodynamicsMath<ModernBackend>::belowStall(FlightSpeed<ModernBackend>{}, StallSpeed<ModernBackend>{});
+    (void)PropulsionMath<ModernBackend>::limitForDamage(EngineThrust<ModernBackend>{}, 0);
+    static_assert(std::is_same_v<decltype(PropulsionMath<ModernBackend>::advance(
+        {}, {}, std::declval<SimulationStep<ModernBackend>>())), EngineThrust<ModernBackend>>);
     static_assert(std::is_same_v<decltype(AerodynamicsMath<ModernBackend>::stallResponse(
         {}, {}, StallSeverity::Normal, std::declval<SimulationStep<ModernBackend>>())), StallResponse<ModernBackend>>);
 #if defined(TEST_PRIMITIVE_ANGLE)
@@ -121,6 +128,22 @@ int main() {
     ViewDisplacement<ModernBackend, ViewXAxis> delta(1.0);
 #elif defined(TEST_HORIZONTAL_SPEED)
     HorizontalSpeed<ModernBackend> speed = 1.0;
+#elif defined(TEST_THRUST_PRIMITIVE)
+    EngineThrust<FixedBackend> thrust = 100;
+#elif defined(TEST_THRUST_EXTRACTION)
+    double thrust = EngineThrust<ModernBackend>{};
+#elif defined(TEST_THRUST_BACKEND)
+    using Invalid = decltype(PropulsionMath<ModernBackend>::advance(
+        EngineThrust<FixedBackend>{}, {}, std::declval<SimulationStep<ModernBackend>>()));
+#elif defined(TEST_THRUST_STEP)
+    (void)PropulsionMath<ModernBackend>::advance({}, {}, 0.1);
+#elif defined(TEST_THRUST_ROLE)
+    EngineThrust<FixedBackend> thrust = FlightSpeed<FixedBackend>{};
+#elif defined(TEST_THRUST_POINTER)
+    EngineThrust<FixedBackend> thrust;
+    short *raw = &thrust;
+#elif defined(TEST_THRUST_STORAGE)
+    (void)EngineThrust<FixedBackend>{}.value_;
 #elif defined(TEST_STALL_PRIMITIVE)
     StallSpeed<FixedBackend> stall = 2700;
 #elif defined(TEST_STALL_EXTRACTION)

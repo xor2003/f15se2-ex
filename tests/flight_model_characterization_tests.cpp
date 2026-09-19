@@ -2,6 +2,7 @@
 #include "math/legacy_altitude.hpp"
 #include "math/legacy_rotation.hpp"
 #include "math/legacy_horizontal.hpp"
+#include "math/legacy_propulsion.hpp"
 #include "math_rotation_reference.hpp"
 #include "egdata.h"
 #include "egflight.h"
@@ -39,7 +40,7 @@ void thrustAndFuel() {
         g_initPhase = 1;
         g_frameRateScaling = hz;
         frameTick = fuelTick ? hz * 2 : 1;
-        g_thrust = initial;
+        g_thrust = legacy::thrustFromUnits(initial);
         g_setThrust = requested;
         g_fuelRemaining = fuel;
         g_gunHits = damage;
@@ -89,7 +90,7 @@ void thrustAndFuel() {
         const int corner = std::abs(word(root * word(100 * (height / 64 + 1024) / 1024) / 8));
 
         stepFlightModel();
-        require(g_thrust == expected, "full flight model thrust response changed");
+        require(legacy::thrustUnits(g_thrust) == expected, "full flight model thrust response changed");
         require(g_fuelRemaining == remaining, "full flight model fuel cadence/depletion changed");
         require(g_setThrust == target, "damage thrust limit changed");
         require(g_gees == gees, "neutral banked-flight load changed");

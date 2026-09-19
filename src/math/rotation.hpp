@@ -9,6 +9,7 @@
 namespace f15::math {
 template<class B> class AirspeedMath;
 template<class B> class AerodynamicsMath;
+template<class B> class PropulsionMath;
 
 struct FixedBackend {};
 struct ModernBackend {};

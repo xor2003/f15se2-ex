@@ -1,5 +1,9 @@
 #include "math/legacy_horizontal.hpp"
 #include "math/legacy_airspeed.hpp"
+#include "math/legacy_propulsion.hpp"
+using f15::math::legacy::thrustFromUnits;
+using f15::math::legacy::thrustUnits;
+using Propulsion = f15::math::PropulsionMath<f15::math::FixedBackend>;
 #include "math/aerodynamics.hpp"
 using f15::math::legacy::speedWord;
 using f15::math::legacy::speedFromUnits;
@@ -159,9 +163,8 @@ void stepFlightModel(void) {
         g_ourPitch = g_ourRoll = {};
         g_altitude = {};
         g_velocity = {};
-        g_viewZ =
-                    g_setThrust =
-                        g_thrust = 0;
+        g_viewZ = g_setThrust = 0;
+        g_thrust = {};
 
         if (gameData->difficulty == 0) {
 
@@ -309,7 +312,7 @@ switch_break:
         g_joyCalibTimer--;
     }
 
-    if (g_setThrust != 0 && g_thrust == 0) {
+    if (g_setThrust != 0 && g_thrust.isZero()) {
         makeSound(14, 2);
     }
 
@@ -563,18 +566,14 @@ switch_break:
         }
     }
 
-    if (g_gunHits != 0) {
-        if (g_setThrust > -((g_gunHits * 4) - 0x90)) {
-            g_setThrust = -((g_gunHits * 4) - 0x90);
-            if (g_setThrust < 0)
-                g_setThrust = 0;
-            UpdateThrottleState();
-        }
+    const auto requestedThrust = thrustFromUnits(g_setThrust);
+    const auto limitedThrust = Propulsion::limitForDamage(requestedThrust, g_gunHits);
+    if (Propulsion::requiresDamageLimit(requestedThrust, g_gunHits)) {
+        g_setThrust = thrustUnits(limitedThrust);
+        UpdateThrottleState();
     }
 
-    g_thrust += ((g_setThrust - g_thrust) / 4) / g_frameRateScaling;
-    if (g_setThrust > g_thrust) g_thrust++;
-    if (g_setThrust < g_thrust) g_thrust = g_setThrust;
+    g_thrust = Propulsion::advance(g_thrust, limitedThrust, Controls::frequency(g_frameRateScaling));
 
     if ((((uint16)frameTick) % ((uint16)(g_frameRateScaling << 1))) == 0 && g_setThrust != 0 && g_autopilotEngaged == 0) {
         if (!gameOptionsEnabled(GAME_OPTION_INFINITE_FUEL))
@@ -583,7 +582,7 @@ switch_break:
     }
 
     if (g_fuelRemaining <= 0) {
-        g_thrust = 0;
+        g_thrust = {};
         g_fuelRemaining = 0;
     }
 
@@ -603,7 +602,7 @@ switch_break:
     strcat(g_geeStringBuf, itoa((abs(g_gees) & 0xF) >> 1, strBuf, 10));
     strcat(g_geeStringBuf, "G");
 
-    speedCalc = ((int32)(g_thrust - sinMul(signedAngle(g_ourPitch), 80)) * 800L) / 100L;
+    speedCalc = ((int32)(thrustUnits(g_thrust) - sinMul(signedAngle(g_ourPitch), 80)) * 800L) / 100L;
 
     g_cornerSpeed = 100;
     speedCalc = ((((uint16)g_viewZ >> 7) + 0x0400) * (int32)(speedCalc & speedCalc)) >> 10; // speedCalc & speedCalc folds to a plain load but ranks the operand "heavy", so the shift-expr is evaluated/pushed first like the ref
@@ -633,7 +632,7 @@ switch_break:
     horizVel = SpeedMath::horizontalSample(g_velocity, f15::math::legacy::Math(g_angleLut).cosine(g_ourPitch));
     g_knots = speedWord(g_velocity) / 27;
 
-    audio_setEnginePitch(g_knots, g_thrust);
+    audio_setEnginePitch(g_knots, thrustUnits(g_thrust));
 
     yaw = (((int32)sinMul(signedAngle(g_ourRoll), g_gees << 4)) << 7) / ((int32)((int16)(speedWord(g_velocity) >> 9) + 0x20));
 
