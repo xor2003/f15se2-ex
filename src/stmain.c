@@ -10,6 +10,7 @@
 #include "stalloc.h"
 #include "stcode.h"
 #include "stdata.h"
+#include "strand.h"
 #include "stgen.h"
 #include "stinit.h"
 #include "stmissn.h"
@@ -97,7 +98,7 @@ int start_main(void) {
     gameData->campaignProgress = 0;
     gameData->rand = 12345;
     joyAxes[0] = joyAxes[1] = JOY_CENTER;
-    srand(gameData->rand);
+    gameSrand(gameData->rand);
     missionGenerate();
 #else
     difficulty = gameData->difficulty;
@@ -129,9 +130,9 @@ int start_main(void) {
     /* Check if same diff and thea picked as last time */
     if (gameData->difficulty == difficulty && gameData->theater == theater && missionPick == -1 && askRepeatMission() != 0)
         goto doSrand;
-    gameData->rand = rand();
+    gameData->rand = gameRand();
 doSrand:
-    srand(gameData->rand);
+    gameSrand(gameData->rand);
     missionDecode();
     missionGenerate();
 #endif

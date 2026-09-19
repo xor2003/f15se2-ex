@@ -1,6 +1,7 @@
 #include "shared/common.h"
 #include "test_environment.h"
 #include "r3d_gl.h"
+#include "shared/blackbox.h"
 
 #include <filesystem>
 #include <fstream>
@@ -44,6 +45,7 @@ enum FileIoOriginalConstant : int {
     kErrorExitStatus = 1,
     kScratchBufferBytes = 8,
     kReplacementPathBufferBytes = 512,
+    kReplaySeed = 11,
 };
 
 void require(bool condition, const char *message) {
@@ -502,6 +504,70 @@ int main() {
             "minimized 3D3 JSON does not replace the table/fallback byte stream");
     fileClose(input);
 #endif
+    {
+        const auto replayLogPath = testDir / "replay.log";
+        {
+            std::ofstream log(replayLogPath, std::ios::binary);
+            log << "F15SE2_BLACKBOX 7\nseed " << kReplaySeed << "\n"
+                << "build_version unknown\n"
+                << "mutable_file HallFame 4 5245504c\n";
+        }
+        require(blackbox_startReplay(replayLogPath.string().c_str()) != 0,
+                "test can enable blackbox replay mode");
+        input = openFile("HallFame", kDosReadMode);
+        require(input != nullptr,
+                "blackbox replay serves captured mutable files from memory");
+        require(fileReadRaw(input, buf, kReadWholeRemainingStream) == 4,
+                "blackbox replay mutable stream reports captured byte count");
+        require(std::string(buf, 4) == "REPL",
+                "blackbox replay mutable stream returns captured bytes");
+        fileClose(input);
+        output = createFile("HallFame", kDosDefaultCreateAttr);
+        require(output != nullptr && fileWrite("SAVE", 1, 4, output) == 4,
+                "blackbox replay accepts writes through a disposable stream");
+        fileClose(output);
+        require(!std::filesystem::exists(testDir / "HallFame"),
+                "blackbox replay leaves missing persistent files missing");
+        blackbox_shutdown();
+    }
+
+    {
+        const auto recordLogPath = testDir / "record.log";
+        require(blackbox_startRecord(recordLogPath.string().c_str(), kReplaySeed) != 0,
+                "test can enable blackbox record mode");
+        input = openFile("HallFame", kDosReadMode);
+        require(input == nullptr,
+                "missing HallFame still reports as missing during recording");
+        output = createFile("HallFame", kDosDefaultCreateAttr);
+        require(output != nullptr && fileWrite("SAVE", 1, 4, output) == 4,
+                "blackbox recording accepts writes through a disposable stream");
+        fileClose(output);
+        blackbox_shutdown();
+        require(readWholeFile(recordLogPath).find("mutable_file HallFame 0") != std::string::npos,
+                "blackbox recording captures a missing HallFame as explicit empty state");
+        require(!std::filesystem::exists(testDir / "HallFame"),
+                "blackbox recording leaves missing persistent files missing");
+    }
+
+    {
+        const auto recordLogPath = testDir / "record-existing.log";
+        {
+            std::ofstream hallFame("HallFame", std::ios::binary);
+            hallFame << "LOCAL";
+        }
+        require(blackbox_startRecord(recordLogPath.string().c_str(), kReplaySeed) != 0,
+                "test can record an existing mutable file");
+        input = openFile("HallFame", kDosReadMode);
+        require(input != nullptr && fileReadRaw(input, buf, kReadWholeRemainingStream) == 5 &&
+                    std::string(buf, 5) == "LOCAL",
+                "recording captures an existing HallFame without changing normal reads");
+        fileClose(input);
+        blackbox_shutdown();
+        require(readWholeFile(recordLogPath).find("mutable_file HallFame 5 4c4f43414c") !=
+                    std::string::npos,
+                "existing mutable state is encoded in the recording");
+        std::filesystem::remove("HallFame");
+    }
 
     // Null/zero-size guards: the I/O helpers reject bad streams before dereferencing.
     require(fileReadRaw(nullptr, buf, kSingleByte) == kNullStreamError,

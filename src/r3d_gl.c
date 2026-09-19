@@ -44,6 +44,8 @@
 #include "egcode.h"
 #include "egdata.h"
 #include "egtypes.h"
+#include "shared/blackbox_gl.h"
+#include "shared/blackbox.h"
 #include "log.h"
 #include "shared/asset_compare.h"
 #include <quickdigest5.hpp>
@@ -3220,6 +3222,11 @@ void r3dgl_presentVirtual(SDL_Surface *page, int virtW, int virtH, int shakeOffs
     s_sceneRendered = 0;
     s_pageComposited = 0;
     r2d_vectorMarkPresented();
+    /* Keep all GL composition and per-frame state transitions deterministic,
+     * but avoid the host-visible overlay/swap cost while catching up. */
+    if (blackbox_fastForwarding()) return;
+    blackbox_drawGlOverlay(page, shakeOffset, s_win, gfx_getPalette(),
+                           overlay2DState);
     SDL_GL_SwapWindow(s_win);
 }
 

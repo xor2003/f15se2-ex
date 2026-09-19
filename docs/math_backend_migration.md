@@ -14,6 +14,26 @@ snapshot interpolation now use axis-specific types.
 This is the first migrated subsystem, not a complete interchangeable simulation
 backend. No whole-game floating-point backend selector is exposed.
 
+## Blackbox integration checkpoint
+
+The deterministic-blackbox branch is integrated with the current typed state.
+Diagnostic hashes and JSON snapshots explicitly extract legacy recording units;
+they do not cast quantity objects or weaken the production type boundaries.
+Renderer test fixtures use named members to accommodate replacement-model metadata.
+
+This is recording infrastructure, not yet a whole-sortie math acceptance gate.
+Before using recordings to certify migration, complete these checks:
+
+* Audit replay isolation for current pointer, touch, UTF-8 and calibrated joystick
+  paths, which are newer than the imported recorder's BIOS-key/axis schema.
+* Cover replacement/compressed intro audio waits in deterministic execution.
+* Make divergence and unconsumed events machine-checkable failures. Diagnostic
+  logging alone must not count as a passing replay.
+* Extend state coverage beyond the imported selected-field hashes and compare
+  actual recorded sorties before and after migration. Add declared tolerances
+  and outcome checks for the modern backend rather than requiring identical hashes.
+* Verify Windows, Android and browser behavior separately from Linux unit tests.
+
 ## Tests-first gate for further migration
 
 Before changing each remaining production path, add characterization tests that

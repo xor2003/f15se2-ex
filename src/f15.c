@@ -22,6 +22,8 @@
 #include "r3d.h"
 #include "input.h"
 #include "shared/common.h"
+#include "shared/blackbox.h"
+#include "shared/blackbox_cli.h"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -72,6 +74,7 @@ static void app_quit(void) {
     joy_shutdown();
     r3d_shutdown();
     gfx_videoShutdown();
+    blackbox_shutdown();
     exit(0);
 }
 
@@ -91,6 +94,7 @@ void usage(int errcode) {
            "--scenario-base stem\n"
            "               Only redirect this legacy WLD stem, for example VN; can\n"
            "               also use F15_WORLD_SCENARIO_BASE env var\n");
+    blackbox_cliPrintUsage();
     exit(errcode);
 }
 
@@ -103,7 +107,9 @@ int main(int argc, char *argv[]) {
     const char *campaignSortieArg = NULL;
     const char *scenarioArg = NULL;
     const char *scenarioBaseArg = NULL;
+    BlackboxCliOptions blackboxOptions;
     log_set_app("f15");
+    blackbox_cliInit(&blackboxOptions);
     if (!setGamePath(getenv("F15SE2_DIR"))) goto shutdown;
     /* process cmdline args */
     for (int i = 1; i < argc; ++i) {
@@ -138,11 +144,20 @@ int main(int argc, char *argv[]) {
             scenarioBaseSet = 1;
             i++;
         }
+        else if (int parsed = blackbox_cliParseOption(&blackboxOptions, argc, argv, &i); parsed != 0) {
+            if (parsed < 0) usage(1);
+        }
         else {
             printf("Unrecognized option: '%s'\n", optStr);
             usage(1);
         }
     }
+#ifdef F15_BLACKBOX_AUTO_RECORD
+    /* Debug builds collect a reproducible report by default. Explicit blackbox
+     * modes parsed above always take precedence over this local fallback. */
+    blackbox_cliApplyDebugDefaults(&blackboxOptions);
+#endif
+    if (!blackbox_cliStart(&blackboxOptions)) goto shutdown;
 
     if (selectBundledCampaign(argc, argv)) {
         campaignArg = "SVN";
@@ -174,16 +189,19 @@ int main(int argc, char *argv[]) {
     while (true) {
         int err;
         log_set_app("start");
+        blackbox_logPhase("start");
         err = start_main();
         log_set_app("f15");
         if (err != RET_MENU) break;
 
         log_set_app("egame");
+        blackbox_logPhase("egame");
         err = egame_main();
         log_set_app("f15");
         if (err == 0) break;
 
         log_set_app("end");
+        blackbox_logPhase("end");
         err = end_main();
         log_set_app("f15");
         if (err != RET_DEBRIEFING) break;
@@ -193,5 +211,6 @@ shutdown:
     joy_shutdown();
     r3d_shutdown();
     gfx_videoShutdown();
+    blackbox_shutdown();
     return 0;
 }

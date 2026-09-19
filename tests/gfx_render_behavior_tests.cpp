@@ -245,7 +245,6 @@ void writeInvalidReplacementBdf(const std::filesystem::path &root, int fontId) {
     std::ofstream out(fontPath);
     out << "STARTFONT 2.1\nFONT invalid\nCHARS 0\nENDFONT\n";
 }
-
 uint32 pageHash(int page) {
     uint32 hash = 2166136261u;
     int pitch = 0;

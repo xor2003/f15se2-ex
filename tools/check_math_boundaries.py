@@ -16,6 +16,8 @@ ALLOWED = {
     "src/math/aerodynamics.hpp",
     "src/math/propulsion.hpp", "src/math/propulsion_boundary.hpp", "src/math/legacy_propulsion.hpp",
     "src/replacement_terrain_collision.h",
+    # Recorded diagnostics serialize quantities in the legacy recording units.
+    "src/shared/blackbox_diag.c", "src/shared/blackbox_snapshot.c",
     "src/eg3drast.c", "src/eg3dcam.c", "src/egflight.c",
     # Temporary Euler consumers; remove each entry as its scalar math is migrated.
     "src/egtarget.c", "src/egkeys.c", "src/egmath.c", "src/eghudr.c", "src/eghudm.c",

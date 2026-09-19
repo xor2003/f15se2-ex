@@ -18,6 +18,7 @@
 #include "version.h"
 #include "shared/asset_compare.h"
 #include "shared/common.h"
+#include "shared/blackbox.h"
 #include <dos.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -883,11 +884,17 @@ void gfx_repaint(void) {
      * frame, so skip the bare re-present. Pure-2D screens (menus/briefing/debrief,
      * which block in key-waits and produce no frame of their own) still need it. */
     if (r3dgl_active() && r3dgl_flightLive()) return;
+    /* Expose/resize redraws depend on the host window manager. They may present
+     * pixels, but they are not logical game frames and therefore must not enter
+     * the blackbox frame stream. */
+    blackbox_beginPassivePresent();
     if (g_repaintHook) {
         g_repaintHook();
+        blackbox_endPassivePresent();
         return;
     }
     gfx_presentPage(0);
+    blackbox_endPassivePresent();
 }
 
 

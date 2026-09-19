@@ -6,6 +6,7 @@
 #include "asset_compare.h"
 #include "structured_asset_cache.h"
 #include "host_pipe.h"
+#include "blackbox_io.h"
 #include "log.h"
 #include <SDL3/SDL.h>
 #include <quickdigest5.hpp>
@@ -1178,13 +1179,15 @@ SDL_IOStream *openFile(const char *filename, int mode) {
         return replacement;
     }
     logPreferredReplacementIfPresent(filename);
-    return SDL_IOFromFile(resolveCasePath(filename).c_str(), "rb");
+    const string path = resolveCasePath(filename);
+    return blackbox_openReadPath(filename, path.c_str());
 }
 
 /* Create or truncate a file for writing. Returns the stream, or NULL on failure. */
 SDL_IOStream *createFile(const char *filename, int attr) {
     (void)attr;
-    return SDL_IOFromFile(resolveCasePath(filename).c_str(), "wb");
+    const string path = resolveCasePath(filename);
+    return blackbox_openWritePath(filename, path.c_str());
 }
 
 void fileClose(SDL_IOStream *io) {
