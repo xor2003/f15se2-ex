@@ -14,6 +14,18 @@ snapshot interpolation now use axis-specific types.
 This is the first migrated subsystem, not a complete interchangeable simulation
 backend. No whole-game floating-point backend selector is exposed.
 
+## Typed recovery bank target
+
+`GuidanceMath::recoveryBank` now computes the speed-dependent bank target from
+typed bearing, heading and flight-speed quantities. The caller adapts its existing
+indicated knots to the 27-units-per-knot scale; it deliberately does not sample
+the newly integrated velocity. Fixed math preserves the 16-knot buckets and
+signed-word result; modern math retains fractional speed. Negative indicated
+speed is rejected. The corridor override returns level bank. The typed target
+feeds recovery steering directly, with a scalar extraction retained only for
+the not-yet-migrated throttle policy. Tests cover 524,288 fixed angle/speed
+combinations and their corridor overrides, plus modern fractional speeds.
+
 ## Typed recovery attitude
 
 Recovery roll/pitch command generation now uses `GuidanceMath::recoveryAttitude`

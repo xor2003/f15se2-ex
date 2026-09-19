@@ -2,6 +2,7 @@
 #include "math/legacy_altitude.hpp"
 #include "math/legacy_rotation.hpp"
 #include "math/legacy_flight_control.hpp"
+#include "math/legacy_airspeed.hpp"
 #include "math_rotation_reference.hpp"
 #include <cstdio>
 #include <cstdlib>
@@ -58,6 +59,18 @@ void recoveryCases() {
     using rotation_reference::word;
     using rotation_reference::floorDivide;
     for (int raw = 0; raw < 65536; ++raw)
+    for (int knots : {0, 15, 16, 160, 349, 350, 800, 32767}) {
+        const int heading = word(raw * 7);
+        const int limit = knots / 16 * 256;
+        const auto bank = GuidanceMath<F>::recoveryBank(legacy::angleFromWord(raw),
+            legacy::angleFromWord(heading), legacy::speedFromUnits(knots * 27), false);
+        require(legacy::signedAngle(bank) == word(std::clamp(int(word(raw - heading)), -limit, limit) * 2),
+            "recovery bank speed limit differs from scalar formula");
+        require(legacy::signedAngle(GuidanceMath<F>::recoveryBank(legacy::angleFromWord(raw),
+            legacy::angleFromWord(heading), legacy::speedFromUnits(knots * 27), true)) == 0,
+            "recovery corridor must demand level bank");
+    }
+    for (int raw = 0; raw < 65536; ++raw)
     for (int target : {-20, 50, 4096, 4196}) {
         const int roll = word(raw), pitch = word(raw * 3), trim = word(raw * 7);
         const int bank = word(raw * 11), height = word(raw * 13);
@@ -71,6 +84,12 @@ void recoveryCases() {
             ControlBoundary<F>::pitch(result.pitch) == expectedPitch, "fixed recovery steering differs from scalar formula");
     }
     constexpr double unit = 6.28318530717958647692 / 65536;
+    for (double knots : {0.25, 15.5, 16.25, 350.5}) {
+        const auto bank = GuidanceMath<M>::recoveryBank(Boundary<M>::radians(1), {},
+            AirspeedBoundary<M>::speed(knots * 27), false);
+        require(std::abs(Boundary<M>::radians(bank) - std::min(1.0, knots / 16 * 256 * unit) * 2) < 1e-14,
+            "modern recovery bank quantized indicated speed");
+    }
     for (double delta : {-0.5, -0.01, 0.0, 0.01, 0.5}) {
         const auto result = GuidanceMath<M>::recoveryAttitude(AltitudeBoundary<M>::render(1000 + delta),
             AltitudeBoundary<M>::render(1000), {}, Boundary<M>::radians(delta * unit), {});

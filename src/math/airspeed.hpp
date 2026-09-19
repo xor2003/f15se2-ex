@@ -27,6 +27,7 @@ template<class B, class Unit> class AirspeedQuantity {
     friend class AirspeedMath<B>;
     friend class AerodynamicsMath<B>;
     friend class PropulsionMath<B>;
+    friend class GuidanceMath<B>;
 public:
     AirspeedQuantity() = default;
     bool operator==(AirspeedQuantity other) const { return value_ == other.value_; }

@@ -1,6 +1,7 @@
 #ifndef F15_MATH_GUIDANCE_HPP
 #define F15_MATH_GUIDANCE_HPP
 #include "altitude.hpp"
+#include "airspeed.hpp"
 #include <algorithm>
 
 namespace f15::math {
@@ -21,6 +22,24 @@ template<class B> class GuidanceMath {
         return value / divisor - (value % divisor < 0 ? 1 : 0);
     }
 public:
+    // Speed is the indicated-speed sample used by guidance, expressed in the
+    // flight-speed scale (27 units per knot), not a newly integrated velocity.
+    static Angle<B> recoveryBank(Angle<B> bearing, Angle<B> heading,
+        FlightSpeed<B> indicatedSpeed, bool inCorridor) {
+        if (indicatedSpeed.value_ < 0)
+            throw std::domain_error("negative recovery indicated speed");
+        if (inCorridor) return {};
+        if constexpr (std::is_same_v<B, FixedBackend>) {
+            const int limit = (indicatedSpeed.value_ / 27 / 16) * 256;
+            // Widen the doubled result before encoding its signed-word store.
+            const int error = word(int(bearing.value_.raw()) - int(heading.value_.raw()));
+            return Angle<B>(fixed::Angle16(static_cast<std::uint16_t>(std::clamp(error, -limit, limit) * 2)));
+        } else {
+            const double limit = indicatedSpeed.value_ / 27 / 16 * (256 * wordRadians);
+            return Angle<B>(std::clamp((bearing - heading).value_, -limit, limit) * 2);
+        }
+    }
+
     static FlightCommands<B> recoveryAttitude(RenderHeight<B> target, RenderHeight<B> height,
         EulerAngles<B> attitude, Angle<B> bankTarget, Angle<B> trim) {
         if constexpr (std::is_same_v<B, FixedBackend>) {

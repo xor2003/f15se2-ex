@@ -14,6 +14,7 @@ ALLOWED = {
     "src/math/horizontal.hpp", "src/math/horizontal_boundary.hpp", "src/math/legacy_horizontal.hpp",
     "src/math/airspeed.hpp", "src/math/airspeed_boundary.hpp", "src/math/legacy_airspeed.hpp",
     "src/math/aerodynamics.hpp",
+    "src/math/guidance.hpp",
     "src/math/propulsion.hpp", "src/math/propulsion_boundary.hpp", "src/math/legacy_propulsion.hpp",
     "src/replacement_terrain_collision.h",
     # Recorded diagnostics serialize quantities in the legacy recording units.

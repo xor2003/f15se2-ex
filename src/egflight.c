@@ -155,7 +155,6 @@ void stepFlightModel(void) {
     int16 k;                                // dummy:  bp-0x36 (bucket 11)
     int16 idx;                              // var_38: bp-0x38 (bucket 12)
     int16 m;                                // dummy:  bp-0x3a (bucket 13)
-    int16 knotsScale;                       // var_3C: bp-0x3c (bucket 14)
     int16 nsSign;                           // var_3E: bp-0x3e (bucket 15)
     int androidFlightControl = 0;
     int pointerThrottle = 0;
@@ -459,18 +458,15 @@ switch_break:
             }
 
             bearing = computeBearing(dx - g_viewX_, g_viewY_ - dy);
-            knotsScale = g_knots / 16;
-
-            headingErr = egClampValue((int16)(bearing - signedAngle(g_ourHead)), (-knotsScale) << 8, knotsScale << 8) * 2;
-
-            if (inRecoveryCorridor) {
-                headingErr = 0;
-            }
+            const auto bankTarget = f15::math::GuidanceMath<f15::math::FixedBackend>::recoveryBank(
+                angleFromWord(bearing), g_ourHead,
+                f15::math::legacy::speedFromUnits(g_knots * 27), inRecoveryCorridor != 0);
+            headingErr = signedAngle(bankTarget);
 
             const auto recovery = f15::math::GuidanceMath<f15::math::FixedBackend>::recoveryAttitude(
                 f15::math::legacy::renderHeightFromUnits(tmpVal),
                 f15::math::legacy::renderHeightFromUnits(g_viewZ),
-                {g_ourHead, g_ourPitch, g_ourRoll}, angleFromWord(headingErr), g_rollPitchTrim);
+                {g_ourHead, g_ourPitch, g_ourRoll}, bankTarget, g_rollPitchTrim);
             g_rollInput = recovery.roll;
 
             g_setThrust = clampRange((abs(headingErr) / 256) + (tmpVal / 64), 35, 80);
