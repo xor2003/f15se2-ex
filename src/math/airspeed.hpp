@@ -74,7 +74,7 @@ public:
     static FlightSpeed<B> constrain(FlightSpeed<B> speed) {
         if constexpr (std::is_same_v<B, FixedBackend>)
             return std::uint16_t(speed.value_) > 45000 ? FlightSpeed<B>{} : speed;
-        else return FlightSpeed<B>(std::max(0.0, std::min(45000.0, speed.value_)));
+        else return FlightSpeed<B>(std::max(0.0, speed.value_));
     }
     static AirspeedSample<B> verticalSample(FlightSpeed<B> speed) {
         if constexpr (std::is_same_v<B, FixedBackend>) return AirspeedSample<B>(std::uint16_t(speed.value_));

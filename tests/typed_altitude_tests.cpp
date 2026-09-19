@@ -126,13 +126,14 @@ void modernMath() {
     }
     require(MC::altitude(MM::constrain(MC::altitude(-0.25), MC::ground(10.5))) == 10.5,
             "modern descent does not stop at terrain");
-    require(MC::altitude(MM::constrain(MC::altitude(65536.5), {})) == 60000,
-            "modern ceiling accidentally wraps altitude");
+    for (double height : {60000.25, 65536.5, 1000000.125})
+        require(MC::altitude(MM::constrain(MC::altitude(height), {})) == height,
+                "modern terrain constraint imposes a legacy flight ceiling");
     require(MC::altitude(MM::landingApproach(MC::altitude(10.125), {}, 4)) == 7.59375,
             "modern landing easing quantized");
     require(MC::altitude(MM::landingApproach({}, MC::ground(10.25), 4)) == 15.25,
             "modern landing floor ignored");
-    for (double height : {8192.25, 12288.25, 20000.125}) {
+    for (double height : {8192.25, 12288.25, 20000.125, 60000.125}) {
         const auto onGround = MM::constrain({}, MC::ground(height));
         require(MC::render(MM::renderHeight(onGround)) == height,
                 "modern terrain clamp mixes scene height with flight altitude");

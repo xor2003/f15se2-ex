@@ -1,5 +1,11 @@
 # Fixed and floating-point math migration
 
+The [semantics audit](math_semantics_audit.md) distinguishes representation from
+physical meaning and gameplay policy. Existing modern helpers remain provisional:
+floating-point versions of legacy formulas are not sufficient evidence of a
+modern flight model. Modern altitude/speed constraints no longer inherit the
+60000/45000 ceilings; fixed behavior retains its original checks.
+
 Status: 2026-09-19. Typed fixed and double-precision rotation backends are
 implemented in `src/math/rotation.hpp`. Production matrix builders, matrix
 multiplication, camera rotation, persistent aircraft orientation matrices and

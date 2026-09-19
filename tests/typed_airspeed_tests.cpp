@@ -154,8 +154,10 @@ void modernMath() {
     require(std::abs(MC::speed(speed) - 987.625) < 1e-8, "modern braking quantizes");
     require(MC::speed(MM::airBrake(MC::speed(65536.5), ControlBoundary<M>::frequency(1))) == 65536.5 * 15 / 16,
             "modern airbrake uses low word");
-    require(MC::speed(MM::constrain(MC::speed(-0.25))) == 0 && MC::speed(MM::constrain(MC::speed(65536.5))) == 45000,
-            "modern speed limit wraps");
+    require(MC::speed(MM::constrain(MC::speed(-0.25))) == 0, "modern speed magnitude is negative");
+    for (double value : {45000.25, 65536.5, 1000000.125})
+        require(MC::speed(MM::constrain(MC::speed(value))) == value,
+                "modern speed constraint imposes a legacy ceiling");
     require(MC::speed(MM::carrierStop(MC::speed(431.999))) == 0 &&
             MC::speed(MM::carrierStop(MC::speed(432.125))) == 432.125, "modern carrier threshold changed");
     const RotationMath<M> rotation;

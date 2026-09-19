@@ -73,11 +73,13 @@ public:
             if (static_cast<std::uint16_t>(a) > 0xf230 ||
                 static_cast<std::uint16_t>(a) < static_cast<std::uint16_t>(ground.value_))
                 a = static_cast<std::uint32_t>(ground.value_);
+            // Original flight ceiling is compatibility policy, not a limit
+            // on the modern backend's altitude representation.
+            if (a > 60000) a = 60000;
         } else {
             const auto floor = expandedTerrain(ground.value_);
             if (a < floor) a = floor;
         }
-        if (a > 60000) a = 60000;
         return FlightAltitude<B>(a);
     }
     static RenderHeight<B> renderHeight(FlightAltitude<B> altitude) {
