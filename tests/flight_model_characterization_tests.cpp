@@ -186,8 +186,13 @@ void thrustAndFuel() {
     for (bool airBrake : {false, true})
     for (bool fuelTick : {false, true})
     for (int autopilotCase : {0, 1, 2, 3, 4})
+    for (bool disabled : {false, true})
     for (int heading : {0, 1, -1, 32767, -32768}) {
         if (!autopilotCase && heading != 0) continue;
+        // Freeze the disabled-input policy before separating it from device
+        // normalization. The original zero byte is full deflection, not center.
+        if (disabled && (autopilotCase || initial != 100 || requested != 100 ||
+            damage || fuel != 5000 || height != 2000 || !gearUp || airBrake || fuelTick)) continue;
         // Add a focused autopilot grid without multiplying unrelated fuel and
         // engine cases. Neutral stick is required for altitude hold to survive.
         if (autopilotCase && (initial != 100 || requested != 100 || damage != 0 ||
@@ -199,7 +204,8 @@ void thrustAndFuel() {
         g_setThrust = requested;
         g_fuelRemaining = fuel;
         g_gunHits = damage;
-        g_hudVisible = g_inputDisabled = 0;
+        g_hudVisible = 0;
+        g_inputDisabled = disabled;
         g_autopilotAltitude = g_autopilotEngaged = 0;
         g_ejectState = g_autoCrashDive = g_currentWeaponType = 0;
         g_groundAltitude = 0;
@@ -218,6 +224,7 @@ void thrustAndFuel() {
             g_autopilotAltitude = altitudeTarget;
             g_autopilotEngaged = autopilotCase >= 3;
         }
+        if (disabled) g_autopilotAltitude = altitudeTarget;
         g_viewZ = sceneHeight;
         g_altitude = legacy::altitudeFromUnits(height);
         g_velocity = legacy::speedFromUnits(8100);
@@ -257,11 +264,12 @@ void thrustAndFuel() {
         // uses the frozen LUT interpolator, never production math operations.
         using rotation_reference::floorDivide;
         using rotation_reference::word;
-        int pitchCommand = (stickPitch / 16) - 8;
+        const int expectedStickPitch = disabled ? 0 : stickPitch;
+        int pitchCommand = (expectedStickPitch / 16) - 8;
         if (pitchCommand < 0) ++pitchCommand;
         pitchCommand *= 6;
         if (pitchCommand < 0) pitchCommand /= 2;
-        int rollCommand = 0;
+        int rollCommand = disabled ? 126 : 0;
         if (autopilotCase) {
             const int offset = autopilotCase >= 3 ? (g_missionTick & 15) * 256 - 2048 : 0;
             const int headingError = std::clamp(int(word(offset - heading + bearingTarget)), -5120, 5120) * 2;
@@ -329,7 +337,8 @@ void thrustAndFuel() {
         legacy::Codec::matrixWords(g_matrixScratch, actualMatrix.data());
         require(actualMatrix == expectedMatrix,
                 "full flight model pitch/yaw matrix differs from frozen scalar formula");
-        require(joyAxes[0] == 128 && joyAxes[1] == stickPitch, "flight input reaches requested position");
+        require(joyAxes[0] == (disabled ? 0 : 128) && joyAxes[1] == expectedStickPitch,
+                "flight input reaches requested position or disabled sentinel");
         require(legacy::thrustUnits(g_thrust) == expected, "full flight model thrust response changed");
         require(g_fuelRemaining == remaining, "full flight model fuel cadence/depletion changed");
         require(g_setThrust == target, "damage thrust limit changed");
@@ -342,6 +351,8 @@ void thrustAndFuel() {
         require(legacy::rollInput(g_rollInput) == rollCommand, "altitude-hold roll command changed");
         if (autopilotCase)
             require(g_autopilotAltitude == altitudeTarget, "neutral input unexpectedly cancels altitude hold");
+        if (disabled)
+            require(g_autopilotAltitude == 0, "disabled zero-byte deflection must retain legacy altitude-hold cancellation");
         require(g_cornerSpeed == corner && AirspeedBoundary<FixedBackend>::stall(g_stallSpeed) == corner * 27,
                 "full flight model corner/stall threshold changed");
         require(legacy::speedUnits(g_velocity) == velocity && g_knots == velocity / 27,
