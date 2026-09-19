@@ -10,5 +10,11 @@ inline EngineThrust<FixedBackend> thrustFromUnits(std::int16_t value) {
 inline std::int16_t thrustUnits(EngineThrust<FixedBackend> value) {
     return PropulsionBoundary<FixedBackend>::thrust(value);
 }
+inline FuelLoad<FixedBackend> fuelFromUnits(std::int16_t value) {
+    return PropulsionBoundary<FixedBackend>::fuel(value);
+}
+inline FlightLoad<FixedBackend> loadFromSixteenths(std::int32_t value) {
+    return PropulsionBoundary<FixedBackend>::load(value);
+}
 }
 #endif

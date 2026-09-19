@@ -50,6 +50,7 @@ int main() {
     (void)AerodynamicsMath<ModernBackend>::pitchTrim(angle, math.cosine(angle));
     (void)AerodynamicsMath<ModernBackend>::belowStall(FlightSpeed<ModernBackend>{}, StallSpeed<ModernBackend>{});
     (void)PropulsionMath<ModernBackend>::limitForDamage(EngineThrust<ModernBackend>{}, 0);
+    (void)PropulsionMath<ModernBackend>::targetSpeed({}, math.sine(angle), {}, {}, {}, LandingGear::Retracted);
     static_assert(std::is_same_v<decltype(PropulsionMath<ModernBackend>::advance(
         {}, {}, std::declval<SimulationStep<ModernBackend>>())), EngineThrust<ModernBackend>>);
     static_assert(std::is_same_v<decltype(AerodynamicsMath<ModernBackend>::stallResponse(
@@ -130,6 +131,22 @@ int main() {
     HorizontalSpeed<ModernBackend> speed = 1.0;
 #elif defined(TEST_THRUST_PRIMITIVE)
     EngineThrust<FixedBackend> thrust = 100;
+#elif defined(TEST_FUEL_PRIMITIVE)
+    FuelLoad<FixedBackend> fuel = 5000;
+#elif defined(TEST_LOAD_PRIMITIVE)
+    FlightLoad<ModernBackend> load = 16.0;
+#elif defined(TEST_FUEL_EXTRACTION)
+    double fuel = FuelLoad<ModernBackend>{};
+#elif defined(TEST_LOAD_STORAGE)
+    (void)FlightLoad<FixedBackend>{}.value_;
+#elif defined(TEST_TARGET_SPEED_ROLE)
+    (void)PropulsionMath<FixedBackend>::targetSpeed({}, {}, FlightAltitude<FixedBackend>{}, {}, {}, LandingGear::Retracted);
+#elif defined(TEST_TARGET_SPEED_BACKEND)
+    (void)PropulsionMath<ModernBackend>::targetSpeed(EngineThrust<FixedBackend>{}, {}, {}, {}, {}, LandingGear::Retracted);
+#elif defined(TEST_TARGET_SPEED_FUEL)
+    (void)PropulsionMath<FixedBackend>::targetSpeed({}, {}, {}, FlightLoad<FixedBackend>{}, {}, LandingGear::Retracted);
+#elif defined(TEST_TARGET_SPEED_GEAR)
+    (void)PropulsionMath<ModernBackend>::targetSpeed({}, {}, {}, {}, {}, true);
 #elif defined(TEST_THRUST_EXTRACTION)
     double thrust = EngineThrust<ModernBackend>{};
 #elif defined(TEST_THRUST_BACKEND)

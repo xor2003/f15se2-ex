@@ -13,6 +13,7 @@ template<> struct AltitudeBoundary<FixedBackend> {
     static TerrainHeight<FixedBackend> ground(std::int16_t v) { return TerrainHeight<FixedBackend>(v); }
     static AirspeedSample<FixedBackend> speed(std::uint16_t v) { return AirspeedSample<FixedBackend>(v); }
     static std::int16_t render(RenderHeight<FixedBackend> v) { return v.value_; }
+    static RenderHeight<FixedBackend> render(std::int16_t v) { return RenderHeight<FixedBackend>(v); }
 };
 template<> struct AltitudeBoundary<ModernBackend> {
     static FlightAltitude<ModernBackend> altitude(double v) { check(v); return FlightAltitude<ModernBackend>(v); }
@@ -26,6 +27,7 @@ template<> struct AltitudeBoundary<ModernBackend> {
         return AirspeedSample<ModernBackend>(v);
     }
     static double render(RenderHeight<ModernBackend> v) { return v.value_; }
+    static RenderHeight<ModernBackend> render(double v) { check(v); return RenderHeight<ModernBackend>(v); }
 private:
     static void check(double v) { if (!std::isfinite(v)) throw std::domain_error("non-finite vertical quantity"); }
 };

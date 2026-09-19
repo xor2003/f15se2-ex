@@ -1,5 +1,10 @@
 #include "math/legacy_propulsion.hpp"
 #include "math/legacy_flight_control.hpp"
+#include "math/legacy_altitude.hpp"
+#include "math/legacy_airspeed.hpp"
+#include "math/legacy_rotation.hpp"
+#include "math_rotation_reference.hpp"
+#include "egdata.h"
 #include <cstdio>
 #include <cstdlib>
 #include <limits>
@@ -75,5 +80,56 @@ void modernResponse() {
     rejects([] { MB::thrust(std::numeric_limits<double>::quiet_NaN()); });
     rejects([&] { PropulsionMath<M>::advance(MB::thrust(-1e308), MB::thrust(1e308), step); });
 }
+void fixedTargetSpeed() {
+    using rotation_reference::word;
+    using rotation_reference::floorDivide;
+    const RotationMath<F> math(g_angleLut);
+    for (int thrust : {-32768, -1, 0, 1, 35, 100, 144, 32767})
+    for (int pitch : {-32768, -16384, -4096, 0, 4096, 16384, 32767})
+    for (int height : {-32768, -1, 0, 127, 128, 4095, 8192, 32767})
+    for (int fuel : {-32768, -513, -1, 0, 1, 511, 512, 5000, 32767})
+    for (int load : {-128, -1, 0, 16, 64, 127, 128, 129})
+    for (auto gear : {LandingGear::Retracted, LandingGear::Extended}) {
+        // Frozen stage-by-stage formula from de3ab99, with independent LUT
+        // interpolation and signed-word stores rather than backend helpers.
+        const int drag = word(floorDivide(std::int64_t(rotation_reference::sine(pitch, g_angleLut)) * 80 + 16384, 32768));
+        int expected = word((thrust - drag) * 800 / 100);
+        expected = word(floorDivide((std::uint16_t(height) / 128 + 1024) * expected, 1024));
+        expected = word(expected * (100 - floorDivide(fuel, 512)) / 90);
+        expected = word(floorDivide(expected * (128 - load), 128));
+        if (gear == LandingGear::Extended) expected = word(expected - floorDivide(expected, 8));
+        expected = std::clamp(expected, 0, 899) * 27;
+        const auto result = PropulsionMath<F>::targetSpeed(FB::thrust(thrust),
+            math.sine(legacy::angleFromWord(pitch)), AltitudeBoundary<F>::render(std::int16_t(height)),
+            FB::fuel(fuel), FB::load(load), gear);
+        require(AirspeedBoundary<F>::speed(result) == expected, "fixed target-speed stages differ from baseline");
+    }
+    rejects([&] { PropulsionMath<F>::targetSpeed(FB::thrust(100), {}, {}, {},
+        FB::load(INT32_MIN), LandingGear::Retracted); });
+    rejects([&] { PropulsionMath<F>::targetSpeed(FB::thrust(100), {}, {}, {},
+        FB::load(INT32_MAX), LandingGear::Retracted); });
 }
-int main() { fixedParity(); modernResponse(); }
+void modernTargetSpeed() {
+    const RotationMath<M> math;
+    for (double thrust : {0.125, 35.125, 100.0, 144.0})
+    for (double pitch : {-0.5, 0.0, 0.5})
+    for (double height : {0.0, 127.25, 8192.125})
+    for (double fuel : {0.125, 511.25, 5000.125})
+    for (double load : {0.0, 16.125, 64.0, 128.0}) {
+        const auto sine = math.sine(Boundary<M>::radians(pitch));
+        const double freeSpeed = (thrust - std::sin(pitch) * 80) * 8 *
+            (1 + height / 131072) * (100 - fuel / 512) / 90 * (1 - load / 128);
+        for (auto gear : {LandingGear::Retracted, LandingGear::Extended}) {
+            const double expected = std::clamp(freeSpeed * (gear == LandingGear::Extended ? 0.875 : 1.0), 0.0, 899.0) * 27;
+            const auto result = PropulsionMath<M>::targetSpeed(MB::thrust(thrust), sine,
+                AltitudeBoundary<M>::render(height), MB::fuel(fuel), MB::load(load), gear);
+            require(std::abs(AirspeedBoundary<M>::speed(result) - expected) < 1e-9,
+                    "modern target speed lost continuous scaling");
+        }
+    }
+    rejects([] { MB::fuel(std::numeric_limits<double>::quiet_NaN()); });
+    rejects([] { MB::load(std::numeric_limits<double>::infinity()); });
+    rejects([] { PropulsionMath<M>::targetSpeed(MB::thrust(1e308), {}, {}, {}, {}, LandingGear::Retracted); });
+}
+}
+int main() { fixedParity(); modernResponse(); fixedTargetSpeed(); modernTargetSpeed(); }

@@ -72,6 +72,7 @@ template<class B> class Coefficient {
     friend class AltitudeMath<B>;
     friend class HorizontalMath<B>;
     friend class AirspeedMath<B>;
+    friend class PropulsionMath<B>;
     friend class AerodynamicsMath<B>;
     friend struct Boundary<B>;
 public:

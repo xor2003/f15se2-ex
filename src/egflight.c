@@ -144,13 +144,13 @@ void stepFlightModel(void) {
     int16 prevAlt, aa, r;                   // var_C=prevAlt at bp-0x0c, dummies at bp-0x0a,bp-0x08 (bucket 2)
     int16 ab, tgtIdx, bearing;              // dummy=ab at bp-0x12, var_10=tgtIdx at bp-0x10, var_E=bearing at bp-0x0e (bucket 3)
     int16 yaw, tmpVal;
-    int16 ad, u, targetVel;                 // dummies at bp-0x1e,bp-0x1c, var_1A=targetVel at bp-0x1a (bucket 5)
+    int16 ad, u;                           // dummies at bp-0x1e,bp-0x1c (bucket 5)
     int16 turbulence;
     f15::math::HorizontalSpeed<f15::math::FixedBackend> horizVel;
     int16 w;
     int16 headingErr, dx;                   // var_2C=headingErr at bp-0x2c, var_2A=dx at bp-0x2a (bucket 8)
     int16 i, y;                             // dummies: bp-0x2e, bp-0x30 (bucket 9)
-    int16 dy, speedCalc;                    // var_34=dy at bp-0x34, var_32=speedCalc at bp-0x32 (bucket 10)
+    int16 dy;                              // var_34=dy at bp-0x34 (bucket 10)
     int16 k;                                // dummy:  bp-0x36 (bucket 11)
     int16 idx;                              // var_38: bp-0x38 (bucket 12)
     int16 m;                                // dummy:  bp-0x3a (bucket 13)
@@ -602,28 +602,18 @@ switch_break:
     strcat(g_geeStringBuf, itoa((abs(g_gees) & 0xF) >> 1, strBuf, 10));
     strcat(g_geeStringBuf, "G");
 
-    speedCalc = ((int32)(thrustUnits(g_thrust) - sinMul(signedAngle(g_ourPitch), 80)) * 800L) / 100L;
-
-    g_cornerSpeed = 100;
-    speedCalc = ((((uint16)g_viewZ >> 7) + 0x0400) * (int32)(speedCalc & speedCalc)) >> 10; // speedCalc & speedCalc folds to a plain load but ranks the operand "heavy", so the shift-expr is evaluated/pushed first like the ref
-
     g_cornerSpeed = ((int32)100 * (uint32)((altitudeUnits(g_altitude) >> 6) + 0x0400)) >> 10;
-
-    speedCalc = ((int32)speedCalc) * ((int32)(-((g_fuelRemaining >> 9) - 100))) / (int32)90;
-
-    speedCalc = (((int32)speedCalc) * ((int32)(128 - g_gees))) >> 7;
 
     g_cornerSpeed = ((int32)isqrt(g_gees * 4) * (int32)g_cornerSpeed) >> 3;
     g_cornerSpeed = abs(g_cornerSpeed);
 
-    if (!(*((uint8 *)&g_playerPlaneFlags) & 1)) {
-        speedCalc -= speedCalc >> 3;
-    }
-
     g_stallSpeed = f15::math::legacy::stallFromUnits(g_cornerSpeed * 27);
-    targetVel = clampRange(speedCalc, 0, 899) * 27;
-
-    accelerateFlightSpeed(speedFromUnits(targetVel));
+    accelerateFlightSpeed(Propulsion::targetSpeed(g_thrust,
+        f15::math::legacy::Math(g_angleLut).sine(g_ourPitch),
+        f15::math::legacy::renderHeightFromUnits(g_viewZ),
+        f15::math::legacy::fuelFromUnits(g_fuelRemaining),
+        f15::math::legacy::loadFromSixteenths(g_gees),
+        (g_playerPlaneFlags & 1) ? f15::math::LandingGear::Retracted : f15::math::LandingGear::Extended));
 
     updateFlightLift();
 

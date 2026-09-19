@@ -71,7 +71,7 @@ Compiler tests prohibit raw construction/extraction, private storage access,
 backend/quantity mixing, primitive timesteps and raw pointers. Raw propulsion
 adapters are included in the boundary checker and its regression tests.
 
-Requested throttle (`g_setThrust`), fuel and target-speed generation remain
+At this checkpoint, requested throttle (`g_setThrust`), fuel and target-speed generation remain
 scalar. Applied thrust still has explicit transitional conversions for the
 unmigrated target-speed formula and the audio interface. Input/autopilot paths
 need their own pre-migration caller coverage before requested throttle changes.
@@ -83,6 +83,42 @@ propulsion test is clean. ASan/UBSan pass for the standalone propulsion test
 and the full-tick characterization harness linked with instrumented `egflight.c`
 (the remaining core is uninstrumented). Windows/Android/browser builds and
 interactive flight scenarios have not been verified for this checkpoint.
+
+## Target-speed migration checkpoint
+
+After the separate tests-first commit `de3ab99`, target-speed generation in
+`stepFlightModel` uses `PropulsionMath::targetSpeed`. Its inputs are typed thrust,
+pitch coefficient, compressed scene height, fuel load, load factor and a gear
+enum; its result is `FlightSpeed`. Raw `speedCalc` and `targetVel` locals are gone.
+The original flight-tick expected values are unchanged.
+
+The fixed implementation preserves each signed-word store, rounded Q15 pitch
+drag, unsigned scene-height interpretation, signed shifts and truncating fuel
+division. The old signed-32-bit load-product overflow domain is rejected rather
+than assigned invented parity. Named constants retain the 899-knot cap,
+27 velocity units per knot and one-eighth extended-gear drag.
+
+The modern implementation retains fractional fuel, load, scene height and speed
+through the same scaling stages, without word wrapping or intermediate integer
+quantization. It uses the same final speed limits and rejects non-finite results.
+This is higher precision in the existing game model, not a new aerodynamic model.
+
+Helper tests cover 64,512 fixed target-speed combinations, including signed-word
+limits and quantization boundaries, and 864 modern combinations with an
+independently arranged continuous reference. Eight additional compiler-negative
+cases prohibit primitive quantities, extraction, private access, backend/role
+mixing and raw gear flags; the valid API is compiled as a positive control.
+Clang analysis of the propulsion harness is clean. ASan/UBSan pass for the typed
+helper tests and the unchanged 194,400-tick baseline with `egflight.c`
+instrumented; the remaining linked core is not instrumented.
+The Linux Release build and all 52 CTests pass, including 77 compiler-negative
+cases and the valid-API control.
+
+Fuel/load storage and their producers, requested throttle, and corner-speed
+generation remain transitional scalar code. Scene height is adapted from the
+existing `g_viewZ`, not recomputed from flight altitude at a different update
+stage. These adapters are explicit migration debt. Whole-game backend selection,
+multi-tick mission outcomes and Windows/Android/browser verification remain open.
 
 ## Rotation migration checkpoint
 
