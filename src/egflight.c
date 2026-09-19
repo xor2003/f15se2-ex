@@ -54,6 +54,15 @@ using f15::math::legacy::pitchInput;
 #include <string.h>
 
 /* Private helpers for this translation unit. */
+static f15::math::RenderHeight<f15::math::GameBackend> flightControlHeight() {
+#ifdef F15_MODERN_MATH
+    return f15::math::AltitudeMath<f15::math::GameBackend>::renderHeight(g_altitude);
+#else
+    // Preserve the original stored-word input, including its update timing.
+    return f15::math::legacy::renderHeightFromUnits(g_viewZ);
+#endif
+}
+
 void stepFlightModel();
 void applyRotationDelta(const f15::math::Matrix3<f15::math::GameBackend> &matA,
                         const f15::math::Matrix3<f15::math::GameBackend> &matB);
@@ -400,7 +409,7 @@ switch_break:
             (g_missionTick & 0xF) * 256 - 2048 : 0);
         const auto guidance = f15::math::GuidanceMath<f15::math::GameBackend>::altitudeHold(
             f15::math::legacy::renderHeightFromUnits(g_autopilotAltitude),
-            f15::math::legacy::renderHeightFromUnits(g_viewZ),
+            flightControlHeight(),
             {g_ourHead, g_ourPitch, g_ourRoll}, angleFromWord(g_waypointBearing), headingOffset, g_rollPitchTrim);
         g_rollInput = guidance.roll;
         g_pitchInput = guidance.pitch;
@@ -424,7 +433,7 @@ switch_break:
 
             const auto recovery = f15::math::GuidanceMath<f15::math::GameBackend>::recoveryAttitude(
                 approach.height,
-                f15::math::legacy::renderHeightFromUnits(g_viewZ),
+                flightControlHeight(),
                 {g_ourHead, g_ourPitch, g_ourRoll}, bankTarget, g_rollPitchTrim);
             g_rollInput = recovery.roll;
 
@@ -571,7 +580,7 @@ switch_break:
     g_stallSpeed = Aero::stallThreshold(corner);
     accelerateFlightSpeed(Propulsion::targetSpeed(g_thrust,
         f15::math::legacy::Math(g_angleLut).sine(g_ourPitch),
-        f15::math::legacy::renderHeightFromUnits(g_viewZ),
+        flightControlHeight(),
         f15::math::legacy::fuelFromUnits(g_fuelRemaining),
         load.load,
         (g_playerPlaneFlags & 1) ? f15::math::LandingGear::Retracted : f15::math::LandingGear::Extended));

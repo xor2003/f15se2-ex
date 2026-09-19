@@ -155,21 +155,33 @@ int main() {
             require(std::isfinite(coefficient), "modern flight matrix became non-finite");
     }
     for (int difficulty : {1, 2})
+    for (bool autopilot : {false, true})
     for (int i = 0; i < 8; ++i) {
         game.unk4 = difficulty;
         g_altitude = Altitudes::altitude(131072);
         g_velocity = Speeds::speed(8100);
         g_knots = 300;
+        g_thrust = legacy::thrustFromUnits(100);
+        g_setThrust = 100;
+        g_fuelRemaining = 5000;
         g_playerPlaneFlags = 1;
         g_joyRawX = g_joyRawY = 128;
+        g_autopilotAltitude = autopilot ? 10000 : 0;
+        g_autopilotEngaged = 0;
+        g_waypointBearing = 0;
+        waypointIndex = 0;
         g_ourHead = g_ourPitch = g_ourRoll = g_rollPitchTrim = {};
         rebuildOrientation();
         advanceFlightAltitude();
         stepFlightModel();
         require(g_rollInput.isZero(),
                 "high altitude injected false low-altitude roll turbulence");
-        require(g_pitchInput.isZero(),
-                "high altitude injected false ground-avoidance pitch");
+        const double expectedPitch = autopilot ? -8 * commandScale : 0;
+        require(std::abs(Controls::radiansPerSecond(g_pitchInput) - expectedPitch) < 1e-14,
+                "high-altitude guidance used a wrapped scene height");
+        const double expectedSpeed = 8100 + (899.0 * 27 - 8100) / (16 * 15);
+        require(std::abs(Speeds::speed(g_velocity) - expectedSpeed) < 1e-10,
+                "high-altitude propulsion used a wrapped scene height");
     }
     gameData = nullptr;
     commData = nullptr;

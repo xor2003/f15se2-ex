@@ -906,9 +906,17 @@ both assisted and unassisted difficulty at altitude 131072. Low-altitude tests
 retain the original response tuning while allowing fractional modern commands.
 The fixed assist expression remains unchanged.
 
-Other `g_viewZ` consumers still require migration, including autopilot guidance,
-propulsion inputs, ground-state checks, and camera state. These tests do not
-establish unrestricted high-altitude flight or rendering stability.
+Modern altitude-hold, recovery guidance, and propulsion now obtain their current
+typed scene height directly from flight altitude. Fixed builds still read the
+stored scene-height word at those call sites, preserving its update timing.
+The production regression checks acceleration at altitude 131072 and verifies
+that a lower autopilot target commands descent, across assisted/unassisted
+difficulty. The existing 899-knot target-speed ceiling is unchanged gameplay
+policy, not a newly imposed storage limit.
+
+Other `g_viewZ` consumers still require migration, including ground-state checks
+and camera state. The autopilot target itself remains a legacy word. These tests
+do not establish unrestricted high-altitude flight or rendering stability.
 
 For whole-sortie migration, capture a fixed seed, initial state and tick-indexed
 inputs. Compare fixed-backend state after each tick exactly. For floating point,
