@@ -14,6 +14,7 @@
 #include "log.h"
 
 #include <stdio.h>
+#include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -83,6 +84,19 @@ typedef struct BlackboxTimerPumpEvent {
 } BlackboxTimerPumpEvent;
 
 static BlackboxMode s_mode = BLACKBOX_OFF;
+static int s_replayFailed = 0;
+
+int blackbox_replayFailed(void) { return s_replayFailed; }
+
+void blackbox_internalReplayError(const char *format, ...) {
+    s_replayFailed = 1;
+    char message[1024];
+    va_list args;
+    va_start(args, format);
+    vsnprintf(message, sizeof(message), format, args);
+    va_end(args);
+    log_error("%s", message);
+}
 static FILE *s_file = NULL;
 static uint32 s_tick = 0;
 static uint32 s_inputPump = 0;
@@ -247,6 +261,7 @@ static int blackbox_validAxes(unsigned rawX, unsigned rawY, unsigned joyX, unsig
 }
 
 static void blackbox_resetState(BlackboxMode mode, uint32 seed) {
+    s_replayFailed = 0;
     if (s_file) {
         fclose(s_file);
         s_file = NULL;
@@ -415,23 +430,23 @@ void blackbox_shutdown(void) {
     int pausedForInspection = blackbox_pauseReached();
     if (blackbox_diagShutdown) blackbox_diagShutdown(pausedForInspection);
     if (blackbox_replaying() && !pausedForInspection && s_keyPos != s_keyCount) {
-        log_error("blackbox: replay consumed %u of %u recorded key events",
+        blackbox_internalReplayError("blackbox: replay consumed %u of %u recorded key events",
                   (unsigned)s_keyPos, (unsigned)s_keyCount);
     }
     if (blackbox_replaying() && !pausedForInspection && s_seedPos != s_seedCount) {
-        log_error("blackbox: replay consumed %u of %u recorded RNG seed events",
+        blackbox_internalReplayError("blackbox: replay consumed %u of %u recorded RNG seed events",
                   (unsigned)s_seedPos, (unsigned)s_seedCount);
     }
     if (blackbox_replaying() && !pausedForInspection && s_randPos != s_randCount) {
-        log_error("blackbox: replay consumed %u of %u recorded RNG values",
+        blackbox_internalReplayError("blackbox: replay consumed %u of %u recorded RNG values",
                   (unsigned)s_randPos, (unsigned)s_randCount);
     }
     if (blackbox_replaying() && !pausedForInspection && s_framePos != s_frameCount) {
-        log_error("blackbox: replay presented %u of %u recorded frames",
+        blackbox_internalReplayError("blackbox: replay presented %u of %u recorded frames",
                   (unsigned)s_framePos, (unsigned)s_frameCount);
     }
     if (blackbox_replaying() && !pausedForInspection && s_timerPumpPos != s_timerPumpCount) {
-        log_error("blackbox: replay consumed %u of %u recorded timer-pump events",
+        blackbox_internalReplayError("blackbox: replay consumed %u of %u recorded timer-pump events",
                   (unsigned)s_timerPumpPos, (unsigned)s_timerPumpCount);
     }
     if (s_file) {
@@ -526,7 +541,7 @@ uint32 blackbox_replayTimerPump(void) {
     if (s_timerPumpPos >= s_timerPumpCount) {
         if (!s_reportedTimerPumpDivergence) {
             s_reportedTimerPumpDivergence = 1;
-            log_error("blackbox: timer-pump divergence at tick %u: replay advanced past recorded schedule",
+            blackbox_internalReplayError("blackbox: timer-pump divergence at tick %u: replay advanced past recorded schedule",
                       (unsigned)s_tick);
         }
         return 0;
@@ -534,7 +549,7 @@ uint32 blackbox_replayTimerPump(void) {
     event = s_timerPumps[s_timerPumpPos++];
     if (event.startTick != s_tick && !s_reportedTimerPumpDivergence) {
         s_reportedTimerPumpDivergence = 1;
-        log_error("blackbox: timer-pump divergence at tick %u: expected start tick %u",
+        blackbox_internalReplayError("blackbox: timer-pump divergence at tick %u: expected start tick %u",
                   (unsigned)s_tick, (unsigned)event.startTick);
     }
     return event.tickCount;
@@ -565,13 +580,13 @@ void blackbox_seedRandom(uint32 seed) {
         if ((expected.tick != s_tick || expected.seed != s_rngState) &&
             !s_reportedSeedDivergence) {
             s_reportedSeedDivergence = 1;
-            log_error("blackbox: RNG seed replay mismatch at tick %u: recorded tick %u seed %u, local seed %u",
+            blackbox_internalReplayError("blackbox: RNG seed replay mismatch at tick %u: recorded tick %u seed %u, local seed %u",
                       (unsigned)s_tick, (unsigned)expected.tick, (unsigned)expected.seed, (unsigned)s_rngState);
         }
         s_rngState = expected.seed ? expected.seed : BLACKBOX_DEFAULT_SEED;
     } else if (blackbox_replaying() && !s_reportedSeedDivergence) {
         s_reportedSeedDivergence = 1;
-        log_error("blackbox: RNG seed divergence at tick %u: replay seeded past recorded stream with %u",
+        blackbox_internalReplayError("blackbox: RNG seed divergence at tick %u: replay seeded past recorded stream with %u",
                   (unsigned)s_tick, (unsigned)s_rngState);
     }
 }
@@ -586,14 +601,14 @@ uint32 blackbox_seedExternalRandom(uint32 externalSeed) {
              * position and tick are deterministic; its numeric value is not. */
             if (expected.tick != s_tick && !s_reportedSeedDivergence) {
                 s_reportedSeedDivergence = 1;
-                log_error("blackbox: external RNG seed replay mismatch at tick %u: recorded tick %u seed %u",
+                blackbox_internalReplayError("blackbox: external RNG seed replay mismatch at tick %u: recorded tick %u seed %u",
                           (unsigned)s_tick, (unsigned)expected.tick,
                           (unsigned)expected.seed);
             }
             s_rngState = expected.seed ? expected.seed : BLACKBOX_DEFAULT_SEED;
         } else if (!s_reportedSeedDivergence) {
             s_reportedSeedDivergence = 1;
-            log_error("blackbox: external RNG seed divergence at tick %u: replay consumed past recorded stream",
+            blackbox_internalReplayError("blackbox: external RNG seed divergence at tick %u: replay consumed past recorded stream",
                       (unsigned)s_tick);
         }
     } else if (blackbox_enabled()) {
@@ -621,13 +636,13 @@ int blackbox_rand15(void) {
         if ((expected.tick != s_tick || expected.value != value) &&
             !s_reportedRandDivergence) {
             s_reportedRandDivergence = 1;
-            log_error("blackbox: RNG replay mismatch at tick %u: recorded tick %u value %d, local value %d",
+            blackbox_internalReplayError("blackbox: RNG replay mismatch at tick %u: recorded tick %u value %d, local value %d",
                       (unsigned)s_tick, (unsigned)expected.tick, expected.value, value);
         }
         value = expected.value;
     } else if (blackbox_replaying() && !s_reportedRandDivergence) {
         s_reportedRandDivergence = 1;
-        log_error("blackbox: RNG divergence at tick %u: replay consumed past recorded stream, got %d",
+        blackbox_internalReplayError("blackbox: RNG divergence at tick %u: replay consumed past recorded stream, got %d",
                   (unsigned)s_tick, value);
     }
     return value;
@@ -718,13 +733,13 @@ void blackbox_recordFrame(SDL_Surface *page) {
         if ((expected.frame != s_frameIndex || expected.tick != s_tick ||
              expected.hash != hash) && !s_reportedFrameDivergence) {
             s_reportedFrameDivergence = 1;
-            log_error("blackbox: frame divergence at tick %u frame %u: expected tick %u frame %u hash %08x, got %08x",
+            blackbox_internalReplayError("blackbox: frame divergence at tick %u frame %u: expected tick %u frame %u hash %08x, got %08x",
                       (unsigned)s_tick, (unsigned)s_frameIndex, (unsigned)expected.tick,
                       (unsigned)expected.frame, (unsigned)expected.hash, (unsigned)hash);
         }
     } else if (blackbox_replaying() && !s_reportedFrameDivergence) {
         s_reportedFrameDivergence = 1;
-        log_error("blackbox: frame divergence at tick %u frame %u: replay presented past recorded stream, hash %08x",
+        blackbox_internalReplayError("blackbox: frame divergence at tick %u frame %u: replay presented past recorded stream, hash %08x",
                   (unsigned)s_tick, (unsigned)s_frameIndex, (unsigned)hash);
     }
     s_frameIndex++;

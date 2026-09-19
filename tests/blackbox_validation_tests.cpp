@@ -41,6 +41,47 @@ std::string validLog(const std::string &events = {}) {
            "mutable_file HallFame 0 -\n" + events;
 }
 
+void testReplayFailureStatus(const std::filesystem::path &path) {
+    blackbox_setBuildVersion("test-build");
+    writeFile(path, validLog("marker 0 expected 1 2 3\n"));
+    require(blackbox_startReplay(path.string().c_str()), "status fixture starts");
+    require(!blackbox_replayFailed(), "new replay has no observed mismatch");
+    blackbox_diagMarker("actual", 1, 2, 3);
+    require(blackbox_replayFailed(), "marker mismatch exposes failure immediately");
+    blackbox_shutdown();
+    require(blackbox_replayFailed(), "shutdown retains failure for test runners");
+    blackbox_shutdown();
+    require(blackbox_replayFailed(), "repeated shutdown cannot erase failure");
+
+    require(blackbox_startReplay(path.string().c_str()), "matching replay starts");
+    require(!blackbox_replayFailed(), "new session clears prior failure");
+    blackbox_diagMarker("expected", 1, 2, 3);
+    blackbox_shutdown();
+    require(!blackbox_replayFailed(), "matching marker stream does not fail");
+
+    require(blackbox_startReplay(path.string().c_str()), "incomplete replay starts");
+    blackbox_shutdown();
+    require(blackbox_replayFailed(), "unconsumed diagnostics fail at shutdown");
+
+    const char *unconsumedStreams[] = {
+        "key 9 9 1234\n", "rng_seed 9 1234\n", "rng 9 2468\n",
+        "frame 9 1 deadbeef\n", "timer_pump 0 1\n",
+        "state 9 9 flight deadbeef\n", "render_hash 9 9 9 9 9 deadbeef\n"
+    };
+    for (const char *stream : unconsumedStreams) {
+        writeFile(path, validLog(stream));
+        require(blackbox_startReplay(path.string().c_str()), "unconsumed stream starts");
+        blackbox_shutdown();
+        require(blackbox_replayFailed(), "unconsumed stream fails at shutdown");
+    }
+
+    writeFile(path, validLog());
+    require(blackbox_startReplay(path.string().c_str()), "exhausted RNG replay starts");
+    blackbox_rand15();
+    require(blackbox_replayFailed(), "extra RNG consumption exposes failure");
+    blackbox_shutdown();
+}
+
 void testCli(const std::filesystem::path &recordPath) {
     BlackboxCliOptions options;
     char program[] = "f15se2-ex";
@@ -422,6 +463,7 @@ int main() {
     testCoreFailures(replayPath);
     testDiagnosticTransitions(dir / "diagnostics.bb");
     testRngSnapshotsAndDivergence(dir);
+    testReplayFailureStatus(dir / "status.bb");
 
     blackbox_shutdown();
     std::filesystem::remove_all(dir);

@@ -38,6 +38,9 @@ int blackbox_startDebug(uint32 seed);
 int blackbox_startRecord(const char *path, uint32 seed);
 int blackbox_startReplay(const char *path);
 void blackbox_shutdown(void);
+/* Sticky replay mismatch status, retained after shutdown until a new session.
+ * Zero is not proof of completion (inspection can stop a replay early). */
+int blackbox_replayFailed(void);
 void blackbox_setPauseTick(uint32 tick);
 void blackbox_setFastForwardTick(uint32 tick);
 void blackbox_setBuildVersion(const char *version);

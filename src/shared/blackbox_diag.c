@@ -196,14 +196,14 @@ static void emitState(const char *name, uint32 hash) {
                 (e->tick != blackbox_tick() || e->step != s_simStep ||
                  strcmp(e->name, name) != 0 || e->hash != hash)) {
                 s_reportedStateDivergence = 1;
-                log_error("blackbox: subsystem divergence at tick %u step %u %s: expected tick %u step %u %s %08x, got %08x",
+                blackbox_internalReplayError("blackbox: subsystem divergence at tick %u step %u %s: expected tick %u step %u %s %08x, got %08x",
                           (unsigned)blackbox_tick(), (unsigned)s_simStep, name,
                           (unsigned)e->tick, (unsigned)e->step, e->name,
                           (unsigned)e->hash, (unsigned)hash);
             }
         } else if (!s_reportedStateDivergence) {
             s_reportedStateDivergence = 1;
-            log_error("blackbox: subsystem hash stream exhausted at tick %u", (unsigned)blackbox_tick());
+            blackbox_internalReplayError("blackbox: subsystem hash stream exhausted at tick %u", (unsigned)blackbox_tick());
         }
     }
 }
@@ -221,13 +221,13 @@ void blackbox_diagMarker(const char *name, int32 a, int32 b, int32 c) {
                 (e->tick != blackbox_tick() || strcmp(e->name, name) != 0 ||
                  e->a != a || e->b != b || e->c != c)) {
                 s_reportedMarkerDivergence = 1;
-                log_error("blackbox: marker divergence at tick %u %s(%d,%d,%d): expected tick %u %s(%d,%d,%d)",
+                blackbox_internalReplayError("blackbox: marker divergence at tick %u %s(%d,%d,%d): expected tick %u %s(%d,%d,%d)",
                           (unsigned)blackbox_tick(), name, (int)a, (int)b, (int)c,
                           (unsigned)e->tick, e->name, (int)e->a, (int)e->b, (int)e->c);
             }
         } else if (!s_reportedMarkerDivergence) {
             s_reportedMarkerDivergence = 1;
-            log_error("blackbox: marker stream exhausted at tick %u", (unsigned)blackbox_tick());
+            blackbox_internalReplayError("blackbox: marker stream exhausted at tick %u", (unsigned)blackbox_tick());
         }
     }
 }
@@ -370,14 +370,14 @@ void blackbox_diagRenderEndScene(void) {
             const RenderEvent *e = &s_renders[s_renderPos++];
             if (!s_reportedRenderDivergence && memcmp(e, &got, sizeof(got)) != 0) {
                 s_reportedRenderDivergence = 1;
-                log_error("blackbox: render submission divergence at tick %u frame %u scene %u: expected %u objects/%u lines hash %08x, got %u/%u %08x",
+                blackbox_internalReplayError("blackbox: render submission divergence at tick %u frame %u scene %u: expected %u objects/%u lines hash %08x, got %u/%u %08x",
                           (unsigned)got.tick, (unsigned)got.frame, (unsigned)got.scene,
                           (unsigned)e->objects, (unsigned)e->lines, (unsigned)e->hash,
                           (unsigned)got.objects, (unsigned)got.lines, (unsigned)got.hash);
             }
         } else if (!s_reportedRenderDivergence) {
             s_reportedRenderDivergence = 1;
-            log_error("blackbox: render hash stream exhausted at tick %u", (unsigned)got.tick);
+            blackbox_internalReplayError("blackbox: render hash stream exhausted at tick %u", (unsigned)got.tick);
         }
     }
 }
@@ -539,11 +539,11 @@ int blackbox_diagValidateReplay(void) { return 1; }
 void blackbox_diagShutdown(int pausedForInspection) {
     if (blackbox_replaying() && !pausedForInspection) {
         if (s_markerCount && s_markerPos != s_markerCount)
-            log_error("blackbox: replay consumed %u of %u diagnostic markers", (unsigned)s_markerPos, (unsigned)s_markerCount);
+            blackbox_internalReplayError("blackbox: replay consumed %u of %u diagnostic markers", (unsigned)s_markerPos, (unsigned)s_markerCount);
         if (s_stateCount && s_statePos != s_stateCount)
-            log_error("blackbox: replay consumed %u of %u subsystem hashes", (unsigned)s_statePos, (unsigned)s_stateCount);
+            blackbox_internalReplayError("blackbox: replay consumed %u of %u subsystem hashes", (unsigned)s_statePos, (unsigned)s_stateCount);
         if (s_renderCount && s_renderPos != s_renderCount)
-            log_error("blackbox: replay consumed %u of %u render hashes", (unsigned)s_renderPos, (unsigned)s_renderCount);
+            blackbox_internalReplayError("blackbox: replay consumed %u of %u render hashes", (unsigned)s_renderPos, (unsigned)s_renderCount);
     }
     blackbox_diagReset();
 }

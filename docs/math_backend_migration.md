@@ -27,8 +27,13 @@ Before using recordings to certify migration, complete these checks:
 * Audit replay isolation for current pointer, touch, UTF-8 and calibrated joystick
   paths, which are newer than the imported recorder's BIOS-key/axis schema.
 * Cover replacement/compressed intro audio waits in deterministic execution.
-* Make divergence and unconsumed events machine-checkable failures. Diagnostic
-  logging alone must not count as a passing replay.
+* `blackbox_replayFailed()` now reports observed core/diagnostic mismatches and
+  unconsumed checked streams at shutdown. Its sticky value survives repeated
+  shutdown and resets for a new session. Tests cover matching/mismatched markers,
+  extra RNG consumption and each checked unconsumed stream. This is not a
+  completion verdict: inspection pauses, omitted optional diagnostic streams,
+  axes coverage and rejected startup must be handled by an acceptance runner.
+  Wire that runner and process exit status before treating replay as a CI gate.
 * Extend state coverage beyond the imported selected-field hashes and compare
   actual recorded sorties before and after migration. Add declared tolerances
   and outcome checks for the modern backend rather than requiring identical hashes.
