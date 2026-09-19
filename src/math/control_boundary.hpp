@@ -22,6 +22,18 @@ template<> struct ControlBoundary<FixedBackend> {
     static JoystickSample joystick(std::uint8_t roll, std::uint8_t pitch) { return {roll, pitch}; }
 };
 template<> struct ControlBoundary<ModernBackend> {
+    static RollCommand<ModernBackend> roll(std::int32_t units) {
+        return radiansPerSecond<RollAxis>(units * 128 * (6.28318530717958647692 / 65536));
+    }
+    static PitchCommand<ModernBackend> pitch(std::int16_t units) {
+        return radiansPerSecond<PitchAxis>(units * 128 * (6.28318530717958647692 / 65536));
+    }
+    static int roll(RollCommand<ModernBackend> value) {
+        return static_cast<int>(std::round(value.value_ / (128 * (6.28318530717958647692 / 65536))));
+    }
+    static std::int16_t pitch(PitchCommand<ModernBackend> value) {
+        return static_cast<std::int16_t>(std::round(value.value_ / (128 * (6.28318530717958647692 / 65536))));
+    }
     static AnalogStick analogStick(double roll, double pitch) { return {roll, pitch}; }
     template<class Axis> static AxisRate<ModernBackend, Axis> radiansPerSecond(double value) {
         if (!std::isfinite(value)) throw std::domain_error("non-finite angular rate");

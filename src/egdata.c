@@ -1857,24 +1857,24 @@ extern const uint8 g_rollGeeTable[128] = {
 };
 
 /* g_orientMatrix: current 3x3 orientation matrix (Q15 identity init). */
-f15::math::Matrix3<f15::math::FixedBackend> g_orientMatrix =
-    f15::math::Matrix3<f15::math::FixedBackend>::identity();
+f15::math::Matrix3<f15::math::GameBackend> g_orientMatrix =
+    f15::math::Matrix3<f15::math::GameBackend>::identity();
 
 /* bulletTracks: 3D projectile table (player rounds + threat shots), HUD-projected. */
 struct BulletTrack bulletTracks[20];
 
 /* Product staging keeps both operands valid when the current matrix is one. */
-f15::math::Matrix3<f15::math::FixedBackend> g_matrixScratch;
+f15::math::Matrix3<f15::math::GameBackend> g_matrixScratch;
 /* Fixed angles wrap as words; signed interpretation is explicit at legacy consumers. */
-f15::math::Angle<f15::math::FixedBackend> g_ourPitch;
-f15::math::Angle<f15::math::FixedBackend> g_ourRoll;
+f15::math::Angle<f15::math::GameBackend> g_ourPitch;
+f15::math::Angle<f15::math::GameBackend> g_ourRoll;
 /* player orientation/altitude view state, shared with egseg2 projection. */
-f15::math::Angle<f15::math::FixedBackend> g_ourHead;
+f15::math::Angle<f15::math::GameBackend> g_ourHead;
 
 int16 g_viewZ; /* altitude-Z */
 
 /* Uncompressed flight altitude; g_viewZ uses the compressed scene-height scale. */
-f15::math::FlightAltitude<f15::math::FixedBackend> g_altitude;
+f15::math::FlightAltitude<f15::math::GameBackend> g_altitude;
 int16 g_rotationCounter = 0;
 char g_rollWasNonzero = 0;
 /* g_orientationDirty: orientation-dirty flag. Set when heading/pitch/roll change so the
@@ -2063,7 +2063,7 @@ char strBuf[78];
 uint8 g_strTruncDot;
 uint8 g_strTruncTerm[1];
 
-f15::math::Angle<f15::math::FixedBackend> g_rollPitchTrim;
+f15::math::Angle<f15::math::GameBackend> g_rollPitchTrim;
 int16 g_sphereTiltZ;
 int16 g_scopeCenterX;
 int16 g_scopeCenterY;
@@ -2101,13 +2101,13 @@ struct TileObject *g_nearestTileObj;
 uint8 buf1_3dg[0x100];
 char g_savedPosVisible;
 int16 g_threatDisplayTtl;
-f15::math::StallSpeed<f15::math::FixedBackend> g_stallSpeed;
+f15::math::StallSpeed<f15::math::GameBackend> g_stallSpeed;
 
 /* g_topLodGrid: 8x8 theater terrain grid, read as [col+(row<<3)] (0..63);
  * [66] = 64 grid bytes + 2 pad. */
 uint8 g_topLodGrid[66];
 int16 g_lastMissileSlot;
-f15::math::FlightSpeed<f15::math::FixedBackend> g_velocity;
+f15::math::FlightSpeed<f15::math::GameBackend> g_velocity;
 int16 g_enemyThreatCount;
 int16 g_camRotMatrix[9];
 struct ViewSnapshot g_viewSnapshotRing[16];
@@ -2136,7 +2136,7 @@ uint16 g_wingmanY = 0;
 int16 g_aamLockCooldown;
 int32 g_camEyeY;
 int16 g_threatRefX;
-f15::math::Angle<f15::math::FixedBackend> g_liftForce;
+f15::math::Angle<f15::math::GameBackend> g_liftForce;
 int16 g_wreckFallVel;
 int16 g_camEyeZ;
 int16 g_threatRefY;
@@ -2146,12 +2146,12 @@ int16 g_viewRoll;
  * backwards for a key match. */
 struct DynTileOverride g_dynTileEntries[94];
 int16 g_threatRefZ;
-f15::math::ViewCoordinate<f15::math::FixedBackend, f15::math::ViewXAxis> g_ViewX;
+f15::math::ViewCoordinate<f15::math::GameBackend, f15::math::ViewXAxis> g_ViewX;
 int16 g_savedSamTtl;
 /* nearestTile: scratch record filled by findNearestTileObject()/
    drawNearestTileObject() and walked by addTileEntry(). */
 struct TileObject nearestTile;
-f15::math::ViewCoordinate<f15::math::FixedBackend, f15::math::ViewYAxis> g_ViewY;
+f15::math::ViewCoordinate<f15::math::GameBackend, f15::math::ViewYAxis> g_ViewY;
 
 char aLong[] = "Long";
 char aMedium[] = "Medium";
@@ -2224,7 +2224,7 @@ char tempString[80];
 int16 g_scopeArcStart;
 int16 g_scopeArcEnd;
 int16 g_gunHits;
-f15::math::EngineThrust<f15::math::FixedBackend> g_thrust;
+f15::math::EngineThrust<f15::math::GameBackend> g_thrust;
 /* regs: shared int86/int86x register union for INT 10h/16h calls. */
 union REGS regs;
 int16 g_unusedEventHist1;
@@ -2233,7 +2233,7 @@ uint8 g_shapeTargetCategory[UNIT_STATE_COUNT];
 int16 g_flightPathMarkerY;
 int16 g_aamLockActive;
 int16 g_unusedSavedWord;
-f15::math::RollCommand<f15::math::FixedBackend> g_rollInput;
+f15::math::RollCommand<f15::math::GameBackend> g_rollInput;
 uint16 keyScancode;
 int16 g_unusedEventHist2;
 int16 g_projDepth;
@@ -2273,7 +2273,7 @@ int16 g_scopeClipRight;
 /* matrix3dt_2: per-LOD x per-vertex model-data pointers (parallels matrix3dt). */
 struct TileSceneObject *matrix3dt_2[5][TERRAIN_TILE_PATTERN_CAPACITY];
 int16 g_scopeClipBottom;
-f15::math::PitchCommand<f15::math::FixedBackend> g_pitchInput;
+f15::math::PitchCommand<f15::math::GameBackend> g_pitchInput;
 int16 g_cornerSpeed;
 struct TileSceneObject *g_curTileEntry;
 int16 g_viewHeading;
@@ -2293,8 +2293,8 @@ uint8 g_missionEndedFlag[2];
 struct Proj3d g_proj3d;
 int16 g_viewHeadingOffset;
 int16 gfxBufPtr;
-f15::math::FlightLoad<f15::math::FixedBackend> g_gees;
-f15::math::ClimbRate<f15::math::FixedBackend> g_climbRate;
+f15::math::FlightLoad<f15::math::GameBackend> g_gees;
+f15::math::ClimbRate<f15::math::GameBackend> g_climbRate;
 /* size3d3_7: vertex count for the secondary (g_modelOffsetTable) loader buffer. */
 size_t size3d3_7;
 

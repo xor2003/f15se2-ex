@@ -132,10 +132,50 @@ void productionCaller() {
 void modernPrecision() {
     const auto rate = D::radiansPerSecond<YawAxis>(wordRadians / 8);
     Angle<M> accumulated;
-    for (int tick = 0; tick < 12000; ++tick)
-        accumulated += MM::increments({}, {}, rate, D::frequency(120)).yaw;
+    const RotationMath<M> rotation;
+    auto orientation = Matrix3<M>::identity();
+    for (int tick = 0; tick < 12000; ++tick) {
+        const auto deltas = MM::increments({}, {}, rate, D::frequency(120));
+        accumulated += deltas.yaw;
+        const auto advanced = MM::advanceOrientation(rotation, orientation, deltas);
+        require(advanced.products == 1, "modern yaw step must perform one matrix product");
+        orientation = advanced.matrix;
+    }
     require(std::abs(B::radians(accumulated) - 100 * wordRadians / 8) < 1e-14,
             "modern control integration lost fractional angle words");
+    const double angle = 100 * wordRadians / 8;
+    const std::array<double, 9> expected{std::cos(angle), 0, std::sin(angle),
+        0, 1, 0, -std::sin(angle), 0, std::cos(angle)};
+    const auto actual = B::matrix(orientation);
+    for (unsigned i = 0; i < actual.size(); ++i)
+        require(std::abs(actual[i] - expected[i]) < 2e-12,
+                "persistent modern flight matrix lost sub-word rotations");
+    const auto stationary = MM::advanceOrientation(rotation, orientation, {});
+    require(stationary.products == 0 && B::matrix(stationary.matrix) == actual,
+            "zero motion must preserve the modern matrix exactly");
+    const double r = 0.17, p = -0.23, y = 0.41;
+    const std::array<double, 9> rollMatrix{std::cos(r), std::sin(r), 0,
+        -std::sin(r), std::cos(r), 0, 0, 0, 1};
+    const std::array<double, 9> pitchMatrix{1, 0, 0, 0, std::cos(p), -std::sin(p),
+        0, std::sin(p), std::cos(p)};
+    const std::array<double, 9> yawMatrix{std::cos(y), 0, std::sin(y),
+        0, 1, 0, -std::sin(y), 0, std::cos(y)};
+    const auto multiply = [](const auto &a, const auto &b) {
+        std::array<double, 9> result{};
+        for (int row = 0; row < 3; ++row)
+            for (int col = 0; col < 3; ++col)
+                for (int k = 0; k < 3; ++k)
+                    result[row * 3 + col] += a[row * 3 + k] * b[k * 3 + col];
+        return result;
+    };
+    const auto combinedExpected = multiply(yawMatrix, multiply(multiply(actual, rollMatrix), pitchMatrix));
+    const auto combined = MM::advanceOrientation(rotation, orientation,
+        {B::radians(y), B::radians(p), B::radians(r)});
+    require(combined.products == 3, "combined modern motion needs three ordered products");
+    const auto combinedActual = B::matrix(combined.matrix);
+    for (unsigned i = 0; i < combinedActual.size(); ++i)
+        require(std::abs(combinedActual[i] - combinedExpected[i]) < 1e-14,
+                "modern flight multiplication side/order changed");
     const auto fine = MM::increments(D::radiansPerSecond<RollAxis>(0.3),
                                     D::radiansPerSecond<PitchAxis>(-0.7), rate, D::seconds(0.25));
     require(std::abs(B::radians(fine.roll) - 0.075) < 1e-15 &&

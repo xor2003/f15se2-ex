@@ -376,6 +376,11 @@ else()
     target_link_libraries(f15se2 PRIVATE f15se2_core)
     set(F15SE2_APP_TARGET f15se2)
 endif()
+option(F15SE2_MODERN_MATH "Experimental double-precision flight state and math" OFF)
+if(F15SE2_MODERN_MATH)
+    target_compile_definitions(f15se2_core PUBLIC F15_MODERN_MATH)
+    set_target_properties(${F15SE2_APP_TARGET} PROPERTIES OUTPUT_NAME "f15se2-ex-modern")
+endif()
 if(BLACKBOX_AUTO_RECORD)
     target_compile_definitions(${F15SE2_APP_TARGET} PRIVATE F15_BLACKBOX_AUTO_RECORD)
 else()
@@ -510,6 +515,17 @@ endif()
 #==============================================================================
 # Behavior tests
 #==============================================================================
+if(F15SE2_MODERN_MATH)
+    if(NOT ANDROID AND NOT EMSCRIPTEN)
+        enable_testing()
+        add_executable(modern_flight_smoke_tests tests/modern_flight_smoke_tests.cpp)
+        target_link_libraries(modern_flight_smoke_tests PRIVATE f15se2_core)
+        add_test(NAME modern_flight_smoke_tests COMMAND modern_flight_smoke_tests)
+        set_tests_properties(modern_flight_smoke_tests PROPERTIES
+            ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
+    endif()
+    return() # Fixed-reference fixtures require the default fixed build.
+endif()
 # Two linking models, chosen per test:
 #   * LINK_CORE  - the test links the whole f15se2_core library and exercises
 #                  real implementations (headless via SDL dummy drivers). This

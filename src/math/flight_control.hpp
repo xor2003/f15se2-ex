@@ -88,6 +88,7 @@ struct AnalogResponse {
 
 template<class B> struct FlightCommands { RollCommand<B> roll; PitchCommand<B> pitch; };
 template<class B> struct RotationDeltas { Angle<B> yaw, pitch, roll; };
+template<class B> struct OrientationStep { Matrix3<B> matrix; unsigned products; };
 
 template<class B> class FlightControlMath {
     static std::int16_t word(std::int64_t v) {
@@ -96,6 +97,18 @@ template<class B> class FlightControlMath {
     }
     static constexpr double wordRadians = 6.28318530717958647692 / 65536;
 public:
+    static OrientationStep<B> advanceOrientation(const RotationMath<B> &math,
+                                                 Matrix3<B> matrix,
+                                                 const RotationDeltas<B> &deltas) {
+        unsigned products = 0;
+        const Angle<B> zero;
+        // Body roll/pitch multiply on the right; world yaw on the left.
+        if (deltas.roll != zero) { matrix = matrix * math.rollDelta(deltas.roll); ++products; }
+        if (deltas.pitch != zero) { matrix = matrix * math.pitchDelta(deltas.pitch); ++products; }
+        if (deltas.yaw != zero) { matrix = math.yawDelta(deltas.yaw) * matrix; ++products; }
+        return {matrix, products};
+    }
+
     static FlightCommands<B> fromAnalog(AnalogStick sample, const AnalogResponse &profile) {
         static_assert(std::is_same_v<B, ModernBackend>, "continuous input requires modern control math");
         if (!std::isfinite(profile.deadzoneFraction) || profile.deadzoneFraction < 0 || profile.deadzoneFraction >= 1 ||

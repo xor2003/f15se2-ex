@@ -17,8 +17,35 @@ Flight altitude and climb-rate storage, vertical integration and altitude displa
 mapping also have typed fixed/modern implementations.
 Persistent fine X/Y coordinates, horizontal movement, landing easing and camera
 snapshot interpolation now use axis-specific types.
-This is the first migrated subsystem, not a complete interchangeable simulation
-backend. No whole-game floating-point backend selector is exposed.
+This is not a completely migrated simulation. An experimental build-time selector
+now chooses the backend for persistent flight state and migrated calculations.
+The default remains fixed. Configure a separate build directory with
+`cmake -S . -B build-modern -DCMAKE_BUILD_TYPE=Release -DF15SE2_MODERN_MATH=ON`,
+then build target `f15se2` and run `build-modern/f15se2-ex-modern --game <assets>`.
+The window title identifies the experimental build. Blackbox build identity has
+a modern suffix to prevent accidentally accepting a fixed recording as matching.
+
+`GameBackend` selects the types of attitude, orientation matrices, altitude,
+speed, position, thrust, load and control globals at compile time. No per-frame
+copy back into fixed state is required. Legacy adapters still quantize values
+for unmigrated consumers, including render/file words and several gameplay
+decisions. The byte input response remains in use, not the continuous physical
+stick adapter. This is an experimental modern flight path, not proof that all
+original limits have been removed or that combat/AI/rendering are modernized.
+
+The fixed build retains the complete fixed-reference suite. The modern build
+registers `modern_flight_smoke_tests`, which links its real core, statically
+verifies modern state types, checks persistent fractional orientation and the
+removed altitude/speed cutoffs, and executes 120 production flight steps.
+This smoke test is not a completed sortie or full modern behavior coverage.
+
+The production `advanceFlightOrientation` now delegates ordered matrix updates
+to `FlightControlMath<B>::advanceOrientation`. Fixed and modern specializations
+share body-roll/body-pitch/world-yaw order and skip zero increments. The fixed
+caller retains scratch-matrix and refresh-counter behavior, checked against its
+pre-existing scalar oracle. Modern tests retain the matrix over 12,000 sub-word
+steps and check mixed-axis multiplication against explicit reference matrices.
+The selected game backend uses this shared integration path.
 
 ## Typed recovery approach geometry
 

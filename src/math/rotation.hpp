@@ -14,6 +14,11 @@ template<class B> class GuidanceMath;
 
 struct FixedBackend {};
 struct ModernBackend {};
+#ifdef F15_MODERN_MATH
+using GameBackend = ModernBackend;
+#else
+using GameBackend = FixedBackend;
+#endif
 template<class B> class RotationMath;
 template<class B> class PoseInterpolation;
 template<class B> class FlightControlMath;
@@ -189,6 +194,8 @@ public:
 
 template<> class RotationMath<ModernBackend> {
 public:
+    RotationMath() = default;
+    template<std::size_t N> explicit RotationMath(const std::int16_t (&)[N]) {}
     Coefficient<ModernBackend> sine(Angle<ModernBackend> angle) const {
         return Coefficient<ModernBackend>(std::sin(angle.value_));
     }

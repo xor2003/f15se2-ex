@@ -7,8 +7,8 @@ template<class B> struct MapBoundary {
     static MapPosition<B> position(Rep x, Rep y) { return MapPosition<B>(x, y); }
 };
 namespace legacy {
-inline MapPosition<FixedBackend> mapPosition(std::int16_t x, std::int16_t y) {
-    return MapBoundary<FixedBackend>::position(x, y);
+inline MapPosition<GameBackend> mapPosition(std::int16_t x, std::int16_t y) {
+    return MapBoundary<GameBackend>::position(x, y);
 }
 }
 }

@@ -4,20 +4,20 @@
 #include "propulsion_boundary.hpp"
 #undef F15_MATH_BOUNDARY_ACCESS
 namespace f15::math::legacy {
-inline EngineThrust<FixedBackend> thrustFromUnits(std::int16_t value) {
-    return PropulsionBoundary<FixedBackend>::thrust(value);
+inline EngineThrust<GameBackend> thrustFromUnits(std::int16_t value) {
+    return PropulsionBoundary<GameBackend>::thrust(value);
 }
-inline std::int16_t thrustUnits(EngineThrust<FixedBackend> value) {
-    return PropulsionBoundary<FixedBackend>::thrust(value);
+inline std::int16_t thrustUnits(EngineThrust<GameBackend> value) {
+    return PropulsionBoundary<GameBackend>::thrust(value);
 }
-inline FuelLoad<FixedBackend> fuelFromUnits(std::int16_t value) {
-    return PropulsionBoundary<FixedBackend>::fuel(value);
+inline FuelLoad<GameBackend> fuelFromUnits(std::int16_t value) {
+    return PropulsionBoundary<GameBackend>::fuel(value);
 }
-inline FlightLoad<FixedBackend> loadFromSixteenths(std::int32_t value) {
-    return PropulsionBoundary<FixedBackend>::load(value);
+inline FlightLoad<GameBackend> loadFromSixteenths(std::int32_t value) {
+    return PropulsionBoundary<GameBackend>::load(value);
 }
-inline std::int32_t loadSixteenths(FlightLoad<FixedBackend> value) {
-    return PropulsionBoundary<FixedBackend>::load(value);
+inline std::int32_t loadSixteenths(FlightLoad<GameBackend> value) {
+    return PropulsionBoundary<GameBackend>::load(value);
 }
 }
 #endif

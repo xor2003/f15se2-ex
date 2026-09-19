@@ -7,9 +7,9 @@
 #undef F15_MATH_BOUNDARY_ACCESS
 
 namespace f15::math::legacy {
-using Codec = Boundary<FixedBackend>;
-using Math = RotationMath<FixedBackend>;
-using AircraftAngle = Angle<FixedBackend>;
+using Codec = Boundary<GameBackend>;
+using Math = RotationMath<GameBackend>;
+using AircraftAngle = Angle<GameBackend>;
 
 // Read-only adapters for consumers that have not migrated their scalar math yet.
 inline std::int16_t signedAngle(AircraftAngle angle) {
@@ -29,13 +29,13 @@ inline int updateAttitudeFromWords(AircraftAngle &roll, AircraftAngle &pitch,
     return result;
 }
 
-inline EulerAngles<FixedBackend> angles(int yaw, int pitch, int roll) {
+inline EulerAngles<GameBackend> angles(int yaw, int pitch, int roll) {
     return {Codec::angleWord(static_cast<std::uint16_t>(yaw)),
             Codec::angleWord(static_cast<std::uint16_t>(pitch)),
             Codec::angleWord(static_cast<std::uint16_t>(roll))};
 }
 
-inline void storeTerms(const RotationTerms<FixedBackend> &terms,
+inline void storeTerms(const RotationTerms<GameBackend> &terms,
                        std::int16_t &sinYaw, std::int16_t &cosYaw,
                        std::int16_t &sinPitch, std::int16_t &cosPitch,
                        std::int16_t &sinRoll, std::int16_t &cosRoll) {

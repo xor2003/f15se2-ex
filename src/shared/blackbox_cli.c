@@ -140,7 +140,11 @@ int blackbox_cliParseOption(BlackboxCliOptions *options, int argc,
 }
 
 int blackbox_cliStart(const BlackboxCliOptions *options) {
+#ifdef F15_MODERN_MATH
+    blackbox_setBuildVersion(F15_VERSION "-modern-math-experimental");
+#else
     blackbox_setBuildVersion(F15_VERSION);
+#endif
     blackbox_setAllowBuildMismatch(options->ignoreBuild);
     if (options->recordPath && options->replayPath) {
         fprintf(stderr, "Choose only one of --blackbox-record or --blackbox-replay\n");

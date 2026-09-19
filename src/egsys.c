@@ -52,17 +52,17 @@ void updateFrame(void);
  * too. Moving objects are interpolated separately (object snapshot helpers
  * below). */
 typedef struct {
-    f15::math::ViewCoordinate<f15::math::FixedBackend, f15::math::ViewXAxis> viewX;
-    f15::math::ViewCoordinate<f15::math::FixedBackend, f15::math::ViewYAxis> viewY;
+    f15::math::ViewCoordinate<f15::math::GameBackend, f15::math::ViewXAxis> viewX;
+    f15::math::ViewCoordinate<f15::math::GameBackend, f15::math::ViewYAxis> viewY;
     int32 viewZ;
-    f15::math::Angle<f15::math::FixedBackend> head, pitch, roll;
+    f15::math::Angle<f15::math::GameBackend> head, pitch, roll;
     int32 mapX, mapY; /* g_viewX_ / g_viewY_ */
     int32 crashX, crashY, crashZ;
     int32 wreckX, wreckY, wreckAlt; /* downed-aircraft wreck/parachute */
     /* HUD reticle inputs derived from the player state each sim step (gun-reticle
      * vertical trim, air-to-air seeker head offset). They ride the same snapshot so
      * the reticles glide every render frame instead of snapping at the sim rate. */
-    f15::math::Angle<f15::math::FixedBackend> rollPitchTrim;
+    f15::math::Angle<f15::math::GameBackend> rollPitchTrim;
     int32 aamSeekerX, aamSeekerY;
 } CamSnapshot;
 
@@ -153,10 +153,10 @@ static void lerpPose(int32 h0, int32 p0, int32 r0, int32 h1, int32 p1, int32 r1,
 }
 
 static void camApplyInterp(const CamSnapshot *p, const CamSnapshot *n, int64 num, int64 den) {
-    using Pose = f15::math::PoseInterpolation<f15::math::FixedBackend>;
+    using Pose = f15::math::PoseInterpolation<f15::math::GameBackend>;
     const auto pose = Pose::interpolate({p->head, p->pitch, p->roll}, {n->head, n->pitch, n->roll},
                                        f15::math::FrameFraction::fromTicks(num, den));
-    using Horizontal = f15::math::HorizontalMath<f15::math::FixedBackend>;
+    using Horizontal = f15::math::HorizontalMath<f15::math::GameBackend>;
     const auto fraction = f15::math::FrameFraction::fromTicks(num, den);
     const auto x = Horizontal::interpolate(p->viewX, n->viewX, fraction);
     const auto y = Horizontal::interpolate(p->viewY, n->viewY, fraction);

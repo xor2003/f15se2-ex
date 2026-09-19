@@ -27,6 +27,22 @@ template<> struct Boundary<FixedBackend> {
 };
 
 template<> struct Boundary<ModernBackend> {
+    // Explicit adapters for the remaining legacy render/file consumers.
+    static std::uint16_t angleWord(Angle<ModernBackend> angle) {
+        return static_cast<std::uint16_t>(static_cast<int>(std::round(angle.value_ * 65536 / (2 * pi))));
+    }
+    static std::int16_t coefficientWord(Coefficient<ModernBackend> value) {
+        return static_cast<std::int16_t>(std::fmax(-32768, std::fmin(32767, std::round(value.value_ * 32768))));
+    }
+    static Matrix3<ModernBackend> matrixWords(const std::int16_t *words) {
+        std::array<double, 9> values{};
+        for (int i = 0; i < 9; ++i) values[i] = words[i] / 32768.0;
+        return Matrix3<ModernBackend>(values);
+    }
+    static void matrixWords(const Matrix3<ModernBackend> &matrix, std::int16_t *words) {
+        for (int i = 0; i < 9; ++i)
+            words[i] = static_cast<std::int16_t>(std::fmax(-32768, std::fmin(32767, std::round(matrix.value_[i] * 32768))));
+    }
     static Angle<ModernBackend> radians(double radians) {
         if (!std::isfinite(radians)) throw std::domain_error("non-finite angle");
         return Angle<ModernBackend>(radians);

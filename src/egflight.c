@@ -3,14 +3,14 @@
 #include "math/legacy_propulsion.hpp"
 using f15::math::legacy::thrustFromUnits;
 using f15::math::legacy::thrustUnits;
-using Propulsion = f15::math::PropulsionMath<f15::math::FixedBackend>;
+using Propulsion = f15::math::PropulsionMath<f15::math::GameBackend>;
 #include "math/aerodynamics.hpp"
 #include "math/guidance.hpp"
 #include "math/legacy_map.hpp"
 using f15::math::legacy::speedWord;
 using f15::math::legacy::speedFromUnits;
-using SpeedMath = f15::math::AirspeedMath<f15::math::FixedBackend>;
-using Aero = f15::math::AerodynamicsMath<f15::math::FixedBackend>;
+using SpeedMath = f15::math::AirspeedMath<f15::math::GameBackend>;
+using Aero = f15::math::AerodynamicsMath<f15::math::GameBackend>;
 using f15::math::legacy::fineUnits;
 #include "eg3dview.h"
 #include "egcode.h"
@@ -55,8 +55,8 @@ using f15::math::legacy::pitchInput;
 
 /* Private helpers for this translation unit. */
 void stepFlightModel();
-void applyRotationDelta(const f15::math::Matrix3<f15::math::FixedBackend> &matA,
-                        const f15::math::Matrix3<f15::math::FixedBackend> &matB);
+void applyRotationDelta(const f15::math::Matrix3<f15::math::GameBackend> &matA,
+                        const f15::math::Matrix3<f15::math::GameBackend> &matB);
 void computeAttitudeAngles(void);
 void rebuildOrientation();
 uint16 signedRatio16(int16, int16);
@@ -66,23 +66,23 @@ void renderFrame();
 void drawVectorShape(const int16 *shapeData);
 void waitForKeyPress(void);
 
-void advanceFlightOrientation(const f15::math::RotationDeltas<f15::math::FixedBackend> &deltas) {
+void advanceFlightOrientation(const f15::math::RotationDeltas<f15::math::GameBackend> &deltas) {
     const f15::math::legacy::Math math(g_angleLut);
-    const f15::math::Angle<f15::math::FixedBackend> zero;
-    // Body roll/pitch multiply on the right; world yaw multiplies on the left.
-    if (deltas.roll != zero)
-        applyRotationDelta(g_orientMatrix, math.rollDelta(deltas.roll));
-    if (deltas.pitch != zero)
-        applyRotationDelta(g_orientMatrix, math.pitchDelta(deltas.pitch));
-    if (deltas.yaw != zero)
-        applyRotationDelta(math.yawDelta(deltas.yaw), g_orientMatrix);
+    const auto advanced = f15::math::FlightControlMath<f15::math::GameBackend>::advanceOrientation(
+        math, g_orientMatrix, deltas);
+    for (unsigned i = 0; i < advanced.products; ++i) {
+        ++g_rotationCounter;
+        if (!(static_cast<uint16>(g_rotationCounter) & 7)) g_orientationDirty = 1;
+    }
+    if (advanced.products) g_matrixScratch = advanced.matrix;
+    g_orientMatrix = advanced.matrix;
     computeAttitudeAngles();
 }
 
-void advanceFlightHorizontal(f15::math::HorizontalSpeed<f15::math::FixedBackend> speed) {
+void advanceFlightHorizontal(f15::math::HorizontalSpeed<f15::math::GameBackend> speed) {
     if (g_autoLandingActive != 0) return;
     const f15::math::legacy::Math rotation(g_angleLut);
-    const auto step = f15::math::HorizontalMath<f15::math::FixedBackend>::increments(
+    const auto step = f15::math::HorizontalMath<f15::math::GameBackend>::increments(
         speed, rotation.sine(g_ourHead), rotation.cosine(g_ourHead),
         f15::math::legacy::Controls::frequency(g_frameRateScaling));
     g_ViewX += step.x;
@@ -90,7 +90,7 @@ void advanceFlightHorizontal(f15::math::HorizontalSpeed<f15::math::FixedBackend>
 }
 
 void advanceFlightAltitude() {
-    using VerticalMath = f15::math::AltitudeMath<f15::math::FixedBackend>;
+    using VerticalMath = f15::math::AltitudeMath<f15::math::GameBackend>;
     using Altitudes = f15::math::legacy::Altitudes;
     const f15::math::legacy::Math rotation(g_angleLut);
     g_climbRate = VerticalMath::climb(SpeedMath::verticalSample(g_velocity),
@@ -120,7 +120,7 @@ bool correctFlightStall() {
     return response.stalled;
 }
 
-void accelerateFlightSpeed(f15::math::FlightSpeed<f15::math::FixedBackend> target) {
+void accelerateFlightSpeed(f15::math::FlightSpeed<f15::math::GameBackend> target) {
     g_velocity = SpeedMath::accelerate(g_velocity, target,
         f15::math::legacy::Controls::frequency(g_frameRateScaling));
 }
@@ -148,7 +148,7 @@ void stepFlightModel(void) {
     int16 tmpVal;
     int16 ad, u;                           // dummies at bp-0x1e,bp-0x1c (bucket 5)
     int16 turbulence;
-    f15::math::HorizontalSpeed<f15::math::FixedBackend> horizVel;
+    f15::math::HorizontalSpeed<f15::math::GameBackend> horizVel;
     int16 w;
     int16 headingErr;
     int16 i, y;                             // dummies: bp-0x2e, bp-0x30 (bucket 9)
@@ -338,7 +338,7 @@ switch_break:
     }
 
     using Controls = f15::math::legacy::Controls;
-    using ControlMath = f15::math::FlightControlMath<f15::math::FixedBackend>;
+    using ControlMath = f15::math::FlightControlMath<f15::math::GameBackend>;
     const auto commands = ControlMath::fromJoystick(Controls::joystick(joyAxes[0], joyAxes[1]));
     g_rollInput = commands.roll;
     g_pitchInput = commands.pitch;
@@ -398,7 +398,7 @@ switch_break:
     if (g_autopilotAltitude != 0) {
         const auto headingOffset = angleFromWord(g_autopilotEngaged != 0 ?
             (g_missionTick & 0xF) * 256 - 2048 : 0);
-        const auto guidance = f15::math::GuidanceMath<f15::math::FixedBackend>::altitudeHold(
+        const auto guidance = f15::math::GuidanceMath<f15::math::GameBackend>::altitudeHold(
             f15::math::legacy::renderHeightFromUnits(g_autopilotAltitude),
             f15::math::legacy::renderHeightFromUnits(g_viewZ),
             {g_ourHead, g_ourPitch, g_ourRoll}, angleFromWord(g_waypointBearing), headingOffset, g_rollPitchTrim);
@@ -410,7 +410,7 @@ switch_break:
             const int inRecoveryCorridor = g_inLandingCorridor != 0 &&
                 g_closestThreatIndex == tgtIdx;
 
-            const auto approach = f15::math::GuidanceMath<f15::math::FixedBackend>::recoveryApproach(
+            const auto approach = f15::math::GuidanceMath<f15::math::GameBackend>::recoveryApproach(
                 f15::math::legacy::mapPosition(g_planeTable.planes[tgtIdx].mapX, g_planeTable.planes[tgtIdx].mapY),
                 f15::math::legacy::mapPosition(g_viewX_, g_viewY_), g_ourHead,
                 (g_planeTable.planes[tgtIdx].flags & 0x200) != 0,
@@ -418,18 +418,18 @@ switch_break:
             if (approach.exitSlowMotion) exitSlowMotion();
             *((uint8 *)&g_playerPlaneFlags) &= 0xF7;
             if (approach.allowBrakes && g_setThrust * 80 < g_knots) *((uint8 *)&g_playerPlaneFlags) |= 8;
-            const auto bankTarget = f15::math::GuidanceMath<f15::math::FixedBackend>::recoveryBank(
+            const auto bankTarget = f15::math::GuidanceMath<f15::math::GameBackend>::recoveryBank(
                 approach.bearing, g_ourHead,
                 f15::math::legacy::speedFromUnits(g_knots * 27), inRecoveryCorridor != 0);
 
-            const auto recovery = f15::math::GuidanceMath<f15::math::FixedBackend>::recoveryAttitude(
+            const auto recovery = f15::math::GuidanceMath<f15::math::GameBackend>::recoveryAttitude(
                 approach.height,
                 f15::math::legacy::renderHeightFromUnits(g_viewZ),
                 {g_ourHead, g_ourPitch, g_ourRoll}, bankTarget, g_rollPitchTrim);
             g_rollInput = recovery.roll;
 
             g_setThrust = f15::math::legacy::thrustUnits(
-                f15::math::GuidanceMath<f15::math::FixedBackend>::recoveryThrust(
+                f15::math::GuidanceMath<f15::math::GameBackend>::recoveryThrust(
                     bankTarget, approach.height));
             UpdateThrottleState();
 
@@ -519,7 +519,7 @@ switch_break:
             g_hitEffectTimer = -8;
             makeSound(0, 2);
 
-            g_ourPitch = -f15::math::Angle<f15::math::FixedBackend>::quarterTurn();
+            g_ourPitch = -f15::math::Angle<f15::math::GameBackend>::quarterTurn();
             g_orientationDirty = 1;
         }
     }
@@ -709,8 +709,8 @@ switch_break:
     }
 }
 
-void applyRotationDelta(const f15::math::Matrix3<f15::math::FixedBackend> &matA,
-                        const f15::math::Matrix3<f15::math::FixedBackend> &matB) {
+void applyRotationDelta(const f15::math::Matrix3<f15::math::GameBackend> &matA,
+                        const f15::math::Matrix3<f15::math::GameBackend> &matB) {
     g_rotationCounter++;
     if (!(static_cast<uint16>(g_rotationCounter) & 7)) {
         g_orientationDirty = 1;
@@ -732,7 +732,7 @@ void computeAttitudeAngles(void) {
 void rebuildOrientation() {
     namespace legacy = f15::math::legacy;
     const legacy::Math math(g_angleLut);
-    const f15::math::EulerAngles<f15::math::FixedBackend> angles{g_ourHead, g_ourPitch, g_ourRoll};
+    const f15::math::EulerAngles<f15::math::GameBackend> angles{g_ourHead, g_ourPitch, g_ourRoll};
     g_orientMatrix = math.rotation(angles);
     legacy::storeTerms(math.terms(angles), g_rotSinYaw, g_rotCosYaw,
                        g_sphereRadius, g_sphereDistZ, g_spherePitch, g_sphereRoll);

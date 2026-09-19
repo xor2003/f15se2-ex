@@ -383,9 +383,9 @@ skip_target_section:
                     i = 14;
                 }
                 g_velocity = f15::math::legacy::speedFromUnits(5400);
-                g_altitude = f15::math::AltitudeMath<f15::math::FixedBackend>::landingApproach(
+                g_altitude = f15::math::AltitudeMath<f15::math::GameBackend>::landingApproach(
                     g_altitude, f15::math::legacy::Altitudes::ground(g_groundAltitude), i);
-                using HorizontalMath = f15::math::HorizontalMath<f15::math::FixedBackend>;
+                using HorizontalMath = f15::math::HorizontalMath<f15::math::GameBackend>;
                 g_ViewX = HorizontalMath::approach(g_ViewX, viewX((int32)g_planeTable.planes[g_closestThreatIndex].mapX << 5), i);
                 g_ViewY = HorizontalMath::approach(g_ViewY, viewY((int32)(0x8000 - g_planeTable.planes[g_closestThreatIndex].mapY) << 5), i);
             }
@@ -421,7 +421,7 @@ skip_autopilot:
             waitFrameSync(120);
             finalizeMission(2);
         } else {
-            g_altitude = f15::math::AltitudeMath<f15::math::FixedBackend>::obstacleEscape(g_altitude);
+            g_altitude = f15::math::AltitudeMath<f15::math::GameBackend>::obstacleEscape(g_altitude);
             g_autopilotAltitude = 0;
         }
     }
