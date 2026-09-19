@@ -14,6 +14,18 @@ snapshot interpolation now use axis-specific types.
 This is the first migrated subsystem, not a complete interchangeable simulation
 backend. No whole-game floating-point backend selector is exposed.
 
+## Large-offset recovery baseline
+
+Before changing approach geometry, the real-caller recovery grid is expanded
+from 15,552 to 43,200 cases against `5ae61c7`, adding +/-16000 map-unit offsets
+on both axes. This exercises signed-word narrowing of lateral aim points and
+arguments to the bearing calculation, as well as the legacy clamp's wrapped
+distance inputs. The independent oracle explicitly narrows at those boundaries.
+The full-flight characterization test passes and Clang analysis of its test
+translation unit reports no diagnostics. This is bounded coverage, not every
+possible map coordinate; exact INT16_MIN bearing components and touchdown
+remain outside the fixture. No production code changes in this checkpoint.
+
 ## Typed recovery thrust
 
 Recovery throttle generation now returns `EngineThrust` from typed bank target

@@ -37,6 +37,8 @@ int cornerRoot(int value) {
 
 int recoveryBearing(int x, int y) {
     using rotation_reference::word;
+    x = word(x);
+    y = word(y);
     if (!x) return word(y > 0 ? 0 : 32768);
     if (!y) return word(x > 0 ? 16384 : 49152);
     const bool swapped = std::abs(x) > std::abs(y);
@@ -63,8 +65,8 @@ void recoveryGuidance(SDL_Joystick *stick) {
     for (int direction : {-1, 1})
     for (int corridor : {0, 1, 2})
     for (int heading : {0, 511, 512, 16384, 16385, -32768})
-    for (int x : {-128, 0, 128})
-    for (int y : {-256, 0, 256})
+    for (int x : {-16000, -128, 0, 128, 16000})
+    for (int y : {-16000, -256, 0, 256, 16000})
     for (int knots : {160, 349, 350, 800})
     for (int roll : {-8192, 0, 8192})
     for (int hz : {4, 15}) {
@@ -120,7 +122,7 @@ void recoveryGuidance(SDL_Joystick *stick) {
         dy = 10000 + y + (carrier ? 28 : 56) * ns + clamp(std::abs(dx) * 4 + error / 16, 0, 3072) * ns;
         bool brake = false;
         if (error > 16384) { dx = 10000 + x; height = 4096; }
-        else { dx = 10000 + x + ns * dx * 2; brake = 400 < knots; }
+        else { dx = word(10000 + x + ns * dx * 2); brake = 400 < knots; }
         const int limit = knots / 16 * 256;
         error = word(std::clamp(int(word(recoveryBearing(dx - 10000, 10000 - dy) - heading)), -limit, limit) * 2);
         if (corridor == 1) error = 0;
