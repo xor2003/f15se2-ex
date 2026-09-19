@@ -57,6 +57,11 @@ static SDL_Window *s_win;
 static SDL_GLContext s_ctx;
 static int s_active;
 
+static bool isCabinView(void) {
+    return g_halfScaleRender == 0 && (g_viewMode == VIEW_COCKPIT ||
+        g_viewMode == VIEW_LEFT || g_viewMode == VIEW_RIGHT || g_viewMode == VIEW_REAR);
+}
+
 static bool hasCustomSideOrRearArtwork(void) {
     const bool sideOrRearView = g_viewMode == VIEW_LEFT ||
         g_viewMode == VIEW_RIGHT || g_viewMode == VIEW_REAR;
@@ -1317,7 +1322,8 @@ static void gl_beginScene(const R3DScene *s) {
 
     /* Transparent custom artwork needs a world behind its entire silhouette,
      * including the area below the original 97-line windscreen. */
-    const bool expandWorldViewport = s_wide || hasCustomSideOrRearArtwork();
+    const bool expandWorldViewport = s_wide || hasCustomSideOrRearArtwork() ||
+        (isCabinView() && cockpit3d_available());
 
     /* Clear the whole window (including the letterbox bars) to black; the 3D
      * viewport region is re-cleared to the sky colour once scissored below. */
@@ -3074,7 +3080,7 @@ static void composePageBackdropVirtual(SDL_Surface *page, int virtW, int virtH, 
     glDisable(GL_LIGHTING);
     glShadeModel(GL_FLAT);
 
-    if (s_sceneRendered && g_halfScaleRender == 0 && g_viewMode == VIEW_COCKPIT)
+    if (s_sceneRendered && isCabinView())
         cockpit3d_captureScene(win_w, win_h);
 
     /* On flight frames the GL 3D is already in the framebuffer (bars cleared black
@@ -3148,8 +3154,10 @@ void r3dgl_presentVirtual(SDL_Surface *page, int virtW, int virtH, int shakeOffs
      * lives in the framebuffer, not the page) — so on a flight frame it must instead
      * leave the last composited frame alone (r3dgl_flightLive). */
     s_glFlightLive = s_sceneRendered;
-    if (s_sceneRendered && g_halfScaleRender == 0 && g_viewMode == VIEW_COCKPIT) {
-        cockpit3d_present(win_w, win_h, shakeOffset, 0);
+    if (s_sceneRendered && isCabinView()) {
+        const int yaw = g_viewMode == VIEW_LEFT ? -90 :
+            g_viewMode == VIEW_RIGHT ? 90 : g_viewMode == VIEW_REAR ? 180 : 0;
+        cockpit3d_present(win_w, win_h, shakeOffset, yaw);
     }
     s_sceneRendered = 0;
     s_pageComposited = 0;

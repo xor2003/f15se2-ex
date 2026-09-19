@@ -165,6 +165,15 @@ void copyFramebuffer(GLuint &texture, int width, int height) {
 }
 }
 
+bool cockpit3d_available(void) {
+    glPushAttrib(GL_ALL_ATTRIB_BITS);
+    glPushClientAttrib(GL_CLIENT_PIXEL_STORE_BIT);
+    const bool available = loadCockpit();
+    glPopClientAttrib();
+    glPopAttrib();
+    return available;
+}
+
 void cockpit3d_captureScene(int width, int height) {
     captured = false;
     if (width <= 0 || height <= 0) return;
@@ -190,7 +199,7 @@ void cockpit3d_present(int width, int height, int shakePixels, int viewYawDegree
     const float top = mapping.offY;
     const float right = left + 320 * mapping.scaleX;
     const float bottom = top + 200 * mapping.scaleY;
-    const float panelTop = top + (viewYawDegrees == 0 ? 96 : 0) * mapping.scaleY;
+    const float panelTop = viewYawDegrees == 0 ? top + 96 * mapping.scaleY : 0;
     glPushAttrib(GL_ALL_ATTRIB_BITS);
     glMatrixMode(GL_PROJECTION); glPushMatrix(); glLoadIdentity();
     glMatrixMode(GL_MODELVIEW); glPushMatrix(); glLoadIdentity();
@@ -205,15 +214,16 @@ void cockpit3d_present(int width, int height, int shakePixels, int viewYawDegree
     /* Remove the flat lower panel after capturing its live instruments. Keep
      * the already-drawn HUD above it, and restore the scene underneath. */
     glBindTexture(GL_TEXTURE_2D, sceneTexture);
+    const float restoreLeft = viewYawDegrees == 0 ? left : 0;
+    const float restoreRight = viewYawDegrees == 0 ? right : (float)width;
+    const float restoreBottom = viewYawDegrees == 0 ? bottom : (float)height;
     glBegin(GL_QUADS);
-    glTexCoord2f(left / width, 1 - panelTop / height); glVertex2f(left, panelTop);
-    glTexCoord2f(right / width, 1 - panelTop / height); glVertex2f(right, panelTop);
-    glTexCoord2f(right / width, 1 - bottom / height); glVertex2f(right, bottom);
-    glTexCoord2f(left / width, 1 - bottom / height); glVertex2f(left, bottom);
+    glTexCoord2f(restoreLeft / width, 1 - panelTop / height); glVertex2f(restoreLeft, panelTop);
+    glTexCoord2f(restoreRight / width, 1 - panelTop / height); glVertex2f(restoreRight, panelTop);
+    glTexCoord2f(restoreRight / width, 1 - restoreBottom / height); glVertex2f(restoreRight, restoreBottom);
+    glTexCoord2f(restoreLeft / width, 1 - restoreBottom / height); glVertex2f(restoreLeft, restoreBottom);
     glEnd();
-    glViewport((int)left, (int)(height - bottom), (int)(right - left), (int)(bottom - top));
-    glEnable(GL_SCISSOR_TEST);
-    glScissor((int)left, (int)(height - bottom), (int)(right - left), (int)(bottom - top));
+    glViewport(0, 0, width, height);
     glDepthMask(GL_TRUE); glClearDepth(1); glClear(GL_DEPTH_BUFFER_BIT);
     glEnable(GL_DEPTH_TEST); glDepthFunc(GL_LEQUAL);
     glEnable(GL_ALPHA_TEST); glAlphaFunc(GL_GREATER, 0.5f);
@@ -221,7 +231,12 @@ void cockpit3d_present(int width, int height, int shakePixels, int viewYawDegree
     /* Camera at origin, looking -Z, +Y up. 60-degree vertical field of view;
      * 320:200 projection then receives the game's normal pixel-aspect correction. */
     const double nearPlane = 0.05, halfHeight = nearPlane * std::tan(3.141592653589793 / 6);
-    glFrustum(-halfHeight * 1.6, halfHeight * 1.6, -halfHeight, halfHeight, nearPlane, 100);
+    const double unitX = 2 * halfHeight * 1.6 / (right - left);
+    const double unitY = 2 * halfHeight / (bottom - top);
+    glFrustum((-left - (right - left) / 2) * unitX,
+              (width - left - (right - left) / 2) * unitX,
+              (bottom - height - (bottom - top) / 2) * unitY,
+              (bottom - (bottom - top) / 2) * unitY, nearPlane, 100);
     glMatrixMode(GL_MODELVIEW);
     glRotatef((float)viewYawDegrees, 0, 1, 0);
     for (const Part &part : parts) {

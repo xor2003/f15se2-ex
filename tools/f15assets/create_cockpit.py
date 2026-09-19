@@ -38,11 +38,28 @@ def panel_depth(x, y):
     return 1.08 - 0.08 * (y - 96) / 104
 
 
-def create_cockpit(image_path, output):
+class _TextureLoader:
+    def __init__(self, data):
+        self._data = data
+    def read_bytes(self):
+        return self._data
+
+
+def create_cockpit(image_path, output, console_texture=None):
     """Embed the existing PNG and emit a self-contained glTF 2.0 binary."""
     png = image_path.read_bytes()
     if png[:8] != b"\x89PNG\r\n\x1a\n":
         raise ValueError("Cockpit texture must be a PNG")
+
+    base_dir = image_path.parent
+    left_found = base_dir / "256LEFT.png"
+    right_found = base_dir / "256RIGHT.png"
+
+    if console_texture is None:
+        if left_found.exists():
+            console_texture = _TextureLoader(left_found.read_bytes())
+        elif right_found.exists():
+            console_texture = _TextureLoader(right_found.read_bytes())
     binary = bytearray()
     document = {
         "asset": {"version": "2.0", "generator": "f15assets/create_cockpit.py"},
@@ -195,76 +212,21 @@ def create_cockpit(image_path, output):
                  [(0, 0), (1, 0), (1, 1), (0, 1)])
         add_mesh(f"map_button_{button + 1}_sides", vertices, texcoords, solid=True)
 
-    def add_texture(filename):
-        data = (image_path.parent / filename).read_bytes()
-        if data[:8] != b"\x89PNG\r\n\x1a\n":
-            raise ValueError(f"{filename} must be a PNG")
-        image_index = len(document["images"])
-        document["images"].append({"name": filename, "mimeType": "image/png", "bufferView": buffer_view(data)})
-        texture_index = len(document["textures"])
-        document["textures"].append({"source": image_index, "sampler": 0})
-        return texture_index
-
-    def rotate_y(point, degrees):
-        angle = math.radians(degrees)
-        x, y, z = point
-        return (x * math.cos(angle) + z * math.sin(angle), y,
-                -x * math.sin(angle) + z * math.cos(angle))
-
-    def box(name, minimum, maximum, color, texture=None, uv_rect=(0, 0, 1, 1)):
+    def box(name, minimum, maximum, color, transform=None):
         x0, y0, z0 = minimum
         x1, y1, z1 = maximum
         corners = [(x0, y0, z0), (x1, y0, z0), (x1, y1, z0), (x0, y1, z0),
                    (x0, y0, z1), (x1, y0, z1), (x1, y1, z1), (x0, y1, z1)]
+        if transform:
+            corners = [transform(point) for point in corners]
         vertices, texcoords = [], []
-        u0, v0, u1, v1 = uv_rect
         for face in ((0, 1, 2, 3), (5, 4, 7, 6), (4, 0, 3, 7),
                      (1, 5, 6, 2), (3, 2, 6, 7), (4, 5, 1, 0)):
             quad(vertices, texcoords, [corners[i] for i in face],
-                 [(u0, v1), (u1, v1), (u1, v0), (u0, v0)])
-        add_mesh(name, vertices, texcoords, solid=texture is None, color=color,
-                 texture=texture if texture is not None else 0)
+                 [(0, 1), (1, 1), (1, 0), (0, 0)])
+        add_mesh(name, vertices, texcoords, solid=True, color=color)
 
-    # Side-panel relief uses only cabin pixels, never the painted sky/ground.
-    # Rotate the geometry into aircraft space; the renderer rotates the camera.
-    for name, filename, yaw in (("left", "256LEFT.png", 90),
-                                ("right", "256RIGHT.png", -90)):
-        texture = add_texture(filename)
-        vertices, texcoords = [], []
-        for top in range(96, 200, 4):
-            for left in range(0, 320, 4):
-                corners = [(left, top), (left + 4, top), (left + 4, top + 4), (left, top + 4)]
-                def side_point(x, y):
-                    # Upper vertical instruments, then an inward-sloping console.
-                    depth = 1.0 if y <= 148 else 1.0 - 0.22 * (y - 148) / 52
-                    return rotate_y(position(x, y, depth), yaw)
-                quad(vertices, texcoords, [side_point(x, y) for x, y in corners],
-                     [(x / 320, y / 200) for x, y in corners])
-        add_mesh(name + "_console", vertices, texcoords, texture=texture)
-        side = -1 if name == "left" else 1
-        low_x, high_x = sorted((side * 0.72, side * 1.02))
-        box(name + "_console_structure", (low_x, -0.68, -0.92),
-            (high_x, -0.47, 0.92), [0.035, 0.045, 0.05, 1])
-
-    rear_texture = add_texture("256REAR.png")
-    # 256REAR depicts the pilot from outside. Use its metal and fabric areas for
-    # actual cabin parts rather than putting a second pilot behind the camera.
-    box("rear_bulkhead", (-1.02, -0.69, 1.00), (1.02, 0.16, 1.05), None,
-        texture=rear_texture, uv_rect=(0.025, 0.51, 0.19, 0.66))
-    box("floor", (-1.02, -0.74, -1.18), (1.02, -0.69, 1.05), [0.035, 0.04, 0.045, 1])
-    box("seat_cushion", (-0.34, -0.58, -0.10), (0.34, -0.48, 0.53), None,
-        texture=rear_texture, uv_rect=(0.10, 0.82, 0.23, 0.94))
-    box("seat_back", (-0.34, -0.55, 0.53), (0.34, 0.10, 0.64), None,
-        texture=rear_texture, uv_rect=(0.10, 0.82, 0.23, 0.94))
-    box("headrest", (-0.21, 0.10, 0.55), (0.21, 0.36, 0.70), [0.055, 0.06, 0.065, 1])
-    box("seat_left_rail", (-0.40, -0.69, 0.60), (-0.35, 0.35, 0.66), [0.20, 0.23, 0.25, 1])
-    box("seat_right_rail", (0.35, -0.69, 0.60), (0.40, 0.35, 0.66), [0.20, 0.23, 0.25, 1])
-    box("left_pedal", (-0.27, -0.65, -0.95), (-0.07, -0.60, -0.76), [0.14, 0.16, 0.17, 1])
-    box("right_pedal", (0.07, -0.65, -0.95), (0.27, -0.60, -0.76), [0.14, 0.16, 0.17, 1])
-    box("control_column", (-0.035, -0.69, -0.48), (0.035, -0.29, -0.42), [0.10, 0.12, 0.13, 1])
-    box("control_grip", (-0.055, -0.31, -0.50), (0.055, -0.20, -0.40), [0.025, 0.03, 0.035, 1])
-
-    def beam(name, start, end, radius=0.018):
+    def beam(name, start, end, radius=0.018, color=None, capped=False):
         direction = [end[i] - start[i] for i in range(3)]
         length = math.sqrt(sum(v * v for v in direction))
         direction = [v / length for v in direction]
@@ -286,7 +248,144 @@ def create_cockpit(image_path, output):
             j = (i + 1) % 8
             quad(vertices, texcoords, [rings[0][i], rings[0][j], rings[1][j], rings[1][i]],
                  [(0, 0), (1, 0), (1, 1), (0, 1)])
-        add_mesh(name, vertices, texcoords, solid=True, color=[0.18, 0.21, 0.23, 1])
+        if capped:
+            for ring, center in zip(rings, (start, end)):
+                for i in range(8):
+                    vertices.extend((center, ring[i], ring[(i + 1) % 8]))
+                    texcoords.extend(((0.5, 0.5), (0, 0), (1, 0)))
+        add_mesh(name, vertices, texcoords, solid=True, color=color or [0.18, 0.21, 0.23, 1])
+
+    metal = [0.18, 0.21, 0.23, 1]
+    shell = [0.075, 0.09, 0.10, 1]
+    panel = [0.12, 0.14, 0.15, 1]
+    rubber = [0.025, 0.03, 0.035, 1]
+    olive = [0.14, 0.16, 0.085, 1]
+    webbing = [0.29, 0.30, 0.20, 1]
+    silver = [0.48, 0.51, 0.50, 1]
+    ivory = [0.68, 0.70, 0.62, 1]
+
+    panel_texture = None
+    if console_texture is not None:
+        data = console_texture.read_bytes()
+        if data[:8] != b"\x89PNG\r\n\x1a\n":
+            raise ValueError("Console texture must be a PNG")
+        image_index = len(document["images"])
+        document["images"].append({"name": "console panels", "mimeType": "image/png",
+                                   "bufferView": buffer_view(data)})
+        panel_texture = len(document["textures"])
+        document["textures"].append({"source": image_index, "sampler": 0})
+
+    def console_point(point):
+        x, y, z = point
+        return (x, y + 0.50 * (abs(x) - 0.64), z)
+
+    for name, side in (("left", -1), ("right", 1)):
+        low_x, high_x = sorted((side * 0.64, side * 1.02))
+        box(name + "_console_structure", (low_x, -0.69, -0.92),
+            (high_x, -0.43, 0.92), shell)
+        box(name + "_console", (low_x, -0.45, -0.92),
+            (high_x, -0.43, 0.92), metal, transform=console_point)
+        wall_x0, wall_x1 = sorted((side * 0.99, side * 1.04))
+        box(name + "_sidewall", (wall_x0, -0.69, -0.92), (wall_x1, 0.02, 1.02), shell)
+        for module, z in enumerate((-0.70, 0.14, 0.59)):
+            x0, x1 = sorted((side * 0.68, side * 0.97))
+            prefix = f"{name}_panel_{module}"
+            box(prefix, (x0, -0.43, z - 0.17), (x1, -0.414, z + 0.17),
+                panel, transform=console_point)
+            if panel_texture is not None:
+                tile = module + (0 if side < 0 else 3)
+                u0, u1 = (tile % 3) / 3, (tile % 3 + 1) / 3
+                v0, v1 = (tile // 3) / 2, (tile // 3 + 1) / 2
+                corners = [(side * 0.68, -0.413, z - 0.17),
+                           (side * 0.97, -0.413, z - 0.17),
+                           (side * 0.97, -0.413, z + 0.17),
+                           (side * 0.68, -0.413, z + 0.17)]
+                vertices, texcoords = [], []
+                quad(vertices, texcoords, [console_point(p) for p in corners],
+                     [(u0, v0), (u1, v0), (u1, v1), (u0, v1)])
+                add_mesh(prefix + "_texture", vertices, texcoords, texture=panel_texture)
+                continue
+            for row in range(2):
+                for column in range(2):
+                    x = side * (0.74 + column * 0.15)
+                    cz = z - 0.08 + row * 0.15
+                    control = f"{prefix}_switch_{row}_{column}"
+                    box(control + "_base", (x - 0.022, -0.414, cz - 0.022),
+                        (x + 0.022, -0.405, cz + 0.022), rubber, transform=console_point)
+                    beam(control, console_point((x, -0.405, cz)),
+                         console_point((x, -0.358, cz + (0.016 if row else -0.016))),
+                         0.008, silver, capped=True)
+                    box(control + "_mark", (x - 0.018, -0.413, cz + 0.033),
+                        (x + 0.018, -0.410, cz + 0.039), ivory, transform=console_point)
+            for x in (x0 + 0.015, x1 - 0.015):
+                beam(f"{prefix}_fastener_{x:.3f}", console_point((x, -0.414, z - 0.15)),
+                     console_point((x, -0.408, z - 0.15)), 0.007, silver, capped=True)
+        for index, x in enumerate((side * 0.75, side * 0.90)):
+            beam(f"{name}_rotary_knob_{index}", console_point((x, -0.43, -0.04)),
+                 console_point((x, -0.39, -0.04)), 0.030, rubber, capped=True)
+            box(f"{name}_knob_pointer_{index}", (x - 0.004, -0.389, -0.063),
+                (x + 0.004, -0.385, -0.044), ivory, transform=console_point)
+
+    box("throttle_quadrant", (-0.95, -0.37, -0.43), (-0.67, -0.28, -0.12), rubber)
+    for index, x in enumerate((-0.86, -0.75)):
+        box(f"throttle_slot_{index}", (x - 0.016, -0.279, -0.41),
+            (x + 0.016, -0.274, -0.14), metal)
+        beam(f"throttle_lever_{index}", (x, -0.28, -0.26), (x, -0.15, -0.32),
+             0.014, silver, capped=True)
+        box(f"throttle_handle_{index}", (x - 0.043, -0.17, -0.36),
+            (x + 0.043, -0.12, -0.28), rubber)
+        box(f"throttle_handle_mark_{index}", (x - 0.03, -0.119, -0.325),
+            (x + 0.03, -0.116, -0.315), ivory)
+
+    box("rear_bulkhead", (-1.02, -0.69, 1.00), (1.02, 0.16, 1.05), shell)
+    box("floor", (-1.02, -0.74, -1.18), (1.02, -0.69, 1.05), rubber)
+    for side in (-1, 1):
+        x = side * 0.73
+        box(f"rear_access_panel_{side}", (x - 0.18, -0.36, 0.978),
+            (x + 0.18, 0.05, 0.997), panel)
+        for rib in range(3):
+            y = -0.27 + rib * 0.10
+            box(f"rear_panel_rib_{side}_{rib}", (x - 0.14, y, 0.964),
+                (x + 0.14, y + 0.018, 0.98), metal)
+
+    def seat_point(point):
+        x, y, z = point
+        return (x, y, z + 0.16 * (y + 0.55))
+
+    box("seat_pan", (-0.38, -0.62, -0.14), (0.38, -0.57, 0.60), metal)
+    box("seat_cushion", (-0.33, -0.57, -0.10), (0.33, -0.48, 0.50), olive)
+    box("seat_shell", (-0.38, -0.58, 0.57), (0.38, 0.15, 0.64), metal, transform=seat_point)
+    box("seat_back", (-0.33, -0.50, 0.49), (0.33, 0.12, 0.57), olive, transform=seat_point)
+    box("headrest_shell", (-0.24, 0.12, 0.53), (0.24, 0.39, 0.69), metal, transform=seat_point)
+    box("headrest", (-0.21, 0.15, 0.48), (0.21, 0.36, 0.54), rubber, transform=seat_point)
+    for name, side in (("left", -1), ("right", 1)):
+        x = side * 0.375
+        box(f"seat_{name}_rail", (x - 0.025, -0.69, 0.72),
+            (x + 0.025, 0.39, 0.77), metal)
+        box(f"seat_{name}_bolster", (x - 0.04, -0.56, -0.08),
+            (x + 0.04, -0.41, 0.52), shell)
+        x = side * 0.16
+        box(f"harness_{name}_shoulder", (x - 0.034, -0.43, 0.477),
+            (x + 0.034, 0.14, 0.49), webbing, transform=seat_point)
+        box(f"harness_{name}_adjuster", (x - 0.045, -0.12, 0.464),
+            (x + 0.045, -0.065, 0.478), silver, transform=seat_point)
+        x0, x1 = sorted((side * 0.035, side * 0.33))
+        box(f"harness_{name}_lap", (x0, -0.479, 0.11), (x1, -0.465, 0.19), webbing)
+    box("harness_buckle", (-0.046, -0.465, 0.10), (0.046, -0.44, 0.20), silver)
+    box("harness_release", (-0.025, -0.439, 0.125), (0.025, -0.432, 0.175), rubber)
+    for index in range(3):
+        z = 0.24 + index * 0.075
+        box(f"cushion_seam_{index}", (-0.28, -0.48, z), (0.28, -0.477, z + 0.006), shell)
+    for name, x in (("left", -0.17), ("right", 0.17)):
+        box(name + "_pedal", (x - 0.10, -0.65, -0.95), (x + 0.10, -0.60, -0.76), metal)
+        for index in range(3):
+            z = -0.92 + index * 0.05
+            box(f"{name}_pedal_tread_{index}", (x - 0.085, -0.60, z),
+                (x + 0.085, -0.594, z + 0.012), rubber)
+    box("control_boot", (-0.09, -0.69, -0.54), (0.09, -0.60, -0.36), rubber)
+    beam("control_column", (0, -0.62, -0.45), (0, -0.48, -0.44), 0.028, metal, capped=True)
+    box("control_grip", (-0.045, -0.51, -0.49), (0.045, -0.40, -0.40), rubber)
+    box("control_thumb_hat", (-0.026, -0.40, -0.46), (0.002, -0.385, -0.43), metal)
 
     for frame_name, z in (("front", -0.72), ("rear", 0.82)):
         arch = [(0.96 * math.cos(i * math.pi / 12),
@@ -317,5 +416,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("image", type=Path)
     parser.add_argument("output", type=Path)
+    parser.add_argument("--console-texture", type=Path)
     args = parser.parse_args()
-    create_cockpit(args.image, args.output)
+    create_cockpit(args.image, args.output, args.console_texture)
