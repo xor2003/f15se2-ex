@@ -5,6 +5,9 @@
 #include "input.h"
 #include "egkeys.h"
 #include "egtypes.h"
+#include "egcode.h"
+#include "egdata.h"
+#include "stcode.h"
 #include "gfx.h"
 #include "gfx_impl.h"
 #include "headless.h"
@@ -98,6 +101,43 @@ struct Stick {
         input_pumpEvents();
     }
 };
+
+void legacyAxisSamples() {
+    // Literal observations define the old byte interface independently of the
+    // converter. Include both deadzone edges and asymmetric signed endpoints.
+    struct Sample { Sint16 raw; int byte; };
+    const Sample samples[] = {
+        {-32768, 1}, {-32767, 2}, {-16384, 65},
+        {-8257, 96}, {-8256, 97}, {-8001, 97}, {-8000, 97},
+        {-7999, 128}, {-1, 128}, {0, 128}, {1, 128}, {7999, 128},
+        {8000, 159}, {8001, 159}, {8256, 159}, {8257, 160},
+        {16384, 191}, {32766, 254}, {32767, 254}
+    };
+    for (bool gamepad : {false, true}) {
+        Stick stick(gamepad ? SDL_GAMEPAD_AXIS_COUNT : 2,
+                    gamepad ? SDL_GAMEPAD_BUTTON_COUNT : 2, gamepad);
+        for (const auto &sample : samples) {
+            for (int axis = 0; axis < 2; ++axis) {
+                stick.axis(1 - axis, 0);
+                stick.axis(axis, sample.raw);
+                const int x = axis == 0 ? sample.byte : 128;
+                const int y = axis == 1 ? sample.byte : 128;
+                require(readCalibratedJoystick() == (x | (y << 8)),
+                        "legacy signed axis sample returns expected packed bytes");
+                require(joyAxes[0] == x && joyAxes[1] == y,
+                        "legacy reader updates both shared axes");
+                pollJoystick();
+                require(joyAxes[0] == x && joyAxes[1] == y,
+                        "flight polling preserves axis conversion");
+                input_setMode(INPUT_MODE_MENU);
+                pollJoystick();
+                require(joyAxes[0] == 128 && joyAxes[1] == 128,
+                        "menu polling centers held axes to avoid duplicate navigation");
+                input_setMode(INPUT_MODE_FLIGHT);
+            }
+        }
+    }
+}
 
 void defaultsAndRemapping() {
     for (int count : {1, 2, 4, 6}) {
@@ -383,6 +423,7 @@ int main() {
     gfx_videoInit();
     gfx_initState();
     gfx_setMode13();
+    legacyAxisSamples();
     defaultsAndRemapping();
     flightCommands();
     autopilotAndViews();
