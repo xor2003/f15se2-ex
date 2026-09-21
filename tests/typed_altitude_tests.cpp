@@ -102,6 +102,11 @@ void fixedMath() {
     for (int height : {-32768, -1, 0, 1, 200, 32767})
         require(FC::renderWord(FC::render(static_cast<std::int16_t>(height))) == height,
                 "fixed render word extraction changed");
+    // Equality preserves the word comparison used by the deck-level check.
+    for (int a : {-32768, -1, 0, 1, 0x80, 32767})
+        for (int b : {-32768, -1, 0, 1, 0x80, 32767})
+            require((FC::render(static_cast<std::int16_t>(a)) == FC::render(static_cast<std::int16_t>(b))) ==
+                    (a == b), "fixed scene-height equality changed");
 }
 
 void productionCaller() {
@@ -199,6 +204,9 @@ void modernMath() {
                         {65536.0, 0}, {65536.5, 0}, {-1.5, -1}, {73728.5, 8192}, {131072.0, 0}})
         require(MC::renderWord(MC::render(sample.first)) == sample.second,
                 "modern render word narrowing changed");
+    // Fractional heights stay distinct where the word comparison would alias.
+    require(MC::render(128.0) == MC::render(128.0) &&
+            MC::render(128.4) != MC::render(128.0), "modern scene-height equality quantized");
     rejects([] { MC::speed(-1); });
     rejects([] { MC::altitude(std::numeric_limits<double>::infinity()); });
     rejects([] { MC::climb(std::numeric_limits<double>::quiet_NaN()); });

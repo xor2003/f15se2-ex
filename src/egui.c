@@ -2,7 +2,9 @@
 #include "egcode.h"
 #include "egdata.h"
 #include "math/legacy_rotation.hpp"
+#include "math/legacy_altitude.hpp"
 using f15::math::legacy::signedAngle;
+#include "egflight.h"
 #include "egmath.h"
 #include "egtacmap.h"
 #include "egthreat.h"
@@ -121,7 +123,7 @@ void drawTacticalMap(char page) {
                 if (g_scopeSweepTimer > 0 && i == 0xffff - (uint16)g_threatLabelTarget) {
                     drawMapMarkerBox(vtxScratch.vproj.x.lo, vtxScratch.vproj.y.lo, g_scopeArcColor);
                 }
-                altDiff = g_simObjects[i].alt - g_viewZ;
+                altDiff = g_simObjects[i].alt - f15::math::legacy::Altitudes::renderWord(flightSceneHeight());
                 altBand = 0;
                 if (altDiff < -1000) {
                     altBand = 1;

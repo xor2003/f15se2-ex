@@ -556,14 +556,14 @@ switch_break:
 
             g_particles[idx].posX = g_viewX_;
             g_particles[idx].posY = g_viewY_;
-            g_particles[idx].alt = g_viewZ;
+            g_particles[idx].alt = f15::math::legacy::Altitudes::renderWord(flightSceneHeight());
 
             g_particles[idx].spin = randomRange(0x20) << 11;
 
             g_smokeParticleSlot = idx;
             g_hitMapX = g_viewX_;
             g_hitMapY = g_viewY_;
-            g_hitAlt = g_viewZ;
+            g_hitAlt = f15::math::legacy::Altitudes::renderWord(flightSceneHeight());
             g_hitEffectTimer = -8;
             makeSound(0, 2);
 
@@ -737,7 +737,7 @@ switch_break:
     g_viewSnapshotRing[idx].roll = signedAngle(g_ourRoll);
     *(int32 *)&g_viewSnapshotRing[idx].worldX = fineUnits(g_ViewX);
     *(int32 *)&g_viewSnapshotRing[idx].worldY = fineUnits(g_ViewY);
-    g_viewSnapshotRing[idx].alt = g_viewZ;
+    g_viewSnapshotRing[idx].alt = f15::math::legacy::Altitudes::renderWord(flightSceneHeight());
 
     if (g_currentWeaponType == 1) {
         if (g_airTargetLock >= 0) {
@@ -899,9 +899,9 @@ void renderFrame() {
     g_camEyeX = g_viewTargetX = fineUnits(g_ViewX);
     g_camEyeY = fineUnits(g_ViewY);
     g_viewTargetY = 0x100000 - fineUnits(g_ViewY);
-    g_camEyeZ = g_viewZ + 0x18;
+    g_camEyeZ = f15::math::legacy::Altitudes::renderWord(flightSceneHeight()) + 0x18;
     g_camEyeFracX = g_camEyeFracY = g_camEyeFracZ = 0;
-    g_viewTargetAlt = g_viewZ;
+    g_viewTargetAlt = f15::math::legacy::Altitudes::renderWord(flightSceneHeight());
     camDist = g_externalCamDist = clampRange(g_externalCamDist, 2, 8);
     switch (g_viewMode) {
     case VIEW_COCKPIT:
@@ -971,7 +971,7 @@ void renderFrame() {
         g_viewRoll = 0;
         g_camEyeX = eyeFromQ8(sinMulQ8(signedAngle(g_ourHead) + 0x8000, 0x18 << camDist) + ((long)fineUnits(g_ViewX) << 8), &g_camEyeFracX);
         g_camEyeY = eyeFromQ8(cosMulQ8(signedAngle(g_ourHead) + 0x8000, 0x18 << camDist) + ((long)fineUnits(g_ViewY) << 8), &g_camEyeFracY);
-        g_camEyeZ = (4 << camDist) + g_viewZ;
+        g_camEyeZ = (4 << camDist) + f15::math::legacy::Altitudes::renderWord(flightSceneHeight());
         break;
     case VIEW_EXT_TARGET:
     case VIEW_MISSILE:
@@ -1017,7 +1017,8 @@ void renderFrame() {
         }
         if (g_directorMode == 0) camDist = savedCamDist;
         computeTrackingCameraAngles((int32)g_viewTargetX, (int32)g_viewTargetY,
-                                    g_viewTargetAlt, fineUnits(g_ViewX), fineUnits(g_ViewY), g_viewZ,
+                                    g_viewTargetAlt, fineUnits(g_ViewX), fineUnits(g_ViewY),
+                                    f15::math::legacy::Altitudes::renderWord(flightSceneHeight()),
                                     &g_viewHeading, &g_viewPitch);
         g_viewRoll = 0;
         camOffset = cosMul(g_viewPitch, 0x18 << camDist);
@@ -1025,7 +1026,7 @@ void renderFrame() {
             if (g_viewMode == VIEW_EXT_TARGET) {
                 g_camEyeX = eyeFromQ8(sinMulQ8(g_viewHeading + 0x8000, camOffset) + ((long)fineUnits(g_ViewX) << 8), &g_camEyeFracX);
                 g_camEyeY = eyeFromQ8(cosMulQ8(g_viewHeading + 0x8000, camOffset) + ((long)fineUnits(g_ViewY) << 8), &g_camEyeFracY);
-                g_camEyeZ = (int16)eyeFromQ8(sinMulQ8(g_viewPitch, 0x18 << camDist) + ((long)((4 << camDist) + g_viewZ) << 8), &g_camEyeFracZ);
+                g_camEyeZ = (int16)eyeFromQ8(sinMulQ8(g_viewPitch, 0x18 << camDist) + ((long)((4 << camDist) + f15::math::legacy::Altitudes::renderWord(flightSceneHeight())) << 8), &g_camEyeFracZ);
                 g_viewPitch = -g_viewPitch;
             } else {
                 g_camEyeX = eyeFromQ8(sinMulQ8(g_viewHeading, camOffset) + ((long)g_viewTargetX << 8), &g_camEyeFracX);

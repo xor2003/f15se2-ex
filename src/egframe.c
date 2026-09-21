@@ -568,7 +568,7 @@ void updateBulletsAndFire(void) {
     bulletTracks[slot].velY = -cosMul(yaw, mag);
     bulletTracks[slot].posX = (fineUnits(g_ViewX) + bulletTracks[slot].velX) & BULLET_FINE_MASK;
     bulletTracks[slot].posY = (0x100000L - fineUnits(g_ViewY) + bulletTracks[slot].velY) & BULLET_FINE_MASK;
-    bulletTracks[slot].alt = bulletTracks[slot].velZ + g_viewZ - 2;
+    bulletTracks[slot].alt = bulletTracks[slot].velZ + f15::math::legacy::Altitudes::renderWord(flightSceneHeight()) - 2;
     g_gunFiredFlag = 1;
     goto done_fire;
 no_fire:

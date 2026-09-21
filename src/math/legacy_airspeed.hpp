@@ -11,6 +11,8 @@ inline std::uint16_t speedWord(FlightSpeed<GameBackend> v) { return std::uint16_
 inline std::int16_t cornerKnots(CornerSpeed<GameBackend> v) { return Airspeeds::corner(v); }
 // Raw indicated knots: int16 under the fixed backend, fractional under modern.
 inline auto knotsUnits(CornerSpeed<GameBackend> v) { return Airspeeds::corner(v); }
+// Coarse launch-speed word (engine velocity >> 11) for the projectile table.
+inline std::int16_t projectileSpeed(FlightSpeed<GameBackend> v) { return Airspeeds::projectile(v); }
 inline StallSpeed<GameBackend> stallFromUnits(std::int64_t v) {
     const auto bits = std::uint16_t(v);
     return Airspeeds::stall(static_cast<std::int16_t>(bits < 32768 ? int(bits) : int(bits) - 65536));

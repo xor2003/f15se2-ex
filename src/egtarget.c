@@ -196,8 +196,8 @@ skip_aam:
     if (g_detailLevel >= 4) {
         depthShift = 0;
     } else {
-        depthShift = (g_hudVisible != 0 && (uint16)(g_nearestThreatRange + g_viewZ) > 1500) ? 1 : 0;
-        if (g_hudVisible != 0 && (uint16)(g_nearestThreatRange + g_viewZ) > 4000) {
+        depthShift = (g_hudVisible != 0 && (uint16)(g_nearestThreatRange + f15::math::legacy::Altitudes::renderWord(flightSceneHeight())) > 1500) ? 1 : 0;
+        if (g_hudVisible != 0 && (uint16)(g_nearestThreatRange + f15::math::legacy::Altitudes::renderWord(flightSceneHeight())) > 4000) {
             depthShift = 2;
         }
     }
@@ -270,7 +270,7 @@ skip_aam:
                     abs(g_simObjects[idx].posY - g_planeTable.planes[g_closestThreatIndex].mapY) < g_attackRangeY >> 5) {
                     marker = 0x80;
                 }
-                if (g_viewZ != 0x80 || marker == 0x80) {
+                if (flightSceneHeight() != f15::math::legacy::Altitudes::render(0x80) || marker == 0x80) {
                     drawAircraftShadow(
                                     (&aircraftTypes[g_simObjects[idx].spec].viewModelId)[(g_projDepth > planeFineDepth) ? 0 : 1],
                                     g_simObjects[idx].worldX, g_simObjects[idx].worldY,
@@ -546,7 +546,7 @@ void drawWorldEffects(void) {
                 }
             }
         } else {
-            dist = (abs((int16)(bulletTracks[idx].alt - g_viewZ)) >> 5) + abs((int16)(bx - g_viewX_)) + abs((int16)(by - g_viewY_));
+            dist = (abs((int16)(bulletTracks[idx].alt - f15::math::legacy::Altitudes::renderWord(flightSceneHeight()))) >> 5) + abs((int16)(bx - g_viewX_)) + abs((int16)(by - g_viewY_));
             dist = abs(dist);
             if (dist < 0x20) {
                 hitFlag = 1;
@@ -669,7 +669,7 @@ void drawHudWorldOverlay(void) {
 
                 missileSpec = missiles[missleSpec[missileSpecIndex].weaponIdx].specIndex;
 
-                if (missileSpec == 28 && computeMapTargetRange(g_groundTargetLock) < (g_viewZ >> 5) * 5 && g_projDepth < 0) {
+                if (missileSpec == 28 && computeMapTargetRange(g_groundTargetLock) < ((int)f15::math::legacy::Altitudes::render(flightSceneHeight()) >> 5) * 5 && g_projDepth < 0) {
                     g_lockToneFlag = 1;
                 }
 

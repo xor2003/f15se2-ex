@@ -979,6 +979,24 @@ word-domain storage remains by design: `g_viewZ` itself and the `.alt` fields of
 binary layouts consumed by the word-space renderer, so they still receive the
 boundary word.
 
+Every remaining non-render `g_viewZ` read now sources the typed scene height
+through explicit boundary adapters instead of the stored word: word-domain
+storage and formulas use `AltitudeBoundary::renderWord` (camera eye/target
+globals, `Particle`/`ViewSnapshot` alt writes, `g_hitAlt`, `g_threatRefZ`, SAM
+acquisition and projectile launch altitude, LOD depth-shift and hit-distance
+formulas, bullet-track spawn altitude, scope altitude diff); integer-domain
+decisions use `Altitudes::render` so modern sees the unwrapped value (threat
+target-Z clamps, missile lock-range gate); and the deck-level shadow check
+compares typed `RenderHeight` equality. Projectile launch speed uses
+`AirspeedBoundary::projectile` — `speedWord >> 11` under fixed, the unwrapped
+quotient saturated to the `int16` field under modern (velocity 70000 gives 34,
+not the wrapped 2). `VerticalQuantity` gained same-unit `==`/`!=`. The word-domain
+projectile guidance internals (`sinMul`/`cosMul` angle words, byte reads, `fineX`
+integration) and the render-pipeline reads (`drawWorldObject`,
+`projectWorldToHud`, `egmath.c`/`egtgt2.c` projection) still read `g_viewZ`
+directly — they belong to the world-coordinate feature, and `SimObject`'s packed
+`FLIGHTUNIT_SIZE` layout stays frozen regardless.
+
 Remaining `g_viewZ` work is the renderer/world coordinate space itself —
 projection, terrain and targeting globals, plus the fixed-format `.alt` fields
 above — not further decision plumbing. These tests do not establish

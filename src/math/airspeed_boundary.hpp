@@ -15,6 +15,15 @@ template<class B> struct AirspeedBoundary {
     static StallRep stall(StallSpeed<B> v) { return v.value_; }
     static CornerSpeed<B> corner(StallRep v) { return CornerSpeed<B>(v); }
     static StallRep corner(CornerSpeed<B> v) { return v.value_; }
+    // Coarse launch-speed term for the projectile table (engine velocity >> 11).
+    // Modern keeps the unwrapped quotient instead of the low-word read.
+    static std::int16_t projectile(FlightSpeed<B> v) {
+        if constexpr (std::is_same_v<B, FixedBackend>)
+            return static_cast<std::int16_t>(std::uint16_t(v.value_) >> 11);
+        else
+            return static_cast<std::int16_t>(std::clamp<std::int64_t>(
+                static_cast<std::int64_t>(v.value_ / 2048), -32768, 32767));
+    }
 };
 }
 #endif

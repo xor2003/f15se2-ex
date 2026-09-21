@@ -102,6 +102,12 @@ void fixedMath() {
         require((FC::corner(350) > FM::knots(threshold)) == (350 > static_cast<std::int16_t>(threshold)),
                 "fixed knots comparison changed");
     }
+    // Projectile launch speed keeps the `speedWord(v) >> 11` low-word read.
+    for (int value = 0; value < 65536; ++value)
+        for (int speed : {value, value - 65536, value + 65536})
+            require(FC::projectile(FC::speed(speed)) ==
+                    static_cast<std::int16_t>(std::uint16_t(value) >> 11),
+                    "fixed projectile launch speed changed");
 }
 void productionCaller() {
     Game data{};
@@ -197,6 +203,12 @@ void modernMath() {
     require(MM::knots(200) < MM::indicatedKnots(MC::speed(5400.5)) &&
             MM::indicatedKnots(MC::speed(5400.5)) < MM::knots(201),
             "modern knots comparisons quantized");
+    // Projectile launch speed keeps the unwrapped quotient (65536 wraps to 0
+    // under fixed) and saturates at the int16 field rather than overflowing.
+    for (double speed : {0.0, 2047.9, 2048.5, 65536.0, 70000.25})
+        require(MC::projectile(MC::speed(speed)) == static_cast<std::int16_t>(speed / 2048),
+                "modern projectile launch speed wrapped or quantized");
+    require(MC::projectile(MC::speed(1e9)) == 32767, "modern projectile launch speed did not saturate");
     rejects([] { MC::speed(std::numeric_limits<double>::infinity()); });
     rejects([] { MC::deceleration(std::numeric_limits<double>::quiet_NaN()); });
     rejects([] { MM::verticalSample(MC::speed(-1)); });

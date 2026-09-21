@@ -3,7 +3,9 @@
 #include "egcombat.h"
 #include "egdata.h"
 #include "math/legacy_rotation.hpp"
+#include "math/legacy_altitude.hpp"
 using f15::math::legacy::signedAngle;
+#include "egflight.h"
 #include "egframe.h"
 #include "egkeys.h"
 #include "egmath.h"
@@ -182,7 +184,7 @@ int16 computeThreatRangeBearing(int16 threatX, int16 threatY, int16 threatAlt, i
     deltaY = g_viewY_ - threatY;
     range = (uint16)rangeApprox(deltaX, deltaY) >> 6;
     bearing = computeBearing(deltaX, -deltaY);
-    score = (score = (aNone[threatType].dangerTier + g_missionStatus * 2 + 3) * aNone[threatType].lethality / 16) * (((uint16)g_viewZ >> 6) + 0x40) >> 7;
+    score = (score = (aNone[threatType].dangerTier + g_missionStatus * 2 + 3) * aNone[threatType].lethality / 16) * (((uint16)f15::math::legacy::Altitudes::renderWord(flightSceneHeight()) >> 6) + 0x40) >> 7;
     *outBearing = bearing;
     *outRange = range;
     return score;
@@ -199,7 +201,7 @@ void updateThreatAlert(void) {
         g_threatRefX = g_viewX_;
         g_threatRefY = g_viewY_;
     }
-    g_threatRefZ = g_viewZ;
+    g_threatRefZ = f15::math::legacy::Altitudes::renderWord(flightSceneHeight());
     g_threatRefHead = signedAngle(g_ourHead);
     g_unusedEventHist0 = 0xFF;
     for (planeIdx = 0; planeIdx < g_planeScanCount; planeIdx++) {
@@ -298,13 +300,13 @@ void updateObjects(void) {
                     tgtIdx = g_simObjects[objIdx].objType;
                     tgtX = g_planeTable.planes[tgtIdx].mapX;
                     tgtY = g_planeTable.planes[tgtIdx].mapY;
-                    tgtZ = clampRange(g_viewZ + 1000, 5000, 20000);
+                    tgtZ = clampRange((int)f15::math::legacy::Altitudes::render(flightSceneHeight()) + 1000, 5000, 20000);
                 set_target_alt:
                     goto got_target;
                 padlock_target:
                     tgtX = mapEvents[0].mapX;
                     tgtY = mapEvents[0].mapY;
-                    tgtZ = clampRange(g_viewZ, 1000, 30000);
+                    tgtZ = clampRange((int)f15::math::legacy::Altitudes::render(flightSceneHeight()), 1000, 30000);
                     goto got_target;
                 }
 

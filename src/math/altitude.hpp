@@ -37,6 +37,8 @@ template<class B, class Unit> class VerticalQuantity {
     friend class GuidanceMath<B>;
 public:
     VerticalQuantity() = default;
+    bool operator==(VerticalQuantity other) const { return value_ == other.value_; }
+    bool operator!=(VerticalQuantity other) const { return !(*this == other); }
     bool isZero() const { return value_ == 0; }
     bool isNegative() const { return value_ < 0; }
 };
