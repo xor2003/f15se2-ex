@@ -1,7 +1,19 @@
 #ifndef REPLACEMENT_TERRAIN_COLLISION_H
 #define REPLACEMENT_TERRAIN_COLLISION_H
 #include "math/legacy_horizontal.hpp"
-using f15::math::legacy::fineUnits;
+#include "math/legacy_altitude.hpp"
+#include "egflight.h"
+
+/* Scene height as the collision path reads it: the unsigned stored word under
+ * fixed (preserving the wrap), the unwrapped value under modern — an aircraft
+ * above the word range must not alias onto the terrain. */
+static double terrainCollisionSceneHeight() {
+#ifdef F15_MODERN_MATH
+    return f15::math::legacy::Altitudes::render(flightSceneHeight());
+#else
+    return (uint16)f15::math::legacy::Altitudes::render(flightSceneHeight());
+#endif
+}
 
 #include "eg3dgrid.h"
 #include "r3d_replacement.h"
@@ -30,9 +42,11 @@ static int aircraftInsideReplacementTerrain(void) {
      * objects retain the original collision path rather than becoming terrain. */
     for (lod = 1; lod <= 4; ++lod) {
         int fineUnitsPerModelUnit = 1 << (2 * (lod - 1));
-        double x = (double)fineUnits(g_ViewX) / fineUnitsPerModelUnit;
-        double y = (double)fineUnits(g_ViewY) / fineUnitsPerModelUnit;
-        double z = (double)(uint16)g_viewZ / fineUnitsPerModelUnit;
+        /* coordinate() returns the backend rep: int32 under fixed (same as
+         * fineUnits), the fractional fine position under modern. */
+        double x = (double)f15::math::legacy::Horizontal::coordinate(g_ViewX) / fineUnitsPerModelUnit;
+        double y = (double)f15::math::legacy::Horizontal::coordinate(g_ViewY) / fineUnitsPerModelUnit;
+        double z = terrainCollisionSceneHeight() / fineUnitsPerModelUnit;
         int column, row, gridOffset = lod == 4 ? 2 : 0;
         int tile, entry;
         if (x < 0 || y < 0) continue;

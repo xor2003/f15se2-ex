@@ -24,6 +24,9 @@
 void stepFlightModel();
 void updateFrame();
 void rebuildOrientation();
+int16_t computeTargetBearing(int16_t targetX, int16_t targetY, int16_t wantBearing);
+int16_t computeLoftAngle();
+int rangeApprox(int dx, int dy);
 void setupInstrumentLayoutFar();
 void drawInstrumentGaugesFar();
 
@@ -166,6 +169,21 @@ int main() {
             "modern map position lost the fractional units");
     require(legacy::mapWordX(mapPos) == 32 && legacy::mapWordY(mapPos) == 32735,
             "modern map word quantization changed");
+
+    // Target range must source the derived position (map words 32/32735),
+    // not the stale stored words (999/-999).
+    computeTargetBearing(10, 0, 0);
+    require(g_targetRange == rangeApprox(32 - 10, 32735) &&
+            g_targetRange != rangeApprox(999 - 10, -999),
+            "target range used the stored map words");
+
+    // Loft-angle divisor: altitude 229376 compresses to scene height 65536,
+    // wrapping g_viewZ to 0. Modern keeps the unwrapped divisor.
+    g_viewZ = 0;
+    g_altitude = Altitudes::altitude(229376);
+    g_ourPitch = {};
+    require(computeLoftAngle() == 963 - 0x4000,
+            "modern loft angle used the wrapped scene-height word");
 
     g_velocity = Speeds::speed(50000.25);
     g_playerPlaneFlags = 1;

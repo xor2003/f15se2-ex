@@ -8,6 +8,8 @@ using f15::math::legacy::fineUnits;
 #include "egcombat.h"
 #include "egdata.h"
 #include "math/legacy_rotation.hpp"
+#include "math/legacy_altitude.hpp"
+#include "math/legacy_map.hpp"
 using f15::math::legacy::signedAngle;
 #include "egflight.h"
 #include "egframe.h"
@@ -226,8 +228,11 @@ int16 computeSimObjectRange(int16 objIdx) {
 // ==== seg000:0xc7ea ====
 int16 computeTargetBearing(int16 targetX, int16 targetY, int16 wantBearing) {
     int16 dx, dy;
-    dx = g_viewX_ - targetX;
-    dy = g_viewY_ - targetY;
+    /* Player side comes from the typed map position; the word extraction is
+     * exact because targetX/targetY are already coarse words. */
+    const auto pos = flightMapPosition();
+    dx = f15::math::legacy::mapWordX(pos) - targetX;
+    dy = f15::math::legacy::mapWordY(pos) - targetY;
     if (wantBearing != 0) {
         g_targetBearing = computeBearing(-dx, dy);
     }
@@ -237,7 +242,15 @@ int16 computeTargetBearing(int16 targetX, int16 targetY, int16 wantBearing) {
 
 // ==== seg000:0xc82d ====
 int16 computeLoftAngle() {
-    return (int16)((uint32)((int32)(0x4000 - abs(signedAngle(g_ourPitch))) << 12) / (uint32)(uint16)(g_viewZ + 0x1000)) - 0x4000;
+    /* Divisor: scene height + margin. Fixed keeps the unsigned-word wrap;
+     * modern uses the unwrapped height so the loft cue stays meaningful above
+     * the word range. */
+#ifdef F15_MODERN_MATH
+    const uint32 scenePlusMargin = (uint32)((int)f15::math::legacy::Altitudes::render(flightSceneHeight()) + 0x1000);
+#else
+    const uint32 scenePlusMargin = (uint16)(g_viewZ + 0x1000);
+#endif
+    return (int16)((uint32)((int32)(0x4000 - abs(signedAngle(g_ourPitch))) << 12) / scenePlusMargin) - 0x4000;
 }
 
 // ==== seg000:0xc864 ====

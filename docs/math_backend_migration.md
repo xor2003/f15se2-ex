@@ -801,11 +801,38 @@ outstanding.
   backend mixing and coordinate extraction.
 
 Verification: Linux Release build and all 58 CTests pass, including the new
-negative compiler cases; `modern_flight_smoke_tests` passes. The remaining
-direct `g_viewX_`/`g_viewY_` reads are the render/projection pipeline itself
-(`egtgt2.c`, `egmath.c`) — that is the camera/render coordinate-space feature,
-not further decision plumbing. These tests do not establish world-coordinate
-rendering stability.
+negative compiler cases; `modern_flight_smoke_tests` passes. These tests do not
+establish world-coordinate rendering stability.
+
+## Render-boundary audit checkpoint
+
+The remaining `g_viewX_`/`g_viewY_`/`g_viewZ`/`fineUnits` reads were audited
+and split into reviewed render boundaries versus decision math:
+
+* Decision stragglers migrated: `computeTargetBearing` (target range/bearing
+  for lock and HUD) sources the player side from `flightMapPosition()` —
+  exact under fixed since the targets are already coarse words.
+  `computeLoftAngle` (weapon-release cue feeding `projectile.targetRef`) keeps
+  the fixed `(uint16)(g_viewZ + 0x1000)` divisor but uses the unwrapped scene
+  height under modern, so the cue stays meaningful above altitude 229376.
+  `aircraftInsideReplacementTerrain` (`replacement_terrain_collision.h`) reads
+  the backend coordinate rep directly — fractional fine position under modern —
+  and the unwrapped scene height for Z, so a high modern aircraft cannot alias
+  onto terrain the wrapped word would place it inside.
+* Confirmed render boundaries (kept word-domain deliberately):
+  `drawWorldObjectCore`/`worldPointToCamera`/`drawWorldLine` in `egmath.c`,
+  `projectWorldToHud`/`projectWorldToHudFine` in `egtgt2.c`, the camera-eye
+  globals (`g_camEyeX/Y/Z` + Q8 fractions) and the `drawWorldObject` calls in
+  `egtarget.c`. Their outputs are int16 submit units and screen pixels — the
+  word-space renderer is the reviewed boundary itself. The blackbox
+  diag/snapshot `fineUnits` reads are telemetry boundaries.
+* `modern_flight_smoke_tests` carries regressions: target range must equal
+  the derived-position result and differ from the stale-word result; the loft
+  divisor at altitude 229376 uses the unwrapped 65536 (not the wrapped 0).
+  The terrain-collision path executes in the smoke's `updateFrame` calls but
+  has no dedicated precision assertion without terrain assets.
+
+Verification: fixed 58/58 and modern smoke pass after the audit edits.
 
 ### Next acceptance boundary
 
