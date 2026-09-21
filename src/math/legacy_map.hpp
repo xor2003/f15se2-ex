@@ -2,6 +2,7 @@
 #define F15_MATH_LEGACY_MAP_HPP
 #include "map_position.hpp"
 #include "horizontal.hpp"
+#include "../inttype.h"
 #include <cmath>
 namespace f15::math {
 template<class B> struct MapBoundary {
@@ -39,6 +40,36 @@ inline MapPosition<GameBackend> mapPosition(ViewCoordinate<GameBackend, ViewXAxi
 // The coarse map words stored in g_viewX_/g_viewY_ and the frozen layouts.
 inline std::int16_t mapWordX(MapPosition<GameBackend> p) { return Maps::wordX(p); }
 inline std::int16_t mapWordY(MapPosition<GameBackend> p) { return Maps::wordY(p); }
+
+/* Word-unit offset from the typed position to stored map coordinates. Each
+ * argument keeps its original promotion (uint16 zero-extends, int16
+ * sign-extends) — identical to the int16/word subtraction the call replaced. */
+template<class B = GameBackend>
+inline MapOffset<B> mapOffset(MapPosition<B> p, int x, int y) {
+    using Rep = typename MapOffset<B>::Rep;
+    return {static_cast<Rep>(MapBoundary<B>::x(p)) - x, static_cast<Rep>(MapBoundary<B>::y(p)) - y};
+}
+
+/* rangeApprox on a typed offset. Fixed reproduces the original exactly —
+ * abs16Compat's (int16) wrap, max + min/2, 0x7fff cap. Modern keeps the
+ * fraction, wraps deltas onto the same ring, and drops the cap (a legacy
+ * int16-return limit, not a gameplay bound). */
+template<class B = GameBackend>
+inline auto mapRange(MapOffset<B> offset) {
+    if constexpr (std::is_same_v<B, FixedBackend>) {
+        const int dx = abs16Compat(offset.dx), dy = abs16Compat(offset.dy);
+        const int dist = dx > dy ? (dy >> 1) + dx : (dx >> 1) + dy;
+        return static_cast<int>(static_cast<std::int16_t>(dist > 0x7fff ? 0x7fff : dist));
+    } else {
+        const auto wrap = [](double v) {
+            const double r = std::fmod(v, 65536.0);
+            const double w = r >= 32768.0 ? r - 65536.0 : (r < -32768.0 ? r + 65536.0 : r);
+            return std::fabs(w);
+        };
+        const double dx = wrap(offset.dx), dy = wrap(offset.dy);
+        return dx > dy ? dx + dy * 0.5 : dy + dx * 0.5;
+    }
+}
 }
 }
 #endif

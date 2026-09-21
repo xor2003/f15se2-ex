@@ -18,6 +18,8 @@ using f15::math::legacy::altitudeFromUnits;
 using f15::math::legacy::signedAngle;
 using f15::math::legacy::angleFromWord;
 using f15::math::legacy::angleMagnitude;
+using f15::math::legacy::mapOffset;
+using f15::math::legacy::mapRange;
 using SpeedMath = f15::math::AirspeedMath<f15::math::GameBackend>;
 #include "egflight.h"
 #include "egframe.h"
@@ -131,7 +133,7 @@ void updateFrame(void) {
         commData->landingType = 1;
         g_gunAmmo = 1000;
         if (g_missionStatus == 0 || g_autopilotEngaged != 0) {
-            g_northSouthSign = ((uint16)(f15::math::legacy::mapWordY(flightMapPosition()) - waypoints[1].mapY) < 0x8000u) ? 1 : -1;
+            g_northSouthSign = (mapOffset(flightMapPosition(), waypoints[1].mapX, waypoints[1].mapY).ringY() < 0x8000u) ? 1 : -1;
             g_altitude = altitudeFromUnits(2000);
             g_velocity = f15::math::legacy::speedFromUnits(8100);
             g_setThrust = 100;
@@ -239,10 +241,10 @@ void updateFrame(void) {
         if ((g_planeTable.planes[i].flags & 0x201) != 0 &&
             (g_planeTable.planes[i].flags & 0x500) != 0 &&
             (g_planeTable.planes[i].flags & 0x800) == 0) {
-            tmp = rangeApprox(f15::math::legacy::mapWordX(flightMapPosition()) - g_planeTable.planes[i].mapX,
-                              f15::math::legacy::mapWordY(flightMapPosition()) - g_planeTable.planes[i].mapY);
-            if (tmp < g_nearestThreatRange) {
-                g_nearestThreatRange = tmp;
+            const auto dist = mapRange(mapOffset(flightMapPosition(),
+                                                 g_planeTable.planes[i].mapX, g_planeTable.planes[i].mapY));
+            if (dist < g_nearestThreatRange) {
+                g_nearestThreatRange = (int16)dist;
                 g_closestThreatIndex = i;
             }
         }

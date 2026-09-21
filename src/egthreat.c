@@ -7,6 +7,8 @@
 #include "math/legacy_map.hpp"
 using f15::math::legacy::signedAngle;
 using f15::math::legacy::angleMagnitude;
+using f15::math::legacy::mapOffset;
+using f15::math::legacy::mapRange;
 #include "egflight.h"
 #include "egframe.h"
 #include "egkeys.h"
@@ -289,9 +291,8 @@ void updateObjects(void) {
                                 }
                             }
                         }
-                        if ((uint16)rangeApprox(f15::math::legacy::mapWordX(flightMapPosition()) - g_simObjects[objIdx].posX,
-                                                f15::math::legacy::mapWordY(flightMapPosition()) - g_simObjects[objIdx].posY) >>
-                                6 > 350 &&
+                        if (((int)mapRange(mapOffset(flightMapPosition(), g_simObjects[objIdx].posX,
+                                                    g_simObjects[objIdx].posY)) >> 6) > 350 &&
                             objIdx != 0) {
                             (g_simObjects[objIdx].flags.w) &= 0x1c1;
                             g_simObjects[objIdx].timer = 0;

@@ -2,6 +2,7 @@
 #define F15_MATH_MAP_POSITION_HPP
 #include "rotation.hpp"
 #include "interpolation.hpp"
+#include <cmath>
 
 namespace f15::math {
 template<class B> struct MapBoundary;
@@ -22,6 +23,28 @@ public:
     MapPosition() = default;
     bool operator==(MapPosition other) const { return x_ == other.x_ && y_ == other.y_; }
     bool operator!=(MapPosition other) const { return !(*this == other); }
+};
+
+/* Word-unit difference of two map coordinates: int for the fixed backend (the
+ * original int16-promoted subtraction), continuous for modern. The raw
+ * difference is unwrapped — the ring wrap happens inside each consumer exactly
+ * where the original expression did it (abs16Compat's internal (int16) cast in
+ * rangeApprox, explicit (uint16) casts in side tests). */
+template<class B> struct MapOffset {
+    using Rep = std::conditional_t<std::is_same_v<B, FixedBackend>, int, double>;
+    Rep dx{}, dy{};
+    /* The (uint16)delta side-test, wrapped onto [0, 65536) without losing the
+     * modern fraction. */
+    Rep ringX() const { return ring(dx); }
+    Rep ringY() const { return ring(dy); }
+private:
+    static Rep ring(Rep v) {
+        if constexpr (std::is_same_v<B, FixedBackend>) return static_cast<std::uint16_t>(v);
+        else {
+            const auto r = std::fmod(v, 65536.0);
+            return r < 0 ? r + 65536.0 : r;
+        }
+    }
 };
 template<class B> class MapMath {
 public:

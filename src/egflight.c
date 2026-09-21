@@ -45,6 +45,8 @@ using f15::math::legacy::signedAngle;
 using f15::math::legacy::angleFromWord;
 using f15::math::legacy::angleMagnitude;
 using f15::math::legacy::angleMagnitudeCompat;
+using f15::math::legacy::mapOffset;
+using f15::math::legacy::mapRange;
 using f15::math::legacy::rollCommand;
 using f15::math::legacy::pitchCommand;
 using f15::math::legacy::rollInput;
@@ -240,7 +242,7 @@ void stepFlightModel(void) {
 
         if (gameData->difficulty == 0) {
 
-            g_ourHead = angleFromWord(((f15::math::legacy::mapWordY(flightMapPosition()) - (waypoints[1].mapY)) < 0x8000) ? 0 : 0x8000);
+            g_ourHead = angleFromWord((mapOffset(flightMapPosition(), waypoints[1].mapX, waypoints[1].mapY).dy < 0x8000) ? 0 : 0x8000);
         } else {
             g_ourHead = angleFromWord((gameData->theater == 6)
                             ? 0                                       // If true, the result is 0
@@ -782,7 +784,7 @@ switch_break:
 
     if (g_currentWeaponType == 1) {
         if (g_airTargetLock >= 0) {
-            idx = clampRange((rangeApprox(f15::math::legacy::mapWordX(flightMapPosition()) - g_simObjects[g_airTargetLock].posX, f15::math::legacy::mapWordY(flightMapPosition()) - g_simObjects[g_airTargetLock].posY) * g_frameRateScaling) >> 8, 0, 12);
+            idx = clampRange(((int)(mapRange(mapOffset(flightMapPosition(), g_simObjects[g_airTargetLock].posX, g_simObjects[g_airTargetLock].posY)) * g_frameRateScaling) >> 8), 0, 12);
 
         } else {
             idx = g_frameRateScaling - 1;

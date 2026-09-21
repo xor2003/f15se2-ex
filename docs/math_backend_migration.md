@@ -938,6 +938,41 @@ checks the fixed adapters against the literal `abs`/`abs16Compat` oracles
 over all 65536 words plus sampled wrapped diffs, and the modern fraction
 preservation at a sub-word gate boundary.
 
+## Map offset and range read adapters
+
+Decision sites that read `mapWordX/Y(flightMapPosition())` minus a stored map
+word now compute the delta on the typed position, so the modern backend no
+longer rounds the player position to a coarse word before comparing:
+
+* `MapOffset<B>` (`map_position.hpp`) — the word-unit difference: `int` under
+  fixed (the original int16-promoted subtraction, unwrapped) and `double`
+  under modern (fraction preserved). `ringX()/ringY()` reproduce the
+  `(uint16)delta` side-tests, wrapping the *fractional* modern value onto
+  [0, 65536) instead of truncating first.
+* `legacy::mapOffset(pos, x, y)` — builds the offset from stored map words
+  with each field's original promotion (uint16 zero-extends, int16
+  sign-extends).
+* `legacy::mapRange(offset)` — the `rangeApprox` approximation (max + min/2)
+  on the offset. Fixed reproduces it end-to-end including the abs16Compat
+  (int16) wrap, the 0x7fff cap and the int16 return cast (the delta-32768
+  quirk path yields +16384, verified against the real `rangeApprox`). Modern
+  wraps deltas onto the same ring, keeps the fraction, and drops the cap and
+  quirk — a legacy int16-return limit, not a gameplay bound.
+
+Migrated: snapshot-ring index (`egflight`), autopilot initial heading pick
+(`egflight`), `g_northSouthSign` side test (`egframe`), closest-threat scan
+(`egframe`), threat timeout range gate (`egthreat`).
+
+Deliberately unchanged: `computeBearing` callers stay on word deltas —
+bearing is an inverse-trig output whose endpoint contract is still open.
+Word-vs-word `rangeApprox` calls (hit map, sim-object pairs, `g_threatRef`
+locals) and `mapWordX/Y` storage/display/projection writes stay — no typed
+fraction exists on the other side.
+
+Verification: fixed 59/59 and modern smoke pass; `typed_horizontal_tests`
+checks the offset/ring/range adapters against the literal promotion and the
+real `rangeApprox` over ~350k sampled cases including the quirk delta.
+
 ### Next acceptance boundary
 
 Aircraft Euler, command, altitude, climb, airspeed and fine horizontal position

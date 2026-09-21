@@ -10,6 +10,8 @@
 #include <limits>
 #include <utility>
 
+extern int rangeApprox(int deltaX, int deltaY);
+
 namespace {
 using namespace f15::math;
 using F = FixedBackend;
@@ -104,6 +106,31 @@ void fixedMath() {
     require(MapBoundary<F>::position(1, 2) == MapBoundary<F>::position(1, 2) &&
             MapBoundary<F>::position(1, 2) != MapBoundary<F>::position(2, 1),
             "map position equality changed");
+    /* mapOffset/mapRange reproduce the legacy word arithmetic exactly: the
+     * offset is the int16-promoted subtraction, ringX/ringY the (uint16) wrap,
+     * and mapRange the rangeApprox body (abs16Compat wrap, 0x7fff cap). */
+    const int fields[] = {-32768, -400, -1, 0, 1, 400, 32767, 40000, 65535};
+    for (int w = 0; w < 65536; w += 17) {
+        const auto pos = MapBoundary<F>::position(static_cast<std::int16_t>(w),
+                                                  static_cast<std::int16_t>(w * 31 + 7));
+        for (int fx : fields) for (int fy : fields) {
+            const auto off = legacy::mapOffset(pos, fx, fy);
+            require(off.dx == static_cast<int>(MapBoundary<F>::wordX(pos)) - fx &&
+                    off.dy == static_cast<int>(MapBoundary<F>::wordY(pos)) - fy,
+                    "map offset promotion changed");
+            require(off.ringX() == static_cast<std::uint16_t>(off.dx) &&
+                    off.ringY() == static_cast<std::uint16_t>(off.dy),
+                    "map offset ring wrap changed");
+            require(legacy::mapRange(off) ==
+                    rangeApprox(static_cast<int>(MapBoundary<F>::wordX(pos)) - fx,
+                                static_cast<int>(MapBoundary<F>::wordY(pos)) - fy),
+                    "map range differs from rangeApprox");
+        }
+    }
+    // DOS abs16Compat quirk preserved end-to-end: the -32768 delta stays
+    // negative through the approximation and re-wraps via the int16 return.
+    require(legacy::mapRange(legacy::mapOffset(MapBoundary<F>::position(0, 0), 32768, 32768)) ==
+            rangeApprox(-32768, -32768), "fixed range quirk changed");
 }
 
 void productionCaller() {
@@ -169,6 +196,23 @@ void modernMath() {
     require(MapBoundary<M>::x(mid) == 2.0 && MapBoundary<M>::y(mid) == 3.0,
             "modern map interpolation quantized");
     rejects([] { MapBoundary<M>::position(1.0, std::numeric_limits<double>::infinity()); });
+    // Modern offsets keep the fraction; the ring wrap acts on the real value
+    // (a -0.5 delta is just north of zero, not word 0).
+    const auto off = legacy::mapOffset(MapBoundary<M>::position(100.5, 200.75), 50, 201);
+    require(off.dx == 50.5 && off.dy == -0.25, "modern map offset quantized");
+    require(legacy::mapOffset(MapBoundary<M>::position(-0.5, 0.0), 0, 0).ringX() == 65535.5,
+            "modern ring wrap truncated before wrapping");
+    // mapRange: same approximation, fraction preserved, same ring wrap
+    // (delta 40000.5 -> magnitude 25535.5), and no 0x7fff cap.
+    require(std::abs(legacy::mapRange(legacy::mapOffset(MapBoundary<M>::position(0.0, 0.0), -100, -50)) - 125.0) < 1e-9,
+            "modern map range approximation changed");
+    require(legacy::mapRange(legacy::mapOffset(MapBoundary<M>::position(40000.5, 0.0), 0, 0)) == 25535.5,
+            "modern map range lost the ring wrap");
+    // Delta (-32768, -32768): fixed keeps the abs16Compat quirk (negative
+    // range), modern returns the clean uncapped magnitude 49152.
+    const auto quirkDelta = legacy::mapOffset(MapBoundary<M>::position(0.0, 0.0), 32768, 32768);
+    require(legacy::mapRange(quirkDelta) == 49152.0,
+            "modern map range kept the legacy cap or quirk");
 }
 }
 int main() {
