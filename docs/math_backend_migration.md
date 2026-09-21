@@ -901,6 +901,43 @@ as `blackbox_diag`) after every tick.
 
 Verification: fixed 59/59 (new `sortie_parity_tests`) and modern smoke pass.
 
+## Angle magnitude read adapters
+
+`legacy_rotation.hpp` gained two fraction-preserving magnitude reads for
+decision sites that used `abs(signedAngle(x))`:
+
+* `angleMagnitude(angle)` — |angle| in word units (0..32768). Fixed reproduces
+  the hosted `abs(int16)` result including `abs(-32768) == 32768`; modern
+  returns `|radians| · 32768/π` as a continuous value, so a roll of 0x2FFF.9
+  words compares inside a `< 0x3000` gate instead of rounding out of it.
+* `angleMagnitudeCompat(angle)` — the `abs16Compat` variant for sites that
+  used the DOS quirk abs (`word 0x8000` stays negative). The post-abs
+  `(int16)` cast sites (`(int16)abs(...)` re-wraps 32768 identically) use it
+  too; the equivalence is asserted exhaustively in `typed_rotation_tests`.
+* Angle differences express naturally as `Angle - Angle`: both backends give
+  the wrapped short-arc difference (`Angle16` subtracts mod 2^16; modern
+  normalizes to [−π, π)), so `angleMagnitude(a - b)` replaces
+  `abs16Compat((int16)(wordA - signedAngle(b)))`.
+
+Migrated decision sites: fire-missile roll gate and acquisition bearing diffs
+(`egcombat`), ground pitch-down check, ground-avoidance and eject roll gates,
+nonzero-roll ground leveling, high-gee flag, evasion roll threshold
+(`egflight`), crash-dive heading check (`egframe`), hard-landing damage roll
+(`egkeys`), loft-marker roll gate (`egtarget`), `computeLoftAngle` pitch
+magnitude (`egtgt2`), threat-aspect roll gate (`egthreat`).
+
+Deliberately unchanged: `signedAngle` remains the correct adapter where the
+consumer is word-domain — `sinMul`/`cosMul` LUT inputs, `pitchCommand`/`hdg`
+word producers, `Projectile`/snapshot/`heading.w` storage writes, and all
+display/projection reads. The `abs(abs(wordDiff >> 8) - 0x40)` compound in the
+SAM acquisition scan (`egcombat.c` ~line 203) keeps `signedAngle` — its `>>8`
+is word-domain arithmetic inside the deferred combat/AI scope.
+
+Verification: fixed 59/59 and modern smoke pass; `typed_rotation_tests`
+checks the fixed adapters against the literal `abs`/`abs16Compat` oracles
+over all 65536 words plus sampled wrapped diffs, and the modern fraction
+preservation at a sub-word gate boundary.
+
 ### Next acceptance boundary
 
 Aircraft Euler, command, altitude, climb, airspeed and fine horizontal position

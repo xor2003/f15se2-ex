@@ -8,6 +8,7 @@
 #include "math/legacy_map.hpp"
 #include "math/legacy_airspeed.hpp"
 using f15::math::legacy::signedAngle;
+using f15::math::legacy::angleMagnitude;
 using SpeedMath = f15::math::AirspeedMath<f15::math::GameBackend>;
 #include "egflight.h"
 #include "egframe.h"
@@ -275,7 +276,7 @@ void keyDispatch(uint16 scanCode) {
         if (g_ejectState == 0) {
             makeSound(2, 2);
             makeSound(34, 2);
-            if ((abs((int16)signedAngle(g_ourRoll)) >> 5) + (abs(signedAngle(g_ourPitch)) >> 5) + (int)f15::math::legacy::knotsUnits(flightKnots()) > randomRange(500) + 500) {
+            if (((int)angleMagnitude(g_ourRoll) >> 5) + ((int)angleMagnitude(g_ourPitch) >> 5) + (int)f15::math::legacy::knotsUnits(flightKnots()) > randomRange(500) + 500) {
                 finalizeMission(6);
             } else {
                 commData->landingType = 2;

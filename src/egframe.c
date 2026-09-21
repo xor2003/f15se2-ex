@@ -16,6 +16,8 @@ using f15::math::legacy::moveY;
 #include "math/legacy_map.hpp"
 using f15::math::legacy::altitudeFromUnits;
 using f15::math::legacy::signedAngle;
+using f15::math::legacy::angleFromWord;
+using f15::math::legacy::angleMagnitude;
 using SpeedMath = f15::math::AirspeedMath<f15::math::GameBackend>;
 #include "egflight.h"
 #include "egframe.h"
@@ -341,7 +343,7 @@ skip_target_section:
             if (missionAtHeight(g_groundAltitude) && flightKnots() > SpeedMath::knots(0x50)) {
                 if ((uint16)(f15::math::legacy::mapWordY(flightMapPosition()) - g_planeTable.planes[g_closestThreatIndex].mapY) * g_northSouthSign >= 0x10 && (uint16)(f15::math::legacy::mapWordY(flightMapPosition()) - g_planeTable.planes[g_closestThreatIndex].mapY) * g_northSouthSign <= 0x14) {
                     if (!gameOptionsEnabled(GAME_OPTION_NO_DAMAGE) &&
-                        abs((int16)(signedAngle(g_ourHead) - ((1 - g_northSouthSign) << 0xe))) < 0x2000) {
+                        angleMagnitude(g_ourHead - angleFromWord((1 - g_northSouthSign) << 0xe)) < 0x2000) {
                         g_autoCrashDive = 1;
                         makeSound(22, 2);
                     }

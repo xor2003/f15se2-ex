@@ -6,6 +6,7 @@
 #include "math/legacy_altitude.hpp"
 #include "math/legacy_map.hpp"
 using f15::math::legacy::signedAngle;
+using f15::math::legacy::angleMagnitude;
 #include "egflight.h"
 #include "egframe.h"
 #include "egkeys.h"
@@ -368,7 +369,7 @@ void updateObjects(void) {
                     }
                     relBearing = (int16)(bearing - hdg) >> 13 & 7;
                     hdg = signedAngle(g_ourHead);
-                    if (abs((int16)signedAngle(g_ourRoll)) < 0x4000) {
+                    if (angleMagnitude(g_ourRoll) < 0x4000) {
                         hdg += (int16)signedAngle(g_ourRoll) >> 1;
                     }
                     aspect = (((g_simObjects[objIdx].heading.w - hdg) >> 13) + 4) & 7;

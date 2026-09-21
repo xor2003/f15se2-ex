@@ -10,6 +10,7 @@ using f15::math::legacy::fineUnits;
 #include "math/legacy_altitude.hpp"
 #include "math/legacy_map.hpp"
 using f15::math::legacy::signedAngle;
+using f15::math::legacy::angleMagnitude;
 #include "egflight.h"
 #include "egframe.h"
 #include "egmath.h"
@@ -855,7 +856,7 @@ void drawHudWorldOverlay(void) {
     if (g_currentWeaponType == 2 && g_viewMode == VIEW_COCKPIT) {
         missileSpecD = missiles[missleSpec[missileSpecIndex].weaponIdx].specIndex;
 
-        if (missileSpecD == 30 && abs((int16)signedAngle(g_ourRoll)) < 0x2000) {
+        if (missileSpecD == 30 && angleMagnitude(g_ourRoll) < 0x2000) {
             tmp = computeLoftAngle();
             loftDist = cosMul(tmp, f15::math::legacy::altitudeUnits(g_altitude)) / (sinMul(-tmp, 0x20) + 1);
             pointX = sinMul(signedAngle(g_ourHead), loftDist) + f15::math::legacy::mapWordX(flightMapPosition());

@@ -5,6 +5,9 @@
 #define F15_MATH_BOUNDARY_ACCESS
 #include "boundary.hpp"
 #undef F15_MATH_BOUNDARY_ACCESS
+#include "../inttype.h"
+#include <cmath>
+#include <type_traits>
 
 namespace f15::math::legacy {
 using Codec = Boundary<GameBackend>;
@@ -18,6 +21,29 @@ inline std::int16_t signedAngle(AircraftAngle angle) {
 }
 inline AircraftAngle angleFromWord(int word) {
     return Codec::angleWord(static_cast<std::uint16_t>(word));
+}
+
+/* Angle magnitude in word units (0..32768) for magnitude-threshold decisions.
+ * Fixed reproduces the hosted abs(int16) result; modern keeps the sub-word
+ * fraction that signedAngle() would round away. Templated on the backend so
+ * the fixed-only member lookups stay out of the modern instantiation. */
+template<class B = GameBackend>
+inline auto angleMagnitude(Angle<B> angle) {
+    if constexpr (std::is_same_v<B, FixedBackend>)
+        return std::abs(static_cast<int>(signedAngle(angle)));
+    else
+        return std::fabs(Boundary<B>::radians(angle)) * (32768.0 / 3.14159265358979323846);
+}
+
+/* Same read for the abs16Compat quirk sites — and for post-abs (int16) casts,
+ * which re-wrap 32768 to -32768 identically. The DOS abs() left word 0x8000
+ * negative; fixed preserves that, modern returns the clean magnitude. */
+template<class B = GameBackend>
+inline auto angleMagnitudeCompat(Angle<B> angle) {
+    if constexpr (std::is_same_v<B, FixedBackend>)
+        return abs16Compat(signedAngle(angle));
+    else
+        return angleMagnitude(angle);
 }
 
 inline int updateAttitudeFromWords(AircraftAngle &roll, AircraftAngle &pitch,

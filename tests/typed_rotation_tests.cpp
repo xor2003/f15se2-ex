@@ -1,6 +1,8 @@
 #include "math/legacy_rotation.hpp"
 using f15::math::legacy::signedAngle;
 using f15::math::legacy::angleFromWord;
+using f15::math::legacy::angleMagnitude;
+using f15::math::legacy::angleMagnitudeCompat;
 #define F15_MATH_BOUNDARY_ACCESS
 #include "math/boundary.hpp"
 #undef F15_MATH_BOUNDARY_ACCESS
@@ -110,6 +112,27 @@ void fixedAndCallers() {
         require(words(FC::matrixWords(a.data()) * FC::matrixWords(b.data())) == rotation_reference::multiply(a, b),
                 "fixed arbitrary matrix accumulator wrap changed");
     }
+    /* Magnitude adapters: exhaustive word oracle. angleMagnitude matches the
+     * hosted abs(int16) sites (word 0x8000 -> +32768); angleMagnitudeCompat
+     * matches abs16Compat (0x8000 stays -32768), which post-abs (int16) casts
+     * re-wrap to as well. */
+    for (int w = 0; w < 65536; ++w) {
+        const auto angle = angleFromWord(w);
+        require(angleMagnitude(angle) == std::abs(static_cast<int>(static_cast<int16>(w))),
+                "fixed angleMagnitude differs from abs(int16)");
+        require(angleMagnitudeCompat(angle) == abs16Compat(static_cast<int16>(w)),
+                "fixed angleMagnitudeCompat differs from abs16Compat");
+        require(angleMagnitudeCompat(angle) == static_cast<int16>(std::abs(static_cast<int>(static_cast<int16>(w)))),
+                "post-abs int16 cast and abs16Compat disagree");
+    }
+    for (int sample = 0; sample < 20000; ++sample) {
+        const int a = sample < 81 ? edges[sample / 9] : next();
+        const int b = sample < 81 ? edges[sample % 9] : next();
+        require(angleMagnitude(angleFromWord(a) - angleFromWord(b)) ==
+                std::abs(static_cast<int>(static_cast<int16>(a - b))), "fixed magnitude diff changed");
+        require(angleMagnitudeCompat(angleFromWord(a) - angleFromWord(b)) ==
+                abs16Compat(static_cast<int16>(a - b)), "fixed compat magnitude diff changed");
+    }
 }
 
 void modernPrecision() {
@@ -152,6 +175,19 @@ void modernPrecision() {
     try { (void)MC::radians(std::numeric_limits<double>::infinity()); }
     catch (const std::domain_error &) { rejected = true; }
     require(rejected, "nonfinite boundary input accepted");
+    /* Magnitude reads keep the sub-word fraction: a roll just inside the
+     * 0x3000-word gate stays inside it, where signedAngle() would round out. */
+    const auto justInside = MC::radians((0x3000 - 0.4) * (2 * pi / 65536));
+    require(angleMagnitude(justInside) < 0x3000 &&
+            static_cast<int16>(MC::angleWord(justInside)) == 0x3000,
+            "modern magnitude lost the sub-word fraction");
+    require(std::abs(angleMagnitude(MC::radians(-1.25)) - 1.25 * (32768.0 / pi)) < 1e-9,
+            "modern magnitude units changed");
+    require(angleMagnitudeCompat(MC::radians(-pi)) == 32768.0,
+            "modern compat magnitude kept the DOS quirk");
+    const auto diff = MC::angleWord(0x1234) - MC::angleWord(0x5678);
+    require(std::abs(angleMagnitude(diff) - std::abs(static_cast<int16>(0x1234 - 0x5678))) < 0.5,
+            "modern angle difference broke short-arc semantics");
 }
 
 void attitudeAndDeltas() {

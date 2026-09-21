@@ -11,6 +11,7 @@ using f15::math::legacy::fineUnits;
 #include "math/legacy_altitude.hpp"
 #include "math/legacy_map.hpp"
 using f15::math::legacy::signedAngle;
+using f15::math::legacy::angleMagnitude;
 #include "egflight.h"
 #include "egframe.h"
 #include "egmath.h"
@@ -250,7 +251,7 @@ int16 computeLoftAngle() {
 #else
     const uint32 scenePlusMargin = (uint16)(g_viewZ + 0x1000);
 #endif
-    return (int16)((uint32)((int32)(0x4000 - abs(signedAngle(g_ourPitch))) << 12) / scenePlusMargin) - 0x4000;
+    return (int16)((uint32)((int32)(0x4000 - angleMagnitude(g_ourPitch)) << 12) / scenePlusMargin) - 0x4000;
 }
 
 // ==== seg000:0xc864 ====

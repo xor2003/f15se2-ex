@@ -11,6 +11,9 @@ using f15::math::legacy::fineUnits;
 #include "math/legacy_altitude.hpp"
 #include "math/legacy_map.hpp"
 using f15::math::legacy::signedAngle;
+using f15::math::legacy::angleFromWord;
+using f15::math::legacy::angleMagnitude;
+using f15::math::legacy::angleMagnitudeCompat;
 #include "egflight.h"
 #include "egframe.h"
 #include "egkeys.h"
@@ -517,7 +520,7 @@ int samCanAcquireTarget(int slot, int targetX, int targetY, int targetAlt, int m
         return 0;
     }
     if (mode == 0) {
-        if (abs16Compat((int16)(g_projectiles[slot].worldX - signedAngle(g_ourHead))) > 0x2000) {
+        if (angleMagnitudeCompat(angleFromWord(g_projectiles[slot].worldX) - g_ourHead) > 0x2000) {
             return 0;
         }
     }
@@ -525,8 +528,8 @@ int samCanAcquireTarget(int slot, int targetX, int targetY, int targetAlt, int m
         g_acqRange = range;
         return 1;
     }
-    bearDiff = abs16Compat((int16)(g_projectiles[slot].worldX - signedAngle(g_ourHead)));
-    if (abs(bearDiff - 0x4000) >= 0x2000 - g_missionStatus * 2048) {
+    const auto headDiff = angleMagnitudeCompat(angleFromWord(g_projectiles[slot].worldX) - g_ourHead);
+    if (std::abs(headDiff - 0x4000) >= 0x2000 - g_missionStatus * 2048) {
         g_acqRange = range;
         return 1;
     }
@@ -680,7 +683,7 @@ void bombTarget(void) {
 void fireMissile() {
     int16 spec, tmp, weaponIdx, slot;
 
-    if (abs(signedAngle(g_ourRoll)) > 0x3000) return;
+    if (angleMagnitude(g_ourRoll) > 0x3000) return;
     if (g_inLandingCorridor != 0) return;
     if (g_ejectState != 0) return;
 

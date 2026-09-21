@@ -43,6 +43,8 @@ using f15::math::legacy::altitudeUnits;
 using f15::math::legacy::climbUnits;
 using f15::math::legacy::signedAngle;
 using f15::math::legacy::angleFromWord;
+using f15::math::legacy::angleMagnitude;
+using f15::math::legacy::angleMagnitudeCompat;
 using f15::math::legacy::rollCommand;
 using f15::math::legacy::pitchCommand;
 using f15::math::legacy::rollInput;
@@ -453,7 +455,7 @@ switch_break:
         }
     }
 
-    if (flightAtGround() && g_pitchInput.isNegative() && signedAngle(g_ourPitch) <= 0) {
+    if (flightAtGround() && g_pitchInput.isNegative() && !g_ourPitch.isPositive()) {
         g_pitchInput = {};
     }
 
@@ -544,7 +546,7 @@ switch_break:
         g_pitchInput += pitchCommand((randomRange(turbulence) - (turbulence >> 1)) >> 1);
     }
 
-    if ((g_playerPlaneFlags & 1) && (g_pitchInput.isNegative() || g_pitchInput.isZero()) && Aero::aboveStall(g_velocity, g_stallSpeed) && gameData->unk4 < 2 && abs((int16)signedAngle(g_ourRoll)) < 0x3000 && g_gunFiredFlag == 0) {
+    if ((g_playerPlaneFlags & 1) && (g_pitchInput.isNegative() || g_pitchInput.isZero()) && Aero::aboveStall(g_velocity, g_stallSpeed) && gameData->unk4 < 2 && angleMagnitude(g_ourRoll) < 0x3000 && g_gunFiredFlag == 0) {
 #ifdef F15_MODERN_MATH
         g_pitchInput = f15::math::GuidanceMath<f15::math::GameBackend>::groundAvoidancePitch(
             g_altitude, g_ourPitch, g_rollPitchTrim, g_pitchInput);
@@ -559,7 +561,7 @@ switch_break:
     if (g_ejectState != 0) {
         g_rollInput = rollCommand(0x40);
 
-        g_pitchInput = pitchCommand((abs((int16)signedAngle(g_ourRoll)) > 0x4000) ? 0x10 : -8);
+        g_pitchInput = pitchCommand((angleMagnitude(g_ourRoll) > 0x4000) ? 0x10 : -8);
 
         // g_ejectState++;
         g_crashCamZ += clampRange(
@@ -723,7 +725,7 @@ switch_break:
     }
 
     if (flightAtGround()) {
-        if (signedAngle(g_ourRoll) != 0) {
+        if (angleMagnitude(g_ourRoll) != 0) {
             g_ourRoll = {};
             g_orientationDirty = 1;
         }
@@ -737,7 +739,7 @@ switch_break:
 
     g_autoCrashDive = 0;
 
-    g_highGeeFlag[0] = ((abs(signedAngle(g_ourPitch))) - (abs((int16)signedAngle(g_ourRoll)) / 2) > 0x1000) ? 1 : 0;
+    g_highGeeFlag[0] = ((angleMagnitude(g_ourPitch)) - (angleMagnitude(g_ourRoll) / 2) > 0x1000) ? 1 : 0;
 
     /* Keep the stall and ground corrections above. Reapplying handset attitude
      * here would erase their nose drop and permit flight below stall speed. */
@@ -761,7 +763,7 @@ switch_break:
                 (((((g_planeTable.planes[g_closestThreatIndex].flags & 0x200) ? 0x100 : 0x80) < ((int16)(-climbUnits(g_climbRate) * g_missionStatus) / 2))) ||
                 ((gameData->unk4 != 0 &&
                   (((g_playerPlaneFlags & 1) != 0) ||
-                   (((int16)abs(signedAngle(g_ourRoll))) > (int16)((0x30 / (g_missionStatus + 1)) << 8))))))) {
+                   ((angleMagnitudeCompat(g_ourRoll)) > (int16)((0x30 / (g_missionStatus + 1)) << 8))))))) {
                 makeSound(0, 2);
                 waitFrameSync(60);
                 finalizeMission(5);
