@@ -116,7 +116,7 @@ void renderHudFrame(int unused) {
             gfx_invalidateTtfTextOverlayRect(0, HUD_STALL_TEXT_Y, 319,
                                              HUD_STALL_TEXT_Y + HUD_TRANSIENT_TEXT_HEIGHT);
             // stall warning display
-            if (g_knots < g_cornerSpeed &&
+            if (flightKnots() < flightCornerSpeed() &&
                 !f15::math::AltitudeMath<f15::math::GameBackend>::atGround(
                     flightSceneHeight(), f15::math::legacy::Altitudes::ground(g_groundAltitude)) &&
                 frameTick & 1) {

@@ -31,6 +31,10 @@ template<class B, class Unit> class AirspeedQuantity {
 public:
     AirspeedQuantity() = default;
     bool operator==(AirspeedQuantity other) const { return value_ == other.value_; }
+    bool operator<(AirspeedQuantity other) const { return value_ < other.value_; }
+    bool operator<=(AirspeedQuantity other) const { return value_ <= other.value_; }
+    bool operator>(AirspeedQuantity other) const { return value_ > other.value_; }
+    bool operator>=(AirspeedQuantity other) const { return value_ >= other.value_; }
     bool isZero() const { return value_ == 0; }
 };
 template<class B> using FlightSpeed = AirspeedQuantity<B, FlightSpeedUnit>;
@@ -42,6 +46,26 @@ template<class B> using CornerSpeed = AirspeedQuantity<B, CornerSpeedUnit>;
 // Engine velocity units (27 per indicated knot), not SI metres per second.
 template<class B> class AirspeedMath {
 public:
+    static constexpr int velocityUnitsPerKnot = 27;
+    // Indicated knots: the fixed backend keeps the word truncation of
+    // speedWord(v) / 27; the modern backend keeps fractional knots unwrapped.
+    static CornerSpeed<B> indicatedKnots(FlightSpeed<B> speed) {
+        if constexpr (std::is_same_v<B, FixedBackend>)
+            return CornerSpeed<B>(static_cast<std::int16_t>(
+                std::uint16_t(speed.value_) / velocityUnitsPerKnot));
+        else return CornerSpeed<B>(speed.value_ / velocityUnitsPerKnot);
+    }
+    // Flight speed reconstructed from indicated knots (the inverse quantization).
+    static FlightSpeed<B> speedFromKnots(CornerSpeed<B> knots) {
+        return FlightSpeed<B>(knots.value_ * velocityUnitsPerKnot);
+    }
+    // A threshold expressed in indicated knots.
+    static CornerSpeed<B> knots(int indicated) {
+        if constexpr (std::is_same_v<B, FixedBackend>)
+            return CornerSpeed<B>(static_cast<std::int16_t>(indicated));
+        else return CornerSpeed<B>(static_cast<double>(indicated));
+    }
+    static CornerSpeed<B> knots(double) = delete;
     static FlightSpeed<B> accelerate(FlightSpeed<B> speed, FlightSpeed<B> target, SimulationStep<B> step) {
         if constexpr (std::is_same_v<B, FixedBackend>) {
             const auto difference = std::int64_t(target.value_) - speed.value_;

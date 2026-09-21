@@ -59,7 +59,7 @@ template<class B> class PropulsionMath {
     static constexpr int speedAtMilitaryPower = 800;
     static constexpr int militaryPower = 100;
     static constexpr int maximumTargetKnots = 899;
-    static constexpr int velocityUnitsPerKnot = 27;
+    static constexpr int velocityUnitsPerKnot = AirspeedMath<B>::velocityUnitsPerKnot;
     static constexpr int heightBand = 128;
     static constexpr int heightScale = 1024;
     static constexpr int fuelBand = 512;

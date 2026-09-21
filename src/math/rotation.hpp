@@ -55,6 +55,18 @@ public:
         else return value_ == other.value_;
     }
     bool operator!=(Angle other) const { return !(*this == other); }
+    // Sign in the same domain as the legacy signedAngle word: the fixed rep
+    // reads the word's sign bit, the modern rep reads the normalized radians.
+    bool isNegative() const {
+        if constexpr (std::is_same_v<B, FixedBackend>) return value_.raw() >= 0x8000;
+        else return value_ < 0;
+    }
+    bool isPositive() const {
+        if constexpr (std::is_same_v<B, FixedBackend>) {
+            const auto raw = value_.raw();
+            return raw > 0 && raw < 0x8000;
+        } else return value_ > 0;
+    }
     static Angle quarterTurn() {
         if constexpr (std::is_same_v<B, FixedBackend>) return Angle(fixed::Angle16(0x4000));
         else return Angle(1.57079632679489661923);

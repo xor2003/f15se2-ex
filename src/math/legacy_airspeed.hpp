@@ -9,6 +9,8 @@ inline FlightSpeed<GameBackend> speedFromUnits(std::int32_t v) { return Airspeed
 inline std::int32_t speedUnits(FlightSpeed<GameBackend> v) { return Airspeeds::speed(v); }
 inline std::uint16_t speedWord(FlightSpeed<GameBackend> v) { return std::uint16_t(speedUnits(v)); }
 inline std::int16_t cornerKnots(CornerSpeed<GameBackend> v) { return Airspeeds::corner(v); }
+// Raw indicated knots: int16 under the fixed backend, fractional under modern.
+inline auto knotsUnits(CornerSpeed<GameBackend> v) { return Airspeeds::corner(v); }
 inline StallSpeed<GameBackend> stallFromUnits(std::int64_t v) {
     const auto bits = std::uint16_t(v);
     return Airspeeds::stall(static_cast<std::int16_t>(bits < 32768 ? int(bits) : int(bits) - 65536));

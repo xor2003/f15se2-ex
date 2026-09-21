@@ -659,6 +659,34 @@ acceleration/braking helpers. Other linked core files are not instrumented and
 this does not execute an entire sortie. Windows, Android, browser, external-asset
 validation and live-flight checks remain outstanding.
 
+## Indicated-knots checkpoint
+
+* `g_knots` was `speedWord(g_velocity) / 27`: under the modern backend this
+  truncated the fractional speed to a 16-bit word (wrapping above 65,536 engine
+  units) and then to whole knots. `AirspeedMath::indicatedKnots` now produces a
+  `CornerSpeed<B>` (the existing indicated-knots unit); `flightKnots()` is the
+  typed accessor — fractional and unwrapped under modern, the stored word and
+  its update timing under fixed. `flightCornerSpeed()` exposes the typed corner
+  speed captured where `g_cornerSpeed` is written.
+* Decision consumers now read typed knots: the attitude-control gate, gear
+  auto-raise and approach brake/corridor checks, turbulence floor (`egflight.c`),
+  landing/crash checks (`egframe.c`), the eject-survival roll and gear indicator
+  (`egkeys.c`), and the stall-text gate (`egtacmap.c`). `Angle` gained
+  `isNegative`/`isPositive` so the ground pitch-leveling check reads the
+  fractional sign instead of a quantized word.
+* `g_knots`/`g_cornerSpeed` remain `int16` words for display, engine-pitch audio
+  and blackbox telemetry — the knots values themselves are a legacy presentation
+  format. `speedFromKnots` reproduces the `g_knots * 27` reconstruction under
+  fixed and keeps the fractional product under modern. `velocityUnitsPerKnot`
+  is now the single shared 27-units-per-knot constant in `AirspeedMath`.
+* `typed_airspeed_tests` checks the fixed conversion over every 16-bit speed
+  word (plus native-width offsets), the `knots * 27` reconstruction, thresholds
+  and same-unit comparisons; modern coverage keeps `speed / 27` exact through
+  1e6 engine units. `modern_flight_smoke_tests` regresses the accessor against
+  `g_velocity` above the word wrap and verifies the typed values stay in sync
+  with the display words across `stepFlightModel`. Eight compile-fail cases
+  reject primitive/unit/backend misuse and fractional thresholds.
+
 ## Lift and trim checkpoint
 
 * `g_liftForce` and `g_rollPitchTrim` now store typed angles. Despite the old

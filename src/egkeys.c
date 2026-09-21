@@ -5,7 +5,9 @@
 #include "math/legacy_rotation.hpp"
 #include "math/legacy_horizontal.hpp"
 #include "math/legacy_altitude.hpp"
+#include "math/legacy_airspeed.hpp"
 using f15::math::legacy::signedAngle;
+using SpeedMath = f15::math::AirspeedMath<f15::math::GameBackend>;
 #include "egflight.h"
 #include "egframe.h"
 #include "egkeys.h"
@@ -271,7 +273,7 @@ void keyDispatch(uint16 scanCode) {
         if (g_ejectState == 0) {
             makeSound(2, 2);
             makeSound(34, 2);
-            if ((abs((int16)signedAngle(g_ourRoll)) >> 5) + (abs(signedAngle(g_ourPitch)) >> 5) + g_knots > randomRange(500) + 500) {
+            if ((abs((int16)signedAngle(g_ourRoll)) >> 5) + (abs(signedAngle(g_ourPitch)) >> 5) + (int)f15::math::legacy::knotsUnits(flightKnots()) > randomRange(500) + 500) {
                 finalizeMission(6);
             } else {
                 commData->landingType = 2;
@@ -279,7 +281,7 @@ void keyDispatch(uint16 scanCode) {
             g_ejectState = 1;
             g_crashCamX = g_viewX_;
             g_crashCamY = g_viewY_;
-            g_crashCamZ = g_viewZ + 8;
+            g_crashCamZ = (int16)(f15::math::legacy::Altitudes::renderWord(flightSceneHeight()) + 8);
         }
         break;
     }
@@ -318,7 +320,7 @@ end_dispatch:
     }
 
     switchIndicatorColor(3, (*(char *)&g_playerPlaneFlags & 1)             ? 4
-                            : (g_knots < 250 || (*(char *)&frameTick & 1)) ? 2
+                            : (flightKnots() < SpeedMath::knots(250) || (*(char *)&frameTick & 1)) ? 2
                                                                            : 10);
 
     switchIndicatorColor(2, (*(char *)&g_playerPlaneFlags & 8) ? 14 : 2);

@@ -69,6 +69,12 @@ int main() {
     (void)AerodynamicsMath<ModernBackend>::stallWarning({}, {});
     (void)AltitudeMath<ModernBackend>::belowSceneHeight({}, {});
     (void)AltitudeMath<ModernBackend>::interpolate({}, {}, FrameFraction::fromTicks(1, 4));
+    (void)AirspeedMath<ModernBackend>::indicatedKnots({});
+    (void)AirspeedMath<ModernBackend>::speedFromKnots({});
+    (void)AirspeedMath<ModernBackend>::knots(350);
+    (void)(CornerSpeed<ModernBackend>{} < CornerSpeed<ModernBackend>{});
+    (void)Angle<ModernBackend>{}.isNegative();
+    (void)Angle<ModernBackend>{}.isPositive();
 #if defined(TEST_PRIMITIVE_ANGLE)
     (void)math.sine(1.0);
 #elif defined(TEST_PRIMITIVE_EULER)
@@ -214,6 +220,22 @@ int main() {
     (void)AerodynamicsMath<ModernBackend>::stallWarning({}, RenderHeight<FixedBackend>{});
 #elif defined(TEST_ALTITUDE_BAND_RAW)
     (void)AltitudeMath<ModernBackend>::belowSceneHeight(1.0, {});
+#elif defined(TEST_KNOTS_PRIMITIVE)
+    (void)AirspeedMath<ModernBackend>::indicatedKnots(1.0);
+#elif defined(TEST_KNOTS_UNIT)
+    (void)AirspeedMath<ModernBackend>::indicatedKnots(StallSpeed<ModernBackend>{});
+#elif defined(TEST_KNOTS_BACKEND)
+    (void)AirspeedMath<ModernBackend>::indicatedKnots(FlightSpeed<FixedBackend>{});
+#elif defined(TEST_KNOTS_FROM_RAW)
+    (void)AirspeedMath<ModernBackend>::speedFromKnots(12.0);
+#elif defined(TEST_KNOTS_FROM_UNIT)
+    (void)AirspeedMath<ModernBackend>::speedFromKnots(FlightSpeed<ModernBackend>{});
+#elif defined(TEST_KNOTS_FRACTION)
+    (void)AirspeedMath<ModernBackend>::knots(199.5);
+#elif defined(TEST_KNOTS_COMPARE_UNIT)
+    (void)(CornerSpeed<ModernBackend>{} < FlightSpeed<ModernBackend>{});
+#elif defined(TEST_KNOTS_COMPARE_BACKEND)
+    (void)(CornerSpeed<ModernBackend>{} < CornerSpeed<FixedBackend>{});
 #elif defined(TEST_LIFT_PRIMITIVE)
     (void)AerodynamicsMath<ModernBackend>::liftCorrection(1.0, 2.0);
 #elif defined(TEST_TRIM_PRIMITIVE)

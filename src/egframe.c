@@ -15,6 +15,7 @@ using f15::math::legacy::moveY;
 #include "math/legacy_altitude.hpp"
 using f15::math::legacy::altitudeFromUnits;
 using f15::math::legacy::signedAngle;
+using SpeedMath = f15::math::AirspeedMath<f15::math::GameBackend>;
 #include "egflight.h"
 #include "egframe.h"
 #include "android_ar.h"
@@ -324,7 +325,7 @@ skip_target_section:
             g_groundAltitude = 0x80;
             g_attackRangeX = 0x100;
             g_attackRangeY = 0x3c0;
-            if (missionAtHeight(g_groundAltitude) && g_knots > 0x50) {
+            if (missionAtHeight(g_groundAltitude) && flightKnots() > SpeedMath::knots(0x50)) {
                 if ((uint16)(g_viewY_ - g_planeTable.planes[g_closestThreatIndex].mapY) * g_northSouthSign >= 0x10 && (uint16)(g_viewY_ - g_planeTable.planes[g_closestThreatIndex].mapY) * g_northSouthSign <= 0x14) {
                     if (!gameOptionsEnabled(GAME_OPTION_NO_DAMAGE) &&
                         abs((int16)(signedAngle(g_ourHead) - ((1 - g_northSouthSign) << 0xe))) < 0x2000) {
@@ -344,7 +345,7 @@ skip_target_section:
             g_inLandingCorridor = 0;
         } else {
             g_inLandingCorridor = 1;
-            if ((g_knots <= 1) && ((frameTick & 7) == 0) && g_planeTable.planes[g_closestThreatIndex].flags & 0x500 && g_landingTimer != 0 && !(g_planeTable.planes[g_closestThreatIndex].flags & 0x800)) {
+            if ((flightKnots() <= SpeedMath::knots(1)) && ((frameTick & 7) == 0) && g_planeTable.planes[g_closestThreatIndex].flags & 0x500 && g_landingTimer != 0 && !(g_planeTable.planes[g_closestThreatIndex].flags & 0x800)) {
                 g_gearDownArmed = 1;
                 g_landingDoneFlag = 1;
                 if (g_landingTimer++ == 1) {
@@ -407,7 +408,7 @@ skip_autopilot:
             if (!android_ar_preventCrashes() &&
                 !gameOptionsEnabled(GAME_OPTION_NO_DAMAGE) &&
                 (gameData->unk4 != 0 || g_gunHits > 4 || g_fuelRemaining == 0) &&
-                g_ejectState == 0 && g_knots > 50) {
+                g_ejectState == 0 && flightKnots() > SpeedMath::knots(50)) {
                 makeSound(0, 2);
                 setDrawColor(COLOR_BLACK);
                 fillRectBoth(0, 0, 319, 199);

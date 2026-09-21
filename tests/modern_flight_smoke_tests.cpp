@@ -145,6 +145,14 @@ int main() {
     }
     g_ourPitch = {};
 
+    // Indicated-knots regression: keep fractional speed and do not wrap at the
+    // 16-bit velocity word (65536 engine units, ~2427 knots full scale).
+    for (double speed : {0.0, 26.9, 27.0, 5400.5, 65535.0, 65536.0, 70000.25}) {
+        g_velocity = Speeds::speed(speed);
+        require(std::abs(legacy::knotsUnits(flightKnots()) - speed / 27) < 1e-9,
+                "modern indicated knots wrapped or quantized");
+    }
+
     g_velocity = Speeds::speed(50000.25);
     g_playerPlaneFlags = 1;
     brakeFlightSpeed();
@@ -176,6 +184,9 @@ int main() {
         require(std::isfinite(Altitudes::altitude(g_altitude)) &&
                 Altitudes::altitude(g_altitude) > 0 && Speeds::speed(g_velocity) > 0,
                 "modern flight step produced invalid airborne state");
+        require(legacy::cornerKnots(flightKnots()) == g_knots &&
+                legacy::cornerKnots(flightCornerSpeed()) == g_cornerSpeed,
+                "typed knots/corner speed diverged from the display words");
         for (double coefficient : Angles::matrix(g_orientMatrix))
             require(std::isfinite(coefficient), "modern flight matrix became non-finite");
     }

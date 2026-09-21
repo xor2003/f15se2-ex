@@ -83,6 +83,25 @@ void fixedMath() {
     rejects([&] { FM::accelerate(FC::speed(INT32_MIN), FC::speed(INT32_MAX), step); });
     rejects([&] { FM::groundBrake(FC::speed(INT32_MIN), FC::deceleration(1), step); });
     rejects([&] { FM::groundBrake(FC::speed(INT32_MAX), FC::deceleration(-1), step); });
+    // Indicated knots keep the legacy `speedWord(v) / 27` truncation: only the
+    // low 16 bits count, and the quotient truncates toward zero.
+    for (int value = 0; value < 65536; ++value)
+        for (int speed : {value, value - 65536, value + 65536})
+            require(FC::corner(FM::indicatedKnots(FC::speed(speed))) ==
+                    static_cast<std::int16_t>(std::uint16_t(value) / 27),
+                    "fixed indicated-knots conversion changed");
+    // speedFromKnots reproduces `speedFromUnits(g_knots * 27)` exactly.
+    for (int knots : {-32768, -1, 0, 1, 199, 350, 2427, 32767})
+        require(FC::speed(FM::speedFromKnots(FC::corner(static_cast<std::int16_t>(knots)))) ==
+                static_cast<std::int32_t>(static_cast<std::int16_t>(knots)) * 27,
+                "fixed speed-from-knots reconstruction changed");
+    // Threshold construction and same-unit comparisons match the old int16 domain.
+    for (int threshold : {-32768, -1, 0, 1, 250, 350, 2427, 32767}) {
+        require(FC::corner(FM::knots(threshold)) == static_cast<std::int16_t>(threshold),
+                "fixed knots threshold changed");
+        require((FC::corner(350) > FM::knots(threshold)) == (350 > static_cast<std::int16_t>(threshold)),
+                "fixed knots comparison changed");
+    }
 }
 void productionCaller() {
     Game data{};
@@ -167,6 +186,17 @@ void modernMath() {
     const auto climb = AltitudeMath<M>::climb(MM::verticalSample(MC::speed(123.75)), rotation.sine(angle));
     require(std::abs(AltitudeBoundary<M>::climb(climb) - 12.375 * std::sin(0.321)) < 1e-12,
             "modern vertical sample quantizes");
+    // Indicated knots keep fractional speed and do not wrap at the 16-bit word.
+    for (double speed : {0.0, 26.9, 27.0, 5400.5, 65535.0, 65536.0, 70000.25, 1e6})
+        require(std::abs(MC::corner(MM::indicatedKnots(MC::speed(speed))) - speed / 27) < 1e-9,
+                "modern indicated knots wrapped or quantized");
+    for (double knots : {0.5, 199.75, 350.0, 2427.5})
+        require(std::abs(MC::speed(MM::speedFromKnots(MC::corner(knots))) - knots * 27) < 1e-9,
+                "modern speed-from-knots reconstruction quantizes");
+    require(MC::corner(MM::knots(350)) == 350.0, "modern knots threshold quantized");
+    require(MM::knots(200) < MM::indicatedKnots(MC::speed(5400.5)) &&
+            MM::indicatedKnots(MC::speed(5400.5)) < MM::knots(201),
+            "modern knots comparisons quantized");
     rejects([] { MC::speed(std::numeric_limits<double>::infinity()); });
     rejects([] { MC::deceleration(std::numeric_limits<double>::quiet_NaN()); });
     rejects([] { MM::verticalSample(MC::speed(-1)); });

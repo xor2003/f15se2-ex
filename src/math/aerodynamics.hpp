@@ -15,7 +15,7 @@ template<class B> class AerodynamicsMath {
     static constexpr int altitudeScale = 1024;
     static constexpr int rootLoadScale = 4;
     static constexpr int cornerLoadScale = 8;
-    static constexpr int velocityUnitsPerKnot = 27;
+    static constexpr int velocityUnitsPerKnot = AirspeedMath<B>::velocityUnitsPerKnot;
     static constexpr int maximumLoad = 128; // Eight G, in sixteenths.
     static constexpr int pitchLoadDivisor = 2;
     static constexpr double commandRadiansPerSecond = 128 * (6.28318530717958647692 / 65536);

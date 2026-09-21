@@ -63,6 +63,22 @@ f15::math::RenderHeight<f15::math::GameBackend> flightSceneHeight() {
 #endif
 }
 
+/* Corner speed captured at its per-tick computation so decision consumers can
+ * read the typed quantity instead of the display word. */
+static f15::math::CornerSpeed<f15::math::GameBackend> s_flightCornerSpeed;
+
+f15::math::CornerSpeed<f15::math::GameBackend> flightKnots() {
+#ifdef F15_MODERN_MATH
+    return SpeedMath::indicatedKnots(g_velocity);
+#else
+    return f15::math::legacy::Airspeeds::corner(g_knots);
+#endif
+}
+
+f15::math::CornerSpeed<f15::math::GameBackend> flightCornerSpeed() {
+    return s_flightCornerSpeed;
+}
+
 static bool flightAtGround() {
     return f15::math::AltitudeMath<f15::math::GameBackend>::atGround(
         flightSceneHeight(), f15::math::legacy::Altitudes::ground(g_groundAltitude));
@@ -379,7 +395,7 @@ switch_break:
         g_autopilotAltitude.isZero() && g_inputDisabled == 0 &&
         g_ejectState == 0 && g_autoCrashDive == 0 &&
         Aero::aboveStall(g_velocity, g_stallSpeed) &&
-        (!flightAtGround() || g_knots >= g_cornerSpeed);
+        (!flightAtGround() || flightKnots() >= flightCornerSpeed());
     androidFlightControl = attitudeControlAllowed
                                ? f15::math::legacy::updateControlFromWords(
                                      g_rollInput, g_pitchInput, android_ar_overrideFlightInput)
@@ -402,7 +418,7 @@ switch_break:
         g_pitchInput = {};
     }
 
-    if (g_knots > 350 && !(*((uint8 *)&g_playerPlaneFlags) & 1) && g_gearDownArmed != 0) {
+    if (flightKnots() > SpeedMath::knots(350) && !(*((uint8 *)&g_playerPlaneFlags) & 1) && g_gearDownArmed != 0) {
         g_gearDownArmed = 0;
         *((uint8 *)&g_playerPlaneFlags) |= 1;
         hudMessage("Landing gear raised");
@@ -440,10 +456,10 @@ switch_break:
                 static_cast<f15::math::RecoveryDirection>(g_northSouthSign), inRecoveryCorridor != 0);
             if (approach.exitSlowMotion) exitSlowMotion();
             *((uint8 *)&g_playerPlaneFlags) &= 0xF7;
-            if (approach.allowBrakes && g_setThrust * 80 < g_knots) *((uint8 *)&g_playerPlaneFlags) |= 8;
+            if (approach.allowBrakes && SpeedMath::knots(g_setThrust * 80) < flightKnots()) *((uint8 *)&g_playerPlaneFlags) |= 8;
             const auto bankTarget = f15::math::GuidanceMath<f15::math::GameBackend>::recoveryBank(
                 approach.bearing, g_ourHead,
-                f15::math::legacy::speedFromUnits(g_knots * 27), inRecoveryCorridor != 0);
+                SpeedMath::speedFromKnots(flightKnots()), inRecoveryCorridor != 0);
 
             const auto recovery = f15::math::GuidanceMath<f15::math::GameBackend>::recoveryAttitude(
                 approach.height,
@@ -458,7 +474,7 @@ switch_break:
 
             g_pitchInput = recovery.pitch;
 
-            if (g_knots < 350) {
+            if (flightKnots() < SpeedMath::knots(350)) {
                 *((uint8 *)&g_playerPlaneFlags) &= 0xFE;
             }
 
@@ -481,7 +497,7 @@ switch_break:
     }
 
     if (!((g_playerPlaneFlags) & 1)) {
-        turbulence += clampRange((g_knots - 200) >> 5, 0, 32);
+        turbulence += clampRange((static_cast<int>(f15::math::legacy::knotsUnits(flightKnots())) - 200) >> 5, 0, 32);
     }
 
     if (turbulence > 0 && flightAboveGround()) {
@@ -590,6 +606,7 @@ switch_break:
     strcat(g_geeStringBuf, "G");
 
     const auto corner = Aero::cornerSpeed(g_altitude, load.load);
+    s_flightCornerSpeed = corner;
     g_cornerSpeed = f15::math::legacy::cornerKnots(corner);
     g_stallSpeed = Aero::stallThreshold(corner);
     accelerateFlightSpeed(Propulsion::targetSpeed(g_thrust,
@@ -604,7 +621,7 @@ switch_break:
     brakeFlightSpeed();
 
     horizVel = SpeedMath::horizontalSample(g_velocity, f15::math::legacy::Math(g_angleLut).cosine(g_ourPitch));
-    g_knots = speedWord(g_velocity) / 27;
+    g_knots = f15::math::legacy::cornerKnots(SpeedMath::indicatedKnots(g_velocity));
 
     audio_setEnginePitch(g_knots, thrustUnits(g_thrust));
 
@@ -626,7 +643,7 @@ switch_break:
     if (flightAtGround()) {
         yaw = ControlMath::groundYaw(g_rollInput);
         g_rollInput = {};
-        if (g_knots < g_cornerSpeed) {
+        if (flightKnots() < flightCornerSpeed()) {
             g_pitchInput = {};
         }
     }
@@ -671,7 +688,7 @@ switch_break:
             g_ourRoll = {};
             g_orientationDirty = 1;
         }
-        if (signedAngle(g_ourPitch) < 0 || (signedAngle(g_ourPitch) > 0 && g_knots < g_cornerSpeed)) {
+        if (g_ourPitch.isNegative() || (g_ourPitch.isPositive() && flightKnots() < flightCornerSpeed())) {
             if (g_autoCrashDive == 0) {
                 g_ourPitch = {};
             }
