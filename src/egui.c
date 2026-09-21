@@ -3,6 +3,7 @@
 #include "egdata.h"
 #include "math/legacy_rotation.hpp"
 #include "math/legacy_altitude.hpp"
+#include "math/legacy_map.hpp"
 using f15::math::legacy::signedAngle;
 #include "egflight.h"
 #include "egmath.h"
@@ -87,8 +88,8 @@ void drawTacticalMap(char page) {
         gridStep = (1 << (2 - (unsigned char)g_radarScopeRange)) + 1;
     }
     gridLo = 1 - gridStep;
-    gridX = g_viewX_ & 0xf800;
-    gridY = g_viewY_ & 0xf800;
+    gridX = f15::math::legacy::mapWordX(flightMapPosition()) & 0xf800;
+    gridY = f15::math::legacy::mapWordY(flightMapPosition()) & 0xf800;
     /* ±0x2c00 spans the whole scope at long range: past the corner radius
      * (~0x2312 at shift 7) + grid alignment (0x7ff); submit clip trims to box. */
     i = gridLo * 2;
@@ -173,7 +174,8 @@ void drawTacticalMap(char page) {
             }
         }
     }
-    projectMapPoint(g_viewX_, g_viewY_);
+    projectMapPoint(f15::math::legacy::mapWordX(flightMapPosition()),
+                    f15::math::legacy::mapWordY(flightMapPosition()));
     if (g_projDepth != -1) {
         if (!hdsprite_drawRadarOwnship(g_scopeFx, g_scopeFy)) {
             blitGaugeSprite(0, 3, vtxScratch.vproj.x.lo, vtxScratch.vproj.y.lo);
@@ -257,8 +259,8 @@ void projectMapPoint(int mapX, int mapY) {
      * fixedMulQ14(sine, v) = sine*v/32768, so cosine()/sine() over 32768 reproduce
      * them without the whole-unit truncation that made the scope wobble. */
     float inv = 1.0f / (float)(1 << shift);
-    float fsx = (float)(int16)(mapX - g_viewX_) * inv;
-    float fsy = (float)(int16)(g_viewY_ - mapY) * inv;
+    float fsx = (float)(int16)(mapX - f15::math::legacy::mapWordX(flightMapPosition())) * inv;
+    float fsy = (float)(int16)(f15::math::legacy::mapWordY(flightMapPosition()) - mapY) * inv;
     float c = (float)cosine(signedAngle(g_ourHead)) * (1.0f / 32768.0f);
     float s = (float)sine(signedAngle(g_ourHead)) * (1.0f / 32768.0f);
     float rx = c * fsx - s * fsy;

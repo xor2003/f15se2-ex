@@ -4,6 +4,7 @@
 #include "egdata.h"
 #include "math/legacy_rotation.hpp"
 #include "math/legacy_altitude.hpp"
+#include "math/legacy_map.hpp"
 using f15::math::legacy::signedAngle;
 #include "egflight.h"
 #include "egframe.h"
@@ -180,8 +181,8 @@ int16 computeThreatRangeBearing(int16 threatX, int16 threatY, int16 threatAlt, i
     if (threatType == 0 || threatType == -1) {
         return 0;
     }
-    deltaX = g_viewX_ - threatX;
-    deltaY = g_viewY_ - threatY;
+    deltaX = f15::math::legacy::mapWordX(flightMapPosition()) - threatX;
+    deltaY = f15::math::legacy::mapWordY(flightMapPosition()) - threatY;
     range = (uint16)rangeApprox(deltaX, deltaY) >> 6;
     bearing = computeBearing(deltaX, -deltaY);
     score = (score = (aNone[threatType].dangerTier + g_missionStatus * 2 + 3) * aNone[threatType].lethality / 16) * (((uint16)f15::math::legacy::Altitudes::renderWord(flightSceneHeight()) >> 6) + 0x40) >> 7;
@@ -198,8 +199,8 @@ void updateThreatAlert(void) {
         g_threatRefX = mapEvents[0].mapX;
         g_threatRefY = mapEvents[0].mapY;
     } else {
-        g_threatRefX = g_viewX_;
-        g_threatRefY = g_viewY_;
+        g_threatRefX = f15::math::legacy::mapWordX(flightMapPosition());
+        g_threatRefY = f15::math::legacy::mapWordY(flightMapPosition());
     }
     g_threatRefZ = f15::math::legacy::Altitudes::renderWord(flightSceneHeight());
     g_threatRefHead = signedAngle(g_ourHead);
@@ -273,8 +274,8 @@ void updateObjects(void) {
                     if (((uint8)objIdx * 8 + (uint8)g_missionTick) & 0xbf) goto after_retarget;
                     if (!(g_simObjects[objIdx].flags.b[0] & 0x40)) {
                         best = 0x7fff;
-                        viewBearing = computeBearing(g_viewX_ - g_simObjects[objIdx].posX,
-                                                     g_simObjects[objIdx].posY - g_viewY_);
+                        viewBearing = computeBearing(f15::math::legacy::mapWordX(flightMapPosition()) - g_simObjects[objIdx].posX,
+                                                     g_simObjects[objIdx].posY - f15::math::legacy::mapWordY(flightMapPosition()));
                         for (scanIdx = 0; scanIdx < 8; scanIdx++) {
                             tgtIdx = randomRange(g_planeCount) + 1;
                             if (!(g_planeTable.planes[tgtIdx].flags & 0x400)) {
@@ -287,8 +288,8 @@ void updateObjects(void) {
                                 }
                             }
                         }
-                        if ((uint16)rangeApprox(g_viewX_ - g_simObjects[objIdx].posX,
-                                                g_viewY_ - g_simObjects[objIdx].posY) >>
+                        if ((uint16)rangeApprox(f15::math::legacy::mapWordX(flightMapPosition()) - g_simObjects[objIdx].posX,
+                                                f15::math::legacy::mapWordY(flightMapPosition()) - g_simObjects[objIdx].posY) >>
                                 6 > 350 &&
                             objIdx != 0) {
                             (g_simObjects[objIdx].flags.w) &= 0x1c1;
@@ -328,8 +329,8 @@ void updateObjects(void) {
 
             got_target:
                 if (mode == 3 && (g_simObjects[objIdx].flags.b[0] & 8)) {
-                    tgtX = g_viewX_;
-                    tgtY = g_viewY_;
+                    tgtX = f15::math::legacy::mapWordX(flightMapPosition());
+                    tgtY = f15::math::legacy::mapWordY(flightMapPosition());
                     tgtZ = g_simObjects[objIdx].alt;
                 }
                 deltaX = tgtX - g_simObjects[objIdx].posX;

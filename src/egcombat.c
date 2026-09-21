@@ -9,6 +9,7 @@ using f15::math::legacy::fineUnits;
 #include "egdata.h"
 #include "math/legacy_rotation.hpp"
 #include "math/legacy_altitude.hpp"
+#include "math/legacy_map.hpp"
 using f15::math::legacy::signedAngle;
 #include "egflight.h"
 #include "egframe.h"
@@ -175,8 +176,8 @@ void updateThreatTargeting(void) {
         viewX = mapEvents[0].mapX;
         viewY = mapEvents[0].mapY;
     } else {
-        viewX = g_viewX_;
-        viewY = g_viewY_;
+        viewX = f15::math::legacy::mapWordX(flightMapPosition());
+        viewY = f15::math::legacy::mapWordY(flightMapPosition());
     }
 
     for (slot = 0; slot < 12; slot++) {
@@ -618,7 +619,8 @@ void destroyGroundTarget(int16 planeIdx) {
         g_lockedTargetKilled = 1;
     }
     if (g_mapMode == 0) {
-        redrawTacMap(g_viewX_, g_viewY_);
+        redrawTacMap(f15::math::legacy::mapWordX(flightMapPosition()),
+                     f15::math::legacy::mapWordY(flightMapPosition()));
     }
     if (g_missionStatus < 2) {
         updateThreatAlert();
@@ -720,14 +722,14 @@ void fireMissile() {
 
     if (slot == -1) goto check_end;
 
-    g_projectiles[slot].mapX = g_viewX_;
-    g_projectiles[slot].mapY = g_viewY_;
+    g_projectiles[slot].mapX = f15::math::legacy::mapWordX(flightMapPosition());
+    g_projectiles[slot].mapY = f15::math::legacy::mapWordY(flightMapPosition());
     /* Seed the fine position with the player's sub-map-unit remainder so the
      * missile doesn't visibly snap to the 32-fine-unit map grid on the first
-     * frame. Both keep fine>>5 == the coarse coord set above (g_viewX_ =
-     * (g_ViewX+0x10)>>5, g_viewY_ = 0x8000-((g_ViewY+0x10)>>5)). */
-    g_projectiles[slot].fineX = (((int32)(uint16)g_viewX_ << 5) + ((fineUnits(g_ViewX) + 0x10) & 0x1f)) & 0x1FFFFF;
-    g_projectiles[slot].fineY = (((int32)(uint16)g_viewY_ << 5) + (0x1f - ((fineUnits(g_ViewY) + 0x10) & 0x1f))) & 0x1FFFFF;
+     * frame. (mapX<<5) + (fine+0x10)&0x1f == fine+0x10 and the mirrored Y
+     * recomposes as 0x10000F - fine, both modulo the 21-bit mask. */
+    g_projectiles[slot].fineX = (fineUnits(g_ViewX) + 0x10) & 0x1FFFFF;
+    g_projectiles[slot].fineY = (0x10000F - fineUnits(g_ViewY)) & 0x1FFFFF;
     g_projectiles[slot].alt = (int16)(f15::math::legacy::Altitudes::renderWord(flightSceneHeight()) - 20);
     g_projectiles[slot].speed = f15::math::legacy::projectileSpeed(g_velocity);
     g_projectiles[slot].worldX = signedAngle(g_ourHead);

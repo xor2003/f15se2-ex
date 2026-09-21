@@ -1,4 +1,5 @@
 #include "math/legacy_horizontal.hpp"
+#include "math/legacy_map.hpp"
 #include "math/legacy_rotation.hpp"
 #include "math/legacy_flight_control.hpp"
 #include "math_rotation_reference.hpp"
@@ -7,6 +8,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <limits>
+#include <utility>
 
 namespace {
 using namespace f15::math;
@@ -73,6 +75,35 @@ void fixedMath() {
         FM::interpolate(legacy::viewX(0), legacy::viewX(INT32_MAX),
                         FrameFraction::fromTicks(INT64_MAX / 32768, INT64_MAX / 32768));
     });
+    // Coarse map units keep the (fine + 0x10) >> 5 quantization; Y mirrors
+    // against 0x8000. Both original egframe spellings agree at every input.
+    for (std::int32_t fine : {-65536, -33, -17, -16, -1, 0, 1, 15, 16, 17, 31, 32,
+                              0x1000, 0x80000, 0xFFFFF, 0x100000, 0x10000F}) {
+        require(FM::mapUnitsX(FC::coordinate<ViewXAxis>(fine)) ==
+                static_cast<std::int16_t>((fine + 0x10) >> 5), "map X quantization changed");
+        require(FM::mapUnitsY(FC::coordinate<ViewYAxis>(fine)) ==
+                static_cast<std::int16_t>(0x8000 - ((fine + 0x10) >> 5)), "map Y mirror changed");
+        const auto pos = MapBoundary<F>::position(FC::coordinate<ViewXAxis>(fine),
+                                                  FC::coordinate<ViewYAxis>(fine));
+        require(MapBoundary<F>::wordX(pos) == static_cast<std::int16_t>((fine + 0x10) >> 5) &&
+                MapBoundary<F>::wordY(pos) == static_cast<std::int16_t>(0x8000 - ((fine + 0x10) >> 5)),
+                "map word extraction changed");
+    }
+    // Map interpolation reproduces the lerpLinear word math per axis.
+    for (std::int16_t a : {-32768, -1, 0, 1, 100, 32767})
+        for (std::int16_t b : {-32768, -1, 0, 1, 100, 32767})
+            for (auto tick : {std::pair{0, 1}, {1, 4}, {3, 4}, {14, 15}}) {
+                const auto pos = MapMath<F>::interpolate(MapBoundary<F>::position(a, a),
+                                                         MapBoundary<F>::position(b, b),
+                                                         FrameFraction::fromTicks(tick.first, tick.second));
+                require(MapBoundary<F>::wordX(pos) ==
+                        static_cast<std::int16_t>(a + static_cast<std::int32_t>(
+                            std::int64_t(b - a) * tick.first / tick.second)),
+                        "map interpolation differs from lerpLinear");
+            }
+    require(MapBoundary<F>::position(1, 2) == MapBoundary<F>::position(1, 2) &&
+            MapBoundary<F>::position(1, 2) != MapBoundary<F>::position(2, 1),
+            "map position equality changed");
 }
 
 void productionCaller() {
@@ -121,6 +152,23 @@ void modernMath() {
         const auto huge = std::numeric_limits<double>::max();
         (void)(MC::coordinate<ViewYAxis>(huge) + MC::displacement<ViewYAxis>(huge));
     });
+    // Modern map units keep the fraction instead of the quantized word.
+    require(MM::mapUnitsX(MC::coordinate<ViewXAxis>(1000.5)) == (1000.5 + 16.0) / 32.0,
+            "modern map X units quantized");
+    require(MM::mapUnitsY(MC::coordinate<ViewYAxis>(1000.5)) == 32768.0 - (1000.5 + 16.0) / 32.0,
+            "modern map Y mirror quantized");
+    // The legacy word drops the fraction and wraps modulo 2^16.
+    require(MapBoundary<M>::wordX(MapBoundary<M>::position(31.75, 0.0)) == 31,
+            "modern map word kept the fraction");
+    require(MapBoundary<M>::wordX(MapBoundary<M>::position(65536.5, 0.0)) == 0 &&
+            MapBoundary<M>::wordX(MapBoundary<M>::position(-1.5, 0.0)) == -1,
+            "modern map word wrap changed");
+    const auto mid = MapMath<M>::interpolate(MapBoundary<M>::position(1.0, 2.0),
+                                             MapBoundary<M>::position(3.0, 4.0),
+                                             FrameFraction::fromTicks(1, 2));
+    require(MapBoundary<M>::x(mid) == 2.0 && MapBoundary<M>::y(mid) == 3.0,
+            "modern map interpolation quantized");
+    rejects([] { MapBoundary<M>::position(1.0, std::numeric_limits<double>::infinity()); });
 }
 }
 int main() {

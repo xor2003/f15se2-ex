@@ -63,6 +63,17 @@ f15::math::RenderHeight<f15::math::GameBackend> flightSceneHeight() {
 #endif
 }
 
+/* Current coarse map position. Modern derives fractional map units from the
+ * fine view coordinates; fixed preserves the original stored words and their
+ * update timing. */
+f15::math::MapPosition<f15::math::GameBackend> flightMapPosition() {
+#ifdef F15_MODERN_MATH
+    return f15::math::legacy::mapPosition(g_ViewX, g_ViewY);
+#else
+    return f15::math::legacy::mapPosition(g_viewX_, g_viewY_);
+#endif
+}
+
 /* Corner speed captured at its per-tick computation so decision consumers can
  * read the typed quantity instead of the display word. */
 static f15::math::CornerSpeed<f15::math::GameBackend> s_flightCornerSpeed;
@@ -206,7 +217,7 @@ void stepFlightModel(void) {
 
         if (gameData->difficulty == 0) {
 
-            g_ourHead = angleFromWord(((g_viewY_ - (waypoints[1].mapY)) < 0x8000) ? 0 : 0x8000);
+            g_ourHead = angleFromWord(((f15::math::legacy::mapWordY(flightMapPosition()) - (waypoints[1].mapY)) < 0x8000) ? 0 : 0x8000);
         } else {
             g_ourHead = angleFromWord((gameData->theater == 6)
                             ? 0                                       // If true, the result is 0
@@ -451,7 +462,7 @@ switch_break:
 
             const auto approach = f15::math::GuidanceMath<f15::math::GameBackend>::recoveryApproach(
                 f15::math::legacy::mapPosition(g_planeTable.planes[tgtIdx].mapX, g_planeTable.planes[tgtIdx].mapY),
-                f15::math::legacy::mapPosition(g_viewX_, g_viewY_), g_ourHead,
+                flightMapPosition(), g_ourHead,
                 (g_planeTable.planes[tgtIdx].flags & 0x200) != 0,
                 static_cast<f15::math::RecoveryDirection>(g_northSouthSign), inRecoveryCorridor != 0);
             if (approach.exitSlowMotion) exitSlowMotion();
@@ -538,10 +549,10 @@ switch_break:
 
         if (flightSceneHeight().isZero() && g_smokeSourceIdx == -1) {
             g_smokeSourceIdx = 0;
-            g_planeTable.planes[0].mapX = g_viewX_;
-            g_planeTable.planes[0].mapY = g_viewY_;
-            g_hitMapX = g_viewX_;
-            g_hitMapY = g_viewY_;
+            g_planeTable.planes[0].mapX = f15::math::legacy::mapWordX(flightMapPosition());
+            g_planeTable.planes[0].mapY = f15::math::legacy::mapWordY(flightMapPosition());
+            g_hitMapX = g_planeTable.planes[0].mapX;
+            g_hitMapY = g_planeTable.planes[0].mapY;
             g_hitAlt = 0;
             g_hitEffectTimer = -8;
             makeSound(2, 2);
@@ -554,15 +565,15 @@ switch_break:
 
             idx = ((uint16)frameTick / 2) & 7;
 
-            g_particles[idx].posX = g_viewX_;
-            g_particles[idx].posY = g_viewY_;
+            g_particles[idx].posX = f15::math::legacy::mapWordX(flightMapPosition());
+            g_particles[idx].posY = f15::math::legacy::mapWordY(flightMapPosition());
             g_particles[idx].alt = f15::math::legacy::Altitudes::renderWord(flightSceneHeight());
 
             g_particles[idx].spin = randomRange(0x20) << 11;
 
             g_smokeParticleSlot = idx;
-            g_hitMapX = g_viewX_;
-            g_hitMapY = g_viewY_;
+            g_hitMapX = f15::math::legacy::mapWordX(flightMapPosition());
+            g_hitMapY = f15::math::legacy::mapWordY(flightMapPosition());
             g_hitAlt = f15::math::legacy::Altitudes::renderWord(flightSceneHeight());
             g_hitEffectTimer = -8;
             makeSound(0, 2);
@@ -741,7 +752,7 @@ switch_break:
 
     if (g_currentWeaponType == 1) {
         if (g_airTargetLock >= 0) {
-            idx = clampRange((rangeApprox(g_viewX_ - g_simObjects[g_airTargetLock].posX, g_viewY_ - g_simObjects[g_airTargetLock].posY) * g_frameRateScaling) >> 8, 0, 12);
+            idx = clampRange((rangeApprox(f15::math::legacy::mapWordX(flightMapPosition()) - g_simObjects[g_airTargetLock].posX, f15::math::legacy::mapWordY(flightMapPosition()) - g_simObjects[g_airTargetLock].posY) * g_frameRateScaling) >> 8, 0, 12);
 
         } else {
             idx = g_frameRateScaling - 1;
@@ -1087,7 +1098,8 @@ void renderFrame() {
             drawWeaponAmmo();
             drawWeaponSelectMarker(missileSpecIndex);
             if (g_mapMode == 0) {
-                redrawTacMap(g_viewX_, g_viewY_);
+                redrawTacMap(f15::math::legacy::mapWordX(flightMapPosition()),
+                             f15::math::legacy::mapWordY(flightMapPosition()));
             }
             g_groundTargetLock = g_airTargetLock = 0xffff;
             fillPanelBox(3, 3);

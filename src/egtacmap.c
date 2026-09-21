@@ -6,6 +6,7 @@
 #include "egdata.h"
 #include "math/legacy_rotation.hpp"
 #include "math/legacy_altitude.hpp"
+#include "math/legacy_map.hpp"
 using f15::math::legacy::altitudeUnits;
 using f15::math::legacy::climbUnits;
 using f15::math::legacy::signedAngle;
@@ -59,8 +60,8 @@ void renderHudFrame(int unused) {
     int climbMarkerY, angleFixed, waypointMarkerX, circleX, angle, circleY, prevX, speedBarLen, prevY, markerX, deltaX, markerY, deltaY;
     char seekerShift;
     // probably x,y
-    deltaX = waypoints[waypointIndex].mapX - g_viewX_;
-    deltaY = waypoints[waypointIndex].mapY - g_viewY_;
+    deltaX = waypoints[waypointIndex].mapX - f15::math::legacy::mapWordX(flightMapPosition());
+    deltaY = waypoints[waypointIndex].mapY - f15::math::legacy::mapWordY(flightMapPosition());
     g_waypointBearing = computeBearing(deltaX, -deltaY);
     if (g_hudVisible != 0) {
         if (g_damageTakenFlag != 0) {
@@ -325,8 +326,10 @@ void renderTacMapOverlay(void) {
     if (g_hudVisible == 0 || g_mapMode != 0) {
         return;
     }
-    renderTacMapContent(g_viewX_, g_viewY_);
-    if (objectToScreen(g_viewX_, g_viewY_, &sx, &sy)) {
+    renderTacMapContent(f15::math::legacy::mapWordX(flightMapPosition()),
+                        f15::math::legacy::mapWordY(flightMapPosition()));
+    if (objectToScreen(f15::math::legacy::mapWordX(flightMapPosition()),
+                       f15::math::legacy::mapWordY(flightMapPosition()), &sx, &sy)) {
         blitSprite(sx - 1, sy - 1, ((signedAngle(g_ourHead) + 0x1000) >> 0xd & 7) * 4 + 164, 4, 4, 4, 0);
     }
 }
@@ -338,7 +341,8 @@ void zoomIn(void) {
     } else {
         if (g_mapMode == 0 && g_mapZoomLevel < 9) {
             g_mapZoomLevel++;
-            redrawTacMap(g_viewX_, g_viewY_);
+            redrawTacMap(f15::math::legacy::mapWordX(flightMapPosition()),
+                     f15::math::legacy::mapWordY(flightMapPosition()));
         }
         if (g_mapMode == 1) {
             g_radarScopeRange++;
@@ -353,7 +357,8 @@ void zoomOut(void) {
     } else {
         if (g_mapMode == 0 && g_mapZoomLevel > 2) {
             g_mapZoomLevel--;
-            redrawTacMap(g_viewX_, g_viewY_);
+            redrawTacMap(f15::math::legacy::mapWordX(flightMapPosition()),
+                     f15::math::legacy::mapWordY(flightMapPosition()));
         }
         if (g_mapMode == 1 && g_radarScopeRange != 0) {
             g_radarScopeRange--;

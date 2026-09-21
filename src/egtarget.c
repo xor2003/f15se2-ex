@@ -8,6 +8,7 @@ using f15::math::legacy::fineUnits;
 #include "egdata.h"
 #include "math/legacy_rotation.hpp"
 #include "math/legacy_altitude.hpp"
+#include "math/legacy_map.hpp"
 using f15::math::legacy::signedAngle;
 #include "egflight.h"
 #include "egframe.h"
@@ -546,7 +547,7 @@ void drawWorldEffects(void) {
                 }
             }
         } else {
-            dist = (abs((int16)(bulletTracks[idx].alt - f15::math::legacy::Altitudes::renderWord(flightSceneHeight()))) >> 5) + abs((int16)(bx - g_viewX_)) + abs((int16)(by - g_viewY_));
+            dist = (abs((int16)(bulletTracks[idx].alt - f15::math::legacy::Altitudes::renderWord(flightSceneHeight()))) >> 5) + abs((int16)(bx - f15::math::legacy::mapWordX(flightMapPosition()))) + abs((int16)(by - f15::math::legacy::mapWordY(flightMapPosition())));
             dist = abs(dist);
             if (dist < 0x20) {
                 hitFlag = 1;
@@ -819,8 +820,8 @@ void drawHudWorldOverlay(void) {
                        g_simObjects[wpIdx].bank.w,
                        1, 1);
         drawMissileLock();
-        buildRangeString(rangeApprox(g_viewX_ - g_simObjects[wpIdx].posX,
-                                     g_viewY_ - g_simObjects[wpIdx].posY));
+        buildRangeString(rangeApprox(f15::math::legacy::mapWordX(flightMapPosition()) - g_simObjects[wpIdx].posX,
+                                     f15::math::legacy::mapWordY(flightMapPosition()) - g_simObjects[wpIdx].posY));
         drawStringActivePage(strBuf, 244, 170, 0x0f);
 
         idx = g_simObjects[wpIdx].spec;
@@ -857,8 +858,8 @@ void drawHudWorldOverlay(void) {
         if (missileSpecD == 30 && abs((int16)signedAngle(g_ourRoll)) < 0x2000) {
             tmp = computeLoftAngle();
             loftDist = cosMul(tmp, f15::math::legacy::altitudeUnits(g_altitude)) / (sinMul(-tmp, 0x20) + 1);
-            pointX = sinMul(signedAngle(g_ourHead), loftDist) + g_viewX_;
-            pointY = g_viewY_ - cosMul(signedAngle(g_ourHead), loftDist);
+            pointX = sinMul(signedAngle(g_ourHead), loftDist) + f15::math::legacy::mapWordX(flightMapPosition());
+            pointY = f15::math::legacy::mapWordY(flightMapPosition()) - cosMul(signedAngle(g_ourHead), loftDist);
             projectWorldToHud(pointX, pointY, 0);
             if (vtxScratch.vproj.x.lo == -1) {
                 vtxScratch.vproj.x.lo = (sinMul(signedAngle(g_ourRoll), 96 - g_flightPathMarkerY) << 2) / 3 + 160;

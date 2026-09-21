@@ -104,6 +104,20 @@ public:
             return ViewCoordinate<B, Axis>(from.value_ * (1 - t) + to.value_ * t);
         }
     }
+    /* Coarse map units from a fine view coordinate: 32 fine units per map
+     * unit biased by +0x10 (round-to-nearest), with Y mirrored against
+     * 0x8000. Modern keeps the fraction; the legacy word drops it. */
+    using MapRep = std::conditional_t<std::is_same_v<B, FixedBackend>, std::int16_t, double>;
+    static MapRep mapUnitsX(ViewCoordinate<B, ViewXAxis> v) {
+        if constexpr (std::is_same_v<B, FixedBackend>)
+            return static_cast<std::int16_t>((v.value_ + 0x10) >> 5);
+        else return (v.value_ + 16.0) / 32.0;
+    }
+    static MapRep mapUnitsY(ViewCoordinate<B, ViewYAxis> v) {
+        if constexpr (std::is_same_v<B, FixedBackend>)
+            return static_cast<std::int16_t>(0x8000 - ((v.value_ + 0x10) >> 5));
+        else return 32768.0 - (v.value_ + 16.0) / 32.0;
+    }
 };
 }
 #endif

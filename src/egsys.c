@@ -8,6 +8,7 @@
 #include "egdata.h"
 #include "math/interpolation.hpp"
 #include "math/legacy_altitude.hpp"
+#include "math/legacy_map.hpp"
 #include "egflight.h"
 #include "inttype.h"
 #include "gfx.h"
@@ -58,7 +59,7 @@ typedef struct {
     f15::math::ViewCoordinate<f15::math::GameBackend, f15::math::ViewYAxis> viewY;
     f15::math::RenderHeight<f15::math::GameBackend> viewZ;
     f15::math::Angle<f15::math::GameBackend> head, pitch, roll;
-    int32 mapX, mapY; /* g_viewX_ / g_viewY_ */
+    f15::math::MapPosition<f15::math::GameBackend> mapPos; /* g_viewX_ / g_viewY_ */
     int32 crashX, crashY, crashZ;
     int32 wreckX, wreckY, wreckAlt; /* downed-aircraft wreck/parachute */
     /* HUD reticle inputs derived from the player state each sim step (gun-reticle
@@ -79,8 +80,7 @@ static void camCapture(CamSnapshot *s) {
     s->head = g_ourHead;
     s->pitch = g_ourPitch;
     s->roll = g_ourRoll;
-    s->mapX = g_viewX_;
-    s->mapY = g_viewY_;
+    s->mapPos = flightMapPosition();
     s->crashX = g_crashCamX;
     s->crashY = g_crashCamY;
     s->crashZ = g_crashCamZ;
@@ -99,8 +99,8 @@ static void camRestore(const CamSnapshot *s) {
     g_ourHead = s->head;
     g_ourPitch = s->pitch;
     g_ourRoll = s->roll;
-    g_viewX_ = (int16)s->mapX;
-    g_viewY_ = (int16)s->mapY;
+    g_viewX_ = f15::math::legacy::mapWordX(s->mapPos);
+    g_viewY_ = f15::math::legacy::mapWordY(s->mapPos);
     g_crashCamX = (int16)s->crashX;
     g_crashCamY = (int16)s->crashY;
     g_crashCamZ = (int16)s->crashZ;
@@ -172,8 +172,10 @@ static void camApplyInterp(const CamSnapshot *p, const CamSnapshot *n, int64 num
     g_ourHead = pose.yaw;
     g_ourPitch = pose.pitch;
     g_ourRoll = pose.roll;
-    g_viewX_ = (int16)lerpLinear(p->mapX, n->mapX, num, den);
-    g_viewY_ = (int16)lerpLinear(p->mapY, n->mapY, num, den);
+    const auto mapPos = f15::math::MapMath<f15::math::GameBackend>::interpolate(
+        p->mapPos, n->mapPos, fraction);
+    g_viewX_ = f15::math::legacy::mapWordX(mapPos);
+    g_viewY_ = f15::math::legacy::mapWordY(mapPos);
     g_crashCamX = (int16)lerpLinear(p->crashX, n->crashX, num, den);
     g_crashCamY = (int16)lerpLinear(p->crashY, n->crashY, num, den);
     g_crashCamZ = (int16)lerpLinear(p->crashZ, n->crashZ, num, den);

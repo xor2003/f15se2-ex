@@ -75,6 +75,8 @@ int main() {
     (void)(CornerSpeed<ModernBackend>{} < CornerSpeed<ModernBackend>{});
     (void)Angle<ModernBackend>{}.isNegative();
     (void)Angle<ModernBackend>{}.isPositive();
+    (void)MapMath<ModernBackend>::interpolate({}, {}, FrameFraction::fromTicks(1, 2));
+    (void)(MapPosition<ModernBackend>{} == MapPosition<ModernBackend>{});
 #if defined(TEST_PRIMITIVE_ANGLE)
     (void)math.sine(1.0);
 #elif defined(TEST_PRIMITIVE_EULER)
@@ -326,6 +328,12 @@ int main() {
 #elif defined(TEST_COORDINATE_POINTER)
     ViewCoordinate<FixedBackend, ViewXAxis> point;
     int *raw = &point;
+#elif defined(TEST_MAP_FRACTION)
+    (void)MapMath<FixedBackend>::interpolate({}, {}, 1);
+#elif defined(TEST_MAP_BACKEND)
+    (void)MapMath<FixedBackend>::interpolate(MapPosition<ModernBackend>{}, {}, {});
+#elif defined(TEST_MAP_COORDINATE)
+    (void)MapMath<FixedBackend>::interpolate(ViewCoordinate<FixedBackend, ViewXAxis>{}, {}, {});
 #endif
     return 0;
 }

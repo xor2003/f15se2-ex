@@ -13,6 +13,7 @@ using f15::math::legacy::moveY;
 #include "egdata.h"
 #include "math/legacy_rotation.hpp"
 #include "math/legacy_altitude.hpp"
+#include "math/legacy_map.hpp"
 using f15::math::legacy::altitudeFromUnits;
 using f15::math::legacy::signedAngle;
 using SpeedMath = f15::math::AirspeedMath<f15::math::GameBackend>;
@@ -67,8 +68,11 @@ void updateFrame(void) {
     uint16 screenY;
     int16 i, objIdx;
 
-    g_viewX_ = (int16)((fineUnits(g_ViewX) + 0x10L) >> 5);
-    g_viewY_ = -((int16)((fineUnits(g_ViewY) + 0x10L) >> 5) - 0x8000);
+    {
+        const auto pos = f15::math::legacy::mapPosition(g_ViewX, g_ViewY);
+        g_viewX_ = f15::math::legacy::mapWordX(pos);
+        g_viewY_ = f15::math::legacy::mapWordY(pos);
+    }
 
     if (g_initPhase == 1) {
         g_playerPlaneFlags = 0;
@@ -125,7 +129,7 @@ void updateFrame(void) {
         commData->landingType = 1;
         g_gunAmmo = 1000;
         if (g_missionStatus == 0 || g_autopilotEngaged != 0) {
-            g_northSouthSign = ((uint16)(g_viewY_ - waypoints[1].mapY) < 0x8000u) ? 1 : -1;
+            g_northSouthSign = ((uint16)(f15::math::legacy::mapWordY(flightMapPosition()) - waypoints[1].mapY) < 0x8000u) ? 1 : -1;
             g_altitude = altitudeFromUnits(2000);
             g_velocity = f15::math::legacy::speedFromUnits(8100);
             g_setThrust = 100;
@@ -138,8 +142,8 @@ void updateFrame(void) {
                         g_simObjects[i].flags.b[0] |= 2;
                         g_simObjects[i].alt = 2200;
                         g_simObjects[i].speed = 300;
-                        g_simObjects[i].posX = i * 12 + g_viewX_ - 36;
-                        g_simObjects[i].posY = g_viewY_ - (i * 0x20 + 150) * g_northSouthSign;
+                        g_simObjects[i].posX = i * 12 + f15::math::legacy::mapWordX(flightMapPosition()) - 36;
+                        g_simObjects[i].posY = f15::math::legacy::mapWordY(flightMapPosition()) - (i * 0x20 + 150) * g_northSouthSign;
                         g_simObjects[i].worldX = (int32)g_simObjects[i].posX * 32;
                         g_simObjects[i].worldY = (int32)g_simObjects[i].posY * 32;
                         g_simObjects[i].heading.w = signedAngle(g_ourHead) + 0x8000;
@@ -151,8 +155,8 @@ void updateFrame(void) {
             g_simObjects[1].flags.b[0] |= 2;
             g_simObjects[1].alt = 2100;
             g_simObjects[1].speed = 700;
-            g_wingmanX = g_viewX_;
-            g_wingmanY = 80 * g_northSouthSign + g_viewY_;
+            g_wingmanX = f15::math::legacy::mapWordX(flightMapPosition());
+            g_wingmanY = 80 * g_northSouthSign + f15::math::legacy::mapWordY(flightMapPosition());
             g_simObjects[1].worldX = (int32)g_wingmanX * 32;
             g_simObjects[1].worldY = (int32)g_wingmanY * 32;
             g_simObjects[1].heading.w = signedAngle(g_ourHead);
@@ -164,15 +168,20 @@ void updateFrame(void) {
         g_finalThreatScore = computeThreatScore();
     }
 
-    val = clampRange(g_viewX_, 0x100, 0x7e00);
-    if (val != g_viewX_) {
-        g_viewX_ = val;
-        g_ViewX = viewX((int32)val << 5);
-    }
-    val = clampRange(g_viewY_, 0x200, 0x7d00);
-    if (val != g_viewY_) {
-        g_viewY_ = val;
-        g_ViewY = viewY((int32)(0x8000 - g_viewY_) << 5);
+    {
+        // Coarse map units confine play to the [0x100,0x7e00]x[0x200,0x7d00]
+        // theater; clipping a bound snaps the fine coordinate to the cell edge.
+        const auto pos = flightMapPosition();
+        const int cx = clampRange(f15::math::legacy::mapWordX(pos), 0x100, 0x7e00);
+        if (cx != f15::math::legacy::mapWordX(pos)) {
+            g_viewX_ = (int16)cx;
+            g_ViewX = viewX((int32)cx << 5);
+        }
+        const int cy = clampRange(f15::math::legacy::mapWordY(pos), 0x200, 0x7d00);
+        if (cy != f15::math::legacy::mapWordY(pos)) {
+            g_viewY_ = (int16)cy;
+            g_ViewY = viewY((int32)(0x8000 - cy) << 5);
+        }
     }
 
     updateThreatSites();
@@ -183,7 +192,8 @@ void updateFrame(void) {
     updateTracerParticles();
     applyGravityFall();
 
-    if (objectToScreen(g_viewX_, g_viewY_, (int16 *)&val, (int16 *)&screenY) != 0) {
+    if (objectToScreen(f15::math::legacy::mapWordX(flightMapPosition()),
+                       f15::math::legacy::mapWordY(flightMapPosition()), (int16 *)&val, (int16 *)&screenY) != 0) {
         /* Software retained-page patch: erase last frame's player blip from the cached
          * map and stamp the new one. On GL renderTacMapOverlay re-emits the whole map
          * (incl. the blip) immediately every frame, so this bake is redundant — and
@@ -194,14 +204,16 @@ void updateFrame(void) {
         }
         if (((int16)val < 32 || (int16)val > 88 || (int16)screenY < 118 || (int16)screenY > 162) && g_mapZoomLevel > 2) {
             g_mapZoomLevel--;
-            redrawTacMap(g_viewX_, g_viewY_);
+            redrawTacMap(f15::math::legacy::mapWordX(flightMapPosition()),
+                         f15::math::legacy::mapWordY(flightMapPosition()));
         }
     } else {
-        redrawTacMap(g_viewX_, g_viewY_);
+        redrawTacMap(f15::math::legacy::mapWordX(flightMapPosition()),
+                     f15::math::legacy::mapWordY(flightMapPosition()));
     }
 
-    g_unusedViewXSnap = g_viewX_;
-    g_unusedViewYSnap = g_viewY_;
+    g_unusedViewXSnap = f15::math::legacy::mapWordX(flightMapPosition());
+    g_unusedViewYSnap = f15::math::legacy::mapWordY(flightMapPosition());
 
     if (g_directorEventDeadline == frameTick) {
         if (g_autopilotEngaged == 0) {
@@ -225,7 +237,8 @@ void updateFrame(void) {
         if ((g_planeTable.planes[i].flags & 0x201) != 0 &&
             (g_planeTable.planes[i].flags & 0x500) != 0 &&
             (g_planeTable.planes[i].flags & 0x800) == 0) {
-            tmp = rangeApprox(g_viewX_ - g_planeTable.planes[i].mapX, g_viewY_ - g_planeTable.planes[i].mapY);
+            tmp = rangeApprox(f15::math::legacy::mapWordX(flightMapPosition()) - g_planeTable.planes[i].mapX,
+                              f15::math::legacy::mapWordY(flightMapPosition()) - g_planeTable.planes[i].mapY);
             if (tmp < g_nearestThreatRange) {
                 g_nearestThreatRange = tmp;
                 g_closestThreatIndex = i;
@@ -326,7 +339,7 @@ skip_target_section:
             g_attackRangeX = 0x100;
             g_attackRangeY = 0x3c0;
             if (missionAtHeight(g_groundAltitude) && flightKnots() > SpeedMath::knots(0x50)) {
-                if ((uint16)(g_viewY_ - g_planeTable.planes[g_closestThreatIndex].mapY) * g_northSouthSign >= 0x10 && (uint16)(g_viewY_ - g_planeTable.planes[g_closestThreatIndex].mapY) * g_northSouthSign <= 0x14) {
+                if ((uint16)(f15::math::legacy::mapWordY(flightMapPosition()) - g_planeTable.planes[g_closestThreatIndex].mapY) * g_northSouthSign >= 0x10 && (uint16)(f15::math::legacy::mapWordY(flightMapPosition()) - g_planeTable.planes[g_closestThreatIndex].mapY) * g_northSouthSign <= 0x14) {
                     if (!gameOptionsEnabled(GAME_OPTION_NO_DAMAGE) &&
                         abs((int16)(signedAngle(g_ourHead) - ((1 - g_northSouthSign) << 0xe))) < 0x2000) {
                         g_autoCrashDive = 1;
@@ -339,8 +352,8 @@ skip_target_section:
             g_attackRangeX += 0x100;
             g_attackRangeY += 0x200;
         }
-        if (abs(g_viewX_ - g_planeTable.planes[g_closestThreatIndex].mapX) > (g_attackRangeX >> 5) ||
-            (abs(g_viewY_ - g_planeTable.planes[g_closestThreatIndex].mapY) > (g_attackRangeY >> 5))) {
+        if (abs(f15::math::legacy::mapWordX(flightMapPosition()) - g_planeTable.planes[g_closestThreatIndex].mapX) > (g_attackRangeX >> 5) ||
+            (abs(f15::math::legacy::mapWordY(flightMapPosition()) - g_planeTable.planes[g_closestThreatIndex].mapY) > (g_attackRangeY >> 5))) {
             g_groundAltitude = 0;
             g_inLandingCorridor = 0;
         } else {
@@ -376,7 +389,7 @@ skip_target_section:
         }
     end_landing_check:
         if ((g_landingDoneFlag == 0) && (g_missionStatus == 0) && g_playerPlaneFlags & 0x6000) {
-            if (abs(g_viewX_ - g_planeTable.planes[g_closestThreatIndex].mapX) < 0x10 && abs(g_viewY_ - g_planeTable.planes[g_closestThreatIndex].mapY) < 0x10) {
+            if (abs(f15::math::legacy::mapWordX(flightMapPosition()) - g_planeTable.planes[g_closestThreatIndex].mapX) < 0x10 && abs(f15::math::legacy::mapWordY(flightMapPosition()) - g_planeTable.planes[g_closestThreatIndex].mapY) < 0x10) {
                 g_altitude = {};
                 g_velocity = {};
                 g_setThrust = 0;
@@ -498,8 +511,8 @@ void countermeasures(int16 eventType) {
                 slot = i;
         }
         if (slot != -1) {
-            mapEvents[slot].mapX = g_viewX_;
-            mapEvents[slot].mapY = g_viewY_;
+            mapEvents[slot].mapX = f15::math::legacy::mapWordX(flightMapPosition());
+            mapEvents[slot].mapY = f15::math::legacy::mapWordY(flightMapPosition());
             mapEvents[slot].type = eventType;
             mapEvents[slot].ttl =
                 -(g_missionStatus * 3 - 15) * g_frameRateScaling;
@@ -698,8 +711,8 @@ void finalizeMission(int outcome) {
         commData->landingType = 1;
     }
     /* Debrief handoff. enbrief.c derives the map grid from worldX/worldY. */
-    commData->worldX = g_viewX_;
-    commData->worldY = g_viewY_;
+    commData->worldX = f15::math::legacy::mapWordX(flightMapPosition());
+    commData->worldY = f15::math::legacy::mapWordY(flightMapPosition());
     commData->weaponCount[0] = g_finalThreatScore;
     commData->weaponCount[1] = g_resupplyCount;
     commData->gunHits = g_gunHits;
@@ -763,8 +776,8 @@ void appendMapEvent(int16 eventType, int16 eventArg) {
         return;
     }
     g_replayLog.events[g_eventLogCount].coord = g_missionTick;
-    g_replayLog.events[g_eventLogCount].screenX = (uint16)g_viewX_ >> 7;
-    g_replayLog.events[g_eventLogCount].screenY = (uint16)g_viewY_ >> 7;
+    g_replayLog.events[g_eventLogCount].screenX = (uint16)f15::math::legacy::mapWordX(flightMapPosition()) >> 7;
+    g_replayLog.events[g_eventLogCount].screenY = (uint16)f15::math::legacy::mapWordY(flightMapPosition()) >> 7;
     g_replayLog.events[g_eventLogCount].type = eventType;
     g_replayLog.events[g_eventLogCount].arg = eventArg;
     g_eventLogCount++;
@@ -804,8 +817,9 @@ void initMissionStrings() {
         g_ViewX = viewX(((int32)waypoints[0].mapX << 5) + 2);
         g_ViewY = viewY((0x8000 - (int32)waypoints[0].mapY) << 5);
     }
-    g_viewX_ = (fineUnits(g_ViewX) + 0x10) >> 5;
-    g_viewY_ = 0x8000 - ((fineUnits(g_ViewY) + 0x10) >> 5);
+    const auto pos = f15::math::legacy::mapPosition(g_ViewX, g_ViewY);
+    g_viewX_ = f15::math::legacy::mapWordX(pos);
+    g_viewY_ = f15::math::legacy::mapWordY(pos);
 }
 
 // ==== seg000:0x1f3e ====

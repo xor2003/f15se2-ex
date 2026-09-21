@@ -768,6 +768,45 @@ reports no diagnostics. ASan/UBSan passes with that test, inline math and
 files are not instrumented; whole-sortie and cross-platform verification remain
 outstanding.
 
+## Map-position checkpoint
+
+* `flightMapPosition()` in `egflight.c` is the typed source of the player's
+  coarse map position. Fixed builds return the stored `g_viewX_`/`g_viewY_`
+  words, preserving their update timing; modern builds derive fractional map
+  units from typed `g_ViewX`/`g_ViewY` and do not consult the stored words.
+* `MapPosition<B>` gained backend storage (signed X/Y words under fixed, doubles
+  under modern), `MapMath<B>` provides map-unit conversion and interpolation,
+  and `MapBoundary<B>`/`legacy::mapWordX`/`mapWordY` extract raw coordinates or
+  wrap to `int16` words with a defined mod-2^16 wrap. Fixed map units preserve
+  the original `(fine + 0x10) >> 5` quantization and the `0x8000 - units` Y
+  mirroring; modern map units keep fractions and reject non-finite input.
+* Coarse-map decision consumers now read `flightMapPosition()` and narrow only
+  through the boundary words where a word-domain formula or frozen field
+  requires it: tactical-map bearing and drawing plus the HUD grid origin
+  (`egtacmap.c`), threat reference/range/bearing (`egthreat.c`), ownship
+  projection and radar coordinate differences (`egui.c`, `egtarget.c`), target
+  map writes, projectile launch coordinates and bullet hit-distance terms
+  (`egcombat.c`), crash-camera map writes (`egkeys.c`), and the mission/eject
+  map checks (`egframe.c`). `CamSnapshot` — new internal state, not a frozen
+  layout — stores `MapPosition<GameBackend>`, interpolates via
+  `MapMath::interpolate`, and narrows back to the legacy globals only through
+  the boundary words.
+* `typed_horizontal_tests` covers the fixed map path against the original
+  expressions: X quantization, Y mirroring, word extraction, `lerpLinear`
+  equivalent interpolation and equality. Modern tests cover fractional map
+  units, word wrapping only at the explicit boundary, fractional interpolation
+  and non-finite rejection. `modern_flight_smoke_tests` carries the caller
+  regression: fractional map units derived from `g_ViewX`/`g_ViewY` while the
+  stored words hold stale values. Compile-fail cases reject raw construction,
+  backend mixing and coordinate extraction.
+
+Verification: Linux Release build and all 58 CTests pass, including the new
+negative compiler cases; `modern_flight_smoke_tests` passes. The remaining
+direct `g_viewX_`/`g_viewY_` reads are the render/projection pipeline itself
+(`egtgt2.c`, `egmath.c`) — that is the camera/render coordinate-space feature,
+not further decision plumbing. These tests do not establish world-coordinate
+rendering stability.
+
 ### Next acceptance boundary
 
 Aircraft Euler, command, altitude, climb, airspeed and fine horizontal position
@@ -820,7 +859,7 @@ input widths or introduce new flight-model formulas.
 | Projection/HUD | Selected projection, clipping, HUD rotation helpers | Verify against current rasterizer and HUD state, including invalid/depth sentinels |
 | Range/bearing | Legacy approximation and bearing helpers | Keep gameplay distance approximation distinct from Euclidean distance |
 | Camera precision | Not complete | sinMulQ8/cosMulQ8, camera fractional remainders, fine-coordinate bearing/range in egmath.c |
-| Terrain/world coordinates | Not complete | scaleCoordToLod, fractional LOD remainders, world wrapping and map conversion in eg3dproj.c/stterr.c |
+| Terrain/world coordinates | Coarse `MapPosition` typed with fixed-word/fractional-double storage and boundary word adapters | scaleCoordToLod, fractional LOD remainders, world wrapping and render-pipeline coordinate reads in eg3dproj.c/stterr.c/egtgt2.c/egmath.c |
 | Flight integration | Not complete | stepFlightModel forces, velocity/position integration, coefficients, tick scaling, clamps |
 | Combat/AI | Not complete | Projectile fine positions, guidance, collision/proximity thresholds, movement and acquisition math |
 | Randomness/time | Only a scaling helper | Separate deterministic RNG and simulation clock contracts from numeric representation |

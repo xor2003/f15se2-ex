@@ -5,6 +5,7 @@
 #include "math/legacy_rotation.hpp"
 #include "math/legacy_horizontal.hpp"
 #include "math/legacy_altitude.hpp"
+#include "math/legacy_map.hpp"
 #include "math/legacy_airspeed.hpp"
 using f15::math::legacy::signedAngle;
 using SpeedMath = f15::math::AirspeedMath<f15::math::GameBackend>;
@@ -65,7 +66,8 @@ void keyDispatch(uint16 scanCode) {
          * original useful map levels while preserving Z/X keyboard behavior. */
         g_mapZoomLevel++;
         if (g_mapZoomLevel > 9) g_mapZoomLevel = 2;
-        redrawTacMap(g_viewX_, g_viewY_);
+        redrawTacMap(f15::math::legacy::mapWordX(flightMapPosition()),
+                     f15::math::legacy::mapWordY(flightMapPosition()));
         break;
     case SCAN_Z:
         zoomIn();
@@ -279,8 +281,8 @@ void keyDispatch(uint16 scanCode) {
                 commData->landingType = 2;
             }
             g_ejectState = 1;
-            g_crashCamX = g_viewX_;
-            g_crashCamY = g_viewY_;
+            g_crashCamX = f15::math::legacy::mapWordX(flightMapPosition());
+            g_crashCamY = f15::math::legacy::mapWordY(flightMapPosition());
             g_crashCamZ = (int16)(f15::math::legacy::Altitudes::renderWord(flightSceneHeight()) + 8);
         }
         break;

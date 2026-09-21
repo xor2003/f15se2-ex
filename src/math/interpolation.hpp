@@ -13,6 +13,7 @@ class FrameFraction {
     template<class B> friend class PoseInterpolation;
     template<class B> friend class HorizontalMath;
     template<class B> friend class AltitudeMath;
+    template<class B> friend class MapMath;
 public:
     // Scheduler counters are integral; reject extrapolation and fixed-product overflow.
     static FrameFraction fromTicks(std::int64_t elapsed, std::int64_t duration) {

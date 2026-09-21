@@ -1,6 +1,7 @@
 #include "math/legacy_rotation.hpp"
 #include "math/legacy_altitude.hpp"
 #include "math/legacy_horizontal.hpp"
+#include "math/legacy_map.hpp"
 #include "math/legacy_airspeed.hpp"
 #include "math/legacy_propulsion.hpp"
 #include "math/legacy_flight_control.hpp"
@@ -152,6 +153,19 @@ int main() {
         require(std::abs(legacy::knotsUnits(flightKnots()) - speed / 27) < 1e-9,
                 "modern indicated knots wrapped or quantized");
     }
+
+    // Map-position regression: fractional coarse units come from the fine
+    // coordinates; the stale stored words must not be consulted.
+    g_viewX_ = 999;
+    g_viewY_ = -999;
+    g_ViewX = legacy::viewX(1016);   // (1016 + 16) / 32 = 32.25 map units
+    g_ViewY = legacy::viewY(1016);
+    const auto mapPos = flightMapPosition();
+    require(MapBoundary<GameBackend>::x(mapPos) == 32.25 &&
+            MapBoundary<GameBackend>::y(mapPos) == 32768.0 - 32.25,
+            "modern map position lost the fractional units");
+    require(legacy::mapWordX(mapPos) == 32 && legacy::mapWordY(mapPos) == 32735,
+            "modern map word quantization changed");
 
     g_velocity = Speeds::speed(50000.25);
     g_playerPlaneFlags = 1;

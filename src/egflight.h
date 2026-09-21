@@ -4,6 +4,7 @@
 #include "math/flight_control.hpp"
 #include "math/airspeed.hpp"
 #include "math/altitude.hpp"
+#include "math/map_position.hpp"
 
 /* Current compressed scene height: full-range from flight altitude under the
  * modern backend, the stored scene word under the fixed backend. */
@@ -14,6 +15,10 @@ f15::math::CornerSpeed<f15::math::GameBackend> flightKnots();
 /* Current corner speed in indicated knots, captured where g_cornerSpeed is
  * written each tick. */
 f15::math::CornerSpeed<f15::math::GameBackend> flightCornerSpeed();
+/* Current coarse map position: fractional map units derived from the fine
+ * view coordinates under the modern backend, the stored g_viewX_/g_viewY_
+ * words under the fixed backend. */
+f15::math::MapPosition<f15::math::GameBackend> flightMapPosition();
 void advanceFlightOrientation(const f15::math::RotationDeltas<f15::math::GameBackend> &deltas);
 void advanceFlightAltitude();
 void updateFlightLift();
