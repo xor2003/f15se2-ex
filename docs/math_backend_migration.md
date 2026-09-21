@@ -834,6 +834,36 @@ and split into reviewed render boundaries versus decision math:
 
 Verification: fixed 58/58 and modern smoke pass after the audit edits.
 
+## Analog input checkpoint
+
+* `flightInputCommands(preferAnalogStick)` in `egflight.c` selects the input
+  path where the byte path would have read the physical stick — same
+  `g_inputDisabled` and Android autopilot-neutralization gating, same
+  `input_preferGamepad()` device gate. Under modern it calls
+  `joy_physicalStick()` (calibration-aware normalized SDL axes) through
+  `FlightControlMath::fromAnalog`; the fixed backend and the keyboard
+  virtual stick always take the byte curve.
+* `legacy::analogResponseForLegacyCurve()` names the profile: endpoints match
+  the byte curve's full deflection (roll ±126, pitch +42/−21 in 128-word-rate
+  units — pitch's `p < 0 → ++p` halves negative authority) and axisByte's
+  8000/32768 deadzone. Response is linear inside the deadzone — the nibble
+  quantization is a legacy limit, not reproduced. The byte curve negates roll
+  (right deflection → negative command), so the call site flips the analog
+  roll sign to keep the same physical feel.
+* `AnalogStick` gained `roll()`/`pitch()` accessors for that sign convention.
+  `joyAxes` still update through `readCalibratedJoystick` for the tacmap
+  control marker and blackbox axis recording — the byte pair remains the
+  display/telemetry boundary.
+* `typed_flight_control_tests` checks the profile endpoints against the
+  exhaustive byte-curve oracle at ±1/0 and the deadzone edges at 0.2441 vs
+  0.25. `modern_flight_smoke_tests` checks the wiring: `preferAnalogStick`
+  sources the physical stick (no device → centred → zero commands) while the
+  byte path still reads `joyAxes`. `joystick_behavior_tests` already covers
+  `joy_physicalStick()` on a virtual device. The in-loop call on real hardware
+  is compile-covered only.
+
+Verification: fixed 58/58 and modern smoke pass.
+
 ### Next acceptance boundary
 
 Aircraft Euler, command, altitude, climb, airspeed and fine horizontal position

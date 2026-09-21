@@ -75,6 +75,9 @@ class AnalogStick {
     }
     friend struct ControlBoundary<ModernBackend>;
     friend class FlightControlMath<ModernBackend>;
+public:
+    double roll() const { return roll_; }
+    double pitch() const { return pitch_; }
 };
 
 // Explicit controller policy, not an aircraft performance model. Rates are

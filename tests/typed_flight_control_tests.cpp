@@ -221,8 +221,37 @@ void analogPrecision() {
     rejects([] { D::analogStick(1.01, 0); });
     rejects([] { D::analogStick(0, std::numeric_limits<double>::quiet_NaN()); });
 }
+void analogLegacyEndpoints() {
+    /* The analog profile must reproduce the byte curve's full deflection:
+     * roll ±126 and pitch +42/−24 word-rate units. The byte curve's roll
+     * negation stays a call-site convention — fromAnalog keeps input sign. */
+    const auto profile = legacy::analogResponseForLegacyCurve();
+    /* byte endpoint -> normalized analog endpoint (the deadzone rescale only
+     * reaches full deflection at exactly ±1) */
+    const std::pair<int, int> bytes[] = {{255, 255}, {0, 0}, {255, 0}, {0, 255}, {128, 128}};
+    const std::pair<double, double> sticks[] = {{1, 1}, {-1, -1}, {1, -1}, {-1, 1}, {0, 0}};
+    for (int i = 0; i < 5; ++i) {
+        const auto byteCommands = MM::fromJoystick(D::joystick(bytes[i].first, bytes[i].second));
+        const auto analogCommands = MM::fromAnalog(D::analogStick(sticks[i].first, sticks[i].second), profile);
+        require(std::abs(std::abs(D::radiansPerSecond(analogCommands.roll)) -
+                         std::abs(D::radiansPerSecond(byteCommands.roll))) < 1e-12,
+                "analog profile does not reach the byte roll endpoint");
+        require(std::abs(std::abs(D::radiansPerSecond(analogCommands.pitch)) -
+                         std::abs(D::radiansPerSecond(byteCommands.pitch))) < 1e-12,
+                "analog profile does not reach the byte pitch endpoint");
+    }
+    /* The profile deadzone matches axisByte's 8000/32768 gate. */
+    for (double fraction : {0.24, 0.2441, 0.24414}) {
+        const auto commands = MM::fromAnalog(D::analogStick(fraction, -fraction), profile);
+        require(commands.roll.isZero() && commands.pitch.isZero(),
+                "analog deadzone is narrower than the byte path's");
+    }
+    const auto justOutside = MM::fromAnalog(D::analogStick(0.25, -0.25), profile);
+    require(!justOutside.roll.isZero() && !justOutside.pitch.isZero(),
+            "analog deadzone is wider than the byte path's");
+}
 int main() {
     fixedInputs(); productionCaller(); modernPrecision();
-    analogPrecision();
+    analogPrecision(); analogLegacyEndpoints();
     std::puts("typed flight control tests passed");
 }

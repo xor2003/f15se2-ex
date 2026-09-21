@@ -74,6 +74,27 @@ f15::math::MapPosition<f15::math::GameBackend> flightMapPosition() {
 #endif
 }
 
+/* Stick input -> flight commands. Under the modern backend a preferred
+ * physical stick drives full-resolution analog input; keyboard, disabled and
+ * autopilot-neutralized states stay on the byte curve (the fixed backend
+ * always uses it). The byte curve negates roll (right deflection -> negative
+ * command), so the analog roll sign flips to keep the same physical feel. */
+f15::math::FlightCommands<f15::math::GameBackend> flightInputCommands(bool preferAnalogStick) {
+    using Controls = f15::math::legacy::Controls;
+    using ControlMath = f15::math::FlightControlMath<f15::math::GameBackend>;
+#ifdef F15_MODERN_MATH
+    if (preferAnalogStick) {
+        const auto stick = joy_physicalStick();
+        return ControlMath::fromAnalog(
+            Controls::analogStick(-stick.roll(), stick.pitch()),
+            f15::math::legacy::analogResponseForLegacyCurve());
+    }
+#else
+    (void)preferAnalogStick;
+#endif
+    return ControlMath::fromJoystick(Controls::joystick(joyAxes[0], joyAxes[1]));
+}
+
 /* Corner speed captured at its per-tick computation so decision consumers can
  * read the typed quantity instead of the display word. */
 static f15::math::CornerSpeed<f15::math::GameBackend> s_flightCornerSpeed;
@@ -389,7 +410,14 @@ switch_break:
 
     using Controls = f15::math::legacy::Controls;
     using ControlMath = f15::math::FlightControlMath<f15::math::GameBackend>;
-    const auto commands = ControlMath::fromJoystick(Controls::joystick(joyAxes[0], joyAxes[1]));
+    /* The analog path applies only where the byte path would have read the
+     * physical stick — same disabled and autopilot-neutralization gating. */
+    const auto commands = flightInputCommands(
+        g_inputDisabled == 0
+#if defined(__ANDROID__)
+        && g_autopilotAltitude.isZero() && g_autopilotEngaged == 0
+#endif
+        && input_preferGamepad());
     g_rollInput = commands.roll;
     g_pitchInput = commands.pitch;
 

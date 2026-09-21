@@ -27,6 +27,7 @@ void rebuildOrientation();
 int16_t computeTargetBearing(int16_t targetX, int16_t targetY, int16_t wantBearing);
 int16_t computeLoftAngle();
 int rangeApprox(int dx, int dy);
+extern uint8_t joyAxes[];
 void setupInstrumentLayoutFar();
 void drawInstrumentGaugesFar();
 
@@ -184,6 +185,17 @@ int main() {
     g_ourPitch = {};
     require(computeLoftAngle() == 963 - 0x4000,
             "modern loft angle used the wrapped scene-height word");
+
+    // Analog-input wiring: preferAnalogStick must source the physical stick
+    // (no device -> centred -> zero commands), never the byte axes.
+    joyAxes[0] = 0xFF;
+    joyAxes[1] = 0xFF;
+    const auto analogCommands = flightInputCommands(true);
+    require(analogCommands.roll.isZero() && analogCommands.pitch.isZero(),
+            "analog input path read the byte axes");
+    const auto byteCommands = flightInputCommands(false);
+    require(!byteCommands.roll.isZero() && !byteCommands.pitch.isZero(),
+            "byte input path ignored the virtual stick");
 
     g_velocity = Speeds::speed(50000.25);
     g_playerPlaneFlags = 1;

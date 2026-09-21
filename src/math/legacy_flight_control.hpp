@@ -13,6 +13,17 @@ inline PitchCommand<GameBackend> pitchCommand(int value) {
 }
 inline int rollInput(RollCommand<GameBackend> value) { return Controls::roll(value); }
 inline std::int16_t pitchInput(PitchCommand<GameBackend> value) { return Controls::pitch(value); }
+/* Analog response matching the byte-stick curve's endpoints: roll ±126 and
+ * pitch +42/−21 in 128-word-rate units (128·2π/65536 rad/s), plus the
+ * 8000/32768 axis deadzone axisByte applies. Linear between — the nibble
+ * quantization is a legacy limit, not behavior to reproduce. */
+inline AnalogResponse analogResponseForLegacyCurve() {
+    using M = ControlBoundary<ModernBackend>;
+    constexpr double wordRate = 128.0 * (6.28318530717958647692 / 65536);
+    return {M::radiansPerSecond<RollAxis>(126 * wordRate),
+            M::radiansPerSecond<PitchAxis>(42 * wordRate),
+            M::radiansPerSecond<PitchAxis>(21 * wordRate), 8000.0 / 32768.0};
+}
 inline int updateControlFromWords(RollCommand<GameBackend> &roll, PitchCommand<GameBackend> &pitch,
                                  int (*update)(int *, std::int16_t *)) {
     int r = rollInput(roll);

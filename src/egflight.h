@@ -19,6 +19,9 @@ f15::math::CornerSpeed<f15::math::GameBackend> flightCornerSpeed();
  * view coordinates under the modern backend, the stored g_viewX_/g_viewY_
  * words under the fixed backend. */
 f15::math::MapPosition<f15::math::GameBackend> flightMapPosition();
+/* Stick input -> flight commands: full-resolution analog when a physical
+ * stick is preferred under the modern backend, the byte curve otherwise. */
+f15::math::FlightCommands<f15::math::GameBackend> flightInputCommands(bool preferAnalogStick);
 void advanceFlightOrientation(const f15::math::RotationDeltas<f15::math::GameBackend> &deltas);
 void advanceFlightAltitude();
 void updateFlightLift();
