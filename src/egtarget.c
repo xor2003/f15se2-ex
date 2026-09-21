@@ -340,13 +340,14 @@ skip_aam:
     /* Player's own aircraft fire */
     if (!(g_viewMode & 0x80)) goto done;
     if (g_viewMode == VIEW_TARGET) goto done;
-    if (g_viewZ == 0 && g_ejectState != 0) goto done;
+    if (flightSceneHeight().isZero() && g_ejectState != 0) goto done;
 
     drawWorldObject(((g_playerPlaneFlags & 1) == 0) + 6, (int32)fineUnits(g_ViewX),
                     0x01000000L - fineUnits(g_ViewY), g_viewZ + 0x10, signedAngle(g_ourHead), signedAngle(g_ourPitch), signedAngle(g_ourRoll),
                     2 - depthShift);
 
-    if ((uint16)g_viewZ < 1000 && g_nightMode == 0) {
+    if (f15::math::AltitudeMath<f15::math::GameBackend>::belowSceneHeight(
+            flightSceneHeight(), f15::math::legacy::renderHeightFromUnits(1000)) && g_nightMode == 0) {
         drawAircraftShadow(((g_playerPlaneFlags & 1) == 0) + 6,
                         (int32)fineUnits(g_ViewX), 0x01000000L - fineUnits(g_ViewY),
                         g_groundAltitude, signedAngle(g_ourHead), signedAngle(g_ourPitch), signedAngle(g_ourRoll), 2);

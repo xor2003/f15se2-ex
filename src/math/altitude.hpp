@@ -2,6 +2,8 @@
 #define F15_MATH_ALTITUDE_HPP
 
 #include "flight_control.hpp"
+#include "interpolation.hpp"
+#include <climits>
 
 namespace f15::math {
 template<class B> struct AltitudeBoundary;
@@ -62,6 +64,28 @@ public:
         if constexpr (std::is_same_v<B, FixedBackend>)
             return static_cast<std::uint16_t>(height.value_) > static_cast<std::uint16_t>(ground.value_);
         else return height.value_ > ground.value_;
+    }
+    /* Low-altitude band checks keep the original unsigned-word reading: only
+     * heights in [0, limit) qualify, so wrapped or negative scene heights
+     * never enter the band. */
+    static bool belowSceneHeight(RenderHeight<B> height, RenderHeight<B> limit) {
+        if constexpr (std::is_same_v<B, FixedBackend>)
+            return static_cast<std::uint16_t>(height.value_) < static_cast<std::uint16_t>(limit.value_);
+        else return height.value_ >= 0 && height.value_ < limit.value_;
+    }
+    /* Render-space interpolation between two sim-step scene heights. */
+    static RenderHeight<B> interpolate(RenderHeight<B> from, RenderHeight<B> to, FrameFraction fraction) {
+        if constexpr (std::is_same_v<B, FixedBackend>) {
+            const auto delta = std::int64_t(to.value_) - from.value_;
+            const auto magnitude = delta < 0 ? -delta : delta;
+            if (magnitude && fraction.numerator_ > INT64_MAX / magnitude)
+                throw std::overflow_error("scene-height interpolation product overflow");
+            return RenderHeight<B>(static_cast<std::int16_t>(
+                from.value_ + static_cast<std::int32_t>(delta * fraction.numerator_ / fraction.denominator_)));
+        } else {
+            const double t = static_cast<double>(fraction.numerator_) / fraction.denominator_;
+            return RenderHeight<B>(from.value_ * (1 - t) + to.value_ * t);
+        }
     }
     static RenderHeight<B> captureAltitudeHold(RenderHeight<B> height) {
         // Minimum capture height is autopilot policy in scene-height units.

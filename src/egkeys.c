@@ -6,6 +6,7 @@
 #include "math/legacy_horizontal.hpp"
 #include "math/legacy_altitude.hpp"
 using f15::math::legacy::signedAngle;
+#include "egflight.h"
 #include "egframe.h"
 #include "egkeys.h"
 #include "egmath.h"
@@ -77,7 +78,8 @@ void keyDispatch(uint16 scanCode) {
         countermeasures(2);
         break;
     case SCAN_L:
-        if (g_viewZ != g_groundAltitude) {
+        if (!f15::math::AltitudeMath<f15::math::GameBackend>::atGround(
+                flightSceneHeight(), f15::math::legacy::Altitudes::ground(g_groundAltitude))) {
             *(char *)&g_playerPlaneFlags ^= 1;
             g_gearDownArmed = 0;
             makeSound(32, 2);
@@ -201,11 +203,7 @@ void keyDispatch(uint16 scanCode) {
             g_autopilotAltitude = {};
             hudMessage("Autopilot off");
         } else {
-#ifdef F15_MODERN_MATH
-            const auto height = f15::math::AltitudeMath<f15::math::GameBackend>::renderHeight(g_altitude);
-#else
-            const auto height = f15::math::legacy::renderHeightFromUnits(g_viewZ);
-#endif
+            const auto height = flightSceneHeight();
             g_autopilotAltitude = f15::math::AltitudeMath<f15::math::GameBackend>::captureAltitudeHold(height);
             hudMessage("Autopilot on");
         }

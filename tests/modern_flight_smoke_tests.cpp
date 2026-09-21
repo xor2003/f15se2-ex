@@ -124,6 +124,27 @@ int main() {
         require(g_viewZ == signedWord,
                 "scene-height narrowing baseline changed");
     }
+    // Stall-warning caller regression: the height leg must use the full-range
+    // scene height. At altitude 229376 the compressed scene height is 65536,
+    // which wraps to word 0 in g_viewZ — below the 200-unit warning floor.
+    g_groundAltitude = g_autoLandingActive = 0;
+    for (double altitude : {0.0, 100.0, 199.5, 200.0, 800.0, 229376.0, 229376.5, 262144.0}) {
+        g_altitude = Altitudes::altitude(altitude);
+        g_velocity = Speeds::speed(0);
+        g_ourPitch = g_rollPitchTrim = {};
+        advanceFlightAltitude();
+        const double scene = Altitudes::render(AltitudeMath<ModernBackend>::renderHeight(g_altitude));
+        require(flightStallWarningRequired() == (scene >= 0 && scene < 200),
+                "modern stall warning used the wrapped scene-height word");
+    }
+    // A sub-word nose-down must still trigger the warning.
+    for (double pitch : {-1.0, -1e-5, -1e-9, 0.0, 1e-9, 1e-5, 1.0}) {
+        g_ourPitch = Angles::radians(pitch);
+        require(flightStallWarningRequired() == (pitch < 0),
+                "modern stall warning quantized the pitch sign");
+    }
+    g_ourPitch = {};
+
     g_velocity = Speeds::speed(50000.25);
     g_playerPlaneFlags = 1;
     brakeFlightSpeed();

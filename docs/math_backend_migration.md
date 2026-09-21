@@ -705,6 +705,15 @@ outstanding.
 * `AerodynamicsMath::aboveStall` and `belowStall` preserve the fixed path's strict
   unsigned-word comparisons, including equality and native velocity values beyond
   one word. The modern path compares full fractional values without word wrap.
+* `flightStallWarningRequired` now delegates to
+  `AerodynamicsMath::stallWarning(Angle, RenderHeight)`. The fixed path preserves
+  the original `signedAngle(pitch) < 0 || (uint16)height < 200` expression exactly.
+  The modern path evaluates the fractional pitch sign directly and compares the
+  full-range scene height, so a sub-word negative pitch still warns and an
+  altitude of 229376 no longer wraps `g_viewZ` to zero and produces a spurious
+  low-altitude warning. `modern_flight_smoke_tests` carries the caller
+  regression; `typed_stall_tests` checks the fixed helper over every 16-bit
+  height word and the modern helper at fractional pitch and heights up to 1e6.
 * `stallResponse` returns both stall status and a typed nose-drop angle. Fixed
   normal/severe drops keep the original divide-by-four/divide-by-two per-tick
   rounding, independent of tick frequency. Even a deficit that rounds to zero
@@ -929,10 +938,23 @@ altitude. Production braking tests cover actual ground, a fractional airborne
 height, and the scene-word wrap at altitude 229376; the high-altitude flight-loop
 regression covers both 131072 and 229376.
 
-Other `g_viewZ` consumers still require migration, including ground-state checks
-outside `egflight.c`, stall-warning height, particle/snapshot storage, and camera
-state. These tests do not establish unrestricted high-altitude flight or
-rendering stability.
+Height-decision consumers of `g_viewZ` are now migrated through
+`flightSceneHeight()`: the stall warning (`egflight.c`), the mission ground
+check (`missionAtHeight` in `egframe.c`), the gear-toggle ground check and
+autopilot capture (`egkeys.c`), the stall-text HUD check (`egtacmap.c`), and the
+eject-draw suppression and shadow band checks (`egtarget.c`). `CamSnapshot`
+stores a typed `RenderHeight<GameBackend>` and interpolates via
+`AltitudeMath::interpolate`/`belowSceneHeight`, narrowing back to `g_viewZ` only
+through `AltitudeBoundary::renderWord` (a defined mod-2^16 wrap). Legacy
+word-domain storage remains by design: `g_viewZ` itself and the `.alt` fields of
+`ViewSnapshot`, `Particle`, `Projectile` and `SimObject` are frozen original
+binary layouts consumed by the word-space renderer, so they still receive the
+boundary word.
+
+Remaining `g_viewZ` work is the renderer/world coordinate space itself —
+projection, terrain and targeting globals, plus the fixed-format `.alt` fields
+above — not further decision plumbing. These tests do not establish
+unrestricted high-altitude flight or rendering stability.
 
 For whole-sortie migration, capture a fixed seed, initial state and tick-indexed
 inputs. Compare fixed-backend state after each tick exactly. For floating point,

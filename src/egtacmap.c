@@ -9,6 +9,7 @@
 using f15::math::legacy::altitudeUnits;
 using f15::math::legacy::climbUnits;
 using f15::math::legacy::signedAngle;
+#include "egflight.h"
 #include "egframe.h"
 #include "egmath.h"
 #include "egtacmap.h"
@@ -115,7 +116,10 @@ void renderHudFrame(int unused) {
             gfx_invalidateTtfTextOverlayRect(0, HUD_STALL_TEXT_Y, 319,
                                              HUD_STALL_TEXT_Y + HUD_TRANSIENT_TEXT_HEIGHT);
             // stall warning display
-            if (g_knots < g_cornerSpeed && g_groundAltitude != g_viewZ && frameTick & 1) {
+            if (g_knots < g_cornerSpeed &&
+                !f15::math::AltitudeMath<f15::math::GameBackend>::atGround(
+                    flightSceneHeight(), f15::math::legacy::Altitudes::ground(g_groundAltitude)) &&
+                frameTick & 1) {
                 drawStringActivePage("stall warning", 132, 30, 0xf);
             }
             if (g_currentWeaponType == 0 || g_currentWeaponType == 2) {

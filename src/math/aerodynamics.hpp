@@ -133,6 +133,17 @@ public:
         if constexpr (std::is_same_v<B, FixedBackend>) return std::uint16_t(speed.value_) < std::uint16_t(threshold.value_);
         else return speed.value_ < threshold.value_;
     }
+    /* Stall warning policy: sound while the nose is below the horizon or the
+     * scene height is under the warning floor (compressed scene-height units).
+     * Modern keeps the fractional pitch sign and the unwrapped scene height. */
+    static bool stallWarning(Angle<B> pitch, RenderHeight<B> height) {
+        constexpr int stallWarningFloor = 200;
+        const bool lowAltitude = AltitudeMath<B>::belowSceneHeight(height, RenderHeight<B>(stallWarningFloor));
+        if constexpr (std::is_same_v<B, FixedBackend>)
+            return signedWord(pitch.value_.raw()) < 0 || lowAltitude;
+        else
+            return pitch.value_ < 0 || lowAltitude;
+    }
     static StallResponse<B> stallResponse(FlightSpeed<B> speed, StallSpeed<B> threshold,
                                           StallSeverity severity, SimulationStep<B> step) {
         if (severity != StallSeverity::Normal && severity != StallSeverity::Severe)

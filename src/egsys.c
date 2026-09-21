@@ -7,6 +7,8 @@
 #include "egcode.h"
 #include "egdata.h"
 #include "math/interpolation.hpp"
+#include "math/legacy_altitude.hpp"
+#include "egflight.h"
 #include "inttype.h"
 #include "gfx.h"
 #include "shared/common.h"
@@ -54,7 +56,7 @@ void updateFrame(void);
 typedef struct {
     f15::math::ViewCoordinate<f15::math::GameBackend, f15::math::ViewXAxis> viewX;
     f15::math::ViewCoordinate<f15::math::GameBackend, f15::math::ViewYAxis> viewY;
-    int32 viewZ;
+    f15::math::RenderHeight<f15::math::GameBackend> viewZ;
     f15::math::Angle<f15::math::GameBackend> head, pitch, roll;
     int32 mapX, mapY; /* g_viewX_ / g_viewY_ */
     int32 crashX, crashY, crashZ;
@@ -73,7 +75,7 @@ static int32 iabs32(int32 v) {
 static void camCapture(CamSnapshot *s) {
     s->viewX = g_ViewX;
     s->viewY = g_ViewY;
-    s->viewZ = g_viewZ;
+    s->viewZ = flightSceneHeight();
     s->head = g_ourHead;
     s->pitch = g_ourPitch;
     s->roll = g_ourRoll;
@@ -93,7 +95,7 @@ static void camCapture(CamSnapshot *s) {
 static void camRestore(const CamSnapshot *s) {
     g_ViewX = s->viewX;
     g_ViewY = s->viewY;
-    g_viewZ = (int16)s->viewZ;
+    g_viewZ = f15::math::legacy::Altitudes::renderWord(s->viewZ);
     g_ourHead = s->head;
     g_ourPitch = s->pitch;
     g_ourRoll = s->roll;
@@ -164,7 +166,9 @@ static void camApplyInterp(const CamSnapshot *p, const CamSnapshot *n, int64 num
         : Pose::linearOffset(p->rollPitchTrim, n->rollPitchTrim, fraction);
     g_ViewX = x;
     g_ViewY = y;
-    g_viewZ = (int16)lerpLinear(p->viewZ, n->viewZ, num, den);
+    g_viewZ = f15::math::legacy::Altitudes::renderWord(
+        f15::math::AltitudeMath<f15::math::GameBackend>::interpolate(
+            p->viewZ, n->viewZ, f15::math::FrameFraction::fromTicks(num, den)));
     g_ourHead = pose.yaw;
     g_ourPitch = pose.pitch;
     g_ourRoll = pose.roll;

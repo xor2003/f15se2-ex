@@ -1,5 +1,6 @@
 #include "math/aerodynamics.hpp"
 #include "math/legacy_airspeed.hpp"
+#include "math/legacy_altitude.hpp"
 #include "math/legacy_rotation.hpp"
 #include "math/legacy_flight_control.hpp"
 #include "egdata.h"
@@ -16,6 +17,9 @@ using FM = AerodynamicsMath<F>;
 using MM = AerodynamicsMath<M>;
 using FC = AirspeedBoundary<F>;
 using MC = AirspeedBoundary<M>;
+using FA = AltitudeBoundary<F>;
+using MA = AltitudeBoundary<M>;
+using MB = Boundary<M>;
 void require(bool ok, const char *why) {
     if (!ok) { std::fprintf(stderr, "%s\n", why); std::exit(1); }
 }
@@ -54,6 +58,13 @@ void fixedMath() {
         require(!response.stalled && response.noseDrop == Angle<F>{}, "stall at exact threshold");
     }
     rejects([] { FM::stallResponse({}, {}, static_cast<StallSeverity>(99), ControlBoundary<F>::frequency(15)); });
+    // Freeze the stall-warning policy from 02e55d1: signed pitch below the
+    // horizon, or the unsigned scene-height word below the 200-unit floor.
+    for (int height = 0; height < 65536; ++height)
+    for (int pitch : {-32768, -2, -1, 0, 1, 2, 32767})
+        require(FM::stallWarning(legacy::angleFromWord(pitch), FA::render(static_cast<std::int16_t>(height))) ==
+                (pitch < 0 || std::uint16_t(height) < 200),
+                "fixed stall-warning policy changed");
 }
 void productionCaller() {
     for (int height = -32768; height <= 32767; ++height)
@@ -128,6 +139,13 @@ void modernMath() {
     rejects([] { MC::stall(std::numeric_limits<double>::infinity()); });
     rejects([] { MM::stallResponse(MC::speed(-1e308), MC::stall(1e308), StallSeverity::Normal, ControlBoundary<M>::frequency(15)); });
     rejects([] { MM::stallResponse({}, {}, static_cast<StallSeverity>(99), ControlBoundary<M>::frequency(15)); });
+    // Modern stall warning: fractional pitch sign and unwrapped scene height.
+    for (double height : {-0.5, 0.0, 100.0, 199.5, 199.999, 200.0, 200.5,
+                          32767.5, 32768.0, 65535.5, 65536.0, 1e6})
+    for (double pitch : {-1.0, -1e-5, -1e-9, 0.0, 1e-9, 1e-5, 1.0})
+        require(MM::stallWarning(MB::radians(pitch), MA::render(height)) ==
+                (pitch < 0 || (height >= 0 && height < 200)),
+                "modern stall warning quantized pitch or wrapped height");
 }
 }
 int main() { fixedMath(); productionCaller(); modernMath(); }

@@ -3,7 +3,11 @@
 /* public interface of egflight.c */
 #include "math/flight_control.hpp"
 #include "math/airspeed.hpp"
+#include "math/altitude.hpp"
 
+/* Current compressed scene height: full-range from flight altitude under the
+ * modern backend, the stored scene word under the fixed backend. */
+f15::math::RenderHeight<f15::math::GameBackend> flightSceneHeight();
 void advanceFlightOrientation(const f15::math::RotationDeltas<f15::math::GameBackend> &deltas);
 void advanceFlightAltitude();
 void updateFlightLift();

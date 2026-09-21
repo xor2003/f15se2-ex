@@ -66,6 +66,9 @@ int main() {
         {}, {}, std::declval<SimulationStep<ModernBackend>>())), EngineThrust<ModernBackend>>);
     static_assert(std::is_same_v<decltype(AerodynamicsMath<ModernBackend>::stallResponse(
         {}, {}, StallSeverity::Normal, std::declval<SimulationStep<ModernBackend>>())), StallResponse<ModernBackend>>);
+    (void)AerodynamicsMath<ModernBackend>::stallWarning({}, {});
+    (void)AltitudeMath<ModernBackend>::belowSceneHeight({}, {});
+    (void)AltitudeMath<ModernBackend>::interpolate({}, {}, FrameFraction::fromTicks(1, 4));
 #if defined(TEST_PRIMITIVE_ANGLE)
     (void)math.sine(1.0);
 #elif defined(TEST_PRIMITIVE_EULER)
@@ -203,6 +206,14 @@ int main() {
 #elif defined(TEST_STALL_POINTER)
     StallSpeed<FixedBackend> stall;
     short *raw = &stall;
+#elif defined(TEST_STALL_WARNING_RAW)
+    (void)AerodynamicsMath<ModernBackend>::stallWarning(0.5, 199.0);
+#elif defined(TEST_STALL_WARNING_HEIGHT)
+    (void)AerodynamicsMath<ModernBackend>::stallWarning({}, FlightAltitude<ModernBackend>{});
+#elif defined(TEST_STALL_WARNING_BACKEND)
+    (void)AerodynamicsMath<ModernBackend>::stallWarning({}, RenderHeight<FixedBackend>{});
+#elif defined(TEST_ALTITUDE_BAND_RAW)
+    (void)AltitudeMath<ModernBackend>::belowSceneHeight(1.0, {});
 #elif defined(TEST_LIFT_PRIMITIVE)
     (void)AerodynamicsMath<ModernBackend>::liftCorrection(1.0, 2.0);
 #elif defined(TEST_TRIM_PRIMITIVE)

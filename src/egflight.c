@@ -53,28 +53,28 @@ using f15::math::legacy::pitchInput;
 #include <stdlib.h>
 #include <string.h>
 
-/* Private helpers for this translation unit. */
-static f15::math::RenderHeight<f15::math::GameBackend> flightControlHeight() {
+/* Current compressed scene height. Modern derives it from full-range flight
+ * altitude; fixed preserves the original stored word and its update timing. */
+f15::math::RenderHeight<f15::math::GameBackend> flightSceneHeight() {
 #ifdef F15_MODERN_MATH
     return f15::math::AltitudeMath<f15::math::GameBackend>::renderHeight(g_altitude);
 #else
-    // Preserve the original stored-word input, including its update timing.
     return f15::math::legacy::renderHeightFromUnits(g_viewZ);
 #endif
 }
 
 static bool flightAtGround() {
     return f15::math::AltitudeMath<f15::math::GameBackend>::atGround(
-        flightControlHeight(), f15::math::legacy::Altitudes::ground(g_groundAltitude));
+        flightSceneHeight(), f15::math::legacy::Altitudes::ground(g_groundAltitude));
 }
 
 bool flightStallWarningRequired() {
-    return signedAngle(g_ourPitch) < 0 || (uint16)g_viewZ < 200;
+    return Aero::stallWarning(g_ourPitch, flightSceneHeight());
 }
 
 static bool flightAboveGround() {
     return f15::math::AltitudeMath<f15::math::GameBackend>::aboveGround(
-        flightControlHeight(), f15::math::legacy::Altitudes::ground(g_groundAltitude));
+        flightSceneHeight(), f15::math::legacy::Altitudes::ground(g_groundAltitude));
 }
 
 void stepFlightModel();
@@ -122,7 +122,7 @@ void advanceFlightAltitude() {
         g_altitude = VerticalMath::integrate(g_altitude, g_climbRate,
             f15::math::legacy::Controls::frequency(g_frameRateScaling));
     g_altitude = VerticalMath::constrain(g_altitude, Altitudes::ground(g_groundAltitude));
-    g_viewZ = Altitudes::render(VerticalMath::renderHeight(g_altitude));
+    g_viewZ = Altitudes::renderWord(VerticalMath::renderHeight(g_altitude));
 }
 
 void updateFlightLift() {
@@ -423,7 +423,7 @@ switch_break:
             (g_missionTick & 0xF) * 256 - 2048 : 0);
         const auto guidance = f15::math::GuidanceMath<f15::math::GameBackend>::altitudeHold(
             g_autopilotAltitude,
-            flightControlHeight(),
+            flightSceneHeight(),
             {g_ourHead, g_ourPitch, g_ourRoll}, angleFromWord(g_waypointBearing), headingOffset, g_rollPitchTrim);
         g_rollInput = guidance.roll;
         g_pitchInput = guidance.pitch;
@@ -447,7 +447,7 @@ switch_break:
 
             const auto recovery = f15::math::GuidanceMath<f15::math::GameBackend>::recoveryAttitude(
                 approach.height,
-                flightControlHeight(),
+                flightSceneHeight(),
                 {g_ourHead, g_ourPitch, g_ourRoll}, bankTarget, g_rollPitchTrim);
             g_rollInput = recovery.roll;
 
@@ -520,7 +520,7 @@ switch_break:
             }
         }
 
-        if (flightControlHeight().isZero() && g_smokeSourceIdx == -1) {
+        if (flightSceneHeight().isZero() && g_smokeSourceIdx == -1) {
             g_smokeSourceIdx = 0;
             g_planeTable.planes[0].mapX = g_viewX_;
             g_planeTable.planes[0].mapY = g_viewY_;
@@ -594,7 +594,7 @@ switch_break:
     g_stallSpeed = Aero::stallThreshold(corner);
     accelerateFlightSpeed(Propulsion::targetSpeed(g_thrust,
         f15::math::legacy::Math(g_angleLut).sine(g_ourPitch),
-        flightControlHeight(),
+        flightSceneHeight(),
         f15::math::legacy::fuelFromUnits(g_fuelRemaining),
         load.load,
         (g_playerPlaneFlags & 1) ? f15::math::LandingGear::Retracted : f15::math::LandingGear::Extended));

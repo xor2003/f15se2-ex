@@ -43,12 +43,7 @@ using f15::math::legacy::signedAngle;
 /* Private helpers for this translation unit. */
 static bool missionAtHeight(int16 height) {
     using namespace f15::math;
-#ifdef F15_MODERN_MATH
-    const auto current = AltitudeMath<GameBackend>::renderHeight(g_altitude);
-#else
-    const auto current = legacy::renderHeightFromUnits(g_viewZ);
-#endif
-    return AltitudeMath<GameBackend>::atGround(current, legacy::Altitudes::ground(height));
+    return AltitudeMath<GameBackend>::atGround(flightSceneHeight(), legacy::Altitudes::ground(height));
 }
 
 void updateFrame(void);

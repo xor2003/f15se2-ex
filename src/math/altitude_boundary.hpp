@@ -4,6 +4,7 @@
 #error "Raw altitude conversion is restricted to reviewed boundary adapters"
 #endif
 #include "altitude.hpp"
+#include <cmath>
 namespace f15::math {
 template<> struct AltitudeBoundary<FixedBackend> {
     static FlightAltitude<FixedBackend> altitude(std::uint32_t v) { return FlightAltitude<FixedBackend>(v); }
@@ -14,6 +15,8 @@ template<> struct AltitudeBoundary<FixedBackend> {
     static AirspeedSample<FixedBackend> speed(std::uint16_t v) { return AirspeedSample<FixedBackend>(v); }
     static std::int16_t render(RenderHeight<FixedBackend> v) { return v.value_; }
     static RenderHeight<FixedBackend> render(std::int16_t v) { return RenderHeight<FixedBackend>(v); }
+    /* The stored scene word is the value itself. */
+    static std::int16_t renderWord(RenderHeight<FixedBackend> v) { return v.value_; }
 };
 template<> struct AltitudeBoundary<ModernBackend> {
     static FlightAltitude<ModernBackend> altitude(double v) { check(v); return FlightAltitude<ModernBackend>(v); }
@@ -28,6 +31,13 @@ template<> struct AltitudeBoundary<ModernBackend> {
     }
     static double render(RenderHeight<ModernBackend> v) { return v.value_; }
     static RenderHeight<ModernBackend> render(double v) { check(v); return RenderHeight<ModernBackend>(v); }
+    /* Legacy 16-bit render/file words wrap modulo 2^16. Truncate through fmod
+     * so the conversion is defined for any finite scene height. */
+    static std::int16_t renderWord(RenderHeight<ModernBackend> v) {
+        const auto wrapped = static_cast<std::int64_t>(std::fmod(v.value_, 65536.0));
+        const auto bits = static_cast<std::uint16_t>(wrapped);
+        return static_cast<std::int16_t>(bits < 32768 ? bits : static_cast<int>(bits) - 65536);
+    }
 private:
     static void check(double v) { if (!std::isfinite(v)) throw std::domain_error("non-finite vertical quantity"); }
 };

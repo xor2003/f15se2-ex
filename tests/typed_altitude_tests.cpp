@@ -1,4 +1,5 @@
 #include "math/legacy_altitude.hpp"
+#include "math/interpolation.hpp"
 #include "math/legacy_airspeed.hpp"
 #include "math/legacy_rotation.hpp"
 #include "math/legacy_flight_control.hpp"
@@ -8,6 +9,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <limits>
+#include <utility>
 
 namespace {
 using namespace f15::math;
@@ -78,6 +80,28 @@ void fixedMath() {
                 "obstacle escape wrapping changed");
     }
     rejects([] { FM::landingApproach({}, {}, 0); });
+    // Scene-height band checks keep the original unsigned-word reading.
+    for (int height = 0; height < 65536; ++height)
+    for (int limit : {1, 200, 1000, 8192, 32767, -1})
+        require(FM::belowSceneHeight(FC::render(static_cast<std::int16_t>(height)),
+                                     FC::render(static_cast<std::int16_t>(limit))) ==
+                (std::uint16_t(height) < std::uint16_t(limit)),
+                "fixed scene-height band check changed");
+    // Scene-height interpolation reproduces the legacy lerpLinear word math.
+    for (int from : {-32768, -1, 0, 1, 199, 200, 8191, 16383, 32767})
+    for (int to : {-32768, -1, 0, 1, 199, 200, 8191, 16383, 32767})
+    for (auto tick : {std::pair{0, 1}, {1, 4}, {3, 4}, {1, 3}, {2, 3},
+                      {4095, 4096}, {4096, 4096}, {1, 15}, {14, 15}}) {
+        const int expected = static_cast<std::int16_t>(from +
+            static_cast<std::int32_t>(std::int64_t(to - from) * tick.first / tick.second));
+        require(FC::renderWord(FM::interpolate(FC::render(static_cast<std::int16_t>(from)),
+                                             FC::render(static_cast<std::int16_t>(to)),
+                                             FrameFraction::fromTicks(tick.first, tick.second))) == expected,
+                "fixed scene-height interpolation differs from lerpLinear");
+    }
+    for (int height : {-32768, -1, 0, 1, 200, 32767})
+        require(FC::renderWord(FC::render(static_cast<std::int16_t>(height))) == height,
+                "fixed render word extraction changed");
 }
 
 void productionCaller() {
@@ -161,6 +185,20 @@ void modernMath() {
         require(MC::render(MM::renderHeight(onGround)) == height,
                 "modern terrain clamp mixes scene height with flight altitude");
     }
+    // Modern band checks keep fractional precision and do not wrap at a word.
+    for (double height : {-0.5, 0.0, 199.5, 200.0, 999.5, 1000.0, 32767.5, 32768.0, 65536.0})
+        require(MM::belowSceneHeight(MC::render(height), MC::render(200.0)) == (height >= 0 && height < 200),
+                "modern scene-height band wrapped or quantized");
+    for (auto sample : {std::pair{1000.0, 500.0}, {65535.5, 65537.5}, {-4.0, 8.0}, {229376.0, 262144.0}})
+        require(std::abs(MC::render(MM::interpolate(MC::render(sample.first), MC::render(sample.second),
+                                                  FrameFraction::fromTicks(1, 4))) -
+                         (sample.first * 0.75 + sample.second * 0.25)) < 1e-9,
+                "modern scene-height interpolation lost precision");
+    // The legacy render word wraps modulo 2^16 through a defined conversion.
+    for (auto sample : {std::pair{0.0, 0}, {199.75, 199}, {32767.5, 32767}, {32768.0, -32768},
+                        {65536.0, 0}, {65536.5, 0}, {-1.5, -1}, {73728.5, 8192}, {131072.0, 0}})
+        require(MC::renderWord(MC::render(sample.first)) == sample.second,
+                "modern render word narrowing changed");
     rejects([] { MC::speed(-1); });
     rejects([] { MC::altitude(std::numeric_limits<double>::infinity()); });
     rejects([] { MC::climb(std::numeric_limits<double>::quiet_NaN()); });
