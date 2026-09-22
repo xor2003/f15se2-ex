@@ -41,11 +41,11 @@ void resetMissionRuntimeState(void) {
     g_autopilotAltitude = {};
     g_inLandingCorridor = 1;
     g_landingDoneFlag = 1;
-    g_landingTimer = 0;
+    g_landingTimer = f15::math::TickDuration{};
     g_autoLandingActive = 0;
     g_resupplyCount = 1;
-    g_hudMsgTimer = 0;
-    g_dirMsgTimer = 0;
+    g_hudMsgTimer = f15::math::TickDuration{};
+    g_dirMsgTimer = f15::math::TickDuration{};
     tempString[0] = '\0';
     g_viewMode = VIEW_COCKPIT;
     g_autopilotEngaged = 0;

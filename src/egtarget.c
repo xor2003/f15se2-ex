@@ -542,13 +542,13 @@ void drawWorldEffects(void) {
 
                             hitFlag = 1;
                             g_simObjects[objIdx].flags.b[0] |= 0x10;
-                            g_hitEffectTimer = 1;
+                            g_hitEffectTimer = f15::math::TickDuration::fromWord(1);
 
                             if (d2 * 4 < r2) {
                                 destroyAircraft(objIdx);
                                 strcat(strBuf, " destroyed by gunfire");
                                 hudMessage(strBuf);
-                                g_hitEffectTimer = 8;
+                                g_hitEffectTimer = f15::math::TickDuration::fromWord(8);
                                 bulletTracks[idx].posX = {};
                             }
                         }
@@ -571,15 +571,15 @@ void drawWorldEffects(void) {
             g_hitMapX = bx;
             g_hitMapY = by;
             g_hitAlt = (int16)bulletTracks[idx].alt;
-            g_hitEffectTimer = -1;
+            g_hitEffectTimer = f15::math::TickDuration::fromWord(-1);
         }
 
         if (bulletTracks[idx].alt < 0) {
-            if (g_hitEffectTimer <= 0) {
+            if (g_hitEffectTimer.atMost(0)) {
                 g_hitMapX = bx;
                 g_hitMapY = by;
                 g_hitAlt = (int16)bulletTracks[idx].alt;
-                g_hitEffectTimer = -1;
+                g_hitEffectTimer = f15::math::TickDuration::fromWord(-1);
             }
             bulletTracks[idx].posX = {};
 
@@ -594,14 +594,14 @@ void drawWorldEffects(void) {
                     destroyGroundTarget(wpEntry);
                     strcat(strBuf, " destroyed by gunfire");
                     hudMessage(strBuf);
-                    g_hitEffectTimer = 8;
+                    g_hitEffectTimer = f15::math::TickDuration::fromWord(8);
                     g_hitAlt = 0;
                 }
             }
         }
     }
 
-    if (g_hitEffectTimer != 0) {
+    if (!g_hitEffectTimer.isZero()) {
         /* Explosion burst as world-space 3D sparks radiating from the hit point:
          * each is a real line (drawWorldLine) so the star has perspective, occludes
          * and hazes — not a flat screen-space starburst. The projectWorldToHud call
@@ -632,7 +632,7 @@ void drawWorldEffects(void) {
                 drawWorldLine(hx, hy, g_hitAlt, ex, ey, (int)ez, color);
             }
         }
-        if (stepped) g_hitEffectTimer -= signOf(g_hitEffectTimer);
+        if (stepped) g_hitEffectTimer.stepTowardZero();
     } else {
         g_lockedTargetKilled = 0;
     }
@@ -720,10 +720,10 @@ void drawHudWorldOverlay(void) {
         }
     }
 
-    if (g_scopeSweepTimer > 0 && g_threatLabelTarget >= 0) {
+    if (g_scopeSweepTimer.isPositive() && g_threatLabelTarget >= 0) {
         projectWorldToHudFine((int32)g_planeTable.planes[g_threatLabelTarget].mapX << 5,
                               (int32)g_planeTable.planes[g_threatLabelTarget].mapY << 5, 0);
-        drawTargetLabel(g_targetNameTable[((int16 *)&g_planeTable)[g_threatLabelTarget * 8]], g_scopeArcColor, g_frameRateScaling - g_scopeSweepTimer);
+        drawTargetLabel(g_targetNameTable[((int16 *)&g_planeTable)[g_threatLabelTarget * 8]], g_scopeArcColor, g_scopeSweepTimer.elapsedWithin(g_frameRateScaling));
     }
 
     g_playerPlaneFlags &= ~0x200;
@@ -852,13 +852,13 @@ void drawHudWorldOverlay(void) {
 
     g_pageFront[1] = 2;
 
-    if (g_scopeSweepTimer > 0 && g_threatLabelTarget < 0) {
+    if (g_scopeSweepTimer.isPositive() && g_threatLabelTarget < 0) {
         idx = -1 - g_threatLabelTarget;
         projectWorldToHudFine(g_simObjects[idx].worldX,
                               g_simObjects[idx].worldY,
                               g_simObjects[idx].alt);
         drawTargetLabel(aircraftTypes[g_simObjects[idx].spec].name,
-                        g_scopeArcColor, g_frameRateScaling - g_scopeSweepTimer);
+                        g_scopeArcColor, g_scopeSweepTimer.elapsedWithin(g_frameRateScaling));
     }
 
     if (g_currentWeaponType == 2 && g_viewMode == VIEW_COCKPIT) {
@@ -909,8 +909,8 @@ void drawHudWorldOverlay(void) {
         }
     }
 
-    if (g_hitEffectTimer != 0 && g_activePanelMode == 0x13 && g_lockedTargetKilled != 0 && g_targetInHudFlag != 0) {
-        blitSprite(252, 140, (abs(g_hitEffectTimer) - 8) * -32, 0x3f, 32, 32, 0);
+    if (!g_hitEffectTimer.isZero() && g_activePanelMode == 0x13 && g_lockedTargetKilled != 0 && g_targetInHudFlag != 0) {
+        blitSprite(252, 140, (abs(g_hitEffectTimer.word()) - 8) * -32, 0x3f, 32, 32, 0);
     }
 
     if (g_activePanelMode == 0x13 && g_prevKillMarker != 0 && g_targetInHudFlag == 0) {

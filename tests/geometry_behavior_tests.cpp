@@ -533,12 +533,12 @@ int main() {
     g_frameRateScaling = 4; // timer = frameRateScaling * 3
     hudMessage("status");
     require(std::strcmp(tempString, "status") == 0 &&
-                g_hudMsgTimer == kTimedMessageFrames,
+                g_hudMsgTimer.word() == kTimedMessageFrames,
             "hudMessage copies HUD text and sets the original three-second timer");
     char timedMessage[] = "director";
     setTimedMessage(timedMessage);
     require(std::strcmp(string_3C04A, "director") == 0 &&
-                g_dirMsgTimer == kTimedMessageFrames,
+                g_dirMsgTimer.word() == kTimedMessageFrames,
             "setTimedMessage copies director text and sets the original three-second timer");
 
     // --- rotateVectorComponent X,Z,Y column access (egtgt2) -----------------

@@ -243,8 +243,8 @@ std::uint32_t hashWeapons() {
 std::uint32_t hashMission() {
     std::uint32_t h = 0x811c9dc5u;
     h = hashAdd(h, (std::uint16_t)g_missionStatus);
-    h = hashAdd(h, (std::uint16_t)g_landingTimer);
-    h = hashAdd(h, (std::uint16_t)g_missionTick);
+    h = hashAdd(h, (std::uint16_t)g_landingTimer.word());
+    h = hashAdd(h, (std::uint16_t)g_missionTick.word());
     h = hashAdd(h, (std::uint16_t)g_nearestThreatRange);
     h = hashAdd(h, (std::uint16_t)g_targetRange);
     h = hashAdd(h, (std::uint16_t)g_targetBearing);
@@ -260,7 +260,7 @@ std::uint32_t hashMission() {
 
 void dumpMission() {
     std::printf("mstatus=%d landT=%d mtick=%d nearR=%d tgtR=%d tgtB=%d ns=%d ended=%d landT2=%d corr=%d threat=%d dirDl=%d slow=%d apEng=%d\n",
-                (int)g_missionStatus, (int)g_landingTimer, (int)g_missionTick,
+                (int)g_missionStatus, (int)g_landingTimer.word(), (int)g_missionTick.word(),
                 (int)g_nearestThreatRange, (int)g_targetRange, (int)g_targetBearing,
                 (int)g_northSouthSign, (int)g_missionEndedFlag[0],
                 commData ? (int)commData->landingType : -1, (int)g_inLandingCorridor,
@@ -321,7 +321,7 @@ void initSortie() {
     g_ejectState = g_autoCrashDive = g_currentWeaponType = 0;
     g_autopilotEngaged = 0;
     g_autopilotAltitude = {};
-    g_missionTick = 0;
+    g_missionTick = f15::math::TickDuration{};
     g_waypointBearing = 0;
     waypointIndex = 1;
     g_ViewX = legacy::viewX(5000);

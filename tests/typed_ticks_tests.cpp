@@ -5,6 +5,7 @@
 #include <type_traits>
 
 using f15::math::Ticks;
+using f15::math::TickDuration;
 
 /* Ticks is deliberately not templated: the sim clock is an int16 word under
  * both backends and its wrap/phase semantics are gameplay behavior. These
@@ -99,6 +100,40 @@ void testDeadlineSemantics() {
     require(deadline == Ticks::fromWord(120), "deadline equality fires");
 }
 
+void testDurationSemantics() {
+    /* Countdown: arm, decrement, expire. */
+    TickDuration timer = TickDuration::fromWord(3);
+    require(timer.isPositive() && !timer.isZero(), "armed countdown");
+    --timer;
+    require(timer.word() == 2, "prefix decrement");
+    require(timer--.word() == 2 && timer.equals(1), "postfix returns old value");
+    require(timer--.atMost(1) && timer.isZero(), "postfix atMost sees the old value");
+    timer = TickDuration::fromWord(-1);
+    require(timer.isNegative() && timer.atMost(0), "negative timer state");
+    /* Elapsed: increment with int16 wrap, phase, shift. */
+    TickDuration elapsed = TickDuration::fromWord(32767);
+    ++elapsed;
+    require(elapsed.word() == -32768, "elapsed ++ wraps int16");
+    elapsed = TickDuration::fromWord(0x123);
+    require(elapsed.phase(8) == 3 && elapsed.shifted(4) == (0x123 >> 4),
+            "elapsed phase/shift");
+    require(elapsed.ring(4, 8) == ((0x123 >> 4) & 7), "elapsed ring selector");
+    /* Duration deltas and countdown-window elapsed. */
+    require(TickDuration::fromWord(120).elapsedSince(TickDuration::fromWord(100)) == 20,
+            "elapsedSince delta");
+    require(TickDuration::fromWord(7).elapsedWithin(10) == 3,
+            "elapsedWithin = total - remaining");
+    /* Hit-effect decay: v -= sign(v). */
+    timer = TickDuration::fromWord(-8);
+    timer.stepTowardZero();
+    require(timer.word() == -7, "stepTowardZero from negative");
+    timer = TickDuration::fromWord(2);
+    timer.stepTowardZero();
+    timer.stepTowardZero();
+    timer.stepTowardZero();
+    require(timer.isZero(), "stepTowardZero settles at zero");
+}
+
 void testNoPrimitiveConversion() {
     static_assert(!std::is_constructible_v<Ticks, int>,
                   "no implicit int construction");
@@ -110,6 +145,14 @@ void testNoPrimitiveConversion() {
                   "no implicit conversion to int16");
     static_assert(!std::is_assignable_v<Ticks &, int>,
                   "no implicit int assignment");
+    static_assert(!std::is_constructible_v<TickDuration, int>,
+                  "duration: no implicit int construction");
+    static_assert(!std::is_convertible_v<TickDuration, int>,
+                  "duration: no implicit conversion to int");
+    static_assert(!std::is_assignable_v<TickDuration &, int>,
+                  "duration: no implicit int assignment");
+    static_assert(!std::is_same_v<Ticks, TickDuration>,
+                  "instants and durations are distinct domains");
 }
 
 } // namespace
@@ -120,6 +163,7 @@ int main() {
     testOffsetWrap();
     testPhases();
     testDeadlineSemantics();
+    testDurationSemantics();
     testNoPrimitiveConversion();
     std::cout << "typed_ticks_tests passed\n";
     return 0;

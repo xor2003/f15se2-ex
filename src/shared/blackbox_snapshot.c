@@ -228,7 +228,7 @@ int blackbox_snapshotWriteJson(const char *path) {
             (int)g_trackedEnemyIdx, (int)g_airTargetLock,
             (int)g_groundTargetLock, (int)g_aamLockActive,
             (int)g_targetInHudFlag, (int)g_targetLeadAngle,
-            (int)g_missionStatus, (int)g_missionTick,
+            (int)g_missionStatus, (int)g_missionTick.word(),
             (unsigned)g_missionEndedFlag[0], (int)g_enemyAirRemaining,
             (int)g_enemyGroundRemaining, (int)g_finalThreatScore);
     fprintf(f,

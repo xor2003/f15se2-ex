@@ -60,7 +60,7 @@ int16 g_bombDamageMask = 4;
 int16 g_fuelRemaining = 5000;
 /* Countermeasure ammo counters, indexed by kind in countermeasures():
  * [1] = flare, [2] = chaff. g_eventTimers[0] is unused. */
-int16 g_eventTimers[3] = {0, 12, 18};
+f15::math::TickDuration g_eventTimers[3] = {f15::math::TickDuration{}, f15::math::TickDuration::fromWord(12), f15::math::TickDuration::fromWord(18)};
 int16 missileSpecIndex = 0;
 
 int16 g_gunAmmo = 650;
@@ -474,11 +474,11 @@ int16 g_autopilotEngaged = 0;
 int16 g_gearDownArmed = 1;
 f15::math::Ticks g_destroyedCueDeadline;
 
-int16 g_threatActiveTimer = 0;
+f15::math::TickDuration g_threatActiveTimer;
 int16 g_airTargetLock = -1;
 int16 g_groundTargetLock = -1;
 int16 g_smokeSourceIdx = -1;
-int16 g_scopeSweepTimer = 1;
+f15::math::TickDuration g_scopeSweepTimer = f15::math::TickDuration::fromWord(1);
 int16 g_threatToneLevel = 0;
 int16 g_padlockAircraft = -1;
 int16 g_externalCamDist = 4;
@@ -498,7 +498,7 @@ f15::math::Ticks g_directorEventDeadline = f15::math::Ticks::fromWord(-1);
 int g_directorMode = 0;
 int16 g_resupplyCount = 1;
 int16 g_autoLandingActive = 0;
-int16 g_landingTimer = 0;
+f15::math::TickDuration g_landingTimer;
 
 /* g_weaponMarkerBoxX: 3 weapon-indicator box X-coordinates, read as g_weaponMarkerBoxX[weaponIdx]. */
 extern const int16 g_weaponMarkerBoxX[3] = {76, 40, 115};
@@ -1880,7 +1880,7 @@ char g_rollWasNonzero = 0;
 /* g_orientationDirty: orientation-dirty flag. Set when heading/pitch/roll change so the
    next frame rebuilds the rotation matrix; cleared by rebuildOrientation(). */
 char g_orientationDirty = 0;
-int16 g_joyCalibTimer = 0;
+f15::math::TickDuration g_joyCalibTimer;
 
 /* blitSprite() sprite descriptor. */
 struct SpriteParams blitSpriteParams = {
@@ -1907,7 +1907,7 @@ extern const int16 g_rearViewShape[21] = {
     7, 0x53, 0x15, 0x49, 0x5E, 0x53, 0x5E, 0x53, 0x15, -1,
     8, 0xF1, 0x15, 0xFB, 0x5E, 0xF1, 0x5E, 0xF1, 0x15, -1, -1};
 ViewMode g_lastViewKey = VIEW_COCKPIT;
-int16 g_lastSpawnTick = 0;
+f15::math::TickDuration g_lastSpawnTick;
 
 /* g_setThrust: player thrust setting. g_joyCalibTimer: a frame timer. */
 int16 g_setThrust = 0;
@@ -1998,8 +1998,8 @@ struct SpriteParams gaugeSpriteParams = {
 int16 g_radarScopeRange = 1;
 int16 g_mapCenterX = 0;
 int16 g_mapCenterY = 0;
-int16 g_hudMsgTimer = 0;
-int16 g_dirMsgTimer = 0;
+f15::math::TickDuration g_hudMsgTimer;
+f15::math::TickDuration g_dirMsgTimer;
 int16 g_unusedHudFlag = 0;
 uint8 g_extraScaleShift = 0;
 
@@ -2073,7 +2073,7 @@ int16 g_extViewPitch;
 char g_geeStringBuf[12];
 int g_detailLevel;
 int16 g_autoCrashDive;
-int16 g_missionTick;
+f15::math::TickDuration g_missionTick;
 int16 g_gunFiredFlag;
 int16 g_damageTakenFlag;
 int16 g_threatRefHead;
@@ -2091,7 +2091,7 @@ int16 g_attackRangeY;
 uint8 buf3_3dg[TERRAIN_CHILD_GRID_BYTES];
 int16 g_targetInHudFlag;
 int16 g_lockedTargetKilled;
-int g_hitEffectTimer;
+f15::math::TickDuration g_hitEffectTimer;
 uint8 buf2_3dg[TERRAIN_CHILD_GRID_BYTES];
 /* g_nearestTileObj: nearest-tile-object pointer; result of findNearestTileObject(),
    pointing at the nearestTile scratch record below. */
@@ -2124,7 +2124,7 @@ int16 g_bulletTrackCount;
 int16 g_northSouthSign;
 int16 g_unusedViewYSnap;
 uint8 g_mapCellFlags[0x100];
-int16 g_threatTimerInit;
+f15::math::TickDuration g_threatTimerInit;
 uint8 buf3d3_2[MODEL_VERTEX_REFERENCE_CAPACITY];
 uint8 buf3d3_3[MODEL_VERTEX_REFERENCE_CAPACITY];
 int32 g_camEyeX;

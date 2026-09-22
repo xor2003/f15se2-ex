@@ -29,6 +29,7 @@ using SpeedMath = f15::math::AirspeedMath<f15::math::GameBackend>;
 using FineCoord = f15::math::FineCoord<f15::math::GameBackend>;
 using TrackMath = f15::math::GuidanceMath<f15::math::GameBackend>;
 using Ticks = f15::math::Ticks;
+using TickDuration = f15::math::TickDuration;
 #include "egflight.h"
 #include "egframe.h"
 #include "android_ar.h"
@@ -95,8 +96,8 @@ void updateFrame(void) {
             *(char far *)&commData->trainingFlag |= 1;
         }
         findWaypointFeatures();
-        g_threatActiveTimer = 0;
-        g_scopeSweepTimer = 1;
+        g_threatActiveTimer = TickDuration{};
+        g_scopeSweepTimer = TickDuration::fromWord(1);
         g_airTargetLock = g_groundTargetLock = -1;
         g_fireCooldown = g_bombDamageMask = missileSpecIndex = waypointIndex = g_unusedWaypointTail = 0;
         g_autopilotAltitude = {};
@@ -237,8 +238,8 @@ void updateFrame(void) {
         }
         g_directorEventDeadline = Ticks::fromWord(-1);
     }
-    if (g_threatActiveTimer != 0) {
-        g_threatActiveTimer--;
+    if (!g_threatActiveTimer.isZero()) {
+        --g_threatActiveTimer;
     }
     if (!g_destroyedCueDeadline.isZero() && frameTick == g_destroyedCueDeadline) {
         g_destroyedCueDeadline = Ticks{};
@@ -330,7 +331,7 @@ void updateFrame(void) {
 
     if (frameTick.phase(128) == 0) {
         if ((g_planeTable.planes[g_closestThreatIndex].flags & 0x800) == 0) {
-            objIdx = frameTick.bit(7) ? g_groundUnitCount - 1 : g_groundUnitCount - 2;
+            objIdx = g_groundUnitCount - 2 + frameTick.ring(7, 2);
             if ((g_simObjects[objIdx].flags.b[0] & 2) == 0) {
                 spawnEnemyAircraft(objIdx, g_closestThreatIndex);
                 g_simObjects[objIdx].flags.w = 0x207;
@@ -381,25 +382,25 @@ skip_target_section:
             g_inLandingCorridor = 0;
         } else {
             g_inLandingCorridor = 1;
-            if ((flightKnots() <= SpeedMath::knots(1)) && (frameTick.phase(8) == 0) && g_planeTable.planes[g_closestThreatIndex].flags & 0x500 && g_landingTimer != 0 && !(g_planeTable.planes[g_closestThreatIndex].flags & 0x800)) {
+            if ((flightKnots() <= SpeedMath::knots(1)) && (frameTick.phase(8) == 0) && g_planeTable.planes[g_closestThreatIndex].flags & 0x500 && !g_landingTimer.isZero() && !(g_planeTable.planes[g_closestThreatIndex].flags & 0x800)) {
                 g_gearDownArmed = 1;
                 g_landingDoneFlag = 1;
-                if (g_landingTimer++ == 1) {
+                if (g_landingTimer++.equals(1)) {
                     hudMessage("Safe Landing");
                     g_autopilotAltitude = {};
                     g_autoLandingActive = 0;
                     playVoiceCue(4);
                 }
                 if ((g_playerPlaneFlags & 0x6000) == 0x6000) {
-                    if (g_landingTimer > g_frameRateScaling) {
+                    if (g_landingTimer.exceeds(g_frameRateScaling)) {
                         finalizeMission(0);
                     }
                 } else {
-                    if (g_landingTimer == 2) {
+                    if (g_landingTimer.equals(2)) {
                         g_resupplyCount++;
                         appendMapEvent(10, g_closestThreatIndex);
                     }
-                    if (g_landingTimer > g_frameRateScaling) {
+                    if (g_landingTimer.exceeds(g_frameRateScaling)) {
                         initWeaponLoadout();
                         if (frameTick.bit(3)) {
                             hudMessage("Ready for takeoff");
@@ -452,7 +453,7 @@ skip_autopilot:
                 finalizeMission(1);
             }
         } else {
-            g_landingTimer = 1;
+            g_landingTimer = TickDuration::fromWord(1);
         }
     }
 
@@ -474,14 +475,14 @@ skip_autopilot:
     frameTick++;
     if (frameTick.mod(g_frameRateScaling) == 0) {
         g_missionTick++;
-        if ((g_missionTick & 0x1f) == 0) {
+        if (g_missionTick.phase(32) == 0) {
             appendMapEvent(9, 0);
         }
-        if (g_missionTick == 1) {
+        if (g_missionTick.equals(1)) {
             playVoiceCue(0);
             updateEngineSound();
         }
-        if (g_autopilotEngaged != 0 && (g_missionTick & 3) == 0) {
+        if (g_autopilotEngaged != 0 && g_missionTick.phase(4) == 0) {
             generateRandomRadioMessage();
         }
     }
@@ -525,8 +526,8 @@ void countermeasures(int16 eventType) {
 
     slot = -1;
     if (!gameOptionsEnabled(GAME_OPTION_INFINITE_WEAPONS) &&
-        (g_eventTimers[eventType])-- <= 0) {
-        g_eventTimers[eventType] = 0;
+        g_eventTimers[eventType]--.atMost(0)) {
+        g_eventTimers[eventType] = TickDuration{};
         hudMessage("Stores exhausted");
     } else {
         for (i = 1; i < 4; i++) {
@@ -552,7 +553,7 @@ void countermeasures(int16 eventType) {
             hudMessage(strBuf);
             strcpy(strBuf, name);
             strcat(strBuf, ":");
-            strcat(strBuf, itoa(g_eventTimers[eventType], g_itoaScratch, 10));
+            strcat(strBuf, itoa(g_eventTimers[eventType].word(), g_itoaScratch, 10));
             setTimedMessage(strBuf);
         }
         makeSound(22, 2);
@@ -666,7 +667,7 @@ void initFrameRandom(void) {
         setupDac();
     }
     g_unusedFrameVal = (seedSum & 0xF) << 8;
-    g_missionTick = 0;
+    g_missionTick = TickDuration{};
 }
 
 // ==== seg000:0x1971 ====
@@ -685,8 +686,8 @@ void initWeaponLoadout() {
     }
     g_gunAmmo = 1000;
     g_fuelRemaining = 10000;
-    g_eventTimers[2] = 18;
-    g_eventTimers[1] = 12;
+    g_eventTimers[2] = TickDuration::fromWord(18);
+    g_eventTimers[1] = TickDuration::fromWord(12);
     drawWeaponAmmo();
     drawFuelGauge();
     UpdateThrottleState();
@@ -802,7 +803,7 @@ void appendMapEvent(int16 eventType, int16 eventArg) {
     if (g_eventLogCount >= 255) {
         return;
     }
-    g_replayLog.events[g_eventLogCount].coord = g_missionTick;
+    g_replayLog.events[g_eventLogCount].coord = g_missionTick.word();
     g_replayLog.events[g_eventLogCount].screenX = (uint16)f15::math::legacy::mapWordX(flightMapPosition()) >> 7;
     g_replayLog.events[g_eventLogCount].screenY = (uint16)f15::math::legacy::mapWordY(flightMapPosition()) >> 7;
     g_replayLog.events[g_eventLogCount].type = eventType;

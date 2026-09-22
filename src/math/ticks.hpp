@@ -47,5 +47,61 @@ public:
     /* Disarmed/sentinel tests for deadline-style state. */
     bool isZero() const { return value_ == 0; }
 };
+
+/* Tick-domain duration/count: countdown timers (arm, decrement, expire) and
+ * elapsed counters (increment, phase, compare) measured in sim ticks. The
+ * countdown/elapsed semantics differ from Ticks — a duration has no instant
+ * phase meaning and an instant never counts down — so they are distinct
+ * types and cannot mix without explicit word() reads. Same int16 rep under
+ * both backends; wrap matches the original int16 fields. */
+class TickDuration {
+    std::int16_t value_{};
+    explicit TickDuration(std::int16_t v) : value_(v) {}
+public:
+    TickDuration() = default;
+    static TickDuration fromWord(std::int16_t v) { return TickDuration(v); }
+    std::int16_t word() const { return value_; }
+
+    bool isZero() const { return value_ == 0; }
+    bool isPositive() const { return value_ > 0; }
+    bool isNegative() const { return value_ < 0; }
+    /* Threshold compares vs a raw count — the count is a literal boundary,
+     * not a conversion. */
+    bool equals(int n) const { return value_ == n; }
+    bool below(int n) const { return value_ < n; }
+    bool exceeds(int n) const { return value_ > n; }
+    bool atMost(int n) const { return value_ <= n; }
+
+    friend bool operator==(TickDuration a, TickDuration b) { return a.value_ == b.value_; }
+    friend bool operator!=(TickDuration a, TickDuration b) { return !(a == b); }
+
+    /* Elapsed counters — defined int16 wrap like the original fields. */
+    TickDuration &operator++() {
+        value_ = static_cast<std::int16_t>(static_cast<std::uint16_t>(value_) + 1u);
+        return *this;
+    }
+    TickDuration operator++(int) { TickDuration t = *this; ++*this; return t; }
+    /* Countdown timers. */
+    TickDuration &operator--() {
+        value_ = static_cast<std::int16_t>(static_cast<std::uint16_t>(value_) - 1u);
+        return *this;
+    }
+    TickDuration operator--(int) { TickDuration t = *this; --*this; return t; }
+    /* v -= sign(v): the hit-effect decay idiom. */
+    void stepTowardZero() {
+        if (value_ > 0) value_ = static_cast<std::int16_t>(value_ - 1);
+        else if (value_ < 0) value_ = static_cast<std::int16_t>(value_ + 1);
+    }
+
+    /* Elapsed-tick phases and shifts (missionTick cadences). */
+    int phase(int period) const { return value_ & (period - 1); }
+    int shifted(int n) const { return value_ >> n; }
+    /* (value >> shift) & (count - 1): rotating selectors on elapsed ticks. */
+    int ring(int shift, int count) const { return (value_ >> shift) & (count - 1); }
+    /* Duration arithmetic: word deltas between two counts. */
+    int elapsedSince(TickDuration start) const { return value_ - start.value_; }
+    /* total - remaining: elapsed inside a countdown window of `total` ticks. */
+    int elapsedWithin(int total) const { return total - value_; }
+};
 }
 #endif

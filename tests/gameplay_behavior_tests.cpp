@@ -88,9 +88,9 @@ void resetGameplayState() {
     g_gunHits = 0;
     g_finalThreatScore = 0;
     g_resupplyCount = 0;
-    g_missionTick = 0;
-    g_threatActiveTimer = 0;
-    g_threatTimerInit = 0;
+    g_missionTick = f15::math::TickDuration{};
+    g_threatActiveTimer = f15::math::TickDuration{};
+    g_threatTimerInit = f15::math::TickDuration{};
     g_threatDisplayTtl = 0;
     g_threatRefX = g_threatRefY = g_threatRefZ = g_threatRefHead = 0;
     g_wreckAlt = 0;
@@ -115,29 +115,29 @@ int main() {
 
     // --- countermeasure stores (egframe) ------------------------------------
     resetGameplayState();
-    g_eventTimers[1] = 3;
+    g_eventTimers[1] = f15::math::TickDuration::fromWord(3);
     countermeasures(1);
-    require(g_eventTimers[1] == 2,
+    require(g_eventTimers[1].equals(2),
             "countermeasures consumes one flare with normal options");
 
     resetGameplayState();
-    g_eventTimers[2] = 3;
+    g_eventTimers[2] = f15::math::TickDuration::fromWord(3);
     countermeasures(2);
-    require(g_eventTimers[2] == 2,
+    require(g_eventTimers[2].equals(2),
             "countermeasures consumes one chaff with normal options");
 
     resetGameplayState();
     gameOptionsSet(GAME_OPTION_INFINITE_WEAPONS, true);
-    g_eventTimers[1] = 3;
+    g_eventTimers[1] = f15::math::TickDuration::fromWord(3);
     countermeasures(1);
-    require(g_eventTimers[1] == 3,
+    require(g_eventTimers[1].equals(3),
             "infinite weapons preserves flare stores");
 
     resetGameplayState();
     gameOptionsSet(GAME_OPTION_INFINITE_WEAPONS, true);
-    g_eventTimers[2] = 3;
+    g_eventTimers[2] = f15::math::TickDuration::fromWord(3);
     countermeasures(2);
-    require(g_eventTimers[2] == 3,
+    require(g_eventTimers[2].equals(3),
             "infinite weapons preserves chaff stores");
     // --- Tracking-camera fine-coordinate conversion ------------------------
     // These values are from a blackbox frame that formerly flipped vertically:
@@ -195,11 +195,11 @@ int main() {
     g_autopilotAltitude = f15::math::legacy::renderHeightFromUnits(1200);
     g_inLandingCorridor = 0;
     g_landingDoneFlag = 0;
-    g_landingTimer = 1;
+    g_landingTimer = f15::math::TickDuration::fromWord(1);
     g_autoLandingActive = 1;
     g_resupplyCount = 4;
-    g_hudMsgTimer = 30;
-    g_dirMsgTimer = 30;
+    g_hudMsgTimer = f15::math::TickDuration::fromWord(30);
+    g_dirMsgTimer = f15::math::TickDuration::fromWord(30);
     std::strcpy(tempString, "Weapons replenished");
     g_viewMode = VIEW_EXT_FOLLOW;
     g_directorMode = 2;
@@ -211,11 +211,11 @@ int main() {
 
     require(g_initPhase == 0,
             "mission reset re-arms EGAME initialization");
-    require(g_landingTimer == 0 && g_landingDoneFlag == 1 &&
+    require(g_landingTimer.isZero() && g_landingDoneFlag == 1 &&
                 g_inLandingCorridor == 1 && g_autoLandingActive == 0,
             "mission reset disarms the previous sortie's landing sequence");
-    require(g_resupplyCount == 1 && g_hudMsgTimer == 0 &&
-                g_dirMsgTimer == 0 && tempString[0] == '\0',
+    require(g_resupplyCount == 1 && g_hudMsgTimer.isZero() &&
+                g_dirMsgTimer.isZero() && tempString[0] == '\0',
             "mission reset clears stale resupply counters and HUD messages");
     require(g_ejectState == 0 && g_ejectPending == 0 && g_eventLogCount == 0,
             "mission reset clears previous outcome state");
@@ -270,7 +270,7 @@ int main() {
 
     // --- updateThreatAlert reference copy + alert clamp (egthreat) -----------
     resetGameplayState();
-    g_threatTimerInit = 42;
+    g_threatTimerInit = f15::math::TickDuration::fromWord(42);
     g_viewX_ = 0x1234;
     g_viewY_ = 0x2345;
     g_viewZ = 0x3456;
@@ -279,7 +279,7 @@ int main() {
     g_planeTable.planes[0].active = 1;
     g_planeTable.planes[0].alertLevel = 300; // above the 255 cap
     updateThreatAlert();
-    require(g_threatActiveTimer == 42, "updateThreatAlert arms the active timer");
+    require(g_threatActiveTimer.equals(42), "updateThreatAlert arms the active timer");
     require(g_threatRefX == 0x1234 && g_threatRefY == 0x2345,
             "updateThreatAlert takes the player position when no map event is live");
     require(g_threatRefZ == 0x3456 && g_threatRefHead == 0x6789,
@@ -374,12 +374,12 @@ int main() {
 
     // --- appendMapEvent replay log (egframe) --------------------------------
     resetGameplayState();
-    g_missionTick = 1234;
+    g_missionTick = f15::math::TickDuration::fromWord(1234);
     g_viewX_ = 0x1234;
     g_viewY_ = 0x5678;
     appendMapEvent(6, 42);
     require(g_eventLogCount == 1, "appendMapEvent increments the replay-log count");
-    require(g_replayLog.events[0].coord == g_missionTick &&
+    require(g_replayLog.events[0].coord == g_missionTick.word() &&
                 g_replayLog.events[0].screenX == (uint8)((unsigned)g_viewX_ >> 7) &&
                 g_replayLog.events[0].screenY == (uint8)((unsigned)g_viewY_ >> 7) &&
                 g_replayLog.events[0].type == 6 && g_replayLog.events[0].arg == 42,
@@ -536,7 +536,7 @@ int main() {
     recalcTimeScale();
     require(g_frameSyncWait == 3 && g_frameRateScaling == 15 && g_bulletTrackCount == 16,
             "recalcTimeScale clamps frame-rate scaling and derives frame-sync wait");
-    require(g_threatTimerInit == 250 * 15 && g_threatDisplayTtl == 200 * 15,
+    require(g_threatTimerInit.word() == 250 * 15 && g_threatDisplayTtl == 200 * 15,
             "recalcTimeScale scales the threat timers by frame-rate scaling");
 
     resetGameplayState();

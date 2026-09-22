@@ -121,7 +121,7 @@ void drawTacticalMap(char page) {
                  * complement; keep the subtraction unsigned so labels like
                  * 0xfffe still identify object index 1 instead of promoting
                  * to signed -2 and making the branch unreachable. */
-                if (g_scopeSweepTimer > 0 && i == 0xffff - (uint16)g_threatLabelTarget) {
+                if (g_scopeSweepTimer.isPositive() && i == 0xffff - (uint16)g_threatLabelTarget) {
                     drawMapMarkerBox(vtxScratch.vproj.x.lo, vtxScratch.vproj.y.lo, g_scopeArcColor);
                 }
                 altDiff = g_simObjects[i].alt - f15::math::legacy::Altitudes::renderWord(flightSceneHeight());

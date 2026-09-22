@@ -1202,6 +1202,36 @@ units. The int16 wrap itself is preserved under modern — tick arithmetic
 is identical on both backends by design; what modern keeps fractional is
 the state advanced per tick, not the tick count.
 
+## Tick-duration domain checkpoint
+
+The countdown/elapsed timer globals are now `TickDuration` (same header):
+`g_eventTimers[]`, `g_threatActiveTimer`, `g_scopeSweepTimer`,
+`g_landingTimer`, `g_joyCalibTimer`, `g_hudMsgTimer`, `g_dirMsgTimer`,
+`g_missionTick`, `g_hitEffectTimer`, `g_threatTimerInit` and
+`g_lastSpawnTick`. `Ticks` (instant: phase/ring/deadline arithmetic) and
+`TickDuration` (count: decrement, expire, elapsed deltas) are distinct
+types — a duration has no instant-phase meaning and an instant never
+counts down, so the domains cannot mix without explicit `word()` reads.
+
+* Countdown semantics: `isZero()`/`isPositive()`/`isNegative()`/
+  `atMost()`/`exceeds()`/`equals()`/`below()` threshold tests, typed
+  `++`/`--` with int16 wrap, `stepTowardZero()` for the hit-effect decay
+  idiom (`v -= sign(v)`).
+* Elapsed semantics: `phase()`/`shifted()`/`ring()` cadence selectors on
+  `g_missionTick`, `elapsedSince()` for spawn-throttle deltas,
+  `elapsedWithin(total)` for `scaling - countdown` reads.
+* `g_replayLog.events[].coord` (packed record) and blackbox hash/snapshot
+  reads use `.word()` — the reviewed serialization boundary.
+* `planes[].threatTimer` stays a packed word field (layout-locked
+  `PlaneEntry` +0x0A) — a reviewed boundary, not migrated.
+* Test fixtures seed/compare via `fromWord`/`word()`/`equals`/`isZero`;
+  four more compile-fail cases (primitive construct/extract/assign plus
+  Ticks→TickDuration mixing) guard the boundary.
+
+Verification: fixed 60/60 (sortie parity unchanged — mission tick and
+timers feed the golden hash), modern smoke, `typed_ticks_tests` covers
+duration semantics against int16 oracles, analyzer clean.
+
 ### Next acceptance boundary
 
 The decision-math surface is migrated end to end: every gameplay compare

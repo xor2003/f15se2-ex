@@ -374,7 +374,7 @@ void recalcTimeScale(void) {
     }
     g_frameRateScaling = clampRange(g_frameRateScaling, 4 - g_slowMotionMode, 15);
     g_bulletTrackCount = clampRange(g_frameRateScaling << 1, 3, 16);
-    g_threatTimerInit = 250 * g_frameRateScaling;
+    g_threatTimerInit = f15::math::TickDuration::fromWord(250 * g_frameRateScaling);
     g_threatDisplayTtl = 200 * g_frameRateScaling;
 }
 

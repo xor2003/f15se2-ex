@@ -45,8 +45,8 @@ void fireGroundThreat(int16 planeIdx);
 void updateThreatSites() {
     int16 p, arcRadius, b, c, siteIdx, e;
 
-    if ((g_scopeSweepTimer == 0 || g_prevScopeRange != g_threatScopeRange) && g_hudVisible != 0) {
-        if (g_scopeSweepTimer == 0 && g_mapMode == 0) {
+    if ((g_scopeSweepTimer.isZero() || g_prevScopeRange != g_threatScopeRange) && g_hudVisible != 0) {
+        if (g_scopeSweepTimer.isZero() && g_mapMode == 0) {
             restoreScopePanel();
             g_scopeArcStart = 0;
             g_scopeArcEnd = 0x100;
@@ -66,7 +66,7 @@ void updateThreatSites() {
                         ((g_planeTable.planes[siteIdx].alertLevel >> 3) + 0x20) +
                     siteIdx / 2;
             }
-            if (g_planeTable.planes[siteIdx].threatTimer == 4 && g_scopeSweepTimer < 0) {
+            if (g_planeTable.planes[siteIdx].threatTimer == 4 && g_scopeSweepTimer.isNegative()) {
                 fireGroundThreat(siteIdx);
                 g_planeTable.planes[siteIdx].flags |= 0x02;
             }
@@ -75,10 +75,10 @@ void updateThreatSites() {
         }
     }
 
-    if (g_mapMode == 0 && g_scopeSweepTimer > 0 && g_hudVisible != 0 && g_scopeArcRange > 1) {
+    if (g_mapMode == 0 && g_scopeSweepTimer.isPositive() && g_hudVisible != 0 && g_scopeArcRange > 1) {
         if (g_detailLevel != 0) {
             captureScopePanel();
-            arcRadius = (int16)((int32)clampRange(g_frameRateScaling - g_scopeSweepTimer, 1, g_frameRateScaling) * (int32)g_scopeArcRange / (int32)g_frameRateScaling) << 6;
+            arcRadius = (int16)((int32)clampRange(g_scopeSweepTimer.elapsedWithin(g_frameRateScaling), 1, g_frameRateScaling) * (int32)g_scopeArcRange / (int32)g_frameRateScaling) << 6;
         } else {
             arcRadius = g_scopeArcRange << 6;
             g_scopeArcRange = 0;
@@ -91,7 +91,7 @@ void updateThreatSites() {
         }
     }
 
-    g_scopeSweepTimer--;
+    --g_scopeSweepTimer;
 }
 
 /* ---- merged from egflt.c ---- */
@@ -116,7 +116,7 @@ void fireGroundThreat(int16 planeIdx) {
             g_threatToneLevel = 14;
         }
         g_scopeArcRange = score;
-        g_scopeSweepTimer = g_frameRateScaling;
+        g_scopeSweepTimer = f15::math::TickDuration::fromWord(g_frameRateScaling);
         g_threatLabelTarget = planeIdx;
         g_threatRadarFlag = aNone[threatType].flags & 1;
         if (g_planeTable.planes[planeIdx].alertLevel != 0) {
@@ -264,7 +264,7 @@ void updateObjects(void) {
                 mode = 0;
                 if (!(g_simObjects[objIdx].flags.b[0] & 4)) {
                     const int friendlyAircraft = campaignFriendlyAircraft(objIdx, g_groundUnitCount, g_simObjects[objIdx].objType);
-                    if (!friendlyAircraft && g_threatActiveTimer != 0 && (!((g_simObjects[objIdx].flags.w) & 0x140) || g_threatActiveTimer > g_threatDisplayTtl)) {
+                    if (!friendlyAircraft && !g_threatActiveTimer.isZero() && (!((g_simObjects[objIdx].flags.w) & 0x140) || g_threatActiveTimer.exceeds(g_threatDisplayTtl))) {
                         tgtX = g_threatRefX;
                         tgtY = g_threatRefY;
                         tgtZ = g_threatRefZ;
@@ -291,7 +291,7 @@ void updateObjects(void) {
                         }
                     }
 
-                    if (((uint8)objIdx * 8 + (uint8)g_missionTick) & 0xbf) goto after_retarget;
+                    if (((uint8)objIdx * 8 + (uint8)g_missionTick.phase(256)) & 0xbf) goto after_retarget;
                     if (!(g_simObjects[objIdx].flags.b[0] & 0x40)) {
                         best = 0x7fff;
                         viewBearing = computeBearing(f15::math::legacy::mapWordX(flightMapPosition()) - g_simObjects[objIdx].posX,
@@ -470,7 +470,7 @@ void updateObjects(void) {
                     pitchCmd = 0x3000;
                 }
 
-                if (g_missionTick < 10) {
+                if (g_missionTick.below(10)) {
                     rollCmd >>= 2;
                 }
 
@@ -546,7 +546,7 @@ void updateObjects(void) {
                     g_hitMapX = g_simObjects[objIdx].posX;
                     g_hitMapY = g_simObjects[objIdx].posY;
                     g_hitAlt = g_simObjects[objIdx].alt;
-                    g_hitEffectTimer = -8;
+                    g_hitEffectTimer = f15::math::TickDuration::fromWord(-8);
                     if (objIdx == g_airTargetLock) {
                         g_airTargetLock = -1;
                     }
@@ -605,12 +605,12 @@ void updateObjects(void) {
                     }
                 }
             } else {
-                if (((uint8)objIdx & 7) == (((uint8)(g_missionTick >> 4)) & 7)) {
+                if (((uint8)objIdx & 7) == g_missionTick.ring(4, 8)) {
                     if (objIdx < g_groundUnitCount - 4) {
                         if (objIdx != 0) {
-                            if (224 / (g_missionStatus + 2) < g_missionTick - g_lastSpawnTick) {
+                            if (224 / (g_missionStatus + 2) < g_missionTick.elapsedSince(g_lastSpawnTick)) {
                                 tgtIdx = randomRange(g_planeScanCount);
-                                if (g_threatActiveTimer != 0 || (g_simObjects[objIdx].flags.b[0] & 0x80)) {
+                                if (!g_threatActiveTimer.isZero() || (g_simObjects[objIdx].flags.b[0] & 0x80)) {
                                     if ((g_planeTable.planes[tgtIdx].flags & 0x181) == 1) {
                                         if (g_simObjects[objIdx].spec == g_planeTable.planes[tgtIdx].alertLevel) {
                                             if (g_missionStatus * 2 >= g_enemyThreatCount) {

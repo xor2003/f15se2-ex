@@ -352,6 +352,20 @@ int main() {
     Ticks clock;
     int mixed = clock.word() + clock;
     (void)mixed;
+#elif defined(TEST_DURATION_PRIMITIVE)
+    TickDuration timer(30);
+    (void)timer;
+#elif defined(TEST_DURATION_EXTRACTION)
+    TickDuration timer;
+    int raw = timer;
+    (void)raw;
+#elif defined(TEST_DURATION_ASSIGN)
+    TickDuration timer;
+    timer = 30;
+#elif defined(TEST_TICKS_DURATION_MIX)
+    Ticks clock;
+    TickDuration timer = clock;
+    (void)timer;
 #endif
     return 0;
 }

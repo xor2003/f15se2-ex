@@ -294,11 +294,11 @@ int main() {
         g_ourPitch = g_rollPitchTrim = {};
         advanceFlightAltitude();
         g_knots = 0;
-        g_landingTimer = 0;
+        g_landingTimer = f15::math::TickDuration{};
         g_nearestThreatRange = 0x7fff;
         g_groundAltitude = 0;
         updateFrame();
-        require(g_landingTimer == (altitude == 0 ? 0 : 1),
+        require(g_landingTimer.word() == (altitude == 0 ? 0 : 1),
                 "mission ground contact lost altitude range or fractional precision");
     }
     gameData = nullptr;

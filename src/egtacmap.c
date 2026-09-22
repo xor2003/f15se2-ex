@@ -193,9 +193,9 @@ void renderHudFrame(int unused) {
     somewhere:
         drawTacticalMap(0);
     }
-    if (g_hudMsgTimer != 0 && ((g_viewMode == VIEW_COCKPIT && g_halfScaleRender == 0) || (g_directorMode != 0))) {
-        g_hudMsgTimer--;
-        if (g_hudMsgTimer == 0) { // cancel pending eject on message disappear
+    if (!g_hudMsgTimer.isZero() && ((g_viewMode == VIEW_COCKPIT && g_halfScaleRender == 0) || (g_directorMode != 0))) {
+        --g_hudMsgTimer;
+        if (g_hudMsgTimer.isZero()) { // cancel pending eject on message disappear
             g_ejectPending = 0;
             gfx_invalidateTtfTextOverlayRect(0, HUD_STATUS_TEXT_Y, 319,
                                              HUD_STATUS_TEXT_Y + HUD_TRANSIENT_TEXT_HEIGHT);
@@ -206,9 +206,9 @@ void renderHudFrame(int unused) {
             drawStringActivePage("Press any key to play", 120, 1, g_nightMode != 0 ? 0xe : 0);
         }
     }
-    if (g_dirMsgTimer != 0 && g_viewMode == VIEW_COCKPIT && g_halfScaleRender == 0) {
-        g_dirMsgTimer--;
-        if (g_dirMsgTimer == 0) {
+    if (!g_dirMsgTimer.isZero() && g_viewMode == VIEW_COCKPIT && g_halfScaleRender == 0) {
+        --g_dirMsgTimer;
+        if (g_dirMsgTimer.isZero()) {
             gfx_invalidateTtfTextOverlayRect(0, HUD_DIRECTOR_TEXT_Y, 319,
                                              HUD_DIRECTOR_TEXT_Y + HUD_TRANSIENT_TEXT_HEIGHT);
         } else {
@@ -675,13 +675,13 @@ int readScreenPixel(int screenX, int screenY) {
 // ==== seg000:0xa1e4 ====
 void hudMessage(const char *src) {
     strcpy(tempString, src);
-    g_hudMsgTimer = g_frameRateScaling * 3;
+    g_hudMsgTimer = f15::math::TickDuration::fromWord(g_frameRateScaling * 3);
 }
 
 // ==== seg000:0xa204 ====
 void setTimedMessage(char *message) {
     strcpy(string_3C04A, message);
-    g_dirMsgTimer = g_frameRateScaling * 3;
+    g_dirMsgTimer = f15::math::TickDuration::fromWord(g_frameRateScaling * 3);
 }
 
 // ==== seg000:0xa224 ====

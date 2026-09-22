@@ -81,7 +81,8 @@ void recoveryGuidance(SDL_Joystick *stick) {
         g_groundAltitude = 0;
         g_viewZ = 3000;
         g_autopilotAltitude = f15::math::legacy::renderHeightFromUnits(3000);
-        g_autopilotEngaged = g_waypointBearing = g_missionTick = 0;
+        g_autopilotEngaged = g_waypointBearing = 0;
+        g_missionTick = f15::math::TickDuration{};
         waypointIndex = 3;
         g_targetSlots[1].viewIndex = 1;
         g_planeTable.planes[1].mapX = 10000 + x;
@@ -220,7 +221,7 @@ void thrustAndFuel() {
         const int initialTrim = !autopilotCase ? 0 : autopilotCase == 1 ? 1 :
             autopilotCase == 2 ? -1 : autopilotCase == 3 ? -32768 : 32767;
         waypointIndex = 0;
-        g_missionTick = autopilotCase == 3 ? 0 : 15;
+        g_missionTick = f15::math::TickDuration::fromWord(autopilotCase == 3 ? 0 : 15);
         g_waypointBearing = bearingTarget;
         if (autopilotCase) {
             g_autopilotAltitude = f15::math::legacy::renderHeightFromUnits(altitudeTarget);
@@ -273,7 +274,7 @@ void thrustAndFuel() {
         if (pitchCommand < 0) pitchCommand /= 2;
         int rollCommand = disabled ? 126 : 0;
         if (autopilotCase) {
-            const int offset = autopilotCase >= 3 ? (g_missionTick & 15) * 256 - 2048 : 0;
+            const int offset = autopilotCase >= 3 ? g_missionTick.phase(16) * 256 - 2048 : 0;
             const int headingError = std::clamp(int(word(offset - heading + bearingTarget)), -5120, 5120) * 2;
             rollCommand = -std::clamp(int(floorDivide(word(headingError - roll), 64)), -24, 24);
             const int altitudeError = std::clamp((altitudeTarget - sceneHeight) * 16 - initialTrim, -5120, 3072);

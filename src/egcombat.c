@@ -407,7 +407,7 @@ void updateThreatTargeting(void) {
                 g_hitAlt = g_projectiles[slot].alt;
                 /* -3 (DOS wrote 0xfffd into a 16-bit int; as a 32-bit int that
                  * is +65533 and the impact burst lingers for ~65k frames). */
-                g_hitEffectTimer = -3;
+                g_hitEffectTimer = f15::math::TickDuration::fromWord(-3);
                 g_savedSamTtl = g_projectiles[slot].ttl;
                 (g_projectiles + slot)->ttl = 0;
                 strcpy(strBuf,
@@ -423,7 +423,7 @@ void updateThreatTargeting(void) {
                         strcat(strBuf, " destroyed by ");
                         strcat(strBuf,
                                missiles[g_projectiles[slot].weaponIdx].longName);
-                        g_hitEffectTimer = 8;
+                        g_hitEffectTimer = f15::math::TickDuration::fromWord(8);
                         g_hitAlt = 0;
                     } else {
                         wp = findWaypointEntry(g_hitMapX, g_hitMapY);
@@ -438,7 +438,7 @@ void updateThreatTargeting(void) {
                         strcat(strBuf, " destroyed by ");
                         strcat(strBuf,
                                missiles[g_projectiles[slot].weaponIdx].longName);
-                        g_hitEffectTimer = 8;
+                        g_hitEffectTimer = f15::math::TickDuration::fromWord(8);
                         g_hitAlt = 0;
                     }
                 msg_done:
@@ -466,7 +466,7 @@ void updateThreatTargeting(void) {
                 g_hitMapX = g_projectiles[slot].mapX;
                 g_hitMapY = g_projectiles[slot].mapY;
                 g_hitAlt = g_projectiles[slot].alt;
-                g_hitEffectTimer = 8;
+                g_hitEffectTimer = f15::math::TickDuration::fromWord(8);
                 if (g_projectiles[slot].ttl != 0)
                     g_savedSamTtl = g_projectiles[slot].ttl;
                 g_projectiles[slot].ttl = 0;

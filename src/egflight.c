@@ -1,3 +1,4 @@
+#include "math/ticks.hpp"
 #include "math/legacy_horizontal.hpp"
 #include "math/legacy_airspeed.hpp"
 #include "math/legacy_propulsion.hpp"
@@ -12,6 +13,7 @@ using f15::math::legacy::speedFromUnits;
 using f15::math::legacy::fineRep;
 using CamMath = f15::math::GuidanceMath<f15::math::GameBackend>;
 using SpeedMath = f15::math::AirspeedMath<f15::math::GameBackend>;
+using TickDuration = f15::math::TickDuration;
 using Aero = f15::math::AerodynamicsMath<f15::math::GameBackend>;
 using f15::math::legacy::fineUnits;
 #include "eg3dview.h"
@@ -356,9 +358,9 @@ void stepFlightModel(void) {
         }
         goto switch_break;
     case SCAN_ALT_J:
-        if (g_joyCalibTimer == 0) {
+        if (g_joyCalibTimer.isZero()) {
             initJoystickCalibration();
-            g_joyCalibTimer = 40;
+            g_joyCalibTimer = TickDuration::fromWord(40);
         }
         goto switch_break;
     case SCAN_ALT_Q:
@@ -384,8 +386,8 @@ void stepFlightModel(void) {
     }
 
 switch_break:
-    if (g_joyCalibTimer != 0) {
-        g_joyCalibTimer--;
+    if (!g_joyCalibTimer.isZero()) {
+        --g_joyCalibTimer;
     }
 
     if (g_setThrust != 0 && g_thrust.isZero()) {
@@ -481,7 +483,7 @@ switch_break:
 
     if (!g_autopilotAltitude.isZero()) {
         const auto headingOffset = angleFromWord(g_autopilotEngaged != 0 ?
-            (g_missionTick & 0xF) * 256 - 2048 : 0);
+            g_missionTick.phase(16) * 256 - 2048 : 0);
         const auto guidance = f15::math::GuidanceMath<f15::math::GameBackend>::altitudeHold(
             g_autopilotAltitude,
             flightSceneHeight(),
@@ -576,7 +578,7 @@ switch_break:
 
         if (g_crashCamZ < 0) {
             g_crashCamZ = 0;
-            if ((g_missionTick & 7) == 0) {
+            if (g_missionTick.phase(8) == 0) {
                 finalizeMission(0);
             }
         }
@@ -588,7 +590,7 @@ switch_break:
             g_hitMapX = g_planeTable.planes[0].mapX;
             g_hitMapY = g_planeTable.planes[0].mapY;
             g_hitAlt = 0;
-            g_hitEffectTimer = -8;
+            g_hitEffectTimer = f15::math::TickDuration::fromWord(-8);
             makeSound(2, 2);
             g_velocity = {};
             g_setThrust = 0;
@@ -609,7 +611,7 @@ switch_break:
             g_hitMapX = f15::math::legacy::mapWordX(flightMapPosition());
             g_hitMapY = f15::math::legacy::mapWordY(flightMapPosition());
             g_hitAlt = f15::math::legacy::Altitudes::renderWord(flightSceneHeight());
-            g_hitEffectTimer = -8;
+            g_hitEffectTimer = f15::math::TickDuration::fromWord(-8);
             makeSound(0, 2);
 
             g_ourPitch = -f15::math::Angle<f15::math::GameBackend>::quarterTurn();
