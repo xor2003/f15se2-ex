@@ -11,6 +11,13 @@ using f15::math::legacy::signedAngle;
 using f15::math::legacy::angleMagnitude;
 using f15::math::legacy::angleSeparation;
 using f15::math::legacy::angleFromWord;
+using f15::math::legacy::wordRep;
+using f15::math::legacy::uwordRep;
+using f15::math::legacy::wordClamp;
+using f15::math::legacy::attitudeStep;
+using f15::math::legacy::wordProductQ14;
+using f15::math::legacy::objectAttitudeSet;
+using f15::math::legacy::objectAttitudeAdvance;
 using f15::math::legacy::mapOffset;
 using f15::math::legacy::mapRange;
 using f15::math::legacy::objectFineAdvance;
@@ -19,6 +26,8 @@ using f15::math::ViewXAxis;
 using f15::math::ViewYAxis;
 using FineCoord = f15::math::FineCoord<f15::math::GameBackend>;
 using TrackMath = f15::math::GuidanceMath<f15::math::GameBackend>;
+using AircraftAngle = f15::math::legacy::AircraftAngle;
+using WordScalar = f15::math::legacy::WordScalar<>;
 #include "egflight.h"
 #include "egframe.h"
 #include "egkeys.h"
@@ -243,11 +252,16 @@ int16 computeThreatScore(void) {
 
 // ==== seg000:0x67b4 ====
 void updateObjects(void) {
-    int16 candBearing, pitchCmd, viewBearing, aggrIdx, bearing, relBearing, tgtIdx, acRange, hdg, aspect, u0, e0, best, range, moveAmt, mode, fireOffset, objIdx, vel, scanIdx, pitchDelta, trackSlot, tgtX, deltaX, deltaY, rollCmd, tgtY, smokeSlot, tgtZ;
+    int16 candBearing, pitchCmd, viewBearing, aggrIdx, bearing, relBearing, tgtIdx, acRange, hdg, aspect, u0, e0, best, range, moveAmt, mode, fireOffset, objIdx, vel, scanIdx, trackSlot, tgtX, deltaX, deltaY, rollCmd, tgtY, smokeSlot, tgtZ;
+    /* Raw control-signal difference (pitchCmd - pitch word rep): int16 under
+     * fixed, fractional word units under modern. */
+    WordScalar pitchDelta;
     /* horizontal magnitude after the pitch decompose — the original stored it
      * back into the int16 vel; StepRep keeps the fraction under modern.
      * Declared here so the after_missile_table goto doesn't cross its init. */
     FineCoord::StepRep horizVel;
+    /* Gun-fire heading (heading + dispersion) — same goto-hoist reason. */
+    AircraftAngle fireHdg;
 
     if (frameTick.phase(2) == 0 && g_smokeSourceIdx == -1) {
         g_particles[frameTick.ring(1, 8)].posX = 0;
@@ -276,8 +290,8 @@ void updateObjects(void) {
                     mode = 3;
                     if ((g_simObjects[objIdx].flags.w) & 0x100) {
                         if (g_padlockAircraft != -1) {
-                            const auto pickAngle = angleFromWord((int16)(
-                                (objIdx & 7) * 0x800 + g_simObjects[g_padlockAircraft].heading.w - 0x1800));
+                            const auto pickAngle = g_simObjectHeading[g_padlockAircraft] +
+                                angleFromWord((objIdx & 7) * 0x800 - 0x1800);
                             tgtX = (int16)((int)TrackMath::sineVelocity(pickAngle,
                                           g_simObjects[g_padlockAircraft].speed, g_angleLut) +
                                    g_simObjects[g_padlockAircraft].posX);
@@ -362,9 +376,9 @@ void updateObjects(void) {
                     g_activeThreatCount++;
                     if ((uint16)range >= 0x400) goto after_missile_table;
                     if (frameTick.phase(4)) goto after_missile_table;
-                    if (angleSeparation(angleFromWord(g_simObjects[objIdx].heading.w),
+                    if (angleSeparation(g_simObjectHeading[objIdx],
                                         angleFromWord(bearing)) >= 0x800) goto after_missile_table;
-                    if (angleSeparation(angleFromWord(g_simObjects[objIdx].pitch),
+                    if (angleSeparation(g_simObjectPitch[objIdx],
                                         angleFromWord(pitchCmd)) >= 0x800) goto after_missile_table;
 
                     trackSlot = frameTick.ring(2, 4) + g_bulletTrackCount;
@@ -372,12 +386,12 @@ void updateObjects(void) {
                      * gun (the original 312 coarse/s). */
                     vel = g_frameRateScaling.perTick(312 << 5);
                     bulletTracks[trackSlot].velZ = TrackMath::sineVelocity(
-                        angleFromWord((int16)(-g_simObjects[objIdx].pitch + gunSpreadAngle())), vel, g_angleLut);
+                        angleFromWord(gunSpreadAngle()) - g_simObjectPitch[objIdx], vel, g_angleLut);
                     horizVel = TrackMath::cosineVelocity(
-                        angleFromWord(g_simObjects[objIdx].pitch), vel, g_angleLut);
-                    hdg = g_simObjects[objIdx].heading.w + gunSpreadAngle();
-                    bulletTracks[trackSlot].velX = TrackMath::sineVelocity(angleFromWord(hdg), horizVel, g_angleLut);
-                    bulletTracks[trackSlot].velY = -TrackMath::cosineVelocity(angleFromWord(hdg), horizVel, g_angleLut);
+                        g_simObjectPitch[objIdx], vel, g_angleLut);
+                    fireHdg = g_simObjectHeading[objIdx] + angleFromWord(gunSpreadAngle());
+                    bulletTracks[trackSlot].velX = TrackMath::sineVelocity(fireHdg, horizVel, g_angleLut);
+                    bulletTracks[trackSlot].velY = -TrackMath::cosineVelocity(fireHdg, horizVel, g_angleLut);
                     bulletTracks[trackSlot].posX = FineCoord::fromRep(objectFineRep(g_simObjectFineX[objIdx]));
                     bulletTracks[trackSlot].posY = FineCoord::fromRep(objectFineRep(g_simObjectFineY[objIdx]));
                     bulletTracks[trackSlot].alt = g_simObjects[objIdx].alt;
@@ -385,16 +399,16 @@ void updateObjects(void) {
                 after_missile_table:
                     aggrIdx = clampRange((objIdx & 3) + g_missionStatus, 0, 2);
                     if (objIdx == 0) aggrIdx = 1;
-                    hdg = g_simObjects[objIdx].heading.w;
-                    if (abs(g_simObjects[objIdx].bank.w) < 0x4000) {
-                        hdg += g_simObjects[objIdx].bank.w >> 2;
+                    hdg = signedAngle(g_simObjectHeading[objIdx]);
+                    if (angleMagnitude(g_simObjectBank[objIdx]) < 0x4000) {
+                        hdg += signedAngle(g_simObjectBank[objIdx].shiftedDown(2));
                     }
                     relBearing = (int16)(bearing - hdg) >> 13 & 7;
                     hdg = signedAngle(g_ourHead);
                     if (angleMagnitude(g_ourRoll) < 0x4000) {
                         hdg += (int16)signedAngle(g_ourRoll) >> 1;
                     }
-                    aspect = (((g_simObjects[objIdx].heading.w - hdg) >> 13) + 4) & 7;
+                    aspect = (((signedAngle(g_simObjectHeading[objIdx]) - hdg) >> 13) + 4) & 7;
                     {
                         int16 maneuver;
                         maneuver = g_maneuverTable[aggrIdx][relBearing][aspect];
@@ -409,18 +423,18 @@ void updateObjects(void) {
                         rollCmd = frameTick.bit(11) ? -0x4000 : 0x4000;
                     }
                     if (pitchCmd == (int16)0xa000) {
-                        if (-((g_simObjects[objIdx].pitch >> 3) - 3000) > g_simObjects[objIdx].alt) {
-                            pitchCmd = g_simObjects[objIdx].pitch + 0x1000;
+                        if (-(signedAngle(g_simObjectPitch[objIdx].shiftedDown(3)) - 3000) > g_simObjects[objIdx].alt) {
+                            pitchCmd = (int16)(wordRep(g_simObjectPitch[objIdx]) + 0x1000);
                         }
                     }
-                    if (abs(g_simObjects[objIdx].bank.w) > 0x4000) {
+                    if (angleMagnitude(g_simObjectBank[objIdx]) > 0x4000) {
                         pitchCmd = rollCmd = 0;
                     }
                     goto after_accel;
                 }
 
                 rollCmd = signedAngle(TrackMath::limitTurn(
-                    angleFromWord(bearing) - angleFromWord(g_simObjects[objIdx].heading.w),
+                    angleFromWord(bearing) - g_simObjectHeading[objIdx],
                     -0x3000, 0x3000)) << 1;
                 if (mode == 1 && g_missionStatus + 1 <= g_enemyThreatCount) {
                     rollCmd = 0x3000;
@@ -433,15 +447,17 @@ void updateObjects(void) {
 
                 rollCmd = clampRange(rollCmd, -aircraftTypes[g_threatSpec].maneuverability * 0x1000,
                                      aircraftTypes[g_threatSpec].maneuverability * 0x1000);
-                rollCmd = clampRange(rollCmd - g_simObjects[objIdx].bank.w,
-                                     -aircraftTypes[g_threatSpec].maneuverability * 256,
-                                     aircraftTypes[g_threatSpec].maneuverability * 256);
+                rollCmd = wordClamp((int16)(rollCmd - wordRep(g_simObjectBank[objIdx])),
+                                    -aircraftTypes[g_threatSpec].maneuverability * 256,
+                                    aircraftTypes[g_threatSpec].maneuverability * 256);
 
                 if ((g_simObjects[objIdx].flags.w) & 0x400) {
                     if (g_simObjects[objIdx].speed < 150) {
-                        g_simObjects[objIdx].pitch = 0;
+                        objectAttitudeSet(g_simObjectPitch[objIdx], g_simObjects[objIdx].pitch,
+                                          AircraftAngle{});
                     } else {
-                        g_simObjects[objIdx].pitch += 0x100;
+                        objectAttitudeAdvance(g_simObjectPitch[objIdx], g_simObjects[objIdx].pitch,
+                                              angleFromWord(0x100));
                     }
                     rollCmd = 0;
                     if (g_simObjects[objIdx].speed < aircraftTypes[g_threatSpec].maxSpeed) {
@@ -476,10 +492,12 @@ void updateObjects(void) {
 
                 {
                     int16 u = objIdx * 36;
-                    g_simObjects[objIdx].bank.w += g_frameRateScaling.perTick(rollCmd * (g_missionStatus + 2));
-                    g_simObjects[objIdx].heading.w += g_frameRateScaling.perTick(g_simObjects[objIdx].bank.w >> 3);
+                    objectAttitudeAdvance(g_simObjectBank[objIdx], g_simObjects[objIdx].bank.w,
+                        attitudeStep(rollCmd * (g_missionStatus + 2), g_frameRateScaling.word()));
+                    objectAttitudeAdvance(g_simObjectHeading[objIdx], g_simObjects[objIdx].heading.w,
+                        g_simObjectBank[objIdx].shiftedDown(3).dividedBy(g_frameRateScaling.word()));
 
-                    pitchDelta = pitchCmd - g_simObjects[objIdx].pitch;
+                    pitchDelta = pitchCmd - wordRep(g_simObjectPitch[objIdx]);
                     if (!(g_simObjects[objIdx].flags.b[0] & 0x20)) goto no_smoke;
                     pitchDelta = -0x200;
                     if (frameTick.phase(4)) goto no_smoke;
@@ -498,47 +516,54 @@ void updateObjects(void) {
                 }
             no_smoke:
 
-                if (g_simObjects[objIdx].pitch < 0 &&
-                    -(TrackMath::sineVelocity(angleFromWord(g_simObjects[objIdx].pitch), 2000,
+                if (g_simObjectPitch[objIdx].isNegative() &&
+                    -(TrackMath::sineVelocity(g_simObjectPitch[objIdx], 2000,
                                               g_angleLut) - 200) > g_simObjects[objIdx].alt &&
                     ((g_simObjects[objIdx].flags.w) & 0x220) == 0) {
                     pitchDelta = 0x400;
                 }
 
-                pitchDelta = clampRange(pitchDelta, -0x400, 0x400);
-                g_simObjects[objIdx].pitch += g_frameRateScaling.perTick(pitchDelta << 2);
-                if (abs(g_simObjects[objIdx].pitch) > 0x4000) {
-                    g_simObjects[objIdx].heading.b[1] += (char)0x80;
-                    g_simObjects[objIdx].bank.b[1] += (char)0x80;
-                    g_simObjects[objIdx].pitch = (int16)0x8000 - g_simObjects[objIdx].pitch;
+                pitchDelta = wordClamp(pitchDelta, -0x400, 0x400);
+                objectAttitudeAdvance(g_simObjectPitch[objIdx], g_simObjects[objIdx].pitch,
+                                      attitudeStep(pitchDelta * 4, g_frameRateScaling.word()));
+                if (angleMagnitude(g_simObjectPitch[objIdx]) > 0x4000) {
+                    objectAttitudeAdvance(g_simObjectHeading[objIdx], g_simObjects[objIdx].heading.w,
+                                          AircraftAngle::halfTurn());
+                    objectAttitudeAdvance(g_simObjectBank[objIdx], g_simObjects[objIdx].bank.w,
+                                          AircraftAngle::halfTurn());
+                    objectAttitudeSet(g_simObjectPitch[objIdx], g_simObjects[objIdx].pitch,
+                                      AircraftAngle::halfTurn() - g_simObjectPitch[objIdx]);
                 }
 
                 g_simObjects[objIdx].flags.b[0] &= 0xef;
 
-                moveAmt = (int16)((uint32)(uint16)(-(g_simObjects[objIdx].pitch / 2 + (int16)0x8000)) * (int32)g_simObjects[objIdx].speed >> 14);
+                moveAmt = wordProductQ14(uwordRep(-(g_simObjectPitch[objIdx].dividedBy(2) +
+                                                    AircraftAngle::halfTurn())),
+                                         g_simObjects[objIdx].speed);
                 moveAmt -= (int16)(std::abs(TrackMath::sineVelocity(
-                    angleFromWord(g_simObjects[objIdx].bank.w), moveAmt, g_angleLut)) / 2);
+                    g_simObjectBank[objIdx], moveAmt, g_angleLut)) / 2);
                 moveAmt = g_frameRateScaling.perTick(moveAmt * 4);
                 moveAmt >>= 2;
 
                 const auto horizStep = TrackMath::cosineVelocity(
-                    angleFromWord(g_simObjects[objIdx].pitch), moveAmt, g_angleLut);
+                    g_simObjectPitch[objIdx], moveAmt, g_angleLut);
 
                 objectFineAdvance<ViewXAxis>(g_simObjectFineX[objIdx], g_simObjects[objIdx].worldX,
                     TrackMath::sineVelocity(
-                        angleFromWord(g_simObjects[objIdx].heading.w), horizStep, g_angleLut));
+                        g_simObjectHeading[objIdx], horizStep, g_angleLut));
                 objectFineAdvance<ViewYAxis>(g_simObjectFineY[objIdx], g_simObjects[objIdx].worldY,
                     -TrackMath::cosineVelocity(
-                        angleFromWord(g_simObjects[objIdx].heading.w), horizStep, g_angleLut));
+                        g_simObjectHeading[objIdx], horizStep, g_angleLut));
 
                 g_simObjects[objIdx].alt += (int16)TrackMath::sineVelocity(
-                    angleFromWord(g_simObjects[objIdx].pitch), moveAmt, g_angleLut);
+                    g_simObjectPitch[objIdx], moveAmt, g_angleLut);
 
                 g_simObjects[objIdx].posX = (int16)(g_simObjects[objIdx].worldX >> 5);
                 g_simObjects[objIdx].posY = (int16)(g_simObjects[objIdx].worldY >> 5);
 
                 if (g_simObjects[objIdx].alt <= 30000) goto alt_ok;
-                g_simObjects[objIdx].pitch = 0;
+                objectAttitudeSet(g_simObjectPitch[objIdx], g_simObjects[objIdx].pitch,
+                                  AircraftAngle{});
             alt_ok:
 
                 if (g_simObjects[objIdx].alt < 0) {
@@ -561,8 +586,12 @@ void updateObjects(void) {
                 }
 
                 if ((g_simObjects[objIdx].flags.w) & 0x1000) {
-                    g_simObjects[objIdx].bank.w = g_simObjects[objIdx].pitch = 0;
-                    g_simObjects[objIdx].heading.w = (g_northSouthSign == 1) ? 0 : (int16)0x8000;
+                    objectAttitudeSet(g_simObjectBank[objIdx], g_simObjects[objIdx].bank.w,
+                                      AircraftAngle{});
+                    objectAttitudeSet(g_simObjectPitch[objIdx], g_simObjects[objIdx].pitch,
+                                      AircraftAngle{});
+                    objectAttitudeSet(g_simObjectHeading[objIdx], g_simObjects[objIdx].heading.w,
+                                      angleFromWord(g_northSouthSign == 1 ? 0 : -0x8000));
                     g_simObjects[objIdx].alt = (g_planeTable.planes[g_closestThreatIndex].flags & 0x200) ? 140 : 12;
                     if (g_simObjects[objIdx].speed > 0) {
                         g_simObjects[objIdx].speed -= g_frameRateScaling.perTick(120);

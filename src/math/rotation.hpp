@@ -83,6 +83,24 @@ public:
             return (s > 0) - (s < 0);
         } else return (value_ > 0) - (value_ < 0);
     }
+    /* The int16 word-domain arithmetic the AI and snapshot code spelled on
+     * raw attitude words. shiftedDown keeps the arithmetic (floor) shift,
+     * dividedBy the truncating divide; modern keeps the radian fraction
+     * through both. */
+    Angle shiftedDown(int n) const {
+        if constexpr (std::is_same_v<B, FixedBackend>)
+            return Angle(fixed::Angle16::raw(static_cast<std::uint16_t>(
+                static_cast<std::int16_t>(value_.signedRaw() >> n))));
+        else
+            return Angle(value_ / (1 << n));
+    }
+    Angle dividedBy(int n) const {
+        if constexpr (std::is_same_v<B, FixedBackend>)
+            return Angle(fixed::Angle16::raw(static_cast<std::uint16_t>(
+                static_cast<std::int16_t>(value_.signedRaw() / n))));
+        else
+            return Angle(value_ / n);
+    }
     static Angle quarterTurn() {
         if constexpr (std::is_same_v<B, FixedBackend>) return Angle(fixed::Angle16(0x4000));
         else return Angle(1.57079632679489661923);

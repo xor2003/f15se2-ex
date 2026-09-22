@@ -20,6 +20,7 @@
 #include "struct.h"
 #include "endtypes.h"
 #include "math/legacy_horizontal.hpp"
+#include "math/legacy_rotation.hpp"
 
 /* ---- START / shared source globals (defined in stdata.c) ---- */
 extern struct WorldObject worldObjects[]; /* shared START/END plane block */
@@ -56,6 +57,9 @@ extern int16 g_groundUnitCount;
 extern struct SimObject g_simObjects[];
 extern f15::math::ViewCoordinate<f15::math::GameBackend, f15::math::ViewXAxis> g_simObjectFineX[];
 extern f15::math::ViewCoordinate<f15::math::GameBackend, f15::math::ViewYAxis> g_simObjectFineY[];
+extern f15::math::Angle<f15::math::GameBackend> g_simObjectHeading[];
+extern f15::math::Angle<f15::math::GameBackend> g_simObjectPitch[];
+extern f15::math::Angle<f15::math::GameBackend> g_simObjectBank[];
 extern uint8 g_shapeTargetCategory[];
 extern uint8 g_tileKillTally[];
 extern char g_stringPool[];
@@ -131,6 +135,14 @@ void worldImportToEgame(void) {
             g_simObjectFineX[i], g_simObjects[i].worldX, g_simObjects[i].worldX);
         f15::math::legacy::objectFineSet<f15::math::ViewYAxis>(
             g_simObjectFineY[i], g_simObjects[i].worldY, g_simObjects[i].worldY);
+        /* Same for the packed attitude words — the file words seed the typed
+         * shadow so legacy-loaded objects behave identically under modern. */
+        f15::math::legacy::objectAttitudeSet(g_simObjectHeading[i], g_simObjects[i].heading.w,
+            f15::math::legacy::angleFromWord(g_simObjects[i].heading.w));
+        f15::math::legacy::objectAttitudeSet(g_simObjectPitch[i], g_simObjects[i].pitch,
+            f15::math::legacy::angleFromWord(g_simObjects[i].pitch));
+        f15::math::legacy::objectAttitudeSet(g_simObjectBank[i], g_simObjects[i].bank.w,
+            f15::math::legacy::angleFromWord(g_simObjects[i].bank.w));
     }
 
     memcpy(g_shapeTargetCategory, wldReadBuf7, CATEGORY_BYTES);

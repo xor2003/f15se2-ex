@@ -81,8 +81,10 @@ int main() {
             "iabs32 preserves signed absolute value behavior");
     require(lerpLinear(100, 200, kHalfNumerator, kHalfDenominator) == 150,
             "lerpLinear uses truncating integer interpolation");
-    require(lerpAngle(0x0100, 0xFF00, kHalfNumerator, kHalfDenominator) == 0,
-            "lerpAngle follows the original shortest signed 16-bit arc");
+    require(signedAngle(f15::math::PoseInterpolation<f15::math::GameBackend>::angle(
+                angleFromWord(0x0100), angleFromWord(0xFF00),
+                f15::math::FrameFraction::fromTicks(kHalfNumerator, kHalfDenominator))) == 0,
+            "pose angle lerp follows the original shortest signed 16-bit arc");
 
     g_frameRateScaling = f15::math::SimRate::fromWord(kFrameRateScalingFour);
     require(simStepNsNow() == NS_PER_SEC / kFrameRateScalingFour,
@@ -188,9 +190,12 @@ int main() {
     g_simObjects[0].posX = 31;
     g_simObjects[0].posY = 62;
     g_simObjects[0].alt = 300;
-    g_simObjects[0].heading.w = 0x0100;
-    g_simObjects[0].pitch = 0x0200;
-    g_simObjects[0].bank.w = 0x0300;
+    f15::math::legacy::objectAttitudeSet(g_simObjectHeading[0], g_simObjects[0].heading.w,
+        angleFromWord(0x0100));
+    f15::math::legacy::objectAttitudeSet(g_simObjectPitch[0], g_simObjects[0].pitch,
+        angleFromWord(0x0200));
+    f15::math::legacy::objectAttitudeSet(g_simObjectBank[0], g_simObjects[0].bank.w,
+        angleFromWord(0x0300));
     g_simObjects[0].flags.b[0] = kAliveFlag;
     g_projectiles[kProjectileSlot].mapX = 100;
     g_projectiles[kProjectileSlot].mapY = 200;
@@ -209,9 +214,12 @@ int main() {
     g_simObjects[0].posX = 37;
     g_simObjects[0].posY = 75;
     g_simObjects[0].alt = 500;
-    g_simObjects[0].heading.w = 0x0300;
-    g_simObjects[0].pitch = 0x0400;
-    g_simObjects[0].bank.w = 0x0500;
+    f15::math::legacy::objectAttitudeSet(g_simObjectHeading[0], g_simObjects[0].heading.w,
+        angleFromWord(0x0300));
+    f15::math::legacy::objectAttitudeSet(g_simObjectPitch[0], g_simObjects[0].pitch,
+        angleFromWord(0x0400));
+    f15::math::legacy::objectAttitudeSet(g_simObjectBank[0], g_simObjects[0].bank.w,
+        angleFromWord(0x0500));
     g_simObjects[0].flags.b[0] = kAliveFlag;
     g_projectiles[kProjectileSlot].mapX = 300;
     g_projectiles[kProjectileSlot].mapY = 600;

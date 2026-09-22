@@ -23,6 +23,7 @@ using f15::math::legacy::mapOffset;
 using f15::math::legacy::mapRange;
 using f15::math::legacy::objectFineAdvance;
 using f15::math::legacy::objectFineSet;
+using f15::math::legacy::objectAttitudeSet;
 using f15::math::ViewXAxis;
 using f15::math::ViewYAxis;
 using SpeedMath = f15::math::AirspeedMath<f15::math::GameBackend>;
@@ -161,7 +162,8 @@ void updateFrame(void) {
                                                  (int32)g_simObjects[i].posX * 32);
                         objectFineSet<ViewYAxis>(g_simObjectFineY[i], g_simObjects[i].worldY,
                                                  (int32)g_simObjects[i].posY * 32);
-                        g_simObjects[i].heading.w = signedAngle(g_ourHead) + 0x8000;
+                        objectAttitudeSet(g_simObjectHeading[i], g_simObjects[i].heading.w,
+                            g_ourHead + f15::math::Angle<f15::math::GameBackend>::halfTurn());
                     }
                 }
             }
@@ -176,7 +178,7 @@ void updateFrame(void) {
                                      (int32)g_wingmanX * 32);
             objectFineSet<ViewYAxis>(g_simObjectFineY[1], g_simObjects[1].worldY,
                                      (int32)g_wingmanY * 32);
-            g_simObjects[1].heading.w = signedAngle(g_ourHead);
+            objectAttitudeSet(g_simObjectHeading[1], g_simObjects[1].heading.w, g_ourHead);
         }
         g_northSouthSign = tmp;
         initWeaponLoadout();
@@ -317,7 +319,8 @@ void updateFrame(void) {
                                      (int32)g_simObjects[objIdx].posX << 5);
             objectFineSet<ViewYAxis>(g_simObjectFineY[objIdx], g_simObjects[objIdx].worldY,
                                      (int32)g_simObjects[objIdx].posY << 5);
-            g_simObjects[objIdx].heading.w = -randomRange(0x4000);
+            objectAttitudeSet(g_simObjectHeading[objIdx], g_simObjects[objIdx].heading.w,
+                              angleFromWord(-randomRange(0x4000)));
             g_simObjects[objIdx].spec = g_planeTable.planes[g_closestThreatIndex].flags & 0x400 ? 8 : 11;
             if (customWorldScenarioIs("SVN")) {
                 g_simObjects[objIdx].spec =

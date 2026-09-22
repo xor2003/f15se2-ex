@@ -10,6 +10,7 @@
 #include "math/legacy_altitude.hpp"
 #include "math/legacy_map.hpp"
 #include "math/legacy_horizontal.hpp"
+#include "math/legacy_rotation.hpp"
 #include "egflight.h"
 #include "inttype.h"
 #include "gfx.h"
@@ -117,43 +118,10 @@ static int32 lerpLinear(int32 a, int32 b, int64 num, int64 den) {
     return a + (int32)(((int64)(b - a) * num) / den);
 }
 
-/* Shortest-arc interpolation in 16-bit angle space (heading wraps; pitch/roll
- * don't in practice, where the int16 delta degenerates to a plain difference). */
-static int32 lerpAngle(int32 a, int32 b, int64 num, int64 den) {
-    int16 d = (int16)(b - a);
-    /* A single sim step never rotates the airframe ~90deg from stick input; a
-     * delta that large is the discontinuous 0x8000 heading/roll flip
-     * computeAttitudeAngles() emits as pitch crosses +/-90deg (gimbal). Tweening
-     * across it would sweep the view 180deg for one render frame, so snap to the
-     * new pose instead. */
-    if (d >= 0x4000 || d <= -0x4000)
-        return b;
-    return a + (int32)(((int64)d * num) / den);
-}
-
-static int angleSnaps(int32 a, int32 b) {
-    int16 d = (int16)(b - a);
-    return d >= 0x4000 || d <= -0x4000;
-}
-
-/* Interpolate a heading/pitch/roll pose. The gimbal flip changes the
- * REPRESENTATION of all three components at once (head/roll jump 0x8000 while
- * pitch reflects with a small delta); snapping only the offending component
- * while the others keep tweening mixes two representations into a visibly
- * wrong pose (the "90deg flip-flop" when pulling through the vertical), so a
- * flip in any component snaps the whole triple to the new pose. */
-static void lerpPose(int32 h0, int32 p0, int32 r0, int32 h1, int32 p1, int32 r1,
-                     int64 num, int64 den, int32 *h, int32 *p, int32 *r) {
-    if (angleSnaps(h0, h1) || angleSnaps(p0, p1) || angleSnaps(r0, r1)) {
-        *h = h1;
-        *p = p1;
-        *r = r1;
-    } else {
-        *h = lerpAngle(h0, h1, num, den);
-        *p = lerpAngle(p0, p1, num, den);
-        *r = lerpAngle(r0, r1, num, den);
-    }
-}
+/* The heading/pitch/roll pose lerp that used to live here moved to
+ * Pose::interpolate (math/interpolation.hpp): the gimbal flip changes the
+ * REPRESENTATION of all three components at once, so a snap in any component
+ * snaps the whole triple to the new pose — shortest-arc blend otherwise. */
 
 static void camApplyInterp(const CamSnapshot *p, const CamSnapshot *n, int64 num, int64 den) {
     using Pose = f15::math::PoseInterpolation<f15::math::GameBackend>;
@@ -231,7 +199,11 @@ typedef struct {
      * fractional under modern so interpolation keeps sub-fine precision. */
     f15::math::HorizontalBoundary<f15::math::GameBackend>::Rep worldX, worldY;
     uint16 posX, posY;
-    int16 alt, head, pitch, bank;
+    int16 alt;
+    /* Attitude reps captured from the object shadows — the packed int16 word
+     * under fixed, fractional under modern so interpolation keeps sub-word
+     * precision. */
+    f15::math::Angle<f15::math::GameBackend> head, pitch, bank;
     uint8 alive;
 } SimObjSnap;
 
@@ -257,9 +229,9 @@ static void objCapture(SimObjSnap *sim, ProjSnap *proj) {
         sim[i].posX = g_simObjects[i].posX;
         sim[i].posY = g_simObjects[i].posY;
         sim[i].alt = g_simObjects[i].alt;
-        sim[i].head = g_simObjects[i].heading.w;
-        sim[i].pitch = g_simObjects[i].pitch;
-        sim[i].bank = g_simObjects[i].bank.w;
+        sim[i].head = g_simObjectHeading[i];
+        sim[i].pitch = g_simObjectPitch[i];
+        sim[i].bank = g_simObjectBank[i];
         sim[i].alive = (g_simObjects[i].flags.b[0] & 2) ? 1 : 0;
     }
     for (i = 0; i < PROJ_MAX; i++) {
@@ -278,9 +250,9 @@ static void objApplyInterp(const SimObjSnap *sp, const SimObjSnap *sn,
     int i, n = simObjCount();
     using Horizontal = f15::math::HorizontalMath<f15::math::GameBackend>;
     using HBoundary = f15::math::HorizontalBoundary<f15::math::GameBackend>;
+    using Pose = f15::math::PoseInterpolation<f15::math::GameBackend>;
     const auto fraction = f15::math::FrameFraction::fromTicks(num, den);
     for (i = 0; i < n; i++) {
-        int32 poseH, poseP, poseR;
         if (!sp[i].alive || !sn[i].alive)
             continue;
         if (std::abs(sn[i].worldX - sp[i].worldX) >= OBJ_TELEPORT_GUARD ||
@@ -300,12 +272,13 @@ static void objApplyInterp(const SimObjSnap *sp, const SimObjSnap *sn,
         g_simObjects[i].posY = (uint16)(g_simObjects[i].worldY >> 5);
         g_simObjects[i].alt = (int16)lerpLinear(sp[i].alt, sn[i].alt, num, den);
         /* enemy AI flips its pose representation the same way as the player
-         * (egthreat pitch>0x4000: head+=0x8000, bank+=0x8000, pitch reflected) */
-        lerpPose(sp[i].head, sp[i].pitch, sp[i].bank, sn[i].head, sn[i].pitch, sn[i].bank,
-                 num, den, &poseH, &poseP, &poseR);
-        g_simObjects[i].heading.w = (int16)poseH;
-        g_simObjects[i].pitch = (int16)poseP;
-        g_simObjects[i].bank.w = (int16)poseR;
+         * (egthreat pitch>0x4000: head+=0x8000, bank+=0x8000, pitch reflected) —
+         * Pose::interpolate snaps the whole triple on that flip. */
+        const auto pose = Pose::interpolate({sp[i].head, sp[i].pitch, sp[i].bank},
+                                            {sn[i].head, sn[i].pitch, sn[i].bank}, fraction);
+        f15::math::legacy::objectAttitudeSet(g_simObjectHeading[i], g_simObjects[i].heading.w, pose.yaw);
+        f15::math::legacy::objectAttitudeSet(g_simObjectPitch[i], g_simObjects[i].pitch, pose.pitch);
+        f15::math::legacy::objectAttitudeSet(g_simObjectBank[i], g_simObjects[i].bank.w, pose.roll);
     }
     for (i = 0; i < PROJ_MAX; i++) {
         using Fine = f15::math::FineCoord<f15::math::GameBackend>;
@@ -342,9 +315,9 @@ static void objRestore(const SimObjSnap *sn, const ProjSnap *pn) {
         g_simObjects[i].posX = sn[i].posX;
         g_simObjects[i].posY = sn[i].posY;
         g_simObjects[i].alt = sn[i].alt;
-        g_simObjects[i].heading.w = sn[i].head;
-        g_simObjects[i].pitch = sn[i].pitch;
-        g_simObjects[i].bank.w = sn[i].bank;
+        f15::math::legacy::objectAttitudeSet(g_simObjectHeading[i], g_simObjects[i].heading.w, sn[i].head);
+        f15::math::legacy::objectAttitudeSet(g_simObjectPitch[i], g_simObjects[i].pitch, sn[i].pitch);
+        f15::math::legacy::objectAttitudeSet(g_simObjectBank[i], g_simObjects[i].bank.w, sn[i].bank);
     }
     for (i = 0; i < PROJ_MAX; i++) {
         g_projectiles[i].fineX = pn[i].fineX;

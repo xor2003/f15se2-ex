@@ -74,6 +74,87 @@ inline int updateAttitudeFromWords(AircraftAngle &roll, AircraftAngle &pitch,
     return result;
 }
 
+/* Signed word-domain rep: fixed returns the int16 word, modern returns
+ * fractional word units. An unwrapped view for control-signal diffs like
+ * `pitchCmd - pitch` that the originals computed as raw int subtracts —
+ * arc-wrapping them through Angle::operator- would flip the clamp side. */
+template<class B = GameBackend>
+inline auto wordRep(Angle<B> angle) {
+    if constexpr (std::is_same_v<B, FixedBackend>)
+        return static_cast<std::int16_t>(Boundary<B>::angleWord(angle));
+    else
+        return Boundary<B>::radians(angle) * (65536.0 / 6.28318530717958647692);
+}
+
+/* Unsigned word-domain rep — the (uint16) cast domain: fixed wraps to
+ * 0..65535, modern to [0, 65536) keeping the fraction. */
+template<class B = GameBackend>
+inline auto uwordRep(Angle<B> angle) {
+    if constexpr (std::is_same_v<B, FixedBackend>)
+        return Boundary<B>::angleWord(angle);
+    else {
+        const double rep = Boundary<B>::radians(angle) * (65536.0 / 6.28318530717958647692);
+        return rep < 0 ? rep + 65536.0 : rep;
+    }
+}
+
+/* clampRange(value, lo, hi) on word-domain scalars — including the legacy
+ * `value <= -0x4000 selects hi` wrapped-angle quirk. Works on int (fixed
+ * semantics) or double (modern keeps the in-range fraction). */
+template<class T>
+inline T wordClamp(T value, int minVal, int maxVal) {
+    if (value > static_cast<T>(maxVal)) return static_cast<T>(maxVal);
+    if (value >= static_cast<T>(minVal)) return value;
+    if (value <= static_cast<T>(-0x4000)) return static_cast<T>(maxVal);
+    return static_cast<T>(minVal);
+}
+
+/* (words / divisor) as an angle step — the `angleWord += x / scaling`
+ * integration the AI spelled inline. Fixed keeps the truncating int divide;
+ * modern keeps the quotient fractional so sub-word steps accumulate. */
+template<class B = GameBackend, class T>
+inline Angle<B> attitudeStep(T words, int divisor) {
+    if constexpr (std::is_same_v<B, FixedBackend>)
+        return Boundary<B>::angleWord(static_cast<std::uint16_t>(
+            static_cast<int>(words / divisor)));
+    else
+        return Boundary<B>::radians(static_cast<double>(words) / divisor *
+                                    (6.28318530717958647692 / 65536));
+}
+
+/* ((uint16 rep) * speed) >> 14 — the Q14 word product the moveAmt formula
+ * spelled with raw casts. Fixed keeps the uint32 wrap+shift; modern floors
+ * the honest product before the int16 boundary. */
+template<class B = GameBackend>
+inline std::int16_t wordProductQ14(std::uint16_t uword, std::int16_t speed) {
+    return static_cast<std::int16_t>(static_cast<std::uint32_t>(uword) *
+                                     static_cast<std::int32_t>(speed) >> 14);
+}
+template<class B = GameBackend>
+inline std::int16_t wordProductQ14(double uword, std::int16_t speed) {
+    return static_cast<std::int16_t>(static_cast<std::int32_t>(
+        std::floor(uword * speed / 16384.0)));
+}
+
+/* Word-domain scalar rep matching wordRep: int16 under fixed, double under
+ * modern — for control-signal quantities (command deltas) that stay raw. */
+template<class B = GameBackend>
+using WordScalar = std::conditional_t<std::is_same_v<B, FixedBackend>, std::int16_t, double>;
+
+/* Typed attitude shadow <-> packed int16 sync for SimObject heading/pitch/
+ * bank — the same shadow pattern as the fine positions. The shadow is
+ * authoritative; the packed word mirrors it for layout/render/serialization
+ * consumers (fixed mirrors exactly; modern rounds the fraction to the word). */
+template<class B = GameBackend>
+inline void objectAttitudeSet(Angle<B> &shadow, std::int16_t &packed, Angle<B> value) {
+    shadow = value;
+    packed = static_cast<std::int16_t>(Boundary<B>::angleWord(value));
+}
+template<class B = GameBackend>
+inline void objectAttitudeAdvance(Angle<B> &shadow, std::int16_t &packed, Angle<B> step) {
+    objectAttitudeSet<B>(shadow, packed, shadow + step);
+}
+
 inline EulerAngles<GameBackend> angles(int yaw, int pitch, int roll) {
     return {Codec::angleWord(static_cast<std::uint16_t>(yaw)),
             Codec::angleWord(static_cast<std::uint16_t>(pitch)),

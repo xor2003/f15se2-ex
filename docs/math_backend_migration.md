@@ -1163,6 +1163,50 @@ modern smoke, `typed_horizontal_tests` covers fixed equivalence (seed,
 advance, negative step, int32 wrap) and modern fraction accumulation plus
 packed-field truncation.
 
+## SimObject attitude shadow checkpoint
+
+The packed `SimObject.heading/pitch/bank` int16 words are the same frozen
+FlightUnit layout — they cannot widen in place. They now carry typed shadows:
+`g_simObjectHeading/Pitch/Bank` are `Angle<B>` arrays whose rep is the Angle16
+word under fixed and radians under modern. Every attitude write flows through
+`legacy::objectAttitudeSet`/`objectAttitudeAdvance`, which updates the shadow
+AND the packed cache; fraction-capable decision reads use the shadow directly.
+
+* the AI maneuver core (egthreat `updateObjects`) integrates attitude on the
+  shadow: `bank += (rollCmd * missionFactor) / scaling` becomes
+  `objectAttitudeAdvance(..., attitudeStep(rollCmd * f, rate))`, `heading +=
+  (bank >> 3) / scaling` becomes `bank.shiftedDown(3).dividedBy(rate)` — under
+  modern the sub-word quotient accumulates instead of truncating each tick;
+* `Angle::shiftedDown`/`dividedBy` reproduce the int16 arithmetic shift and
+  truncating divide exactly under fixed; `wordRep`/`uwordRep` expose the
+  signed/unsigned word-domain rep for control-signal diffs and the
+  `(uint16)`-cast products the originals spelled raw;
+* `wordClamp` ports `clampRange` to word scalars including the
+  `value <= -0x4000 selects max` wrapped-angle quirk; `attitudeStep` is the
+  `words / divisor` angle step (fixed int divide, modern fractional);
+* the pitch>0x4000 pose flip is typed: `head/bank += halfTurn()`,
+  `pitch = halfTurn() - pitch` — identical mod-2^16 to the original byte
+  writes (`b[1] += 0x80`) and `0x8000 - pitch`;
+* `moveAmt`'s `(uint16)(-(pitch/2 + 0x8000)) * speed >> 14` becomes
+  `wordProductQ14(uwordRep(-(pitch.dividedBy(2) + halfTurn())), speed)`;
+* spawn/load/snapshot paths seed or restore the shadow: `spawnEnemyAircraft`,
+  egframe spawn seeds, worldxfer's post-memcpy loop, and `SimObjSnap` now
+  stores `Angle` head/pitch/bank so `Pose::interpolate` (same snap thresholds
+  and shortest-arc blend as the removed `lerpPose`) tweens fractional
+  attitude under modern and restores it without re-quantizing;
+* `pitchDelta` is `WordScalar` (int16 fixed / double modern): the raw
+  `pitchCmd - pitch` difference deliberately does NOT go through
+  `Angle::operator-`, which arc-wraps — bounded analysis shows the raw diff
+  never reaches the wrap-divergence band for these inputs;
+* packed-word consumers stay packed mirrors: egtarget/egui render reads,
+  `aspect`/`relBearing` bucket math, `worldSamTable` serialization.
+
+Verification: fixed 60/60 (sortie parity exercises the AI attitude loop),
+modern smoke, `typed_rotation_tests::attitudeShadow` covers fixed oracles for
+every new op (shiftedDown/dividedBy/wordRep/uwordRep/wordClamp/attitudeStep/
+wordProductQ14) plus the set/advance sync contract and modern fraction
+accumulation.
+
 ## Simulation clock typed checkpoint
 
 The int16 sim clock `frameTick` and the deadline globals
@@ -1322,7 +1366,7 @@ input widths or introduce new flight-model formulas.
 | Camera precision | Fine bearing/range and Q8 eye offsets typed; outputs stay word/Q8 at the render boundary | Remaining render-internal projection math (sinMulQ8 remnants in egtacmap, view-matrix LUT path) |
 | Terrain/world coordinates | Coarse `MapPosition` typed; sub-LOD precision flows through `g_camEyeFrac*` frac bytes into `lodEyeFracQ8` | scaleCoordToLod LOD quantization is render-internal; all nearest-tile callers pass packed word sources |
 | Flight integration | stepFlightModel forces, velocity/position integration, coefficients and clamps typed end to end | Modern refresh policy vs the original periodic rebuild (see acceptance boundary) |
-| Combat/AI | Projectile guidance/state, bullet tracks, SimObject decision reads, acquisition, lock cones, corridor gates and fine-position shadow typed | Hit-test broad phases are word-domain game rules (precise swept test already typed); heading/bank/pitch packed words are the AI's authoritative attitude state |
+| Combat/AI | Projectile guidance/state, bullet tracks, SimObject decision reads, acquisition, lock cones, corridor gates, fine-position shadow and attitude shadow (heading/pitch/bank) typed | Hit-test broad phases are word-domain game rules (precise swept test already typed); packed attitude words remain synced render/serialization mirrors |
 | Randomness/time | Only a scaling helper | Separate deterministic RNG and simulation clock contracts from numeric representation |
 
 Not every integer operation is fixed-point math. Object indices, packed flags,

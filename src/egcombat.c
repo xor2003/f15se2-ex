@@ -18,6 +18,9 @@ using f15::math::legacy::angleSeparation;
 using f15::math::legacy::fineRep;
 using f15::math::legacy::objectFineRep;
 using f15::math::legacy::objectFineSet;
+using f15::math::legacy::objectAttitudeSet;
+using f15::math::legacy::objectAttitudeAdvance;
+using AircraftAngle = f15::math::legacy::AircraftAngle;
 using f15::math::ViewXAxis;
 using f15::math::ViewYAxis;
 using FineCoord = f15::math::FineCoord<f15::math::GameBackend>;
@@ -85,7 +88,7 @@ void fireAirThreat(int16 objIdx) {
                 g_projectiles[slot].ttl == 0 &&
                 acqRange > 8 &&
                 angleSeparation(angleFromWord(bearing),
-                                angleFromWord(g_simObjects[objIdx].heading.w)) < 0x1800) {
+                                g_simObjectHeading[objIdx]) < 0x1800) {
 
                 idx = g_simObjects[objIdx].weaponType;
 
@@ -103,9 +106,9 @@ void fireAirThreat(int16 objIdx) {
                                 g_projectiles[slot].fineY = FineCoord::fromRep(objectFineRep(g_simObjectFineY[objIdx]));
                                 g_projectiles[slot].alt = g_simObjects[objIdx].alt - 25;
                                 g_projectiles[slot].speed = sams[idx].maxSpeed >> 6;
-                                g_projectiles[slot].head = angleFromWord(g_simObjects[objIdx].heading.w);
-                                g_projectiles[slot].pitch = angleFromWord(g_simObjects[objIdx].pitch) - angleFromWord(0x400);
-                                g_projectiles[slot].bank = angleFromWord(g_simObjects[objIdx].bank.w);
+                                g_projectiles[slot].head = g_simObjectHeading[objIdx];
+                                g_projectiles[slot].pitch = g_simObjectPitch[objIdx] - angleFromWord(0x400);
+                                g_projectiles[slot].bank = g_simObjectBank[objIdx];
 
                                 g_projectiles[slot].ttl = (int16)((((int32)sams[idx].lockRange << 3) * (int32)g_frameRateScaling.word()) / (int32)g_projectiles[slot].speed);
 
@@ -144,13 +147,16 @@ void spawnEnemyAircraft(int16 slot, int16 objType) {
     int16 spec;
 
     spec = g_simObjects[slot].spec;
-    g_simObjects[slot].heading.w = (g_northSouthSign == 1) ? 0 : (int16)0x8000;
+    objectAttitudeSet(g_simObjectHeading[slot], g_simObjects[slot].heading.w,
+        angleFromWord(g_northSouthSign == 1 ? 0 : -0x8000));
     if (g_planeTable.planes[objType].flags & 0x200) {
         g_simObjects[slot].posX = g_northSouthSign * 3 + g_planeTable.planes[objType].mapX;
         g_simObjects[slot].posY = g_planeTable.planes[objType].mapY - g_northSouthSign * 12;
         g_simObjects[slot].alt = 140;
         g_simObjects[slot].speed = 100;
-        g_simObjects[slot].heading.b[1] += 0xfc;
+        /* heading.b[1] += 0xfc — a -0x400-word turn step. */
+        objectAttitudeAdvance(g_simObjectHeading[slot], g_simObjects[slot].heading.w,
+            angleFromWord(-0x400));
     } else {
         g_simObjects[slot].posX = g_planeTable.planes[objType].mapX;
         g_simObjects[slot].posY = 30 * g_northSouthSign + g_planeTable.planes[objType].mapY;
@@ -161,8 +167,8 @@ void spawnEnemyAircraft(int16 slot, int16 objType) {
                              (int32)(uint16)g_simObjects[slot].posX << 5);
     objectFineSet<ViewYAxis>(g_simObjectFineY[slot], g_simObjects[slot].worldY,
                              (int32)(uint16)g_simObjects[slot].posY << 5);
-    g_simObjects[slot].pitch = 0;
-    g_simObjects[slot].bank.w = 0;
+    objectAttitudeSet(g_simObjectPitch[slot], g_simObjects[slot].pitch, AircraftAngle{});
+    objectAttitudeSet(g_simObjectBank[slot], g_simObjects[slot].bank.w, AircraftAngle{});
     g_simObjects[slot].flags.w |= 0x403;
     g_simObjects[slot].objType = objType;
     g_simObjects[slot].timer = (int16)(((int32)aircraftTypes[spec].range << 11) * (int32)g_frameRateScaling.word() / (int32)aircraftTypes[spec].maxSpeed);

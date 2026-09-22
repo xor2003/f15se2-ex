@@ -284,6 +284,13 @@ extern struct SimObject g_simObjects[];
  * Written only through legacy::objectFineSet/objectFineAdvance. */
 extern f15::math::ViewCoordinate<f15::math::GameBackend, f15::math::ViewXAxis> g_simObjectFineX[];
 extern f15::math::ViewCoordinate<f15::math::GameBackend, f15::math::ViewYAxis> g_simObjectFineY[];
+/* Typed shadow of SimObject.heading/pitch/bank: the packed int16 words stay
+ * the file-layout/render cache; the shadow carries the modern fractional
+ * attitude that per-tick AI integration would otherwise quantize away.
+ * Written only through legacy::objectAttitudeSet/objectAttitudeAdvance. */
+extern f15::math::Angle<f15::math::GameBackend> g_simObjectHeading[];
+extern f15::math::Angle<f15::math::GameBackend> g_simObjectPitch[];
+extern f15::math::Angle<f15::math::GameBackend> g_simObjectBank[];
 extern int16 g_aamLockCooldown;
 extern int32 g_camEyeY;
 extern int16 g_threatRefX;

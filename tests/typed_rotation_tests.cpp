@@ -336,6 +336,104 @@ void typedEulerState() {
         require(rejected, "invalid interpolation interval accepted");
     }
 }
+
+void attitudeShadow() {
+    using f15::math::legacy::wordRep;
+    using f15::math::legacy::uwordRep;
+    using f15::math::legacy::wordClamp;
+    using f15::math::legacy::attitudeStep;
+    using f15::math::legacy::wordProductQ14;
+    using f15::math::legacy::objectAttitudeSet;
+    using f15::math::legacy::objectAttitudeAdvance;
+    /* shiftedDown/dividedBy reproduce the int16 word ops exactly under fixed:
+     * >> is the arithmetic (floor) shift, / truncates toward zero. */
+    for (const int w : {0, 1, -1, 0x4000, -0x4000, -32768, 32767, 0x1234, -0x1234, -7, 7}) {
+        const auto a = FC::angleWord(static_cast<std::uint16_t>(static_cast<std::int16_t>(w)));
+        require(FC::angleWord(a.shiftedDown(3)) ==
+                static_cast<std::uint16_t>(static_cast<std::int16_t>(
+                    static_cast<std::int16_t>(w) >> 3)), "fixed shiftedDown diverged from int16 >>");
+        require(FC::angleWord(a.dividedBy(2)) ==
+                static_cast<std::uint16_t>(static_cast<std::int16_t>(
+                    static_cast<std::int16_t>(w) / 2)), "fixed dividedBy diverged from int16 /");
+        require(FC::angleWord(a.shiftedDown(0)) == static_cast<std::uint16_t>(static_cast<std::int16_t>(w)),
+                "fixed shiftedDown(0) changed the word");
+    }
+    /* Modern keeps the fraction through the same named ops. */
+    {
+        const auto a = MC::angleWord(0x4001);
+        const double expected = MC::radians(a) / 8;
+        require(std::abs(MC::radians(a.shiftedDown(3)) - expected) < 1e-18,
+                "modern shiftedDown quantized the fraction");
+        require(std::abs(MC::radians(a.dividedBy(2)) - MC::radians(a) / 2) < 1e-18,
+                "modern dividedBy quantized the fraction");
+    }
+    /* wordRep: signed word-domain view — int16 under fixed, fractional words
+     * under modern (no arc wrap: a raw-domain rep for control-signal diffs). */
+    for (const int w : {0, 1, -1, -32768, 32767, 0x4000}) {
+        require(wordRep<F>(FC::angleWord(static_cast<std::uint16_t>(static_cast<std::int16_t>(w)))) == w,
+                "fixed wordRep diverged from the int16 word");
+    }
+    require(std::abs(wordRep<M>(MC::radians(0.3)) - 0.3 * 65536 / (2 * 3.14159265358979323846)) < 1e-6,
+            "modern wordRep lost the fraction");
+    /* uwordRep: the (uint16) cast domain — negative words wrap high. */
+    require(uwordRep<F>(FC::angleWord(0xffff)) == 0xffff, "fixed uwordRep diverged from (uint16)");
+    {
+        const double w = uwordRep<M>(MC::radians(-0.5 * 2 * 3.14159265358979323846 / 65536));
+        require(std::abs(w - 65535.5) < 1e-6, "modern uwordRep did not wrap negative words high");
+    }
+    /* wordClamp: clampRange semantics including the <= -0x4000 -> max quirk. */
+    require(wordClamp(0x500, -0x400, 0x400) == 0x400, "wordClamp upper bound changed");
+    require(wordClamp(-0x500, -0x400, 0x400) == -0x400, "wordClamp lower bound changed");
+    require(wordClamp(-0x4000, -0x400, 0x400) == 0x400, "wordClamp lost the -0x4000 wrap quirk");
+    require(wordClamp(0x300, -0x400, 0x400) == 0x300, "wordClamp changed an in-range value");
+    require(std::abs(wordClamp(300.4, -0x400, 0x400) - 300.4) < 1e-12,
+            "wordClamp quantized a fractional in-range value");
+    require(std::abs(wordClamp(1100.9, -0x400, 0x400) - 0x400) < 1e-12,
+            "wordClamp missed a fractional upper bound");
+    /* attitudeStep: words / divisor as an Angle — fixed truncates like the
+     * int16 divide; modern keeps the quotient fractional. */
+    require(FC::angleWord(attitudeStep<F>(-104, 15)) ==
+            static_cast<std::uint16_t>(static_cast<std::int16_t>(-104 / 15)),
+            "fixed attitudeStep diverged from int / int");
+    require(FC::angleWord(attitudeStep<F>(0x2000 * 7, 15)) ==
+            static_cast<std::uint16_t>(static_cast<std::int16_t>(0x2000 * 7 / 15)),
+            "fixed attitudeStep mishandled a product wider than int16");
+    require(std::abs(MC::radians(attitudeStep<M>(104.0, 15)) - 104.0 / 15 * 2 * 3.14159265358979323846 / 65536) < 1e-18,
+            "modern attitudeStep lost the fractional quotient");
+    /* wordProductQ14: the (uint16 rep * speed) >> 14 moveAmt product. */
+    for (const int uw : {0, 1, 0x8000, 0xffff, 0x4000}) {
+        for (const int16 sp : {0, 1, -1, 100, -100, 32000}) {
+            require(wordProductQ14<F>(static_cast<std::uint16_t>(uw), sp) ==
+                    static_cast<int16>(static_cast<std::uint32_t>(uw) * static_cast<std::int32_t>(sp) >> 14),
+                    "fixed wordProductQ14 diverged from the int32 shift product");
+        }
+    }
+    require(wordProductQ14<M>(65535.5, 100) == static_cast<int16>(std::floor(65535.5 * 100 / 16384)),
+            "modern wordProductQ14 lost the fraction");
+    /* objectAttitudeSet/Advance: shadow stays authoritative, packed word
+     * mirrors it; fixed wraps like the int16 store, modern keeps fractions. */
+    {
+        Angle<F> shadow;
+        int16 packed = 0;
+        objectAttitudeSet<F>(shadow, packed, FC::angleWord(0x1234));
+        require(packed == 0x1234, "set did not mirror into the packed word");
+        objectAttitudeAdvance<F>(shadow, packed, FC::angleWord(0x7fff));
+        require(packed == static_cast<int16>(0x1234 + 0x7fff), "fixed advance did not wrap like int16 +=");
+        objectAttitudeSet<F>(shadow, packed, Angle<F>{});
+        require(packed == 0 && shadow == Angle<F>{}, "zero set failed");
+    }
+    {
+        Angle<M> shadow;
+        int16 packed = 0;
+        const auto step = attitudeStep<M>(1.0, 3); /* ~0.333 words/tick */
+        objectAttitudeAdvance<M>(shadow, packed, step);
+        require(packed == 0, "modern packed word moved before a full word");
+        objectAttitudeAdvance<M>(shadow, packed, step);
+        objectAttitudeAdvance<M>(shadow, packed, step);
+        require(packed == 1, "modern packed word did not round the accumulated rep");
+        require(std::abs(wordRep<M>(shadow) - 1.0) < 1e-9, "modern shadow lost the fraction");
+    }
+}
 } // namespace
 
 int main() {
@@ -343,5 +441,6 @@ int main() {
     modernPrecision();
     attitudeAndDeltas();
     typedEulerState();
+    attitudeShadow();
     std::puts("typed rotation backends and production callers passed");
 }
