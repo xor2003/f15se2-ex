@@ -11,6 +11,7 @@ using f15::math::legacy::fineUnits;
 #include "math/legacy_map.hpp"
 #include "math/guidance.hpp"
 using f15::math::legacy::signedAngle;
+using f15::math::legacy::angleFromWord;
 using f15::math::legacy::angleMagnitude;
 using f15::math::legacy::fineWord;
 using TrackMath = f15::math::GuidanceMath<f15::math::GameBackend>;
@@ -130,7 +131,7 @@ void updateTargetLock(void) {
         if (idx < 3) {
             lockedRange -= 0x0a00;
         }
-        if (abs((int16)(signedAngle(g_ourHead) + g_viewHeadingOffset - g_targetBearing)) > 0x2000) {
+        if (angleMagnitude(g_ourHead + angleFromWord(g_viewHeadingOffset) - angleFromWord(g_targetBearing)) > 0x2000) {
             lockedRange = -32000;
             goto after_lock;
         }
@@ -144,7 +145,7 @@ void updateTargetLock(void) {
     best = -1;
     for (idx = 1; idx < g_planeCount; idx++) {
         computeMapTargetRange(idx);
-        if (abs((int16)(signedAngle(g_ourHead) + g_viewHeadingOffset - g_targetBearing)) < 0x1800 &&
+        if (angleMagnitude(g_ourHead + angleFromWord(g_viewHeadingOffset) - angleFromWord(g_targetBearing)) < 0x1800 &&
             idx + 0x80 != g_groundTargetLock && !(g_planeTable.planes[idx].flags & 0x80)) {
             if (g_planeTable.planes[idx].active != 0) {
                 g_targetRange -= 0x280;
@@ -225,7 +226,7 @@ skip_aam:
         if (g_airTargetLock != -1) {
             idx = g_airTargetLock - 0x80;
             lockedRange = computeTargetBearing(g_simObjects[idx].posX, g_simObjects[idx].posY, 1);
-            if (abs((int16)(signedAngle(g_ourHead) + g_viewHeadingOffset - g_targetBearing)) > 0x2000) {
+            if (angleMagnitude(g_ourHead + angleFromWord(g_viewHeadingOffset) - angleFromWord(g_targetBearing)) > 0x2000) {
                 lockedRange = 0;
             }
         } else {
@@ -254,7 +255,7 @@ skip_aam:
             !(g_simObjects[idx].flags.b[0] & 0x20) &&
             g_simObjects[idx].speed != 0) {
             computeTargetBearing(g_simObjects[idx].posX, g_simObjects[idx].posY, 1);
-            if (abs((int16)(signedAngle(g_ourHead) + g_viewHeadingOffset - g_targetBearing)) < 0x2000) {
+            if (angleMagnitude(g_ourHead + angleFromWord(g_viewHeadingOffset) - angleFromWord(g_targetBearing)) < 0x2000) {
                 range = g_targetRange;
                 best = idx;
             }
@@ -772,7 +773,7 @@ void drawHudWorldOverlay(void) {
                     drawStringActivePage("No Target", 252, 142, 0x0f);
                 }
 
-                if (abs((int16)((signedAngle(g_ourHead) + g_viewHeadingOffset) - g_targetBearing)) > 0x2000) {
+                if (angleMagnitude(g_ourHead + angleFromWord(g_viewHeadingOffset) - angleFromWord(g_targetBearing)) > 0x2000) {
                     g_groundTargetLock = -1;
                 }
             }
