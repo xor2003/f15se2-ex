@@ -446,10 +446,6 @@ g_waterTargetId
 g_weaponMarkerSel
 g_wingmanX
 g_wingmanY
-g_wreckAlt
-g_wreckFallVel
-g_wreckX
-g_wreckY
 gfxBufPad
 gfxBufPtr
 gridBuf1

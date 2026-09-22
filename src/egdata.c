@@ -2151,7 +2151,7 @@ int16 g_aamLockCooldown;
 int32 g_camEyeY;
 int16 g_threatRefX;
 f15::math::Angle<f15::math::GameBackend> g_liftForce;
-int16 g_wreckFallVel;
+f15::math::ClimbRate<f15::math::GameBackend> g_wreckFallVel;
 int16 g_camEyeZ;
 int16 g_threatRefY;
 int16 g_viewRoll;
@@ -2217,7 +2217,7 @@ int16 g_sphereRingRadii[16];
 int16 g_hitMapX;
 int16 g_groundAltitude;
 int16 g_viewX_;
-int16 g_wreckX;
+f15::math::MapPosition<f15::math::GameBackend> g_wreckPos;
 
 /* Single-byte values (only [0] is used); the extra bytes are trailing pad
  * up to the next symbol. */
@@ -2232,7 +2232,7 @@ int16 g_planeCount;
    head captures an event flag (0xff in asm) and shifts down each frame, but no stage is
    ever read — dead in the original. */
 int16 g_unusedEventHist0;
-int16 g_wreckY;
+
 uint8 g_tileKillTally[0x64];
 char tempString[80];
 int16 g_scopeArcStart;
@@ -2242,7 +2242,7 @@ f15::math::EngineThrust<f15::math::GameBackend> g_thrust;
 /* regs: shared int86/int86x register union for INT 10h/16h calls. */
 union REGS regs;
 int16 g_unusedEventHist1;
-int16 g_wreckAlt;
+f15::math::TerrainHeight<f15::math::GameBackend> g_wreckAlt;
 uint8 g_shapeTargetCategory[UNIT_STATE_COUNT];
 int16 g_flightPathMarkerY;
 int16 g_aamLockActive;

@@ -340,14 +340,16 @@ skip_aam:
     }
 
     /* Runway/base visual */
-    if (g_wreckAlt > 0) {
-        projectWorldToHud(g_wreckX, g_wreckY, g_wreckAlt);
+    if (g_wreckAlt.isPositive()) {
+        projectWorldToHud(f15::math::legacy::mapWordX(g_wreckPos),
+                          f15::math::legacy::mapWordY(g_wreckPos),
+                          f15::math::legacy::terrainUnits(g_wreckAlt));
         if (g_projDepth < 0 && g_projDepth > -0x100) {
             drawWorldObject(14,
-                            (int32)(uint16)g_wreckX << 5,
-                            (int32)(uint16)g_wreckY << 5,
-                            g_wreckAlt, 0, 0, 0,
-                            g_wreckFallVel > 0 ? 4 : 3);
+                            (int32)(uint16)f15::math::legacy::mapWordX(g_wreckPos) << 5,
+                            (int32)(uint16)f15::math::legacy::mapWordY(g_wreckPos) << 5,
+                            f15::math::legacy::terrainUnits(g_wreckAlt), 0, 0, 0,
+                            g_wreckFallVel.isPositive() ? 4 : 3);
         }
     }
 

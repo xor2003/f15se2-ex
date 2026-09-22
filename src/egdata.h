@@ -11,6 +11,7 @@
 #include "math/altitude.hpp"
 #include "math/horizontal.hpp"
 #include "math/airspeed.hpp"
+#include "math/map_position.hpp"
 #include "math/propulsion.hpp"
 #include "math/ticks.hpp"
 
@@ -301,7 +302,7 @@ extern int16 g_aamLockCooldown;
 extern int32 g_camEyeY;
 extern int16 g_threatRefX;
 extern f15::math::Angle<f15::math::GameBackend> g_liftForce;
-extern int16 g_wreckFallVel;
+extern f15::math::ClimbRate<f15::math::GameBackend> g_wreckFallVel;
 extern int16 g_camEyeZ;
 extern int16 g_threatRefY;
 extern int16 g_viewRoll;
@@ -329,7 +330,7 @@ extern int16 g_sphereRingRadii[];
 extern int16 g_hitMapX;
 extern int16 g_groundAltitude;
 extern int16 g_viewX_;
-extern int16 g_wreckX;
+extern f15::math::MapPosition<f15::math::GameBackend> g_wreckPos;
 extern uint8 g_waterTargetId[];
 extern int16 g_hitMapY;
 extern int16 sign3d3;
@@ -338,7 +339,7 @@ extern int16 g_hitAlt;
 extern int16 g_viewY_;
 extern int16 g_planeCount;
 extern int16 g_unusedEventHist0;
-extern int16 g_wreckY;
+
 extern uint8 g_tileKillTally[];
 extern int16 g_scopeArcStart;
 extern int16 g_scopeArcEnd;
@@ -346,7 +347,7 @@ extern char tempString[80];
 extern int16 g_gunHits;
 extern union REGS regs;
 extern int16 g_unusedEventHist1;
-extern int16 g_wreckAlt;
+extern f15::math::TerrainHeight<f15::math::GameBackend> g_wreckAlt;
 extern uint8 g_shapeTargetCategory[UNIT_STATE_COUNT];
 extern int16 g_flightPathMarkerY;
 extern int16 g_aamLockActive;

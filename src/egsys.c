@@ -86,9 +86,9 @@ static void camCapture(CamSnapshot *s) {
     s->crashX = g_crashCamX;
     s->crashY = g_crashCamY;
     s->crashZ = g_crashCamZ;
-    s->wreckX = g_wreckX;
-    s->wreckY = g_wreckY;
-    s->wreckAlt = g_wreckAlt;
+    s->wreckX = f15::math::legacy::mapWordX(g_wreckPos);
+    s->wreckY = f15::math::legacy::mapWordY(g_wreckPos);
+    s->wreckAlt = f15::math::legacy::terrainUnits(g_wreckAlt);
     s->rollPitchTrim = g_rollPitchTrim;
     s->aamSeekerX = g_aamSeekerX;
     s->aamSeekerY = g_aamSeekerY;
@@ -107,9 +107,8 @@ static void camRestore(const CamSnapshot *s) {
     g_crashCamX = (int16)s->crashX;
     g_crashCamY = (int16)s->crashY;
     g_crashCamZ = (int16)s->crashZ;
-    g_wreckX = (int16)s->wreckX;
-    g_wreckY = (int16)s->wreckY;
-    g_wreckAlt = (int16)s->wreckAlt;
+    g_wreckPos = f15::math::legacy::mapPosition((std::int16_t)s->wreckX, (std::int16_t)s->wreckY);
+    g_wreckAlt = f15::math::legacy::terrainFromUnits((std::int16_t)s->wreckAlt);
     g_rollPitchTrim = s->rollPitchTrim;
     g_aamSeekerX = (int16)s->aamSeekerX;
     g_aamSeekerY = (int16)s->aamSeekerY;
@@ -155,9 +154,11 @@ static void camApplyInterp(const CamSnapshot *p, const CamSnapshot *n, int64 num
     if (p->wreckAlt > 0 && n->wreckAlt > 0 &&
         iabs32(n->wreckX - p->wreckX) < OBJ_TELEPORT_GUARD &&
         iabs32(n->wreckY - p->wreckY) < OBJ_TELEPORT_GUARD) {
-        g_wreckX = (int16)lerpLinear(p->wreckX, n->wreckX, num, den);
-        g_wreckY = (int16)lerpLinear(p->wreckY, n->wreckY, num, den);
-        g_wreckAlt = (int16)lerpLinear(p->wreckAlt, n->wreckAlt, num, den);
+        g_wreckPos = f15::math::legacy::mapPosition(
+            (std::int16_t)lerpLinear(p->wreckX, n->wreckX, num, den),
+            (std::int16_t)lerpLinear(p->wreckY, n->wreckY, num, den));
+        g_wreckAlt = f15::math::legacy::terrainFromUnits(
+            (std::int16_t)lerpLinear(p->wreckAlt, n->wreckAlt, num, den));
     }
     /* Gun-reticle vertical trim tracks the roll pose; snap it across the gimbal
      * flip with the pose (else it would swing through centre for one frame). */

@@ -39,8 +39,19 @@ public:
     VerticalQuantity() = default;
     bool operator==(VerticalQuantity other) const { return value_ == other.value_; }
     bool operator!=(VerticalQuantity other) const { return !(*this == other); }
+    bool operator<(VerticalQuantity other) const { return value_ < other.value_; }
+    bool operator<=(VerticalQuantity other) const { return value_ <= other.value_; }
+    bool operator>(VerticalQuantity other) const { return value_ > other.value_; }
+    bool operator>=(VerticalQuantity other) const { return value_ >= other.value_; }
     bool isZero() const { return value_ == 0; }
     bool isNegative() const { return value_ < 0; }
+    bool isPositive() const { return value_ > 0; }
+    VerticalQuantity& operator-=(VerticalQuantity other) {
+        if constexpr (std::is_same_v<B, FixedBackend>)
+            value_ = static_cast<Rep>(static_cast<std::int32_t>(value_) - other.value_);
+        else value_ -= other.value_;
+        return *this;
+    }
 };
 template<class B> using FlightAltitude = VerticalQuantity<B, FlightAltitudeUnit>;
 template<class B> using ClimbRate = VerticalQuantity<B, ClimbRateUnit>;
@@ -99,6 +110,13 @@ public:
             const auto rounded = product + 16384;
             return ClimbRate<B>(word(rounded / 32768 - (rounded % 32768 < 0 ? 1 : 0)));
         } else return ClimbRate<B>(speed.value_ / 10 * sineOfFlightPath.value_);
+    }
+    /* Per-tick terrain-height integration for the falling wreck: the original
+     * int16 += int16 wraps under fixed; modern keeps the fractional sum. */
+    static TerrainHeight<B> integrate(TerrainHeight<B> height, ClimbRate<B> climb) {
+        if constexpr (std::is_same_v<B, FixedBackend>)
+            return TerrainHeight<B>(word(height.value_ + climb.value_));
+        else return TerrainHeight<B>(height.value_ + climb.value_);
     }
     static FlightAltitude<B> integrate(FlightAltitude<B> altitude, ClimbRate<B> climb, SimulationStep<B> step) {
         if constexpr (std::is_same_v<B, FixedBackend>)

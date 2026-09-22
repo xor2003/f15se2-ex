@@ -12,6 +12,7 @@ template<> struct AltitudeBoundary<FixedBackend> {
     static ClimbRate<FixedBackend> climb(std::int16_t v) { return ClimbRate<FixedBackend>(v); }
     static std::int16_t climb(ClimbRate<FixedBackend> v) { return v.value_; }
     static TerrainHeight<FixedBackend> ground(std::int16_t v) { return TerrainHeight<FixedBackend>(v); }
+    static std::int16_t ground(TerrainHeight<FixedBackend> v) { return v.value_; }
     static AirspeedSample<FixedBackend> speed(std::uint16_t v) { return AirspeedSample<FixedBackend>(v); }
     static std::int16_t render(RenderHeight<FixedBackend> v) { return v.value_; }
     static RenderHeight<FixedBackend> render(std::int16_t v) { return RenderHeight<FixedBackend>(v); }
@@ -24,6 +25,7 @@ template<> struct AltitudeBoundary<ModernBackend> {
     static ClimbRate<ModernBackend> climb(double v) { check(v); return ClimbRate<ModernBackend>(v); }
     static double climb(ClimbRate<ModernBackend> v) { return v.value_; }
     static TerrainHeight<ModernBackend> ground(double v) { check(v); return TerrainHeight<ModernBackend>(v); }
+    static double ground(TerrainHeight<ModernBackend> v) { return v.value_; }
     static AirspeedSample<ModernBackend> speed(double v) {
         check(v);
         if (v < 0) throw std::domain_error("airspeed must be nonnegative");

@@ -1025,6 +1025,28 @@ Verification: fixed suite 60/60 (sortie golden unchanged; the
 characterization test still asserts the fuel burn cadence in raw units);
 modern smoke and sortie pass with the golden unchanged.
 
+## Wreck fall checkpoint
+
+The falling-wreck globals are typed: `g_wreckX`/`g_wreckY` merged into
+`MapPosition<GameBackend> g_wreckPos`, `g_wreckAlt` became
+`TerrainHeight<GameBackend>` (signed world-elevation words — the wreck can
+dip below zero before the `> 0` guard stops the fall), and
+`g_wreckFallVel` became `ClimbRate<GameBackend>`. Wreck creation wraps the
+packed `SimObject` seed words through `legacy::mapPosition` /
+`terrainFromUnits` / `climbFromUnits`; `applyGravityFall` integrates via a
+new `AltitudeMath::integrate(TerrainHeight, ClimbRate)` overload (fixed
+keeps the `int16 += int16` wrap; modern keeps the fractional sum), and the
+HUD/drawWorldObject and snapshot paths narrow through `mapWordX/Y` and
+`terrainUnits`. `VerticalQuantity` gained comparisons, `isPositive`, and
+`-=`; `AltitudeBoundary`/`legacy` gained the terrain and climb-from-units
+adapters.
+
+Verification: fixed focused tests pass (`gameplay_behavior_tests` still
+asserts the raw-unit fall cadence and the terminal-velocity step;
+`egsys_internal_behavior_tests` asserts the snapshot/lerp words); the
+allowlist ratchet shrank by the four migrated names; modern smoke and
+sortie pass with the golden unchanged.
+
 ## Angle magnitude read adapters
 
 `legacy_rotation.hpp` gained two fraction-preserving magnitude reads for

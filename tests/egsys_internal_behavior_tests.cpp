@@ -1,6 +1,8 @@
 #include "math/legacy_rotation.hpp"
 #include "math/legacy_horizontal.hpp"
 #include "math/map_position.hpp"
+#include "math/legacy_map.hpp"
+#include "math/legacy_altitude.hpp"
 using f15::math::legacy::fineUnits;
 using f15::math::legacy::signedAngle;
 using f15::math::legacy::angleFromWord;
@@ -56,9 +58,9 @@ void seedCameraState(int base) {
     g_crashCamX = static_cast<int16>(base + 90);
     g_crashCamY = static_cast<int16>(base + 100);
     g_crashCamZ = static_cast<int16>(base + 110);
-    g_wreckX = static_cast<int16>(base + 120);
-    g_wreckY = static_cast<int16>(base + 130);
-    g_wreckAlt = static_cast<int16>(base + 140);
+    g_wreckPos = f15::math::legacy::mapPosition(static_cast<int16>(base + 120),
+                                               static_cast<int16>(base + 130));
+    g_wreckAlt = f15::math::legacy::terrainFromUnits(static_cast<int16>(base + 140));
     g_rollPitchTrim = angleFromWord(base + 150);
 }
 
@@ -104,14 +106,14 @@ int main() {
                 signedAngle(g_ourPitch) == 1550 &&
                 g_viewX_ == 1570 &&
                 g_crashCamZ == 1610 &&
-                g_wreckX == 1620 &&
-                g_wreckAlt == 1640,
+                f15::math::legacy::mapWordX(g_wreckPos) == 1620 &&
+                f15::math::legacy::terrainUnits(g_wreckAlt) == 1640,
             "camApplyInterp interpolates camera, map, crash, and wreck state");
     camRestore(&next);
     require(g_rollPitchTrim == next.rollPitchTrim, "camera restores typed trim");
     require(fineUnits(g_ViewX) == 2010 &&
                 g_viewY_ == 2080 &&
-                g_wreckAlt == 2140,
+                f15::math::legacy::terrainUnits(g_wreckAlt) == 2140,
             "camRestore restores the authoritative next camera snapshot");
     require(g_ourHead == next.head && g_ourPitch == next.pitch && g_ourRoll == next.roll,
             "camRestore preserves typed attitude without converting through scalar words");
@@ -166,13 +168,12 @@ int main() {
     next.wreckX = kTeleportGuard;
     next.wreckY = 0;
     next.wreckAlt = 80;
-    g_wreckX = 77;
-    g_wreckY = 88;
-    g_wreckAlt = 99;
+    g_wreckPos = f15::math::legacy::mapPosition(77, 88);
+    g_wreckAlt = f15::math::legacy::terrainFromUnits(99);
     camApplyInterp(&prev, &next, kHalfNumerator, kHalfDenominator);
-    require(g_wreckX == 77 &&
-                g_wreckY == 88 &&
-                g_wreckAlt == 99,
+    require(f15::math::legacy::mapWordX(g_wreckPos) == 77 &&
+                f15::math::legacy::mapWordY(g_wreckPos) == 88 &&
+                f15::math::legacy::terrainUnits(g_wreckAlt) == 99,
             "camApplyInterp skips wreck interpolation across teleport-sized jumps");
 
     clearObjects();

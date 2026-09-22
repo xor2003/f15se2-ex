@@ -587,10 +587,10 @@ void destroyAircraft(int16 objIdx) {
         }
         g_simObjects[objIdx].flags.b[0] |= 0x20;
         g_smokeSourceIdx = -1;
-        g_wreckX = g_simObjects[objIdx].posX;
-        g_wreckY = g_simObjects[objIdx].posY;
-        g_wreckAlt = g_simObjects[objIdx].alt;
-        g_wreckFallVel = 0x80;
+        g_wreckPos = f15::math::legacy::mapPosition((std::int16_t)g_simObjects[objIdx].posX,
+                                                  (std::int16_t)g_simObjects[objIdx].posY);
+        g_wreckAlt = f15::math::legacy::terrainFromUnits(g_simObjects[objIdx].alt);
+        g_wreckFallVel = f15::math::legacy::climbFromUnits(0x80);
         eventType = 3;
         appendMapEvent(eventType, (g_simObjects[objIdx].flags.w & 0x4000 ? 0x80 : 0) + g_simObjects[objIdx].spec);
         if (g_simObjectSpeed[objIdx] != 0) goto done;

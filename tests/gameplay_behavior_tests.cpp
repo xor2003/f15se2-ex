@@ -93,8 +93,8 @@ void resetGameplayState() {
     g_threatTimerInit = f15::math::TickDuration{};
     g_threatDisplayTtl = f15::math::TickDuration{};
     g_threatRefX = g_threatRefY = g_threatRefZ = g_threatRefHead = 0;
-    g_wreckAlt = 0;
-    g_wreckFallVel = 0;
+    g_wreckAlt = {};
+    g_wreckFallVel = {};
     g_slowMotionMode = 0;
     g_frameSyncWait = 0;
     g_bulletTrackCount = 0;
@@ -496,19 +496,20 @@ int main() {
 
     // --- applyGravityFall wreck physics (egframe) ---------------------------
     resetGameplayState();
-    g_wreckAlt = 1000;
-    g_wreckFallVel = 0;
+    g_wreckAlt = f15::math::legacy::terrainFromUnits(1000);
+    g_wreckFallVel = {};
     applyGravityFall();
-    require(g_wreckAlt == 988 && g_wreckFallVel == -12,
+    require(f15::math::legacy::terrainUnits(g_wreckAlt) == 988 &&
+                f15::math::legacy::climbUnits(g_wreckFallVel) == -12,
             "applyGravityFall accelerates the wreck downward while above ground");
     applyGravityFall();
     applyGravityFall();
-    require(g_wreckFallVel == -24,
+    require(f15::math::legacy::climbUnits(g_wreckFallVel) == -24,
             "applyGravityFall clamps to terminal fall velocity");
-    g_wreckAlt = 0;
-    const int16 fellVel = g_wreckFallVel;
+    g_wreckAlt = {};
+    const auto fellVel = g_wreckFallVel;
     applyGravityFall();
-    require(g_wreckAlt == 0 && g_wreckFallVel == fellVel,
+    require(g_wreckAlt.isZero() && g_wreckFallVel == fellVel,
             "applyGravityFall ignores wrecks already at ground level");
 
     // --- tickMessageTimers ttl countdown (egframe) --------------------------

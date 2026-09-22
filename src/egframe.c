@@ -651,11 +651,11 @@ void updateTracerParticles() {
 
 // ==== seg000:0x18d5 ====
 void applyGravityFall() {
-    if (g_wreckAlt > 0) {
-        if (g_wreckFallVel > -16) {
-            g_wreckFallVel -= 12;
+    if (g_wreckAlt.isPositive()) {
+        if (g_wreckFallVel > f15::math::legacy::climbFromUnits(-16)) {
+            g_wreckFallVel -= f15::math::legacy::climbFromUnits(12);
         }
-        g_wreckAlt += g_wreckFallVel;
+        g_wreckAlt = f15::math::AltitudeMath<f15::math::GameBackend>::integrate(g_wreckAlt, g_wreckFallVel);
     }
 }
 
