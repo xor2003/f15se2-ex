@@ -175,6 +175,11 @@ int main() {
     FlightLoad<ModernBackend> load = 16.0;
 #elif defined(TEST_FUEL_EXTRACTION)
     double fuel = FuelLoad<ModernBackend>{};
+#elif defined(TEST_FUEL_SUBTRACT_PRIMITIVE)
+    FuelLoad<FixedBackend> fuel;
+    fuel -= 5;
+#elif defined(TEST_FUEL_COMPARE_PRIMITIVE)
+    bool empty = FuelLoad<ModernBackend>{} < 5;
 #elif defined(TEST_LOAD_STORAGE)
     (void)FlightLoad<FixedBackend>{}.value_;
 #elif defined(TEST_TARGET_SPEED_ROLE)

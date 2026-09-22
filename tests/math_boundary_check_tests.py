@@ -46,6 +46,31 @@ class BoundaryChecks(unittest.TestCase):
             path.write_text('#include "math/rotation.hpp"')
             self.assertEqual(checker.violations(root), [])
 
+    def test_raw_scalar_globals_need_allowlist_entries(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "src").mkdir()
+            (root / "src/state.h").write_text('extern int16 g_newQuantity;\n'
+                                            'extern int16 g_reviewed, g_other;\n')
+            (root / "src/state.c").write_text('int16 g_newQuantity = 0;\n'
+                                             'int16 g_reviewed = 1, g_other;\n'
+                                             'static int16 hiddenLocal;\n'
+                                             'extern int16 g_proto(void);\n')
+            # No allowlist file: every declared scalar is unreviewed.
+            errors = checker.declaration_violations(root)
+            self.assertEqual(sum("g_newQuantity" in e for e in errors), 1)
+            self.assertEqual(sum("g_reviewed" in e for e in errors), 1)
+            self.assertFalse(any("hiddenLocal" in e for e in errors))
+            self.assertFalse(any("g_proto" in e for e in errors))
+            # Reviewed entries pass; names no longer declared are stale.
+            (root / "tools").mkdir()
+            (root / "tools/sim_global_allowlist.txt").write_text(
+                "g_newQuantity\ng_reviewed\ng_other\ng_retired\n")
+            errors = checker.declaration_violations(root)
+            self.assertEqual(errors,
+                             ["tools/sim_global_allowlist.txt: stale entry "
+                              "'g_retired' (no longer a raw scalar)"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -456,9 +456,15 @@ parity claim is made.
 * `boundary.hpp` provides explicitly gated representation adapters;
   `legacy_rotation.hpp` is temporary compatibility debt for the raw global state.
   The source allowlist is enforced by `tools/check_math_boundaries.py`, with its
-  own rejection tests. Python is required for native test configuration. This
-  textual check is not an AST audit of all numerical state and cannot prove
-  whole-game migration or detect every spelling/alias of a bypass.
+  own rejection tests. The same check also ratchets declarations: every raw
+  scalar global (`extern` scalars in `src/**.h`, file-scope scalar definitions
+  in `src/**.{c,cpp}`) must be a reviewed entry in
+  `tools/sim_global_allowlist.txt`; unlisted additions fail, and entries for
+  globals that were migrated to typed declarations fail as stale so the list
+  shrinks as the migration proceeds. Python is required for native test
+  configuration. This textual check is not an AST audit of all numerical state
+  and cannot prove whole-game migration or detect every spelling/alias of a
+  bypass.
 * The fixed oracle in `tests/math_rotation_reference.hpp` preserves the pre-routing
   algorithms from `9018a8b` using defined widened arithmetic. It does not call the
   new library. Tests exhaust 65,536 sine inputs, compare 10,000 Euler triples,

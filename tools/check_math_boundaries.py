@@ -38,8 +38,53 @@ ACCESS = re.compile(r"F15_MATH_BOUNDARY_ACCESS|\b(?:Control|Altitude|Horizontal|
                     r'#\s*include\s*[<"](?:math/)?(?:boundary|control_boundary|altitude_boundary|horizontal_boundary|airspeed_boundary|propulsion_boundary|legacy_rotation|legacy_flight_control|legacy_altitude|legacy_horizontal|legacy_airspeed|legacy_propulsion)\.hpp[>"]|'
                     r'#\s*include\s*[<"](?:fixed_math|(?:math/)?legacy_map)\.hpp[>"]')
 
+# Declaration ratchet: every raw scalar global must be a reviewed entry in
+# sim_global_allowlist.txt. Typed quantities (f15::math types, structs, enums)
+# are not matched; indices/flags/counters stay on the list until migrated.
+_SCALAR = (r"(?:u?int(?:8|16|32|64)?|short|long|float|double|size_t|"
+           r"unsigned(?:\s+(?:int|short|long|char))?)")
+EXTERN_DECL = re.compile(r"^extern\s+" + _SCALAR + r"\s+(.+?);")
+GLOBAL_DEF = re.compile(r"^" + _SCALAR + r"\s+(.+?);")
+
+def _declarator_names(rest):
+    if "(" in rest:  # function declaration/definition, not a variable
+        return
+    rest = re.sub(r"\{[^}]*\}", "{}", rest)  # brace initializers may contain commas
+    for decl in rest.split(","):
+        name = re.match(r"\s*\*?\s*([A-Za-z_]\w*)", decl)
+        if name:
+            yield name.group(1)
+
+def scalar_globals(root):
+    declared = {}
+    for path in sorted((root / "src").rglob("*")):
+        if path.suffix not in {".c", ".cpp", ".h", ".hpp"}:
+            continue
+        relative = path.relative_to(root).as_posix()
+        for line, text in enumerate(path.read_text().splitlines(), 1):
+            if "const" in text:
+                continue
+            match = EXTERN_DECL.match(text)
+            if match is None and path.suffix in {".c", ".cpp"}:
+                match = GLOBAL_DEF.match(text)
+            if match:
+                for name in _declarator_names(match.group(1)):
+                    declared.setdefault(name, f"{relative}:{line}")
+    return declared
+
+def declaration_violations(root):
+    allowlist_path = root / "tools" / "sim_global_allowlist.txt"
+    allowed = {line for line in allowlist_path.read_text().splitlines()
+               if line and not line.startswith("#")} if allowlist_path.exists() else set()
+    declared = scalar_globals(root)
+    errors = [f"{loc}: unreviewed raw scalar global '{name}' (typed quantity preferred)"
+              for name, loc in sorted(declared.items()) if name not in allowed]
+    errors += [f"tools/sim_global_allowlist.txt: stale entry '{name}' (no longer a raw scalar)"
+               for name in sorted(allowed - declared.keys())]
+    return errors
+
 def violations(root):
-    errors = []
+    errors = declaration_violations(root)
     for path in sorted((root / "src").rglob("*")):
         if path.suffix not in {".c", ".cpp", ".h", ".hpp"}:
             continue
