@@ -15,6 +15,7 @@
 #include "math/legacy_airspeed.hpp"
 #include "math/legacy_altitude.hpp"
 #include "math/legacy_map.hpp"
+#include "math/legacy_propulsion.hpp"
 #include "log.h"
 
 #include <stdint.h>
@@ -120,7 +121,7 @@ static uint32 hashFlight(void) {
     h = hashAdd(h, (uint16)g_viewZ); h = hashAdd(h, (uint16)f15::math::legacy::signedAngle(g_ourHead));
     h = hashAdd(h, (uint16)f15::math::legacy::signedAngle(g_ourPitch)); h = hashAdd(h, (uint16)f15::math::legacy::signedAngle(g_ourRoll));
     h = hashAdd(h, (uint32)f15::math::legacy::speedUnits(g_velocity)); h = hashAdd(h, (uint16)(int16)f15::math::legacy::knotsUnits(g_knots));
-    h = hashAdd(h, (uint32)f15::math::legacy::altitudeUnits(g_altitude)); h = hashAdd(h, (uint16)g_fuelRemaining);
+    h = hashAdd(h, (uint32)f15::math::legacy::altitudeUnits(g_altitude)); h = hashAdd(h, (uint16)f15::math::legacy::fuelUnits(g_fuelRemaining));
     h = hashAdd(h, (uint16)g_damageTakenFlag); h = hashAdd(h, (uint16)g_playerPlaneFlags);
     return h;
 }
@@ -419,7 +420,7 @@ int blackbox_diagWriteDump(const char *path) {
     fprintf(f, "flight view=(%d,%d,%d) pose=(%d,%d,%d) speed=%d knots=%d altitude=%u fuel=%d\n",
             (int)f15::math::legacy::fineUnits(g_ViewX), (int)f15::math::legacy::fineUnits(g_ViewY), (int)g_viewZ, (int)f15::math::legacy::signedAngle(g_ourHead),
             (int)f15::math::legacy::signedAngle(g_ourPitch), (int)f15::math::legacy::signedAngle(g_ourRoll), f15::math::legacy::speedUnits(g_velocity), (int)f15::math::legacy::knotsUnits(g_knots),
-            (unsigned)f15::math::legacy::altitudeUnits(g_altitude), (int)g_fuelRemaining);
+            (unsigned)f15::math::legacy::altitudeUnits(g_altitude), (int)f15::math::legacy::fuelUnits(g_fuelRemaining));
     fprintf(f, "camera mode=%d eye=(%d,%d,%d) view=(%d,%d,%d) target=(%d,%d,%d,obj=%d)\n",
             (int)g_viewMode, (int)g_camEyeX, (int)g_camEyeY, (int)g_camEyeZ,
             (int)g_viewHeading, (int)g_viewPitch, (int)g_viewRoll,

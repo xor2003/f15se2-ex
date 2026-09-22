@@ -75,7 +75,7 @@ void recoveryGuidance(SDL_Joystick *stick) {
         frameTick = f15::math::Ticks::fromWord(1);
         g_thrust = legacy::thrustFromUnits(35);
         g_setThrust = 5;
-        g_fuelRemaining = 5000;
+        g_fuelRemaining = f15::math::legacy::fuelFromUnits(5000);
         g_gunHits = g_hudVisible = g_inputDisabled = 0;
         g_ejectState = g_autoCrashDive = g_currentWeaponType = 0;
         g_groundAltitude = 0;
@@ -205,7 +205,7 @@ void thrustAndFuel() {
         frameTick = f15::math::Ticks::fromWord((int16)(fuelTick ? hz * 2 : 1));
         g_thrust = legacy::thrustFromUnits(initial);
         g_setThrust = requested;
-        g_fuelRemaining = fuel;
+        g_fuelRemaining = f15::math::legacy::fuelFromUnits((std::int16_t)fuel);
         g_gunHits = damage;
         g_hudVisible = 0;
         g_inputDisabled = disabled;
@@ -344,7 +344,7 @@ void thrustAndFuel() {
         require(joyAxes[0] == (disabled ? 0 : 128) && joyAxes[1] == expectedStickPitch,
                 "flight input reaches requested position or disabled sentinel");
         require(legacy::thrustUnits(g_thrust) == expected, "full flight model thrust response changed");
-        require(g_fuelRemaining == remaining, "full flight model fuel cadence/depletion changed");
+        require(f15::math::legacy::fuelUnits(g_fuelRemaining) == remaining, "full flight model fuel cadence/depletion changed");
         require(g_setThrust == target, "damage thrust limit changed");
         const int actualLoad = legacy::loadSixteenths(g_gees);
         if (actualLoad != gees)

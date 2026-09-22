@@ -26,6 +26,14 @@ template<class B, class Unit> class PropulsionQuantity {
     friend class AerodynamicsMath<B>;
 public:
     PropulsionQuantity() = default;
+    bool operator==(PropulsionQuantity other) const { return value_ == other.value_; }
+    bool operator<(PropulsionQuantity other) const { return value_ < other.value_; }
+    bool operator<=(PropulsionQuantity other) const { return value_ <= other.value_; }
+    bool operator>(PropulsionQuantity other) const { return value_ > other.value_; }
+    bool operator>=(PropulsionQuantity other) const { return value_ >= other.value_; }
+    bool isZero() const { return value_ == 0; }
+    bool isPositive() const { return value_ > 0; }
+    PropulsionQuantity& operator-=(PropulsionQuantity other) { value_ -= other.value_; return *this; }
 };
 template<class B> using FuelLoad = PropulsionQuantity<B, FuelLoadUnit>;
 template<class B> using FlightLoad = PropulsionQuantity<B, FlightLoadUnit>;

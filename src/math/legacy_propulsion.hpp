@@ -13,6 +13,9 @@ inline std::int16_t thrustUnits(EngineThrust<GameBackend> value) {
 inline FuelLoad<GameBackend> fuelFromUnits(std::int16_t value) {
     return PropulsionBoundary<GameBackend>::fuel(value);
 }
+inline std::int16_t fuelUnits(FuelLoad<GameBackend> value) {
+    return static_cast<std::int16_t>(PropulsionBoundary<GameBackend>::fuel(value));
+}
 inline FlightLoad<GameBackend> loadFromSixteenths(std::int32_t value) {
     return PropulsionBoundary<GameBackend>::load(value);
 }

@@ -631,13 +631,14 @@ switch_break:
 
     if (frameTick.umod(g_frameRateScaling.shifted(1)) == 0 && g_setThrust != 0 && g_autopilotEngaged == 0) {
         if (!gameOptionsEnabled(GAME_OPTION_INFINITE_FUEL))
-            g_fuelRemaining -= ((g_setThrust * g_setThrust) / 750) + 2;
+            g_fuelRemaining -= f15::math::legacy::fuelFromUnits(
+                (std::int16_t)(((g_setThrust * g_setThrust) / 750) + 2));
         drawFuelGauge();
     }
 
-    if (g_fuelRemaining <= 0) {
+    if (!g_fuelRemaining.isPositive()) {
         g_thrust = {};
-        g_fuelRemaining = 0;
+        g_fuelRemaining = {};
     }
 
     const auto load = Aero::loadResponse(Aero::bankLoad(g_ourRoll, g_rollGeeTable), g_pitchInput,
@@ -660,7 +661,7 @@ switch_break:
     accelerateFlightSpeed(Propulsion::targetSpeed(g_thrust,
         f15::math::legacy::Math(g_angleLut).sine(g_ourPitch),
         flightSceneHeight(),
-        f15::math::legacy::fuelFromUnits(g_fuelRemaining),
+        g_fuelRemaining,
         load.load,
         (g_playerPlaneFlags & 1) ? f15::math::LandingGear::Retracted : f15::math::LandingGear::Extended));
 
@@ -1251,8 +1252,8 @@ void drawFuelGauge(void) {
     }
     setDrawColor(COLOR_BLACK);
     fillRectBoth(5, 109, 10, 152);
-    setDrawColor(g_fuelRemaining > 2000 ? COLOR_GREEN : COLOR_YELLOW);
-    fillRectBoth(5, -(g_fuelRemaining / 250 - 152), 10, 152);
+    setDrawColor(g_fuelRemaining > f15::math::legacy::fuelFromUnits(2000) ? COLOR_GREEN : COLOR_YELLOW);
+    fillRectBoth(5, -((int)f15::math::legacy::fuelUnits(g_fuelRemaining) / 250 - 152), 10, 152);
 }
 
 void drawVectorShape(const int16 *shapeData) {

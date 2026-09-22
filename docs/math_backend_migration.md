@@ -676,9 +676,10 @@ validation and live-flight checks remain outstanding.
   (`egkeys.c`), and the stall-text gate (`egtacmap.c`). `Angle` gained
   `isNegative`/`isPositive` so the ground pitch-leveling check reads the
   fractional sign instead of a quantized word.
-* `g_knots`/`g_cornerSpeed` remain `int16` words for display, engine-pitch audio
-  and blackbox telemetry — the knots values themselves are a legacy presentation
-  format. `speedFromKnots` reproduces the `g_knots * 27` reconstruction under
+* `g_knots`/`g_cornerSpeed` stayed `int16` words at this checkpoint for display,
+  engine-pitch audio and blackbox telemetry; they were migrated to
+  `CornerSpeed<GameBackend>` in the indicated-airspeed storage step recorded
+  below. `speedFromKnots` reproduces the `g_knots * 27` reconstruction under
   fixed and keeps the fractional product under modern. `velocityUnitsPerKnot`
   is now the single shared 27-units-per-knot constant in `AirspeedMath`.
 * `typed_airspeed_tests` checks the fixed conversion over every 16-bit speed
@@ -997,6 +998,26 @@ keeps the word-level knots/corner agreement check and adds a
 fraction-preservation check on the `g_knots` store; the modern sortie
 trace is unchanged (every consumer truncates at the boundary, so the
 stored fraction is display-inert on that profile).
+
+## Fuel storage checkpoint
+
+`g_fuelRemaining` is now `FuelLoad<GameBackend>` instead of an `int16`
+unit count. The burn stays the original integer formula — wrapped through
+`legacy::fuelFromUnits` — so fixed is bit-identical and modern fuel values
+remain integer (the formula has no fraction to preserve). The empty check
+reads `!isPositive()` (the original `<= 0` also caught underflow before
+the zero clamp), the flameout `== 0` reads `isZero()`, and `targetSpeed`
+takes the typed quantity directly instead of re-wrapping through
+`fuelFromUnits`. `PropulsionQuantity` gained the same-unit comparison set,
+`isZero`/`isPositive` and `-=`; `PropulsionBoundary` and
+`legacy::fuelUnits` gained the matching read adapter for the fuel gauge
+pixels, the 2000-unit color threshold, and blackbox/hash output.
+`src/egdata.c` joined the boundary allowlist: it seeds the typed global
+from a legacy unit constant at declaration time.
+
+Verification: fixed suite 60/60 (sortie golden unchanged; the
+characterization test still asserts the fuel burn cadence in raw units);
+modern smoke and sortie pass with the golden unchanged.
 
 ## Angle magnitude read adapters
 

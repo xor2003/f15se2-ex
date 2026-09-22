@@ -11,6 +11,7 @@
 #include "struct.h"
 #include "comm.h"
 #include "egdata.h"
+#include "math/legacy_propulsion.hpp"
 #include <stdio.h>
 #include <dos.h>
 
@@ -57,7 +58,8 @@ int16 waypointIndex = 0;
 int16 g_unusedWaypointTail = 0;
 
 int16 g_bombDamageMask = 4;
-int16 g_fuelRemaining = 5000;
+f15::math::FuelLoad<f15::math::GameBackend> g_fuelRemaining =
+    f15::math::legacy::fuelFromUnits(5000);
 /* Countermeasure ammo counters, indexed by kind in countermeasures():
  * [1] = flare, [2] = chaff. g_eventTimers[0] is unused. */
 f15::math::TickDuration g_eventTimers[3] = {f15::math::TickDuration{}, f15::math::TickDuration::fromWord(12), f15::math::TickDuration::fromWord(18)};

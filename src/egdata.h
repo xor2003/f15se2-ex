@@ -55,7 +55,7 @@ extern const struct Weapon aNone[];
 extern struct AircraftType aircraftTypes[]; /* 32-byte type records */
 extern struct Sam sams[39];
 extern int16 g_bombDamageMask;
-extern int16 g_fuelRemaining;
+extern f15::math::FuelLoad<f15::math::GameBackend> g_fuelRemaining;
 extern f15::math::TickDuration g_eventTimers[];
 extern struct MissileSpec missleSpec[];
 extern int16 missileSpecIndex;

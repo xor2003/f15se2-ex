@@ -10,6 +10,7 @@ template<class B> struct PropulsionBoundary {
     static EngineThrust<B> thrust(Rep value) { return EngineThrust<B>(value); }
     static Rep thrust(EngineThrust<B> value) { return value.value_; }
     static FuelLoad<B> fuel(typename FuelLoad<B>::Rep value) { return FuelLoad<B>(value); }
+    static auto fuel(FuelLoad<B> value) { return value.value_; }
     static FlightLoad<B> load(typename FlightLoad<B>::Rep value) { return FlightLoad<B>(value); }
     static auto load(FlightLoad<B> value) { return value.value_; }
 };

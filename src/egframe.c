@@ -14,6 +14,7 @@ using f15::math::legacy::moveY;
 #include "math/legacy_rotation.hpp"
 #include "math/legacy_altitude.hpp"
 #include "math/legacy_map.hpp"
+#include "math/legacy_propulsion.hpp"
 #include "math/guidance.hpp"
 using f15::math::legacy::altitudeFromUnits;
 using f15::math::legacy::signedAngle;
@@ -106,7 +107,7 @@ void updateFrame(void) {
         g_closestThreatIndex = g_unusedEventHist0 = g_unusedEventHist1 = g_unusedEventHist2 = (int8)(g_halfScaleRender = 0);
         g_threatRefX = g_threatRefY = g_threatRefZ = 0;
         g_prevThreatIndex = g_smokeSourceIdx = -1;
-        g_fuelRemaining = 10000;
+        g_fuelRemaining = f15::math::legacy::fuelFromUnits(10000);
         g_gunHits = 0;
         waypointIndex = 1;
         g_currentWeaponType = 1;
@@ -448,7 +449,7 @@ skip_autopilot:
         if (missionAtHeight(0)) {
             if (!android_ar_preventCrashes() &&
                 !gameOptionsEnabled(GAME_OPTION_NO_DAMAGE) &&
-                (gameData->unk4 != 0 || g_gunHits > 4 || g_fuelRemaining == 0) &&
+                (gameData->unk4 != 0 || g_gunHits > 4 || g_fuelRemaining.isZero()) &&
                 g_ejectState == 0 && flightKnots() > SpeedMath::knots(50)) {
                 makeSound(0, 2);
                 setDrawColor(COLOR_BLACK);
@@ -689,7 +690,7 @@ void initWeaponLoadout() {
         missleSpec[i].ammo = commData->weaponCount[i];
     }
     g_gunAmmo = 1000;
-    g_fuelRemaining = 10000;
+    g_fuelRemaining = f15::math::legacy::fuelFromUnits(10000);
     g_eventTimers[2] = TickDuration::fromWord(18);
     g_eventTimers[1] = TickDuration::fromWord(12);
     drawWeaponAmmo();
