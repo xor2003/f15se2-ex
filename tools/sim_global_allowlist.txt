@@ -166,7 +166,6 @@ g_enemyThreatCount
 g_eventLogCount
 g_exitMsgDigit
 g_exitMsgTerm
-g_extViewPitch
 g_externalCamDist
 g_extraScaleShift
 g_faceVtxCount

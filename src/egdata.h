@@ -230,7 +230,7 @@ extern f15::math::Angle<f15::math::GameBackend> g_rollPitchTrim;
 extern int16 g_sphereTiltZ;
 extern int16 g_scopeCenterX;
 extern int16 g_scopeCenterY;
-extern int16 g_extViewPitch;
+extern f15::math::Angle<f15::math::GameBackend> g_extViewPitch;
 extern char g_geeStringBuf[];
 extern f15::math::FlightLoad<f15::math::GameBackend> g_gees;
 extern int g_detailLevel;

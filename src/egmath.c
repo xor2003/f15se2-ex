@@ -398,7 +398,7 @@ void drawTargetView(int shapeId, FineRep worldX, FineRep worldY, WordScalar<> al
         relY = ((int)dyFine >> 5) << 4;
         relZ = (int)std::floor(dzFine / 2.0);
         g_trkBearing = g_ourHead;
-        g_trkPitch = f15::math::legacy::angleFromWord(g_extViewPitch);
+        g_trkPitch = g_extViewPitch;
         g_trkRoll = g_ourRoll;
         g_trkScale = 0x20;
         g_extraScaleShift = 2;

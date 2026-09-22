@@ -2074,7 +2074,7 @@ f15::math::Angle<f15::math::GameBackend> g_rollPitchTrim;
 int16 g_sphereTiltZ;
 int16 g_scopeCenterX;
 int16 g_scopeCenterY;
-int16 g_extViewPitch;
+f15::math::Angle<f15::math::GameBackend> g_extViewPitch;
 /* g_geeStringBuf: g-meter readout string ("<g>.<tenths>G") built by drawGMeter and
    drawn by the HUD string-blit (egseg2). */
 char g_geeStringBuf[12];
