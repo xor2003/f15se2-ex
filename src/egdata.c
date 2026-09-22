@@ -2053,11 +2053,11 @@ uint8 flt15_buf2[0x1040];
 size_t flt15_size = 0;
 int16 flt15HeaderWord = 0; /* first word of 15FLT.3D3; read past, then discarded */
 int16 g_trkRange = 0;
-int16 g_trkBearing = 0;
+f15::math::Angle<f15::math::GameBackend> g_trkBearing;
 int16 g_trkSize = 0;
 int16 g_trkScale = 0;
-int16 g_trkPitch = 0;
-int16 g_trkRoll = 0;
+f15::math::Angle<f15::math::GameBackend> g_trkPitch;
+f15::math::Angle<f15::math::GameBackend> g_trkRoll;
 int16 g_rngSeed = 0;
 /* g_unusedFrameVal: frame-init scalar seeded in initFrameRandom from the target-slot
    counts ((p & 0xF) << 8); written but never read (dead). */

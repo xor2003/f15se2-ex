@@ -328,7 +328,7 @@ void drawTargetView(int shapeId, FineRep worldX, FineRep worldY, WordScalar<> al
     dzFine = altitude - g_viewZ;
 
     if (mode < 2) {
-        g_trkRoll = 0;
+        g_trkRoll = {};
         relX = (int)dxFine >> 5;
         relY = (int)dyFine >> 5;
         relZ = (int)std::floor(dzFine / 32.0);
@@ -343,8 +343,8 @@ void drawTargetView(int shapeId, FineRep worldX, FineRep worldY, WordScalar<> al
             g_trkSize = (range >> 4) + 400;
             g_trkScale = (g_trkSize << 5) / (range + 1);
             range = g_trkSize << 2;
-            g_trkBearing = bearing;
-            g_trkPitch = pitch;
+            g_trkBearing = f15::math::legacy::angleFromWord(bearing);
+            g_trkPitch = f15::math::legacy::angleFromWord(pitch);
         } else {
             g_trkScale = (g_trkRange << 5) / (range + 1);
             if (g_trkScale > 0x100) {
@@ -353,16 +353,16 @@ void drawTargetView(int shapeId, FineRep worldX, FineRep worldY, WordScalar<> al
             if (g_trkScale < 4) {
                 g_trkScale = 4;
             }
-            bearingDelta = ((bearing - g_trkBearing) >> 5) * g_trkScale;
-            pitchDelta = ((pitch - g_trkPitch) >> 5) * g_trkScale;
+            bearingDelta = ((bearing - f15::math::legacy::signedAngle(g_trkBearing)) >> 5) * g_trkScale;
+            pitchDelta = ((pitch - f15::math::legacy::signedAngle(g_trkPitch)) >> 5) * g_trkScale;
             if (abs(bearingDelta) > 0x1000) {
                 return;
             }
             if (abs(pitchDelta) > 0x1000) {
                 return;
             }
-            bearing = (bearingDelta << 2) + g_trkBearing;
-            pitch = (pitchDelta << 2) + g_trkPitch;
+            bearing = (bearingDelta << 2) + f15::math::legacy::signedAngle(g_trkBearing);
+            pitch = (pitchDelta << 2) + f15::math::legacy::signedAngle(g_trkPitch);
             range = (g_trkSize << 5) / g_trkScale << 2;
         }
 
@@ -397,18 +397,18 @@ void drawTargetView(int shapeId, FineRep worldX, FineRep worldY, WordScalar<> al
         relX = ((int)dxFine >> 5) << 4;
         relY = ((int)dyFine >> 5) << 4;
         relZ = (int)std::floor(dzFine / 2.0);
-        g_trkBearing = signedAngle(g_ourHead);
-        g_trkPitch = g_extViewPitch;
-        g_trkRoll = signedAngle(g_ourRoll);
+        g_trkBearing = g_ourHead;
+        g_trkPitch = f15::math::legacy::angleFromWord(g_extViewPitch);
+        g_trkRoll = g_ourRoll;
         g_trkScale = 0x20;
         g_extraScaleShift = 2;
     }
     if (mode == 1 || mode == 3) {
-        horizonY = (int16)((int32)g_trkScale * (int32)(g_trkPitch >> 2) >> 5) + 156;
-        if (horizonY < 128 || g_trkPitch < (int16)0xe800) {
+        horizonY = (int16)((int32)g_trkScale * (int32)(f15::math::legacy::signedAngle(g_trkPitch) >> 2) >> 5) + 156;
+        if (horizonY < 128 || g_trkPitch < f15::math::legacy::angleFromWord((std::int16_t)0xe800)) {
             horizonY = 128;
         }
-        if (horizonY > 184 || g_trkPitch > 0x1800) {
+        if (horizonY > 184 || g_trkPitch > f15::math::legacy::angleFromWord(0x1800)) {
             horizonY = 184;
         }
         *(g_targetViewParams + 2) = colorLut[3];
@@ -435,7 +435,7 @@ void drawTargetView(int shapeId, FineRep worldX, FineRep worldY, WordScalar<> al
 
     g_offscreenRender = 1;
     {
-        R3DScene scene = {g_targetViewParams, -g_trkBearing, g_trkPitch, g_trkRoll, 0, 0, 0, 0};
+        R3DScene scene = {g_targetViewParams, -f15::math::legacy::signedAngle(g_trkBearing), f15::math::legacy::signedAngle(g_trkPitch), f15::math::legacy::signedAngle(g_trkRoll), 0, 0, 0, 0};
         R3DSubmit obj = {g_world3dData + dataOff, shapeId & 0x7f,
                          replacementShapeContainer(shapeId),
                          -objYaw, objPitch, objRoll, relX, -relY, relZ};
@@ -453,7 +453,7 @@ void drawTargetView(int shapeId, FineRep worldX, FineRep worldY, WordScalar<> al
         /* DOS `unsigned int` was 16-bit: a negative bearing wrapped into 0-359°.
          * Truncate to uint16 before the divide so the native 32-bit unsigned cast
          * doesn't blow a small negative up into millions. */
-        strcat(strBuf, itoa((uint16)g_trkBearing / 0xb6, g_itoaScratch, 10));
+        strcat(strBuf, itoa((uint16)f15::math::legacy::signedAngle(g_trkBearing) / 0xb6, g_itoaScratch, 10));
         drawStringActivePage(strBuf, 248, 176, 0xf);
     }
     g_extraScaleShift = 0;

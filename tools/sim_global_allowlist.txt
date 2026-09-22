@@ -392,10 +392,7 @@ g_timerTickCount
 g_timerTickCountdown
 g_topLodGrid
 g_trackedEnemyIdx
-g_trkBearing
-g_trkPitch
 g_trkRange
-g_trkRoll
 g_trkScale
 g_trkSize
 g_unusedClipFlag
