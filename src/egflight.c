@@ -594,10 +594,10 @@ switch_break:
             g_setThrust = 0;
         }
 
-        if ((g_ejectState & 0xFFFC) == 0x10 && (frameTick & 3) == 1) {
+        if ((g_ejectState & 0xFFFC) == 0x10 && frameTick.phase(4) == 1) {
             g_smokeSourceIdx = -1;
 
-            idx = ((uint16)frameTick / 2) & 7;
+            idx = frameTick.uring(1, 8);
 
             g_particles[idx].posX = f15::math::legacy::mapWordX(flightMapPosition());
             g_particles[idx].posY = f15::math::legacy::mapWordY(flightMapPosition());
@@ -626,7 +626,7 @@ switch_break:
 
     g_thrust = Propulsion::advance(g_thrust, limitedThrust, Controls::frequency(g_frameRateScaling));
 
-    if ((((uint16)frameTick) % ((uint16)(g_frameRateScaling << 1))) == 0 && g_setThrust != 0 && g_autopilotEngaged == 0) {
+    if (frameTick.umod(g_frameRateScaling << 1) == 0 && g_setThrust != 0 && g_autopilotEngaged == 0) {
         if (!gameOptionsEnabled(GAME_OPTION_INFINITE_FUEL))
             g_fuelRemaining -= ((g_setThrust * g_setThrust) / 750) + 2;
         drawFuelGauge();
@@ -776,7 +776,7 @@ switch_break:
         g_climbRate = {};
     }
 
-    idx = frameTick & 0xF;
+    idx = frameTick.phase(16);
     g_viewSnapshotRing[idx].heading = signedAngle(g_ourHead);
     g_viewSnapshotRing[idx].pitch = signedAngle(g_ourPitch);
     g_viewSnapshotRing[idx].roll = signedAngle(g_ourRoll);
@@ -792,7 +792,7 @@ switch_break:
             idx = g_frameRateScaling - 1;
         }
 
-        idx = (frameTick - idx) & 0xF;
+        idx = frameTick.offset(-idx).phase(16);
 
         headingErr = signedAngle(g_ourHead) - g_viewSnapshotRing[idx].heading;
         tmpVal = signedAngle(g_ourPitch) - g_viewSnapshotRing[idx].pitch;
@@ -981,7 +981,7 @@ void renderFrame() {
          * the sim rate. */
         int r1, a = g_renderAlphaQ12;
         struct ViewSnapshot *s0, *s1;
-        tmp = (frameTick - ((g_frameRateScaling + 1) / 2) - 1) & 0xf;
+        tmp = frameTick.offset(-((g_frameRateScaling + 1) / 2) - 1).phase(16);
         r1 = (tmp + 1) & 0xf;
         s0 = &g_viewSnapshotRing[tmp];
         s1 = &g_viewSnapshotRing[r1];
@@ -1062,7 +1062,7 @@ void renderFrame() {
             g_viewTargetY = (uint32)g_planeTable.planes[g_viewTargetObj & 0x3f].mapY << 5;
             g_viewTargetAlt = g_planeTable.planes[g_viewTargetObj & 0x3f].flags & 0x200 ? 200 : 50;
             camDist = 7;
-            if (g_autopilotEngaged != 0 && g_directorEventDeadline == -1) camDist = 6;
+            if (g_autopilotEngaged != 0 && g_directorEventDeadline.word() == -1) camDist = 6;
         }
         if (g_directorMode == 0) camDist = savedCamDist;
         computeTrackingCameraAngles((int32)g_viewTargetX, (int32)g_viewTargetY,

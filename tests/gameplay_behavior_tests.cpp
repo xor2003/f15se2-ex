@@ -78,10 +78,10 @@ void resetGameplayState() {
     g_acqAimY = 0;
     g_eventLogCount = 0;
     g_directorMode = 0;
-    g_directorEventDeadline = -1;
+    g_directorEventDeadline = f15::math::Ticks::fromWord(-1);
     g_viewMode = VIEW_COCKPIT;
     g_viewTargetObj = 0;
-    frameTick = 0;
+    frameTick = f15::math::Ticks::fromWord(0);
     g_ejectState = 0;
     g_missionEndedFlag[0] = 0;
     g_bombDamageMask = 0;
@@ -203,7 +203,7 @@ int main() {
     std::strcpy(tempString, "Weapons replenished");
     g_viewMode = VIEW_EXT_FOLLOW;
     g_directorMode = 2;
-    g_directorEventDeadline = 3000;
+    g_directorEventDeadline = f15::math::Ticks::fromWord(3000);
     g_tacmapIndicators[7] = g_tacmapIndicators[12] =
         g_tacmapIndicators[17] = g_tacmapIndicators[22] = 10;
 
@@ -224,7 +224,7 @@ int main() {
             "mission reset clears acceleration, training, and autopilot state");
     require(g_missionEndedFlag[0] == 0 && g_missionEndedFlag[1] == 0 &&
                 g_viewMode == VIEW_COCKPIT && g_directorMode == 0 &&
-                g_directorEventDeadline == -1,
+                g_directorEventDeadline.word() == -1,
             "mission reset starts the next sortie in the cockpit");
     require(g_tacmapIndicators[7] == 3 && g_tacmapIndicators[12] == 3 &&
                 g_tacmapIndicators[17] == 3 && g_tacmapIndicators[22] == 3,
@@ -394,29 +394,29 @@ int main() {
     // --- director event scheduling (egframe) --------------------------------
     resetGameplayState();
     g_frameRateScaling = 20;
-    frameTick = 100;
+    frameTick = f15::math::Ticks::fromWord(100);
     scheduleTimedEvent((ViewMode)0x77, 4);
-    require(g_viewMode == VIEW_COCKPIT && g_directorEventDeadline == -1,
+    require(g_viewMode == VIEW_COCKPIT && g_directorEventDeadline.word() == -1,
             "scheduleTimedEvent ignores requests when director mode is off");
     g_directorMode = 2;
     scheduleTimedEvent((ViewMode)0x77, 4);
-    require(g_viewMode == (ViewMode)0x77 && g_directorEventDeadline == 180,
+    require(g_viewMode == (ViewMode)0x77 && g_directorEventDeadline.word() == 180,
             "scheduleTimedEvent stores key and frame-rate-scaled deadline");
-    g_directorEventDeadline = -1;
+    g_directorEventDeadline = f15::math::Ticks::fromWord(-1);
     scheduleEventCheck((ViewMode)0x55, 3);
-    require(g_viewTargetObj == 0 && g_directorEventDeadline == -1,
+    require(g_viewTargetObj == 0 && g_directorEventDeadline.word() == -1,
             "scheduleEventCheck rejects priorities above director mode");
     scheduleEventCheck((ViewMode)0x55, 2);
     require(g_viewTargetObj == 0x55 && g_viewMode == (ViewMode)0x89 &&
-                g_directorEventDeadline == frameTick + 4 * g_frameRateScaling,
+                g_directorEventDeadline == frameTick.offset(4 * g_frameRateScaling),
             "scheduleEventCheck schedules a mode-2 director event");
     g_directorMode = 1;
-    g_directorEventDeadline = -1;
+    g_directorEventDeadline = f15::math::Ticks::fromWord(-1);
     scheduleEventCheck(0x66, 1);
     require(g_viewTargetObj == 0x66 &&
-                g_directorEventDeadline == frameTick + 3 * g_frameRateScaling,
+                g_directorEventDeadline == frameTick.offset(3 * g_frameRateScaling),
             "scheduleEventCheck schedules a mode-1 director event with shorter delay");
-    const int pendingDeadline = g_directorEventDeadline;
+    const f15::math::Ticks pendingDeadline = g_directorEventDeadline;
     scheduleEventCheck(0x77, 1);
     require(g_viewTargetObj == 0x66 && g_directorEventDeadline == pendingDeadline,
             "scheduleEventCheck ignores requests while a director event is pending");

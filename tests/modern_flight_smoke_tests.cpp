@@ -211,7 +211,7 @@ int main() {
     game.unk4 = 2;
     g_initPhase = 1;
     g_frameRateScaling = 15;
-    frameTick = 1;
+    frameTick = f15::math::Ticks::fromWord(1);
     g_thrust = legacy::thrustFromUnits(100);
     g_setThrust = 100;
     g_fuelRemaining = 5000;
@@ -289,7 +289,7 @@ int main() {
     g_bulletTrackCount = 16;
     g_smokeSourceIdx = -1;
     for (double altitude : {0.0, 0.125, 131072.0, 229375.5, 229376.0, 229376.5, 262144.0}) {
-        frameTick = 1;
+        frameTick = f15::math::Ticks::fromWord(1);
         g_altitude = Altitudes::altitude(altitude);
         g_ourPitch = g_rollPitchTrim = {};
         advanceFlightAltitude();

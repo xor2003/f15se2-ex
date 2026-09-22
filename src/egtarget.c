@@ -108,7 +108,7 @@ void updateTargetLock(void) {
     }
 
     if (!(g_groundTargetLock & 0x80)) {
-        if (frameTick & 0x0f) goto skip_aam;
+        if (frameTick.phase(16)) goto skip_aam;
         if (g_aamLockActive != 0) goto skip_aam;
     }
     if (g_activePanelMode != 0x13) goto skip_aam;
@@ -764,7 +764,7 @@ void drawHudWorldOverlay(void) {
                     drawStringActivePage(egPrimaryTarget, 0xec, 0x8e, 0x0f);
                 } else if (g_targetSlots[1].planeIndex == g_groundTargetLock) {
                     drawStringActivePage("Secondary Target", 236, 142, 0x0f);
-                } else if (!(frameTick & 1) &&
+                } else if (!frameTick.bit(0) &&
                            ((g_difficultyTier < 2 && (g_shapeTargetCategory[g_planeTable.planes[wpIdx].nameIndex & 0x7f] & 0xc0) != 0) ||
                             (g_planeTable.planes[wpIdx].flags & 0x500) != 0 ||
                             (g_mapCellFlags[((uint16)g_planeTable.planes[wpIdx].mapX >> 11) +
@@ -838,11 +838,11 @@ void drawHudWorldOverlay(void) {
         strcat(strBuf, aircraftTypes[idx].altName);
         drawStringActivePage(strBuf, 248, 134, 0x0f);
 
-        if (aircraftTypes[idx].modelId == -1 && !(frameTick & 1)) {
+        if (aircraftTypes[idx].modelId == -1 && !frameTick.bit(0)) {
             drawStringActivePage("No Target", 252, 140, 0x0f);
         }
 
-        if (g_detailLevel != 0 && (frameTick & 1)) {
+        if (g_detailLevel != 0 && frameTick.bit(0)) {
             g_aamLeadDist = (int16)(((uint32)(uint16)(0x8000 - g_simObjects[wpIdx].pitch) *
                                      (int32)g_simObjects[wpIdx].speed) >>
                                     15);

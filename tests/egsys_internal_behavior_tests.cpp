@@ -181,8 +181,10 @@ int main() {
             "simObjCount clamps object count to the snapshot array capacity");
 
     g_groundUnitCount = 1;
-    g_simObjects[0].worldX = 1000;
-    g_simObjects[0].worldY = 2000;
+    f15::math::legacy::objectFineSet<f15::math::ViewXAxis>(
+        g_simObjectFineX[0], g_simObjects[0].worldX, 1000);
+    f15::math::legacy::objectFineSet<f15::math::ViewYAxis>(
+        g_simObjectFineY[0], g_simObjects[0].worldY, 2000);
     g_simObjects[0].posX = 31;
     g_simObjects[0].posY = 62;
     g_simObjects[0].alt = 300;
@@ -200,8 +202,10 @@ int main() {
     g_projectiles[kProjectileSlot].ttl = kProjectilePrevTtl;
     objCapture(simPrev, projPrev);
 
-    g_simObjects[0].worldX = 1200;
-    g_simObjects[0].worldY = 2400;
+    f15::math::legacy::objectFineSet<f15::math::ViewXAxis>(
+        g_simObjectFineX[0], g_simObjects[0].worldX, 1200);
+    f15::math::legacy::objectFineSet<f15::math::ViewYAxis>(
+        g_simObjectFineY[0], g_simObjects[0].worldY, 2400);
     g_simObjects[0].posX = 37;
     g_simObjects[0].posY = 75;
     g_simObjects[0].alt = 500;
@@ -240,7 +244,8 @@ int main() {
             "objRestore restores authoritative object and projectile snapshots");
 
     simPrev[0].alive = 0;
-    g_simObjects[0].worldX = 777;
+    f15::math::legacy::objectFineSet<f15::math::ViewXAxis>(
+        g_simObjectFineX[0], g_simObjects[0].worldX, 777);
     objApplyInterp(simPrev, simNext, projPrev, projNext, kHalfNumerator, kHalfDenominator);
     require(g_simObjects[0].worldX == 777,
             "objApplyInterp skips inactive previous sim objects");
@@ -250,7 +255,8 @@ int main() {
     simNext[0].alive = 1;
     simNext[0].worldX = kTeleportGuard;
     simNext[0].worldY = 0;
-    g_simObjects[0].worldX = 888;
+    f15::math::legacy::objectFineSet<f15::math::ViewXAxis>(
+        g_simObjectFineX[0], g_simObjects[0].worldX, 888);
     objApplyInterp(simPrev, simNext, projPrev, projNext, kHalfNumerator, kHalfDenominator);
     require(g_simObjects[0].worldX == 888,
             "objApplyInterp skips original teleport-sized object movement");

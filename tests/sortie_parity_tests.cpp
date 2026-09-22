@@ -253,7 +253,7 @@ std::uint32_t hashMission() {
     h = hashAdd(h, (std::uint16_t)(commData ? commData->landingType : 0));
     h = hashAdd(h, (std::uint16_t)g_inLandingCorridor);
     h = hashAdd(h, (std::uint16_t)g_closestThreatIndex);
-    h = hashAdd(h, (std::uint16_t)g_directorEventDeadline);
+    h = hashAdd(h, (std::uint16_t)g_directorEventDeadline.word());
     h = hashAdd(h, (std::uint16_t)g_slowMotionMode);
     return h;
 }
@@ -264,7 +264,7 @@ void dumpMission() {
                 (int)g_nearestThreatRange, (int)g_targetRange, (int)g_targetBearing,
                 (int)g_northSouthSign, (int)g_missionEndedFlag[0],
                 commData ? (int)commData->landingType : -1, (int)g_inLandingCorridor,
-                (int)g_closestThreatIndex, (int)g_directorEventDeadline,
+                (int)g_closestThreatIndex, (int)g_directorEventDeadline.word(),
                 (int)g_slowMotionMode, (int)g_autopilotEngaged);
 }
 
@@ -300,7 +300,7 @@ void initSortie() {
 
     g_initPhase = 1;               /* first updateFrame runs mission init */
     g_frameRateScaling = 15;
-    frameTick = 1;
+    frameTick = f15::math::Ticks::fromWord(1);
     /* seedRng() (inside initFrameRandom, mission init) clock-seeds unless input
      * is disabled; pin the deterministic path for the init tick, then enable. */
     g_inputDisabled = 1;

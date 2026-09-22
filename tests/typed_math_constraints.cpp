@@ -7,6 +7,7 @@
 #include "math/aerodynamics.hpp"
 #include "math/propulsion.hpp"
 #include "math/guidance.hpp"
+#include "math/ticks.hpp"
 #include <type_traits>
 #include <utility>
 
@@ -334,6 +335,23 @@ int main() {
     (void)MapMath<FixedBackend>::interpolate(MapPosition<ModernBackend>{}, {}, {});
 #elif defined(TEST_MAP_COORDINATE)
     (void)MapMath<FixedBackend>::interpolate(ViewCoordinate<FixedBackend, ViewXAxis>{}, {}, {});
+#elif defined(TEST_TICKS_PRIMITIVE)
+    Ticks clock(1234);
+    (void)clock;
+#elif defined(TEST_TICKS_BRACE)
+    Ticks clock{1234};
+    (void)clock;
+#elif defined(TEST_TICKS_EXTRACTION)
+    Ticks clock;
+    int raw = clock;
+    (void)raw;
+#elif defined(TEST_TICKS_ASSIGN)
+    Ticks clock;
+    clock = 42;
+#elif defined(TEST_TICKS_ARITHMETIC)
+    Ticks clock;
+    int mixed = clock.word() + clock;
+    (void)mixed;
 #endif
     return 0;
 }

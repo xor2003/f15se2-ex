@@ -237,7 +237,7 @@ void updateThreatTargeting(void) {
                         !(g_simObjects[-g_projectiles[slot].targetRef].flags.b[0] & 8))
                         locked = 0;
                 }
-                if (g_projectiles[slot].speed < (sams[spec].maxSpeed >> 6) && (frameTick & 1))
+                if (g_projectiles[slot].speed < (sams[spec].maxSpeed >> 6) && frameTick.bit(0))
                     g_projectiles[slot].speed++;
             } else {
                 best = 0x7fff;
@@ -271,7 +271,7 @@ void updateThreatTargeting(void) {
                         }
                     }
                 }
-                if (g_projectiles[slot].speed < (sams[spec].maxSpeed >> 6) && (frameTick & 1)) {
+                if (g_projectiles[slot].speed < (sams[spec].maxSpeed >> 6) && frameTick.bit(0)) {
                     g_projectiles[slot].speed++;
                     aimY = signedAngle(g_projectiles[slot].head);
                     aimIsHeading = true;
@@ -313,11 +313,11 @@ void updateThreatTargeting(void) {
 
             if (locked != 0 && slot < 8 &&
                 angleSeparation(angleFromWord(g_acqAimY), g_projectiles[slot].head) < 0x1000 && mapEvents[0].ttl == 0) {
-                if (mode <= 0 && (frameTick & 2))
+                if (mode <= 0 && frameTick.bit(1))
                     switchIndicatorColor(1, 0xc);
-                if (mode != 0 && !(frameTick & 2))
+                if (mode != 0 && !frameTick.bit(1))
                     switchIndicatorColor(0, 0xe);
-                if ((frameTick & 3) == 0 && best < (uint16)(g_projectiles[slot].speed << 5)) {
+                if (frameTick.phase(4) == 0 && best < (uint16)(g_projectiles[slot].speed << 5)) {
                     makeSound(10, 1);
                     scheduleEventCheck(slot, 2);
                 }
@@ -398,7 +398,7 @@ void updateThreatTargeting(void) {
                     *(uint8 *)&g_projectiles[slot].alt |= 1;
             }
             *(char *)&g_posVisibleFlag = 0;
-            if ((slot & 3) == (frameTick & 3))
+            if ((slot & 3) == frameTick.phase(4))
                 testWorldPosVisible(g_projectiles[slot].mapX, g_projectiles[slot].mapY, g_projectiles[slot].alt);
 
             if (g_projectiles[slot].alt < 0 || *(int8 *)&g_posVisibleFlag != 0) {
@@ -476,7 +476,7 @@ void updateThreatTargeting(void) {
                         strcat(strBuf, sams[spec].name);
                         hudMessage(strBuf);
                         bombTarget();
-                        ring = (frameTick >> 1) & 7;
+                        ring = frameTick.ring(1, 8);
                         g_particles[ring].posX = g_hitMapX;
                         g_particles[ring].posY = g_hitMapY;
                         g_particles[ring].alt = g_hitAlt;
@@ -486,7 +486,7 @@ void updateThreatTargeting(void) {
                 } else {
                     if (mode == 7) {
                         destroyAircraft(bestIdx);
-                        ring = (frameTick >> 1) & 7;
+                        ring = frameTick.ring(1, 8);
                         g_particles[ring].posX = g_hitMapX =
                             g_simObjects[bestIdx].posX;
                         g_particles[ring].posY = g_hitMapY =
@@ -516,7 +516,7 @@ void updateThreatTargeting(void) {
             if (slot < 8 && g_projectiles[slot].ttl != 0) {
                 g_projectiles[slot].targetLock =
                     readMapPixelColor(g_projectiles[slot].mapX, g_projectiles[slot].mapY);
-                if (frameTick & 1)
+                if (frameTick.bit(0))
                     plotMapObject(g_projectiles[slot].mapX, g_projectiles[slot].mapY, 0xe, 0);
             }
         }
@@ -616,7 +616,7 @@ void destroyGroundTarget(int16 planeIdx) {
                 if (g_targetSlots[slot].planeIndex == planeIdx) {
                     markTargetReached(slot);
                     eventType |= (slot != 0 ? 0x40 : 0x80);
-                    g_destroyedCueDeadline = frameTick + g_frameRateScaling;
+                    g_destroyedCueDeadline = frameTick.offset(g_frameRateScaling);
                     makeSound(0, 2);
                 }
             }

@@ -56,7 +56,7 @@ void updateThreatSites() {
     for (siteIdx = 0; siteIdx < g_targetEntityCount; siteIdx++) {
         if (g_planeTable.planes[siteIdx].active != 0 &&
             !(g_planeTable.planes[siteIdx].flags & 0x80) &&
-            ((siteIdx * (frameTick >> 10) * 7 & 7) <= 7 ||
+            ((siteIdx * frameTick.shifted(10) * 7 & 7) <= 7 ||
              g_planeTable.planes[siteIdx].alertLevel != 0 ||
              (g_planeTable.planes[siteIdx].flags & 0x100) != 0)) {
             g_planeTable.planes[siteIdx].threatTimer -= 1;
@@ -249,11 +249,11 @@ void updateObjects(void) {
      * Declared here so the after_missile_table goto doesn't cross its init. */
     FineCoord::StepRep horizVel;
 
-    if ((frameTick & 1) == 0 && g_smokeSourceIdx == -1) {
-        g_particles[(frameTick >> 1) & 7].posX = 0;
+    if (frameTick.phase(2) == 0 && g_smokeSourceIdx == -1) {
+        g_particles[frameTick.ring(1, 8)].posX = 0;
     }
 
-    bulletTracks[((frameTick >> 2) & 3) + g_bulletTrackCount].posX = {};
+    bulletTracks[frameTick.ring(2, 4) + g_bulletTrackCount].posX = {};
 
     g_enemyThreatCount = g_activeThreatCount;
     g_activeThreatCount = 0;
@@ -361,13 +361,13 @@ void updateObjects(void) {
                 if (mode == 1 && (uint16)range < 0x600) {
                     g_activeThreatCount++;
                     if ((uint16)range >= 0x400) goto after_missile_table;
-                    if (frameTick & 3) goto after_missile_table;
+                    if (frameTick.phase(4)) goto after_missile_table;
                     if (angleSeparation(angleFromWord(g_simObjects[objIdx].heading.w),
                                         angleFromWord(bearing)) >= 0x800) goto after_missile_table;
                     if (angleSeparation(angleFromWord(g_simObjects[objIdx].pitch),
                                         angleFromWord(pitchCmd)) >= 0x800) goto after_missile_table;
 
-                    trackSlot = ((frameTick >> 2) & 3) + g_bulletTrackCount;
+                    trackSlot = frameTick.ring(2, 4) + g_bulletTrackCount;
                     /* Fine units per step + dispersion cone, like the player's
                      * gun (the original 312 coarse/s). */
                     vel = (312 << 5) / g_frameRateScaling;
@@ -401,12 +401,12 @@ void updateObjects(void) {
                         rollCmd = (maneuver & 0xf) << 12;
                         if (maneuver == 0x100) {
                             pitchCmd = 0x6000;
-                            rollCmd = ((frameTick >> 8) & 8) * 0x1000 - 0x4000;
+                            rollCmd = frameTick.bit(11) ? 0x4000 : -0x4000;
                         }
                     }
                     if (g_maneuverTable[aggrIdx][relBearing][aspect] == 0x200) {
                         pitchCmd = (int16)0xa000;
-                        rollCmd = (((frameTick >> 8) & 8) - 4) * -0x1000;
+                        rollCmd = frameTick.bit(11) ? -0x4000 : 0x4000;
                     }
                     if (pitchCmd == (int16)0xa000) {
                         if (-((g_simObjects[objIdx].pitch >> 3) - 3000) > g_simObjects[objIdx].alt) {
@@ -455,7 +455,7 @@ void updateObjects(void) {
                     rollCmd = 0x400;
                 }
 
-                if (((uint8)objIdx & 3) == (frameTick & 3)) {
+                if (((uint8)objIdx & 3) == frameTick.phase(4)) {
                     testWorldPosVisible(g_simObjects[objIdx].posX,
                                         g_simObjects[objIdx].posY,
                                         g_simObjects[objIdx].alt);
@@ -482,8 +482,8 @@ void updateObjects(void) {
                     pitchDelta = pitchCmd - g_simObjects[objIdx].pitch;
                     if (!(g_simObjects[objIdx].flags.b[0] & 0x20)) goto no_smoke;
                     pitchDelta = -0x200;
-                    if (frameTick & 3) goto no_smoke;
-                    smokeSlot = (frameTick >> 1) & 7;
+                    if (frameTick.phase(4)) goto no_smoke;
+                    smokeSlot = frameTick.ring(1, 8);
                     g_particles[smokeSlot].posX = *(int16 *)((char *)g_simObjects + u + 2);
                 }
                 {
@@ -599,7 +599,7 @@ void updateObjects(void) {
                     o = g_simObjects[objIdx].flags.b[0];
                     if ((o & 2) &&
                         (fireOffset = (((uint8)objIdx & 8) >> 3) + (objIdx & 7) * 2,
-                         frameTick % (g_frameRateScaling << 4) == fireOffset * g_frameRateScaling) &&
+                         frameTick.mod(g_frameRateScaling << 4) == fireOffset * g_frameRateScaling) &&
                         !(o & 0x20)) {
                         fireAirThreat(objIdx);
                     }

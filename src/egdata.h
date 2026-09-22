@@ -12,6 +12,7 @@
 #include "math/horizontal.hpp"
 #include "math/airspeed.hpp"
 #include "math/propulsion.hpp"
+#include "math/ticks.hpp"
 
 typedef struct SDL_IOStream SDL_IOStream;
 
@@ -76,10 +77,10 @@ extern int32 g_projInterpX[];
 extern int32 g_projInterpY[];
 extern int16 g_threatScopeRange;
 extern int16 g_trackedEnemyIdx;
-extern int16 frameTick;
+extern f15::math::Ticks frameTick;
 extern int16 g_autopilotEngaged;
 extern int16 g_gearDownArmed;
-extern int16 g_destroyedCueDeadline;
+extern f15::math::Ticks g_destroyedCueDeadline;
 extern int16 g_threatActiveTimer;
 extern int16 g_airTargetLock;
 extern int16 g_groundTargetLock;
@@ -94,7 +95,7 @@ extern int16 g_render3DTiles;
 extern int16 g_landingDoneFlag;
 extern uint16 g_frameRateAccum;
 extern int16 g_slowMotionMode;
-extern int16 g_directorEventDeadline;
+extern f15::math::Ticks g_directorEventDeadline;
 extern int g_directorMode;
 extern int16 g_resupplyCount;
 extern int16 g_autoLandingActive;

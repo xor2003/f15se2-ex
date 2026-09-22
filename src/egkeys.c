@@ -323,7 +323,7 @@ end_dispatch:
     }
 
     switchIndicatorColor(3, (*(char *)&g_playerPlaneFlags & 1)             ? 4
-                            : (flightKnots() < SpeedMath::knots(250) || (*(char *)&frameTick & 1)) ? 2
+                            : (flightKnots() < SpeedMath::knots(250) || frameTick.bit(0)) ? 2
                                                                            : 10);
 
     switchIndicatorColor(2, (*(char *)&g_playerPlaneFlags & 8) ? 14 : 2);

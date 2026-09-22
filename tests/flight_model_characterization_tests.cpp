@@ -72,7 +72,7 @@ void recoveryGuidance(SDL_Joystick *stick) {
     for (int hz : {4, 15}) {
         g_initPhase = 1;
         g_frameRateScaling = hz;
-        frameTick = 1;
+        frameTick = f15::math::Ticks::fromWord(1);
         g_thrust = legacy::thrustFromUnits(35);
         g_setThrust = 5;
         g_fuelRemaining = 5000;
@@ -200,7 +200,7 @@ void thrustAndFuel() {
             fuel != 5000 || stickPitch != 128 || !gearUp || airBrake || fuelTick)) continue;
         g_initPhase = 1;
         g_frameRateScaling = hz;
-        frameTick = fuelTick ? hz * 2 : 1;
+        frameTick = f15::math::Ticks::fromWord((int16)(fuelTick ? hz * 2 : 1));
         g_thrust = legacy::thrustFromUnits(initial);
         g_setThrust = requested;
         g_fuelRemaining = fuel;

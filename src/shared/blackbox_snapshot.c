@@ -200,7 +200,7 @@ int blackbox_snapshotWriteJson(const char *path) {
             "\"render_alpha_q12\":%d,\"game_rng_seed\":%d},\n",
             (unsigned)timerHandlerInstalled, (unsigned)timerCounter,
             (unsigned)timerCounter2, (unsigned)timerCounter3,
-            (unsigned)timerCounter4, (int)frameTick, g_simStepsThisFrame,
+            (unsigned)timerCounter4, (int)frameTick.word(), g_simStepsThisFrame,
             g_renderAlphaQ12, (int)g_rngSeed);
     fprintf(f,
             "  \"flight\":{\"position\":{\"x\":%d,\"y\":%d,\"altitude\":%d},"

@@ -28,6 +28,7 @@ using f15::math::ViewYAxis;
 using SpeedMath = f15::math::AirspeedMath<f15::math::GameBackend>;
 using FineCoord = f15::math::FineCoord<f15::math::GameBackend>;
 using TrackMath = f15::math::GuidanceMath<f15::math::GameBackend>;
+using Ticks = f15::math::Ticks;
 #include "egflight.h"
 #include "egframe.h"
 #include "android_ar.h"
@@ -234,17 +235,17 @@ void updateFrame(void) {
         if (g_autopilotEngaged == 0) {
             g_viewMode = VIEW_COCKPIT;
         }
-        g_directorEventDeadline = -1;
+        g_directorEventDeadline = Ticks::fromWord(-1);
     }
     if (g_threatActiveTimer != 0) {
         g_threatActiveTimer--;
     }
-    if (g_destroyedCueDeadline != 0 && frameTick == g_destroyedCueDeadline) {
-        g_destroyedCueDeadline = 0;
+    if (!g_destroyedCueDeadline.isZero() && frameTick == g_destroyedCueDeadline) {
+        g_destroyedCueDeadline = Ticks{};
         playVoiceCue(2);
     }
 
-    if ((frameTick & 7) != 0) goto skip_target_section;
+    if (frameTick.phase(8) != 0) goto skip_target_section;
 
     g_prevThreatIndex = g_closestThreatIndex;
     g_nearestThreatRange = 0x7fff;
@@ -327,9 +328,9 @@ void updateFrame(void) {
         }
     }
 
-    if ((frameTick & 0x7f) == 0) {
+    if (frameTick.phase(128) == 0) {
         if ((g_planeTable.planes[g_closestThreatIndex].flags & 0x800) == 0) {
-            objIdx = frameTick & 0x80 ? g_groundUnitCount - 1 : g_groundUnitCount - 2;
+            objIdx = frameTick.bit(7) ? g_groundUnitCount - 1 : g_groundUnitCount - 2;
             if ((g_simObjects[objIdx].flags.b[0] & 2) == 0) {
                 spawnEnemyAircraft(objIdx, g_closestThreatIndex);
                 g_simObjects[objIdx].flags.w = 0x207;
@@ -380,7 +381,7 @@ skip_target_section:
             g_inLandingCorridor = 0;
         } else {
             g_inLandingCorridor = 1;
-            if ((flightKnots() <= SpeedMath::knots(1)) && ((frameTick & 7) == 0) && g_planeTable.planes[g_closestThreatIndex].flags & 0x500 && g_landingTimer != 0 && !(g_planeTable.planes[g_closestThreatIndex].flags & 0x800)) {
+            if ((flightKnots() <= SpeedMath::knots(1)) && (frameTick.phase(8) == 0) && g_planeTable.planes[g_closestThreatIndex].flags & 0x500 && g_landingTimer != 0 && !(g_planeTable.planes[g_closestThreatIndex].flags & 0x800)) {
                 g_gearDownArmed = 1;
                 g_landingDoneFlag = 1;
                 if (g_landingTimer++ == 1) {
@@ -400,7 +401,7 @@ skip_target_section:
                     }
                     if (g_landingTimer > g_frameRateScaling) {
                         initWeaponLoadout();
-                        if (frameTick & 8) {
+                        if (frameTick.bit(3)) {
                             hudMessage("Ready for takeoff");
                         } else {
                             hudMessage("Weapons replenished");
@@ -471,7 +472,7 @@ skip_autopilot:
     g_targetLeadAngle = (g_planeTable.planes[g_closestThreatIndex].flags & 0x200 && g_nearestThreatRange < 0x500) ? (((g_northSouthSign << 8) / g_frameRateScaling) + g_targetLeadAngle) & 0xfff : 0;
 
     frameTick++;
-    if (frameTick % g_frameRateScaling == 0) {
+    if (frameTick.mod(g_frameRateScaling) == 0) {
         g_missionTick++;
         if ((g_missionTick & 0x1f) == 0) {
             appendMapEvent(9, 0);
@@ -585,10 +586,10 @@ void updateBulletsAndFire(void) {
             bulletTracks[i].alt += bulletTracks[i].velZ;
         }
     }
-    if (!(frameTick & 1)) {
+    if (!frameTick.bit(0)) {
         return;
     }
-    slot = (frameTick >> 1) % g_bulletTrackCount;
+    slot = frameTick.shifted(1) % g_bulletTrackCount;
     firing = readAxisInput(0);
     if (!firing) goto no_fire;
     if (g_gunAmmo <= 0) goto no_fire;
@@ -631,8 +632,8 @@ void updateTracerParticles() {
             g_particles[i].posY += g_particles[i].alt >> 9;
             *(((char *)&g_particles[i].spin) + 1) += 6;
         }
-        if (!((char)frameTick & 0x0f)) {
-            slot = (frameTick >> 4) & 7;
+        if (frameTick.phase(16) == 0) {
+            slot = frameTick.ring(4, 8);
             g_particles[slot].posX = g_planeTable.planes[g_smokeSourceIdx].mapX;
             g_particles[slot].posY = g_planeTable.planes[g_smokeSourceIdx].mapY;
             g_particles[slot].alt = 0x80;
@@ -658,7 +659,7 @@ void initFrameRandom(void) {
 
     seedRng();
     clearStatusPanel();
-    frameTick = randomRange(0x1000) & 0x7ff8;
+    frameTick = Ticks::fromWord((int16)(randomRange(0x1000) & 0x7ff8));
     seedSum = g_targetSlots[0].seedNoise + g_targetSlots[1].seedNoise;
     g_nightMode = (gameData->theater == 6 ? 5 : 9) < randomRange(0x10);
     if (g_nightMode && g_dacSupported) {
@@ -748,7 +749,7 @@ void finalizeMission(int outcome) {
 // ==== seg000:0x1bc3 ====
 void scheduleEventCheck(int16 eventObjIdx, uint16 priority) {
     if (priority > (uint16)g_directorMode) return;
-    if (g_directorEventDeadline != -1) return;
+    if (g_directorEventDeadline.word() != -1) return;
     g_viewTargetObj = eventObjIdx;
     scheduleTimedEvent(VIEW_MISSILE, g_directorMode == 1 ? 3 : 4);
 }
@@ -759,14 +760,14 @@ void scheduleTimedEvent(ViewMode viewMode, int16 delay) {
         return;
     }
     g_viewMode = viewMode;
-    g_directorEventDeadline = delay * g_frameRateScaling + frameTick;
+    g_directorEventDeadline = frameTick.offset(delay * g_frameRateScaling);
 }
 
 // ==== seg000:0x1c21 routine_180 ====
 void generateRandomRadioMessage(void) {
     int16 idx;
 
-    if (g_directorEventDeadline != -1) {
+    if (g_directorEventDeadline.word() != -1) {
         return;
     }
     g_autopilotAltitude = f15::math::legacy::renderHeightFromUnits(500);

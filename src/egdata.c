@@ -462,7 +462,7 @@ int32 g_projInterpX[12];
 int32 g_projInterpY[12];
 int16 g_threatScopeRange = 4;
 int16 g_trackedEnemyIdx = -1;
-int16 frameTick = 0;
+f15::math::Ticks frameTick;
 #if defined(F15_ANDROID_DEFAULT_ASSIST)
 /* Touch flight controls are intentionally a later feature. Start Android
  * flights with the existing autopilot engaged so the aircraft remains safe
@@ -472,7 +472,7 @@ int16 g_autopilotEngaged = 1;
 int16 g_autopilotEngaged = 0;
 #endif
 int16 g_gearDownArmed = 1;
-int16 g_destroyedCueDeadline = 0;
+f15::math::Ticks g_destroyedCueDeadline;
 
 int16 g_threatActiveTimer = 0;
 int16 g_airTargetLock = -1;
@@ -494,7 +494,7 @@ int16 g_slowMotionMode = 2;
 #else
 int16 g_slowMotionMode = 1;
 #endif
-int16 g_directorEventDeadline = -1;
+f15::math::Ticks g_directorEventDeadline = f15::math::Ticks::fromWord(-1);
 int g_directorMode = 0;
 int16 g_resupplyCount = 1;
 int16 g_autoLandingActive = 0;

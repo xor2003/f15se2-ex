@@ -50,7 +50,7 @@ void resetMissionRuntimeState(void) {
     g_viewMode = VIEW_COCKPIT;
     g_autopilotEngaged = 0;
     g_directorMode = 0;
-    g_directorEventDeadline = -1;
+    g_directorEventDeadline = f15::math::Ticks::fromWord(-1);
     g_tacmapIndicators[7] = 3;
     g_tacmapIndicators[12] = 3;
     g_tacmapIndicators[17] = 3;

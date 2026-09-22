@@ -112,7 +112,7 @@ void renderHudFrame(int unused) {
             speedBarLen = clampRange((((g_cornerSpeed - g_knots) * 2) / 5) + 29, 0, 61);
             if (speedBarLen) drawViewportLine(72, 85 - speedBarLen, 72, 85);
             drawViewportLine(247, 56, 247, clampRange(-((climbUnits(g_climbRate) >> 4) - 56), 20, 85));
-            if ((g_playerPlaneFlags & 1) == 0 && (frameTick & 1) != 0 && gameData->unk4 != 0 && g_climbRate.isNegative()) {
+            if ((g_playerPlaneFlags & 1) == 0 && frameTick.bit(0) && gameData->unk4 != 0 && g_climbRate.isNegative()) {
                 climbMarkerY = (((g_planeTable.planes[g_closestThreatIndex].flags & 0x200 ? 0x100 : 0x80) / gameData->unk4) >> 4) + 56;
                 setDrawColor(COLOR_WHITE);
                 drawViewportLine(242, climbMarkerY - 2, 244, climbMarkerY);
@@ -127,7 +127,7 @@ void renderHudFrame(int unused) {
             if (flightKnots() < flightCornerSpeed() &&
                 !f15::math::AltitudeMath<f15::math::GameBackend>::atGround(
                     flightSceneHeight(), f15::math::legacy::Altitudes::ground(g_groundAltitude)) &&
-                frameTick & 1) {
+                frameTick.bit(0)) {
                 drawStringActivePage("stall warning", 132, 30, 0xf);
             }
             if (g_currentWeaponType == 0 || g_currentWeaponType == 2) {

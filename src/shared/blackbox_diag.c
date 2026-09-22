@@ -411,7 +411,7 @@ int blackbox_diagWriteDump(const char *path) {
     fprintf(f, "timing installed=%u counters=%u,%u,%u,%u frame_tick=%d sim_steps=%d render_alpha_q12=%d game_rng_seed=%d\n",
             (unsigned)timerHandlerInstalled, (unsigned)timerCounter,
             (unsigned)timerCounter2, (unsigned)timerCounter3,
-            (unsigned)timerCounter4, (int)frameTick, g_simStepsThisFrame,
+            (unsigned)timerCounter4, (int)frameTick.word(), g_simStepsThisFrame,
             g_renderAlphaQ12, (int)g_rngSeed);
     fprintf(f, "subsystem flight=%08x camera=%08x objects=%08x weapons=%08x target_mission=%08x\n",
             (unsigned)hashFlight(), (unsigned)hashCamera(), (unsigned)hashObjects(),

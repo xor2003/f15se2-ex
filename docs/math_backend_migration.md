@@ -1163,6 +1163,45 @@ modern smoke, `typed_horizontal_tests` covers fixed equivalence (seed,
 advance, negative step, int32 wrap) and modern fraction accumulation plus
 packed-field truncation.
 
+## Simulation clock typed checkpoint
+
+The int16 sim clock `frameTick` and the deadline globals
+(`g_destroyedCueDeadline`, `g_directorEventDeadline`) are now `Ticks`
+(`src/math/ticks.hpp`) — the first application of the class-based-domain
+directive: no implicit conversion to or from any primitive, so every
+remaining raw use is a compile error rather than silent word arithmetic.
+
+* `Ticks` is deliberately not backend-templated: the clock is an int16 word
+  under both backends and its wrap/phase semantics are gameplay behavior.
+  Named operations replace the magic masks and shifts at every call site:
+  `phase(period)` for `v & (period-1)` cadences, `bit(n)` for single-bit
+  tests, `ring(shift, count)`/`uring(shift, count)` for rotating slot
+  selectors, `shifted`/`mod`/`umod` for the signed/unsigned arithmetic the
+  originals used, `offset(n)` for int16-wrapping deadline arithmetic, `++`
+  with defined int16 wrap, `isZero()` and `word()`/`uword()`/`fromWord()`
+  as the only raw boundary.
+* All `frameTick` consumers migrated: egframe (director/destroyed-cue
+  deadlines, bullet/particle slot selectors, RNG reseed), egthreat (AI
+  phase selectors, roll-command bit test — `(frameTick >> 8) & 8` is
+  `bit(11)`), egcombat (speed throttles, indicator blink, visibility
+  phases, destroyed-cue deadline), egflight (eject smoke index, fuel
+  cadence `umod`, view-snapshot ring indices), egtarget/egtacmap/egkeys
+  (display blink bits), blackbox diagnostics/snapshot (`word()` at the
+  serialization boundary) and egmain (sentinel arm).
+* Tests seed/compare through `Ticks::fromWord(...)`/`word()`; the sortie
+  hash keeps reading `g_directorEventDeadline.word()` so the golden
+  comparison is unchanged.
+* `typed_ticks_tests` covers every named op against literal int16 oracles
+  (wrap at ±32767, signed vs unsigned shift/mod, `(v>>8)&8 == bit(11)`,
+  deadline sentinel/arm/fire pattern); five new compile-fail cases prove
+  `Ticks` rejects primitive construction, conversion, assignment and
+  mixed arithmetic.
+
+Verification: fixed 60/60, modern smoke, analyzer clean on all touched
+units. The int16 wrap itself is preserved under modern — tick arithmetic
+is identical on both backends by design; what modern keeps fractional is
+the state advanced per tick, not the tick count.
+
 ### Next acceptance boundary
 
 The decision-math surface is migrated end to end: every gameplay compare
