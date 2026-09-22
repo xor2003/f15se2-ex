@@ -1,8 +1,10 @@
 #include "math/legacy_rotation.hpp"
 #include "math/legacy_horizontal.hpp"
+#include "math/map_position.hpp"
 using f15::math::legacy::fineUnits;
 using f15::math::legacy::signedAngle;
 using f15::math::legacy::angleFromWord;
+using FineCoord = f15::math::FineCoord<f15::math::GameBackend>;
 #include "egdata.h"
 #include "egtypes.h"
 #include "struct.h"
@@ -190,11 +192,11 @@ int main() {
     g_simObjects[0].flags.b[0] = kAliveFlag;
     g_projectiles[kProjectileSlot].mapX = 100;
     g_projectiles[kProjectileSlot].mapY = 200;
-    g_projectiles[kProjectileSlot].fineX = 100 << 5;
-    g_projectiles[kProjectileSlot].fineY = 200 << 5;
+    g_projectiles[kProjectileSlot].fineX = FineCoord::fromRep(100 << 5);
+    g_projectiles[kProjectileSlot].fineY = FineCoord::fromRep(200 << 5);
     g_projectiles[kProjectileSlot].alt = 300;
-    g_projectiles[kProjectileSlot].worldX = 0x0100;
-    g_projectiles[kProjectileSlot].worldY = 0x0200;
+    g_projectiles[kProjectileSlot].head = angleFromWord(0x0100);
+    g_projectiles[kProjectileSlot].pitch = angleFromWord(0x0200);
     g_projectiles[kProjectileSlot].ttl = kProjectilePrevTtl;
     objCapture(simPrev, projPrev);
 
@@ -209,11 +211,11 @@ int main() {
     g_simObjects[0].flags.b[0] = kAliveFlag;
     g_projectiles[kProjectileSlot].mapX = 300;
     g_projectiles[kProjectileSlot].mapY = 600;
-    g_projectiles[kProjectileSlot].fineX = 300 << 5;
-    g_projectiles[kProjectileSlot].fineY = 600 << 5;
+    g_projectiles[kProjectileSlot].fineX = FineCoord::fromRep(300 << 5);
+    g_projectiles[kProjectileSlot].fineY = FineCoord::fromRep(600 << 5);
     g_projectiles[kProjectileSlot].alt = 900;
-    g_projectiles[kProjectileSlot].worldX = 0x0300;
-    g_projectiles[kProjectileSlot].worldY = 0x0400;
+    g_projectiles[kProjectileSlot].head = angleFromWord(0x0300);
+    g_projectiles[kProjectileSlot].pitch = angleFromWord(0x0400);
     g_projectiles[kProjectileSlot].ttl = kProjectileNextTtl;
     objCapture(simNext, projNext);
 
@@ -227,7 +229,7 @@ int main() {
                 g_projectiles[kProjectileSlot].mapX == 200 &&
                 g_projectiles[kProjectileSlot].mapY == 400 &&
                 g_projectiles[kProjectileSlot].alt == 600 &&
-                g_projectiles[kProjectileSlot].worldX == 0x0200,
+                signedAngle(g_projectiles[kProjectileSlot].head) == 0x0200,
             "objApplyInterp interpolates alive objects and one-step projectiles");
 
     objRestore(simNext, projNext);

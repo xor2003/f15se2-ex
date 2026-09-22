@@ -178,6 +178,85 @@ public:
             return {RollCommand<B>(roll * pitchDivisor * wordRadians), PitchCommand<B>(pitch * pitchDivisor * wordRadians)};
         }
     }
+
+    /* ---- Projectile guidance (updateThreatTargeting / fireMissile) ---- */
+
+    /* computeBearing endpoint: the aim bearing for a plain delta pair. Fixed
+     * runs the original LUT approximation; modern evaluates atan2 directly —
+     * the table + linear interpolation was the legacy limit. (0, 0) keeps the
+     * original's south answer. */
+    static Angle<B> aimBearing(int dx, int dy) {
+        if constexpr (std::is_same_v<B, FixedBackend>)
+            return Angle<B>(fixed::computeBearing(dx, dy));
+        else
+            return Angle<B>(dx == 0 && dy == 0 ? 32768.0 * wordRadians : std::atan2(dx, dy));
+    }
+
+    /* clampRange on a signed-word steering delta, including the <= -0x4000
+     * wrap-to-max quirk. Limits are the original word magnitudes. */
+    static Angle<B> limitTurn(Angle<B> delta, int loWords, int hiWords) {
+        if constexpr (std::is_same_v<B, FixedBackend>) {
+            const int lo = static_cast<std::int16_t>(loWords);
+            const int hi = static_cast<std::int16_t>(hiWords);
+            const int v = word(delta.value_.raw());
+            const int clamped = v > hi ? hi : v >= lo ? v : v <= -0x4000 ? hi : lo;
+            return Angle<B>(fixed::Angle16::raw(static_cast<std::uint16_t>(clamped)));
+        } else {
+            const double lo = loWords * wordRadians, hi = hiWords * wordRadians;
+            const double v = delta.value_;
+            return Angle<B>(v > hi ? hi : v >= lo ? v : v <= -16384.0 * wordRadians ? hi : lo);
+        }
+    }
+
+    /* (delta << 2) / divisor applied as an angle step. Fixed reproduces the
+     * word-shift + truncating int division + int16 store; modern keeps the
+     * fraction both discarded. */
+    static Angle<B> turnStep(Angle<B> delta, int divisor) {
+        if constexpr (std::is_same_v<B, FixedBackend>)
+            return Angle<B>(fixed::Angle16::raw(static_cast<std::uint16_t>(
+                static_cast<std::int16_t>((word(delta.value_.raw()) << 2) / divisor))));
+        else
+            return Angle<B>(delta.value_ * 4 / divisor);
+    }
+
+    /* delta << 1 bank word the steering loop wrote alongside the turn. */
+    static Angle<B> bankFromTurn(Angle<B> delta) {
+        if constexpr (std::is_same_v<B, FixedBackend>)
+            return Angle<B>(fixed::Angle16::raw(static_cast<std::uint16_t>(
+                static_cast<std::int16_t>(word(delta.value_.raw()) << 1))));
+        else
+            return Angle<B>(delta.value_ * 2);
+    }
+
+    /* magnitude / divisor as an angle decrement — the gravity and dive
+     * steps ((sign << 0xc) / scaling, 0x800 / scaling). */
+    static Angle<B> scaledStep(int magnitude, int divisor) {
+        if constexpr (std::is_same_v<B, FixedBackend>)
+            return Angle<B>(fixed::Angle16::raw(static_cast<std::uint16_t>(
+                static_cast<std::int16_t>(magnitude / divisor))));
+        else
+            return Angle<B>(magnitude * wordRadians / divisor);
+    }
+
+    /* (trig(heading) * step) >> 15 fine-unit displacement per sim step. Fixed
+     * keeps the LUT Q15 word product; modern applies continuous trig to the
+     * same step so the fractional heading is not re-quantized. */
+    static typename FineCoord<B>::StepRep sineStep(Angle<B> heading, int step,
+                                                   const std::int16_t *lut) {
+        if constexpr (std::is_same_v<B, FixedBackend>)
+            return static_cast<std::int32_t>(
+                (static_cast<std::int64_t>(fixed::sine(heading.value_, lut).asInt()) * step) >> 15);
+        else
+            return std::sin(heading.value_) * step;
+    }
+    static typename FineCoord<B>::StepRep cosineStep(Angle<B> heading, int step,
+                                                     const std::int16_t *lut) {
+        if constexpr (std::is_same_v<B, FixedBackend>)
+            return static_cast<std::int32_t>(
+                (static_cast<std::int64_t>(fixed::cosine(heading.value_, lut).asInt()) * step) >> 15);
+        else
+            return std::cos(heading.value_) * step;
+    }
 };
 }
 #endif

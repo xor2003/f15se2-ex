@@ -5,9 +5,20 @@
 #include "math/legacy_airspeed.hpp"
 #include "math/legacy_propulsion.hpp"
 #include "math/legacy_map.hpp"
+#include "math/legacy_horizontal.hpp"
 #include "math_rotation_reference.hpp"
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
+
+/* Real egmath.c word functions, linked from f15se2_core: the fixed oracles the
+ * typed guidance helpers must reproduce bit-exactly. */
+extern int16_t computeBearing(int16_t deltaX, int16_t deltaY);
+extern int16_t clampRange(int16_t value, int16_t minVal, int16_t maxVal);
+extern int16_t sine(int16_t angle);
+extern int16_t cosine(int16_t angle);
+extern int16_t sinMul(int16_t angle, int16_t value);
+extern const int16_t g_angleLut[260];
 
 namespace {
 using namespace f15::math;
@@ -130,5 +141,126 @@ void modernApproachCases() {
     const auto corridor = GuidanceMath<M>::recoveryApproach({}, {}, {}, true, RecoveryDirection::North, true);
     require(AltitudeBoundary<M>::render(corridor.height) == -20, "modern corridor descent target changed");
 }
+
+/* Projectile guidance state: the updateThreatTargeting steering chain migrated
+ * off raw angle/fine words. Fixed oracles are the real egmath.c functions;
+ * modern cases prove the fractions the word path discarded. */
+void projectileFixedCases() {
+    using rotation_reference::word;
+    for (int raw = 0; raw < 65536; ++raw)
+        for (int dy : {-32768, -12345, -4096, -1, 0, 1, 4096, 12345, 32767}) {
+            const int dx = word(raw);
+            require(legacy::signedAngle(GuidanceMath<F>::aimBearing(dx, dy)) ==
+                    computeBearing(static_cast<int16_t>(dx), static_cast<int16_t>(dy)),
+                "fixed aim bearing differs from computeBearing");
+        }
+    for (int dx : {-32768, -1, 0, 1, 12345})
+        for (int raw = 0; raw < 65536; ++raw)
+            require(legacy::signedAngle(GuidanceMath<F>::aimBearing(dx, word(raw))) ==
+                    computeBearing(static_cast<int16_t>(dx), static_cast<int16_t>(word(raw))),
+                "fixed aim bearing differs from computeBearing (dy sweep)");
+    /* clampRange quirk preserved: the <= -0x4000 floor picks the high end. */
+    for (int raw = 0; raw < 65536; ++raw)
+        for (int limit : {32, 256, 2048, 8192, 30000})
+            require(legacy::signedAngle(GuidanceMath<F>::limitTurn(legacy::angleFromWord(raw),
+                        -limit, limit)) == clampRange(static_cast<int16_t>(word(raw)),
+                        static_cast<int16_t>(-limit), static_cast<int16_t>(limit)),
+                "fixed turn clamp differs from clampRange");
+    /* Steering step: (delta << 2) / scaling, word-truncated int division. */
+    for (int raw = 0; raw < 65536; ++raw)
+        for (int scaling : {1, 4, 15, 60})
+            require(legacy::signedAngle(GuidanceMath<F>::turnStep(legacy::angleFromWord(raw),
+                        scaling)) == static_cast<int16_t>((word(raw) << 2) / scaling),
+                "fixed turn step differs from the word formula");
+    /* Bank = delta << 1 in word space. */
+    for (int raw = 0; raw < 65536; ++raw)
+        require(legacy::signedAngle(GuidanceMath<F>::bankFromTurn(legacy::angleFromWord(raw))) ==
+                static_cast<int16_t>(word(raw) << 1), "fixed bank step differs from the word formula");
+    /* Scaled decrement: (magnitude << shift) / divisor used by gravity/dive. */
+    for (int mag : {-4096, -2048, 0, 2048, 4096})
+        for (int scaling : {1, 4, 15, 60})
+            require(legacy::signedAngle(GuidanceMath<F>::scaledStep(mag, scaling)) ==
+                    static_cast<int16_t>(mag / scaling),
+                "fixed scaled step differs from the word formula");
+    /* Fine displacement: ((int64)sine(heading) * step) >> 15. */
+    for (int raw = 0; raw < 65536; raw += 7)
+        for (int step : {-4096, -1, 0, 1, 4096}) {
+            require(GuidanceMath<F>::sineStep(legacy::angleFromWord(raw), step, g_angleLut) ==
+                    static_cast<int>((static_cast<int64_t>(sine(static_cast<int16_t>(word(raw))) * step) >> 15)),
+                "fixed fine sine step differs from the word formula");
+            require(GuidanceMath<F>::cosineStep(legacy::angleFromWord(raw), step, g_angleLut) ==
+                    static_cast<int>((static_cast<int64_t>(cosine(static_cast<int16_t>(word(raw))) * step) >> 15)),
+                "fixed fine cosine step differs from the word formula");
+        }
+    /* FineCoord: the 21-bit object ring, map word derivation, and lerp. */
+    for (int v : {-1, -0x10, 0, 1, 0x1FFFFF, 0x200000, 0x200000 + 33, 0x7FFFFFFF}) {
+        const auto fine = FineCoord<F>::fromRep(v);
+        require(MapBoundary<F>::fineWord(fine) == (v & 0x1FFFFF), "fixed fine wrap changed");
+        require(fine.mapWord() == static_cast<uint16_t>((v & 0x1FFFFF) >> 5), "fixed fine map word changed");
+    }
+    for (int a : {0, 100, 0x1FFFFF})
+        for (int b : {0, 0x1FFFFF - 100, 0x1FFFFF})
+            for (int num : {0, 7, 15})
+                require(MapBoundary<F>::fineWord(FineCoord<F>::interpolate(
+                            FineCoord<F>::fromRep(a), FineCoord<F>::fromRep(b),
+                            FrameFraction::fromTicks(num, 15))) ==
+                        a + static_cast<int>((static_cast<int64_t>(b - a) * num) / 15),
+                    "fixed fine interpolation differs from lerpLinear");
+    /* Plain signed-word difference magnitude, not the wrapped shortest arc. */
+    for (int raw = 0; raw < 65536; raw += 13)
+        for (int other : {-32768, -4096, 0, 4096, 32767})
+            require(legacy::angleSeparation(legacy::angleFromWord(raw), legacy::angleFromWord(other)) ==
+                    std::abs(word(raw) - other), "fixed angle separation changed the plain word difference");
 }
-int main() { fixedCases(); modernCases(); recoveryCases(); modernApproachCases(); }
+void projectileModernCases() {
+    constexpr double unit = 6.28318530717958647692 / 65536;
+    constexpr double pi = 3.14159265358979323846;
+    /* atan2 with the compass convention dx=heading-offset, dy=north. */
+    require(std::abs(Boundary<M>::radians(GuidanceMath<M>::aimBearing(1, 2)) - std::atan2(1.0, 2.0)) < 1e-14,
+        "modern aim bearing quantized or flipped the atan2 convention");
+    require(std::abs(Boundary<M>::radians(GuidanceMath<M>::aimBearing(0, 0)) - (-pi)) < 1e-14,
+        "modern zero-delta bearing lost the south quirk");
+    /* Fractional deltas survive steering and clamping. */
+    const auto steered = GuidanceMath<M>::turnStep(Boundary<M>::radians(0.25), 15);
+    require(std::abs(Boundary<M>::radians(steered) - 1.0 / 15) < 1e-14,
+        "modern turn step truncated the fractional delta");
+    const auto clamped = GuidanceMath<M>::limitTurn(Boundary<M>::radians(100.5 * unit), -256, 256);
+    require(std::abs(Boundary<M>::radians(clamped) - 100.5 * unit) < 1e-14,
+        "modern turn clamp truncated the fractional delta");
+    const auto wrappedClamp = GuidanceMath<M>::limitTurn(Boundary<M>::radians(-0.51 * pi), -256, 256);
+    require(std::abs(Boundary<M>::radians(wrappedClamp) - 256 * unit) < 1e-14,
+        "modern turn clamp lost the <= -0x4000 wrap-to-max quirk");
+    const auto bank = GuidanceMath<M>::bankFromTurn(Boundary<M>::radians(0.125));
+    require(std::abs(Boundary<M>::radians(bank) - 0.25) < 1e-14, "modern bank step truncated");
+    require(std::abs(Boundary<M>::radians(GuidanceMath<M>::scaledStep(4096, 15)) - 4096.0 / 15 * unit) < 1e-14,
+        "modern scaled step truncated");
+    /* Fractional heading survives the fine displacement; no LUT quantization. */
+    const auto rad = Boundary<M>::radians(0.6);
+    require(std::abs(GuidanceMath<M>::sineStep(rad, 100, g_angleLut) - std::sin(0.6) * 100) < 1e-9,
+        "modern fine sine step lost precision");
+    require(std::abs(GuidanceMath<M>::cosineStep(rad, 100, g_angleLut) - std::cos(0.6) * 100) < 1e-9,
+        "modern fine cosine step lost precision");
+    /* FineCoord keeps the sub-fine-unit fraction through wrap and arithmetic. */
+    const auto wrapped = FineCoord<M>::fromRep(2097151.75 + 0.5);
+    require(std::abs(MapBoundary<M>::fineRep(wrapped) - 0.25) < 1e-12,
+        "modern fine wrap discarded the fraction");
+    const auto negative = FineCoord<M>::fromRep(-0.25);
+    require(std::abs(MapBoundary<M>::fineRep(negative) - 2097151.75) < 1e-12,
+        "modern fine negative wrap differs from the ring");
+    require(FineCoord<M>::fromRep(65535.9 * 32).mapWord() == 65535,
+        "modern fine map word derivation changed");
+    const auto lerped = FineCoord<M>::interpolate(FineCoord<M>::fromRep(100.25),
+        FineCoord<M>::fromRep(200.75), FrameFraction::fromTicks(1, 2));
+    require(std::abs(MapBoundary<M>::fineRep(lerped) - 150.5) < 1e-12,
+        "modern fine interpolation truncated");
+    /* angleSeparation stays the plain difference: no shortest-arc wrap. */
+    const auto sep = legacy::angleSeparation(Boundary<M>::radians(0.9 * pi),
+        Boundary<M>::radians(-0.9 * pi));
+    require(std::abs(sep - 1.8 * pi / unit) < 1e-9,
+        "modern angle separation wrapped onto the shortest arc");
+}
+}
+int main() {
+    fixedCases(); modernCases(); recoveryCases(); modernApproachCases();
+    projectileFixedCases(); projectileModernCases();
+}

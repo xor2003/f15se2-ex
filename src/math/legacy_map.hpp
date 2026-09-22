@@ -16,6 +16,13 @@ template<class B> struct MapBoundary {
     /* Legacy 16-bit map word; wraps modulo 2^16 through a defined conversion. */
     static std::int16_t wordX(MapPosition<B> p) { return word(p.x_); }
     static std::int16_t wordY(MapPosition<B> p) { return word(p.y_); }
+    /* Fine-coordinate rep reads at the int32 storage/render boundary; modern
+     * truncates only where the consumer is a word-domain field. */
+    static std::int32_t fineWord(FineCoord<B> v) {
+        if constexpr (std::is_same_v<B, FixedBackend>) return v.value_;
+        else return static_cast<std::int32_t>(v.value_);
+    }
+    static typename FineCoord<B>::StepRep fineRep(FineCoord<B> v) { return v.value_; }
 private:
     static std::int16_t word(Rep v) {
         if constexpr (std::is_same_v<B, FixedBackend>) return v;
@@ -40,6 +47,8 @@ inline MapPosition<GameBackend> mapPosition(ViewCoordinate<GameBackend, ViewXAxi
 // The coarse map words stored in g_viewX_/g_viewY_ and the frozen layouts.
 inline std::int16_t mapWordX(MapPosition<GameBackend> p) { return Maps::wordX(p); }
 inline std::int16_t mapWordY(MapPosition<GameBackend> p) { return Maps::wordY(p); }
+// int32 fine-coordinate rep for word-domain stores (g_projInterpX, snapshots).
+inline std::int32_t fineWord(FineCoord<GameBackend> v) { return Maps::fineWord(v); }
 
 /* Word-unit offset from the typed position to stored map coordinates. Each
  * argument keeps its original promotion (uint16 zero-extends, int16

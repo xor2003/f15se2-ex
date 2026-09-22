@@ -12,6 +12,7 @@
 #include "math/legacy_rotation.hpp"
 #include "math/legacy_airspeed.hpp"
 #include "math/legacy_altitude.hpp"
+#include "math/legacy_map.hpp"
 
 #include <stdio.h>
 
@@ -127,9 +128,13 @@ static void writeProjectiles(FILE *f) {
                 "\"orientation\":{\"world_x\":%d,\"world_y\":%d,\"world_z\":%d},"
                 "\"speed\":%d,\"ttl\":%d,\"spec_index\":%d,"
                 "\"weapon_index\":%d,\"target_lock\":%d,\"target_ref\":%d}%s\n",
-                i, (unsigned)p->mapX, (unsigned)p->mapY, (int)p->fineX,
-                (int)p->fineY, (int)g_projInterpX[i], (int)g_projInterpY[i],
-                (int)p->alt, (int)p->worldX, (int)p->worldY, (int)p->worldZ,
+                i, (unsigned)p->mapX, (unsigned)p->mapY,
+                (int)f15::math::legacy::fineWord(p->fineX),
+                (int)f15::math::legacy::fineWord(p->fineY),
+                (int)g_projInterpX[i], (int)g_projInterpY[i],
+                (int)p->alt, (int)f15::math::legacy::signedAngle(p->head),
+                (int)f15::math::legacy::signedAngle(p->pitch),
+                (int)f15::math::legacy::signedAngle(p->bank),
                 (int)p->speed, (int)p->ttl, (int)p->specIdx,
                 (int)p->weaponIdx, (int)p->targetLock, (int)p->targetRef,
                 i + 1 == SNAPSHOT_PROJECTILE_COUNT ? "" : ",");

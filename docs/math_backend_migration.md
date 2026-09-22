@@ -973,6 +973,57 @@ Verification: fixed 59/59 and modern smoke pass; `typed_horizontal_tests`
 checks the offset/ring/range adapters against the literal promotion and the
 real `rangeApprox` over ~350k sampled cases including the quirk delta.
 
+## Projectile guidance and state checkpoint
+
+`Projectile`'s attitude and fine position are typed: `head`/`pitch`/`bank` are
+`Angle<GameBackend>` (the old `worldX/Y/Z` words) and `fineX`/`fineY` are
+`FineCoord<GameBackend>` — an int32 fixed / double modern rep on the 21-bit
+object ring, wrapping in the constructor exactly where the original masked
+`& 0x1FFFFF`. `mapX`/`mapY`, `alt`, `speed`, `ttl`, IDs and refs stay raw
+storage/protocol fields; `mapWord()` derives the coarse word only at write
+time.
+
+New math surface (`guidance.hpp`, `map_position.hpp`, `legacy_rotation.hpp`):
+
+* `GuidanceMath::aimBearing(dx, dy)` — `computeBearing` endpoint; fixed runs
+  the original LUT approximation, modern `atan2` directly.
+* `limitTurn`/`turnStep`/`bankFromTurn`/`scaledStep` — the steering chain's
+  `clampRange` (including the <= -0x4000 wrap-to-max quirk and int16 limit
+  truncation under fixed), `(delta<<2)/scaling` step, `delta<<1` bank and
+  `magnitude/scaling` gravity/dive decrements. Modern keeps the fractions the
+  word shifts and truncating divides discarded, and does not wrap the clamp
+  limits to int16.
+* `sineStep`/`cosineStep` — `(trig(heading)*step)>>15` fine-unit advance;
+  fixed is the LUT Q15 product, modern is continuous trig on the fractional
+  heading, so sub-fine-unit motion survives instead of re-quantizing.
+* `FineCoord::interpolate` / `PoseInterpolation::angle` — the snapshot lerp
+  (`lerpLinear`/`lerpAngle` semantics verbatim, snap on the seam).
+* `legacy::angleSeparation(a, b)` — the *unwrapped* `abs(word - word)`
+  acquisition compare, distinct from the shortest-arc `angleMagnitude(a - b)`.
+* `Angle` ordering/`sign`/`isPositive` — signed-domain compares matching the
+  int16 word tests the originals used.
+* `legacy::fineRep`/`fineWord` — fine-unit rep access at the seed/store
+  boundaries (`g_projInterpX/Y`, snapshots, hash/dump).
+
+Consumers: `updateThreatTargeting` steering (with `aimIsHeading` preserving the
+speed-up tick's "aim at own heading" no-op — `angleFromWord(signedAngle(head))`
+would pull modern toward the word grid), `samCanAcquireTarget` cone checks,
+`fireMissile`/`fireAirThreat`/`fireGroundThreat` seeding, the `egsys` capture/
+interpolate/restore path (TTL gating and the alt low-bit track flag kept),
+`egflight` director-camera reads, `egtarget`/`egui` render-boundary reads
+(`signedAngle` conversions), and the blackbox hash/dump/snapshot writers which
+hash the word views so the fixed golden stays bit-identical.
+
+Word-domain stays: `step`/`alt`/`speed` arithmetic and the `cosMul`/`sinMul`
+vertical decomposition — those fields are int16/int32 protocol state shared
+with snapshots, so the pitch word read there is a reviewed boundary.
+
+Verification: fixed 59/59 — `sortie_parity_tests` replays the `e28b9a4`
+golden across live projectile flight — and modern smoke pass.
+`typed_guidance_tests` checks the new helpers against the real `computeBearing`,
+`clampRange`, `sine`/`cosine` word oracles over the full 16-bit heading space
+plus modern fractional cases.
+
 ### Next acceptance boundary
 
 Aircraft Euler, command, altitude, climb, airspeed and fine horizontal position

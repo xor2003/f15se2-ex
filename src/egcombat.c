@@ -1,6 +1,5 @@
 #include "math/legacy_horizontal.hpp"
 #include "math/legacy_airspeed.hpp"
-using f15::math::legacy::fineUnits;
 // seg000 optimized code (/Ot)
 #include "eg3dmap.h"
 #include "egcode.h"
@@ -10,10 +9,15 @@ using f15::math::legacy::fineUnits;
 #include "math/legacy_rotation.hpp"
 #include "math/legacy_altitude.hpp"
 #include "math/legacy_map.hpp"
+#include "math/guidance.hpp"
 using f15::math::legacy::signedAngle;
 using f15::math::legacy::angleFromWord;
 using f15::math::legacy::angleMagnitude;
 using f15::math::legacy::angleMagnitudeCompat;
+using f15::math::legacy::angleSeparation;
+using f15::math::legacy::fineRep;
+using FineCoord = f15::math::FineCoord<f15::math::GameBackend>;
+using ProjectileGuidance = f15::math::GuidanceMath<f15::math::GameBackend>;
 #include "egflight.h"
 #include "egframe.h"
 #include "egkeys.h"
@@ -90,13 +94,13 @@ void fireAirThreat(int16 objIdx) {
                                 g_projectiles[slot].mapY = g_simObjects[objIdx].posY;
                                 /* seed the fine position from the launcher's fine
                                  * coords (posX/Y are worldX/Y>>5, so fine>>5 == map) */
-                                g_projectiles[slot].fineX = g_simObjects[objIdx].worldX & 0x1FFFFF;
-                                g_projectiles[slot].fineY = g_simObjects[objIdx].worldY & 0x1FFFFF;
+                                g_projectiles[slot].fineX = FineCoord::fromRep(g_simObjects[objIdx].worldX);
+                                g_projectiles[slot].fineY = FineCoord::fromRep(g_simObjects[objIdx].worldY);
                                 g_projectiles[slot].alt = g_simObjects[objIdx].alt - 25;
                                 g_projectiles[slot].speed = sams[idx].maxSpeed >> 6;
-                                g_projectiles[slot].worldX = g_simObjects[objIdx].heading.w;
-                                g_projectiles[slot].worldY = g_simObjects[objIdx].pitch - 0x400;
-                                g_projectiles[slot].worldZ = g_simObjects[objIdx].bank.w;
+                                g_projectiles[slot].head = angleFromWord(g_simObjects[objIdx].heading.w);
+                                g_projectiles[slot].pitch = angleFromWord(g_simObjects[objIdx].pitch) - angleFromWord(0x400);
+                                g_projectiles[slot].bank = angleFromWord(g_simObjects[objIdx].bank.w);
 
                                 g_projectiles[slot].ttl = (int16)((((int32)sams[idx].lockRange << 3) * (int32)g_frameRateScaling) / (int32)g_projectiles[slot].speed);
 
@@ -169,8 +173,8 @@ void spawnEnemyAircraft(int16 slot, int16 objType) {
 
 // ==== seg000:0x79ee ====
 void updateThreatTargeting(void) {
-    int16 slot, scan, mode, spec, locked, aimY, bestIdx, step, delta;
-    int16 viewX, viewY, alt0, bear, wpX, wpY, ring, acq, wp;
+    int16 slot, scan, mode, spec, locked, aimY, bestIdx, step;
+    int16 viewX, viewY, alt0, wpX, wpY, ring, acq, wp;
     uint16 best, dist;
 
     switchIndicatorColor(0, 8);
@@ -188,6 +192,10 @@ void updateThreatTargeting(void) {
             spec = g_projectiles[slot].specIdx;
             locked = 0;
             aimY = 0;
+            /* true while aimY echoes the projectile's own heading word — the
+             * speed-up tick steers toward the current heading, i.e. not at all.
+             * Modern must see the typed heading itself, not a re-quantized word. */
+            bool aimIsHeading = false;
             mode = sams[spec].weaponClass;
 
             if (slot < 8) {
@@ -258,7 +266,8 @@ void updateThreatTargeting(void) {
                 }
                 if (g_projectiles[slot].speed < (sams[spec].maxSpeed >> 6) && (frameTick & 1)) {
                     g_projectiles[slot].speed++;
-                    aimY = g_projectiles[slot].worldX;
+                    aimY = signedAngle(g_projectiles[slot].head);
+                    aimIsHeading = true;
                 }
                 if (mode == 4 || mode == 6 || mode == 5 || mode == 28) {
                     if (g_projectiles[slot].targetLock == -1) {
@@ -270,6 +279,7 @@ void updateThreatTargeting(void) {
                                                            g_planeTable.planes[scan].mapY, 0, mode),
                                  (unsigned)g_acqRange < best && acq != 0)) {
                                 aimY = g_acqAimY;
+                                aimIsHeading = false;
                                 best = g_acqRange;
                                 bestIdx = scan;
                                 alt0 = 0;
@@ -282,6 +292,7 @@ void updateThreatTargeting(void) {
                                                   g_planeTable.planes[scan].mapY, 0, mode);
                         if (acq != 0) {
                             aimY = g_acqAimY;
+                            aimIsHeading = false;
                             best = g_acqRange;
                             bestIdx = scan;
                             alt0 = 0;
@@ -294,7 +305,7 @@ void updateThreatTargeting(void) {
             }
 
             if (locked != 0 && slot < 8 &&
-                abs(g_acqAimY - g_projectiles[slot].worldX) < 0x1000 && mapEvents[0].ttl == 0) {
+                angleSeparation(angleFromWord(g_acqAimY), g_projectiles[slot].head) < 0x1000 && mapEvents[0].ttl == 0) {
                 if (mode <= 0 && (frameTick & 2))
                     switchIndicatorColor(1, 0xc);
                 if (mode != 0 && !(frameTick & 2))
@@ -313,58 +324,62 @@ void updateThreatTargeting(void) {
                down 0x1000) ballistically into the ground. locked is the real
                have-a-target flag. */
             if (locked != 0) {
-                delta = aimY - g_projectiles[slot].worldX;
+                const auto aim = aimIsHeading ? g_projectiles[slot].head : angleFromWord(aimY);
+                auto delta = aim - g_projectiles[slot].head;
                 if (slot < 8)
-                    delta = clampRange(delta, -(g_missionStatus + 1) << 8,
-                                       (g_missionStatus + 1) << 8);
-                delta = clampRange(delta, -(sams[spec].turnRate * 0x80),
-                                   sams[spec].turnRate * 0x80);
-                g_projectiles[slot].worldX += (delta << 2) / g_frameRateScaling;
-                g_projectiles[slot].worldZ = delta << 1;
+                    delta = ProjectileGuidance::limitTurn(delta, -(g_missionStatus + 1) << 8,
+                                                          (g_missionStatus + 1) << 8);
+                delta = ProjectileGuidance::limitTurn(delta, -(sams[spec].turnRate * 0x80),
+                                                      sams[spec].turnRate * 0x80);
+                g_projectiles[slot].head += ProjectileGuidance::turnStep(delta, g_frameRateScaling);
+                g_projectiles[slot].bank = ProjectileGuidance::bankFromTurn(delta);
+                f15::math::Angle<f15::math::GameBackend> pitchAim;
                 if (slot < 8 && best < 0x400) {
-                    aimY = computeBearing((alt0 - g_projectiles[slot].alt) >> 4, abs((int16)best));
+                    pitchAim = ProjectileGuidance::aimBearing((alt0 - g_projectiles[slot].alt) >> 4,
+                                                              abs((int16)best));
                 } else {
-                    aimY = computeBearing(((alt0 - g_projectiles[slot].alt) >> 5) +
+                    pitchAim = ProjectileGuidance::aimBearing(((alt0 - g_projectiles[slot].alt) >> 5) +
                                               (abs((int16)best) > 0x140 ? abs((int16)best) >> 3 : 0),
                                           abs((int16)best));
                 }
-                bear = aimY - g_projectiles[slot].worldY;
-                bear = clampRange(bear, -(sams[spec].turnRate << 0xb),
-                                  sams[spec].turnRate << 9);
-                g_projectiles[slot].worldY += (bear << 2) / g_frameRateScaling;
+                auto bear = pitchAim - g_projectiles[slot].pitch;
+                bear = ProjectileGuidance::limitTurn(bear, -(sams[spec].turnRate << 0xb),
+                                                     sams[spec].turnRate << 9);
+                g_projectiles[slot].pitch += ProjectileGuidance::turnStep(bear, g_frameRateScaling);
             } else {
-                if (g_projectiles[slot].worldY > 0 && mode != 30)
-                    g_projectiles[slot].worldY -=
-                        (signOf(g_projectiles[slot].worldY) << 0xc) / g_frameRateScaling;
+                if (g_projectiles[slot].pitch.isPositive() && mode != 30)
+                    g_projectiles[slot].pitch -=
+                        ProjectileGuidance::scaledStep(g_projectiles[slot].pitch.sign() << 0xc,
+                                                       g_frameRateScaling);
             }
 
-            if (mode == 28 && g_projectiles[slot].worldY > -0x800)
-                g_projectiles[slot].worldY = -0x800;
+            if (mode == 28 && g_projectiles[slot].pitch > angleFromWord(-0x800))
+                g_projectiles[slot].pitch = angleFromWord(-0x800);
             if (mode == 30 || g_projectiles[slot].alt == 1) {
-                if ((g_projectiles[slot].worldY -= 0x800 / g_frameRateScaling) <
-                    g_projectiles[slot].targetRef)
-                    g_projectiles[slot].worldY = g_projectiles[slot].targetRef;
+                if ((g_projectiles[slot].pitch -= ProjectileGuidance::scaledStep(0x800, g_frameRateScaling)) <
+                    angleFromWord(g_projectiles[slot].targetRef))
+                    g_projectiles[slot].pitch = angleFromWord(g_projectiles[slot].targetRef);
             }
 
             /* Advance the position at fine (mapX<<5) scale, keeping the fraction
              * the original truncated twice per step (step's <<3/scaling divide and
              * sinMul's whole-map-unit result) — slow or oblique flight otherwise
              * stair-steps a map unit at a time. mapX/mapY are derived (fine>>5). */
-            step = (int)(((long)cosMul(g_projectiles[slot].worldY, g_projectiles[slot].speed) << 8) / g_frameRateScaling);
+            step = (int)(((long)cosMul(signedAngle(g_projectiles[slot].pitch), g_projectiles[slot].speed) << 8) / g_frameRateScaling);
             if (mode == 30) {
                 step /= 2;
-                g_projectiles[slot].alt += sinMul(g_projectiles[slot].worldY,
+                g_projectiles[slot].alt += sinMul(signedAngle(g_projectiles[slot].pitch),
                                                   (g_projectiles[slot].speed << 7) / g_frameRateScaling);
             } else {
-                g_projectiles[slot].alt += sinMul(g_projectiles[slot].worldY,
+                g_projectiles[slot].alt += sinMul(signedAngle(g_projectiles[slot].pitch),
                                                   (int16)(*(uint8 *)&g_projectiles[slot].speed << 8) / g_frameRateScaling);
             }
-            g_projectiles[slot].fineX = (g_projectiles[slot].fineX +
-                                         (int32)(((int64)sine(g_projectiles[slot].worldX) * step) >> 15)) & 0x1FFFFF;
-            g_projectiles[slot].fineY = (g_projectiles[slot].fineY -
-                                         (int32)(((int64)cosine(g_projectiles[slot].worldX) * step) >> 15)) & 0x1FFFFF;
-            g_projectiles[slot].mapX = (uint16)(g_projectiles[slot].fineX >> 5);
-            g_projectiles[slot].mapY = (uint16)(g_projectiles[slot].fineY >> 5);
+            g_projectiles[slot].fineX = g_projectiles[slot].fineX.advanced(
+                ProjectileGuidance::sineStep(g_projectiles[slot].head, step, g_angleLut));
+            g_projectiles[slot].fineY = g_projectiles[slot].fineY.advanced(
+                -ProjectileGuidance::cosineStep(g_projectiles[slot].head, step, g_angleLut));
+            g_projectiles[slot].mapX = g_projectiles[slot].fineX.mapWord();
+            g_projectiles[slot].mapY = g_projectiles[slot].fineY.mapWord();
             (g_projectiles + slot)->ttl--;
             if (slot < 8) {
                 if (locked == 0)
@@ -500,7 +515,7 @@ void updateThreatTargeting(void) {
 
 // ==== seg000:0x85be ====
 int samCanAcquireTarget(int slot, int targetX, int targetY, int targetAlt, int mode) {
-    int bearDiff, range, dx, dy;
+    int range, dx, dy;
 
     dx = targetX - g_projectiles[slot].mapX;
     dy = targetY - g_projectiles[slot].mapY;
@@ -510,7 +525,7 @@ int samCanAcquireTarget(int slot, int targetX, int targetY, int targetAlt, int m
         g_acqRange = range;
         return 1;
     }
-    bearDiff = abs16Compat((int16)(g_acqAimY - g_projectiles[slot].worldX));
+    const auto bearDiff = angleMagnitudeCompat(angleFromWord(g_acqAimY) - g_projectiles[slot].head);
     if (bearDiff > 0x1000 && mode != 3) {
         if (bearDiff > 0x6000 && slot < 8) {
             if ((g_projectiles[slot].speed << 4) / g_frameRateScaling < range) {
@@ -520,7 +535,7 @@ int samCanAcquireTarget(int slot, int targetX, int targetY, int targetAlt, int m
         return 0;
     }
     if (mode == 0) {
-        if (angleMagnitudeCompat(angleFromWord(g_projectiles[slot].worldX) - g_ourHead) > 0x2000) {
+        if (angleMagnitudeCompat(g_projectiles[slot].head - g_ourHead) > 0x2000) {
             return 0;
         }
     }
@@ -528,7 +543,7 @@ int samCanAcquireTarget(int slot, int targetX, int targetY, int targetAlt, int m
         g_acqRange = range;
         return 1;
     }
-    const auto headDiff = angleMagnitudeCompat(angleFromWord(g_projectiles[slot].worldX) - g_ourHead);
+    const auto headDiff = angleMagnitudeCompat(g_projectiles[slot].head - g_ourHead);
     if (std::abs(headDiff - 0x4000) >= 0x2000 - g_missionStatus * 2048) {
         g_acqRange = range;
         return 1;
@@ -731,13 +746,13 @@ void fireMissile() {
      * missile doesn't visibly snap to the 32-fine-unit map grid on the first
      * frame. (mapX<<5) + (fine+0x10)&0x1f == fine+0x10 and the mirrored Y
      * recomposes as 0x10000F - fine, both modulo the 21-bit mask. */
-    g_projectiles[slot].fineX = (fineUnits(g_ViewX) + 0x10) & 0x1FFFFF;
-    g_projectiles[slot].fineY = (0x10000F - fineUnits(g_ViewY)) & 0x1FFFFF;
+    g_projectiles[slot].fineX = FineCoord::fromRep(fineRep(g_ViewX) + 0x10);
+    g_projectiles[slot].fineY = FineCoord::fromRep(0x10000F - fineRep(g_ViewY));
     g_projectiles[slot].alt = (int16)(f15::math::legacy::Altitudes::renderWord(flightSceneHeight()) - 20);
     g_projectiles[slot].speed = f15::math::legacy::projectileSpeed(g_velocity);
-    g_projectiles[slot].worldX = signedAngle(g_ourHead);
-    g_projectiles[slot].worldY = signedAngle(g_ourPitch);
-    g_projectiles[slot].worldZ = signedAngle(g_ourRoll);
+    g_projectiles[slot].head = g_ourHead;
+    g_projectiles[slot].pitch = g_ourPitch;
+    g_projectiles[slot].bank = g_ourRoll;
 
     g_projectiles[slot].ttl = (int16)(((int32)sams[spec].lockRange << (6 - (sams[spec].weaponClass == 6 ? 3 : 2))) * (int32)g_frameRateScaling / (int32)((sams[spec].maxSpeed >> 6) + 1)) + 6;
 
@@ -750,7 +765,7 @@ void fireMissile() {
     g_projectiles[slot].targetLock = -1;
 
     if (spec != 30) {
-        g_projectiles[slot].worldY -= 0x1000;
+        g_projectiles[slot].pitch -= angleFromWord(0x1000);
     } else {
         g_projectiles[slot].targetRef = computeLoftAngle() - 0x400;
         g_loftTargetIdx = g_groundTargetLock;
@@ -774,7 +789,7 @@ void fireMissile() {
     }
 
     if (spec == 29) {
-        g_projectiles[slot].worldY = (int16)0xc000;
+        g_projectiles[slot].pitch = angleFromWord(0xc000);
         g_projectiles[slot].speed = 1;
     }
 

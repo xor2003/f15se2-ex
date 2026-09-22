@@ -14,6 +14,7 @@ class FrameFraction {
     template<class B> friend class HorizontalMath;
     template<class B> friend class AltitudeMath;
     template<class B> friend class MapMath;
+    template<class B> friend class FineCoord;
 public:
     // Scheduler counters are integral; reject extrapolation and fixed-product overflow.
     static FrameFraction fromTicks(std::int64_t elapsed, std::int64_t duration) {
@@ -61,6 +62,11 @@ public:
         const auto d = delta(a, b);
         if constexpr (std::is_same_v<B, FixedBackend>) return d >= 16384 || d <= -16384;
         else return std::abs(d) >= 1.57079632679489661923;
+    }
+    /* Single-angle shortest-arc lerp — the standalone lerpAngle: snap across
+     * the seam, otherwise blend by the frame fraction. */
+    static Angle<B> angle(Angle<B> a, Angle<B> b, FrameFraction fraction) {
+        return snaps(a, b) ? b : blend(a, b, fraction);
     }
     static EulerAngles<B> interpolate(EulerAngles<B> a, EulerAngles<B> b, FrameFraction fraction) {
         // Euler flips describe a single discontinuity: snap the entire pose together.

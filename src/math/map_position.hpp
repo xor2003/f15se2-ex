@@ -3,6 +3,7 @@
 #include "rotation.hpp"
 #include "interpolation.hpp"
 #include <cmath>
+#include <stdexcept>
 
 namespace f15::math {
 template<class B> struct MapBoundary;
@@ -46,6 +47,55 @@ private:
         }
     }
 };
+/* Fine (map << 5) object coordinate on the 21-bit ring the object tables used:
+ * fine = mapWord * 32 + sub-tile fraction. int32 for the fixed backend, double
+ * for modern so per-step sub-fine-unit motion is not truncated. Construction
+ * wraps onto the ring, mirroring the & 0x1FFFFF mask at every original site. */
+template<class B> class FineCoord {
+    static constexpr std::int32_t ringMask = 0x1FFFFF;
+    static constexpr double ringSize = 2097152.0; // ringMask + 1
+    using Rep = std::conditional_t<std::is_same_v<B, FixedBackend>, std::int32_t, double>;
+    Rep value_{};
+    explicit FineCoord(Rep v) : value_(wrap(v)) {}
+    static Rep wrap(Rep v) {
+        if constexpr (std::is_same_v<B, FixedBackend>) return v & ringMask;
+        else {
+            if (!std::isfinite(v)) throw std::domain_error("non-finite fine coordinate");
+            const auto r = std::fmod(v, ringSize);
+            return r < 0 ? r + ringSize : r;
+        }
+    }
+    friend struct MapBoundary<B>;
+    friend class GuidanceMath<B>;
+public:
+    using StepRep = Rep;
+    FineCoord() = default;
+    /* Seed or wrap a fine-unit value onto the object ring. Fixed callers pass
+     * the original int32 expression; modern may keep a fractional rep. */
+    static FineCoord fromRep(Rep v) { return FineCoord(v); }
+    // The (fine + step) & ring advance the original wrote at each integration site.
+    FineCoord advanced(Rep step) const { return FineCoord(value_ + step); }
+    // Derived coarse map word (fine >> 5); modern keeps the fraction until the floor.
+    std::uint16_t mapWord() const {
+        if constexpr (std::is_same_v<B, FixedBackend>) return static_cast<std::uint16_t>(value_ >> 5);
+        else return static_cast<std::uint16_t>(std::floor(value_ / 32.0));
+    }
+    /* Per-axis lerp; fixed reproduces the legacy lerpLinear word math. */
+    static FineCoord interpolate(FineCoord a, FineCoord b, FrameFraction fraction) {
+        if constexpr (std::is_same_v<B, FixedBackend>) {
+            const auto num = fraction.numerator_, den = fraction.denominator_;
+            const auto delta = std::int64_t(b.value_) - a.value_;
+            const auto magnitude = delta < 0 ? -delta : delta;
+            if (magnitude && num > INT64_MAX / magnitude)
+                throw std::overflow_error("fine interpolation product overflow");
+            return FineCoord(a.value_ + static_cast<std::int32_t>(delta * num / den));
+        } else {
+            const double t = double(fraction.numerator_) / fraction.denominator_;
+            return FineCoord(a.value_ + (b.value_ - a.value_) * t);
+        }
+    }
+};
+
 template<class B> class MapMath {
 public:
     // Per-axis lerp; fixed reproduces the legacy lerpLinear word math.

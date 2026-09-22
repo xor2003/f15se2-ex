@@ -233,8 +233,9 @@ typedef struct {
 } SimObjSnap;
 
 typedef struct {
-    int32 fineX, fineY, alt; /* fineX/fineY: authoritative mapX<<5-scale position */
-    int16 head, pitch;       /* g_projectiles[].worldX/worldY hold the missile yaw/pitch */
+    f15::math::FineCoord<f15::math::GameBackend> fineX, fineY; /* authoritative mapX<<5-scale position */
+    int32 alt;
+    f15::math::Angle<f15::math::GameBackend> head, pitch;      /* missile yaw/pitch */
     int16 ttl;
 } ProjSnap;
 
@@ -262,8 +263,8 @@ static void objCapture(SimObjSnap *sim, ProjSnap *proj) {
         proj[i].fineX = g_projectiles[i].fineX;
         proj[i].fineY = g_projectiles[i].fineY;
         proj[i].alt = g_projectiles[i].alt;
-        proj[i].head = g_projectiles[i].worldX;
-        proj[i].pitch = g_projectiles[i].worldY;
+        proj[i].head = g_projectiles[i].head;
+        proj[i].pitch = g_projectiles[i].pitch;
         proj[i].ttl = g_projectiles[i].ttl;
     }
 }
@@ -295,24 +296,27 @@ static void objApplyInterp(const SimObjSnap *sp, const SimObjSnap *sn,
         g_simObjects[i].bank.w = (int16)poseR;
     }
     for (i = 0; i < PROJ_MAX; i++) {
+        using Fine = f15::math::FineCoord<f15::math::GameBackend>;
+        using Pose = f15::math::PoseInterpolation<f15::math::GameBackend>;
+        const auto fraction = f15::math::FrameFraction::fromTicks(num, den);
         /* Default to the authoritative (next) position so a just-fired /
          * non-interpolated slot still has a valid fine value. */
-        g_projInterpX[i] = pn[i].fineX;
-        g_projInterpY[i] = pn[i].fineY;
+        g_projInterpX[i] = f15::math::legacy::fineWord(pn[i].fineX);
+        g_projInterpY[i] = f15::math::legacy::fineWord(pn[i].fineY);
         if (pp[i].ttl <= 0 || pn[i].ttl != pp[i].ttl - 1)
             continue;
-        g_projectiles[i].fineX = lerpLinear(pp[i].fineX, pn[i].fineX, num, den);
-        g_projectiles[i].fineY = lerpLinear(pp[i].fineY, pn[i].fineY, num, den);
-        g_projectiles[i].mapX = (uint16)(g_projectiles[i].fineX >> 5);
-        g_projectiles[i].mapY = (uint16)(g_projectiles[i].fineY >> 5);
-        g_projInterpX[i] = g_projectiles[i].fineX;
-        g_projInterpY[i] = g_projectiles[i].fineY;
+        g_projectiles[i].fineX = Fine::interpolate(pp[i].fineX, pn[i].fineX, fraction);
+        g_projectiles[i].fineY = Fine::interpolate(pp[i].fineY, pn[i].fineY, fraction);
+        g_projectiles[i].mapX = g_projectiles[i].fineX.mapWord();
+        g_projectiles[i].mapY = g_projectiles[i].fineY.mapWord();
+        g_projInterpX[i] = f15::math::legacy::fineWord(g_projectiles[i].fineX);
+        g_projInterpY[i] = f15::math::legacy::fineWord(g_projectiles[i].fineY);
         /* alt's low bit is the track-state flag (radar draws gray when clear),
          * not real altitude — interpolate the altitude but keep the authoritative
          * flag bit so "lost track" stays gray. */
         g_projectiles[i].alt = ((int16)lerpLinear(pp[i].alt, pn[i].alt, num, den) & ~1) | (pn[i].alt & 1);
-        g_projectiles[i].worldX = (int16)lerpAngle(pp[i].head, pn[i].head, num, den);
-        g_projectiles[i].worldY = (int16)lerpAngle(pp[i].pitch, pn[i].pitch, num, den);
+        g_projectiles[i].head = Pose::angle(pp[i].head, pn[i].head, fraction);
+        g_projectiles[i].pitch = Pose::angle(pp[i].pitch, pn[i].pitch, fraction);
     }
 }
 
@@ -331,13 +335,13 @@ static void objRestore(const SimObjSnap *sn, const ProjSnap *pn) {
     for (i = 0; i < PROJ_MAX; i++) {
         g_projectiles[i].fineX = pn[i].fineX;
         g_projectiles[i].fineY = pn[i].fineY;
-        g_projectiles[i].mapX = (uint16)(pn[i].fineX >> 5);
-        g_projectiles[i].mapY = (uint16)(pn[i].fineY >> 5);
-        g_projInterpX[i] = pn[i].fineX;
-        g_projInterpY[i] = pn[i].fineY;
+        g_projectiles[i].mapX = pn[i].fineX.mapWord();
+        g_projectiles[i].mapY = pn[i].fineY.mapWord();
+        g_projInterpX[i] = f15::math::legacy::fineWord(pn[i].fineX);
+        g_projInterpY[i] = f15::math::legacy::fineWord(pn[i].fineY);
         g_projectiles[i].alt = (int16)pn[i].alt;
-        g_projectiles[i].worldX = pn[i].head;
-        g_projectiles[i].worldY = pn[i].pitch;
+        g_projectiles[i].head = pn[i].head;
+        g_projectiles[i].pitch = pn[i].pitch;
     }
 }
 

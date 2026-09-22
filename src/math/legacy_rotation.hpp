@@ -46,6 +46,23 @@ inline auto angleMagnitudeCompat(Angle<B> angle) {
         return angleMagnitude(angle);
 }
 
+/* Plain signed-word difference magnitude |a - b| in word units — the original
+ * subtracted raw int16s without wrapping onto the shortest arc. The wrapped
+ * form is angleMagnitude(a - b); this adapter preserves the unwrapped read. */
+template<class B = GameBackend>
+inline auto angleSeparation(Angle<B> a, Angle<B> b) {
+    if constexpr (std::is_same_v<B, FixedBackend>) {
+        const auto wordOf = [](Angle<B> v) {
+            const auto bits = Boundary<B>::angleWord(v);
+            return bits <= 32767 ? static_cast<int>(bits) : static_cast<int>(bits) - 65536;
+        };
+        return std::abs(wordOf(a) - wordOf(b));
+    } else {
+        return std::fabs(Boundary<B>::radians(a) - Boundary<B>::radians(b))
+               * (32768.0 / 3.14159265358979323846);
+    }
+}
+
 inline int updateAttitudeFromWords(AircraftAngle &roll, AircraftAngle &pitch,
                                   int (*update)(std::int16_t *, std::int16_t *)) {
     auto rollWord = signedAngle(roll), pitchWord = signedAngle(pitch);

@@ -298,7 +298,7 @@ int main() {
     g_projectiles[0].mapX = 1000;
     g_projectiles[0].mapY = 1000;
     g_projectiles[0].speed = 200;
-    g_projectiles[0].worldX = 0x4000;
+    g_projectiles[0].head = angleFromWord(0x4000);
     g_frameRateScaling = 40;
     require(samCanAcquireTarget(0, 1100, 1000, 0, 0) == 1,
             "samCanAcquireTarget succeeds when projectile reaches target this frame");
@@ -309,7 +309,7 @@ int main() {
     g_projectiles[0].mapX = 1000;
     g_projectiles[0].mapY = 1000;
     g_projectiles[0].speed = 10;
-    g_projectiles[0].worldX = 0;
+    g_projectiles[0].head = angleFromWord(0);
     g_projectiles[0].ttl = 1000;
     g_frameRateScaling = 20;
     require(samCanAcquireTarget(0, 1100, 3000, 0, 1) == 0,
@@ -321,7 +321,7 @@ int main() {
     g_projectiles[0].mapX = 1000;
     g_projectiles[0].mapY = 1000;
     g_projectiles[0].speed = 10;
-    g_projectiles[0].worldX = 0;
+    g_projectiles[0].head = angleFromWord(0);
     g_ourHead = angleFromWord(0x8000);
     g_frameRateScaling = 20;
     require(samCanAcquireTarget(0, 3000, 1000, 0, 0) == 0,
@@ -331,7 +331,7 @@ int main() {
     g_projectiles[0].mapX = 1000;
     g_projectiles[0].mapY = 1000;
     g_projectiles[0].speed = 1;
-    g_projectiles[0].worldX = static_cast<int16>(0x8000);
+    g_projectiles[0].head = angleFromWord(static_cast<int16>(0x8000));
     g_ourHead = angleFromWord(0);
     g_frameRateScaling = 20;
     require(samCanAcquireTarget(0, 1000, 3000, 0, 0) == 1,
@@ -341,7 +341,7 @@ int main() {
     g_projectiles[0].mapX = 1000;
     g_projectiles[0].mapY = 1000;
     g_projectiles[0].speed = 1;
-    g_projectiles[0].worldX = static_cast<int16>(0x8000);
+    g_projectiles[0].head = angleFromWord(static_cast<int16>(0x8000));
     g_ourHead = angleFromWord(0);
     g_frameRateScaling = 20;
     require(samCanAcquireTarget(0, 1000, -1000, 0, 1) == 1,

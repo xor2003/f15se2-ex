@@ -223,7 +223,7 @@ void drawTacticalMap(char page) {
                  * (sine/cosine over 32768, matching sinMul/cosMul without the Q15
                  * truncation) so the tick points in the true heading at a consistent
                  * length, like the scope's grid lines. */
-                code = g_projectiles[i].worldX - signedAngle(g_ourHead);
+                code = signedAngle(g_projectiles[i].head - g_ourHead);
                 /* Full weight (1.0), not the grid's thin 0.5 — an inbound weapon
                  * must read apart from the grid lines it overlays at a glance. */
                 scopeLine(g_scopeFx, g_scopeFy,

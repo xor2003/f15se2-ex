@@ -14,6 +14,7 @@
 #include "math/legacy_rotation.hpp"
 #include "math/legacy_airspeed.hpp"
 #include "math/legacy_altitude.hpp"
+#include "math/legacy_map.hpp"
 #include "log.h"
 
 #include <stdint.h>
@@ -159,11 +160,14 @@ static uint32 hashWeapons(void) {
         const struct Projectile *p = &g_projectiles[i];
         h = hashAdd(h, p->mapX); h = hashAdd(h, p->mapY);
         h = hashAdd(h, (uint16)p->alt); h = hashAdd(h, (uint16)p->speed);
-        h = hashAdd(h, (uint16)p->worldX); h = hashAdd(h, (uint16)p->worldY);
-        h = hashAdd(h, (uint16)p->worldZ); h = hashAdd(h, (uint16)p->ttl);
+        h = hashAdd(h, (uint16)f15::math::legacy::signedAngle(p->head));
+        h = hashAdd(h, (uint16)f15::math::legacy::signedAngle(p->pitch));
+        h = hashAdd(h, (uint16)f15::math::legacy::signedAngle(p->bank));
+        h = hashAdd(h, (uint16)p->ttl);
         h = hashAdd(h, (uint16)p->specIdx); h = hashAdd(h, (uint16)p->weaponIdx);
         h = hashAdd(h, (uint16)p->targetLock); h = hashAdd(h, (uint16)p->targetRef);
-        h = hashAdd(h, (uint32)p->fineX); h = hashAdd(h, (uint32)p->fineY);
+        h = hashAdd(h, (uint32)f15::math::legacy::fineWord(p->fineX));
+        h = hashAdd(h, (uint32)f15::math::legacy::fineWord(p->fineY));
     }
     h = hashAdd(h, (uint16)g_gunAmmo); h = hashAdd(h, (uint16)g_currentWeaponType);
     h = hashAdd(h, (uint16)g_lastMissileSlot); h = hashAdd(h, (uint16)g_fireCooldown);
@@ -437,7 +441,8 @@ int blackbox_diagWriteDump(const char *path) {
         fprintf(f, "projectile[%02d] ttl=%d weapon=%d spec=%d target=%d ref=%d pos=(%d,%d,%d) fine=(%d,%d)\n",
                 i, (int)p->ttl, (int)p->weaponIdx, (int)p->specIdx,
                 (int)p->targetLock, (int)p->targetRef, (int)p->mapX,
-                (int)p->mapY, (int)p->alt, (int)p->fineX, (int)p->fineY);
+                (int)p->mapY, (int)p->alt, (int)f15::math::legacy::fineWord(p->fineX),
+                (int)f15::math::legacy::fineWord(p->fineY));
     }
     fprintf(f, "render frame=%u commands=%u dropped=%u\n", (unsigned)s_renderFrame,
             (unsigned)s_recentCommandCount, (unsigned)s_recentCommandDropped);

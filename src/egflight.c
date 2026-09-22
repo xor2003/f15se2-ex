@@ -1039,8 +1039,8 @@ void renderFrame() {
                     g_viewTargetY = (uint32)g_projInterpY[g_viewTargetObj];
                     g_viewTargetAlt = g_projectiles[g_viewTargetObj].alt;
                 } else {
-                    g_projectiles[g_viewTargetObj].worldX = signedAngle(g_ourHead);
-                    g_projectiles[g_viewTargetObj].worldY = signedAngle(g_ourPitch);
+                    g_projectiles[g_viewTargetObj].head = g_ourHead;
+                    g_projectiles[g_viewTargetObj].pitch = g_ourPitch;
                     if (g_directorMode != 0) g_viewMode = VIEW_EXT_FOLLOW;
                 }
                 camDist = 5;
@@ -1082,8 +1082,8 @@ void renderFrame() {
                 g_viewHeading += 0x8000;
             }
         } else {
-            g_viewHeading = g_projectiles[g_viewTargetObj].worldX;
-            g_viewPitch = g_projectiles[g_viewTargetObj].worldY - 0x400;
+            g_viewHeading = signedAngle(g_projectiles[g_viewTargetObj].head);
+            g_viewPitch = (int16)(signedAngle(g_projectiles[g_viewTargetObj].pitch) - 0x400);
             camOffset = cosMul(g_viewPitch, 0x10 << camDist);
             g_camEyeX = eyeFromQ8(((long)g_viewTargetX << 8) - sinMulQ8(g_viewHeading, camOffset), &g_camEyeFracX);
             g_camEyeY = eyeFromQ8(((long)0x100000 << 8) - (cosMulQ8(g_viewHeading, camOffset) + ((long)g_viewTargetY << 8)), &g_camEyeFracY);

@@ -7,8 +7,10 @@
 #include "math/legacy_map.hpp"
 using f15::math::legacy::signedAngle;
 using f15::math::legacy::angleMagnitude;
+using f15::math::legacy::angleFromWord;
 using f15::math::legacy::mapOffset;
 using f15::math::legacy::mapRange;
+using FineCoord = f15::math::FineCoord<f15::math::GameBackend>;
 #include "egflight.h"
 #include "egframe.h"
 #include "egkeys.h"
@@ -142,12 +144,12 @@ void fireGroundThreat(int16 planeIdx) {
                                         /* Seed the fine (mapX<<5) position so the first
                                          * movement step (which derives mapX = fineX>>5)
                                          * starts at the launcher, not a stale slot value. */
-                                        g_projectiles[slot].fineX = ((int32)(uint16)g_projectiles[slot].mapX << 5) & 0x1FFFFF;
-                                        g_projectiles[slot].fineY = ((int32)(uint16)g_projectiles[slot].mapY << 5) & 0x1FFFFF;
+                                        g_projectiles[slot].fineX = FineCoord::fromRep((int32)(uint16)g_projectiles[slot].mapX << 5);
+                                        g_projectiles[slot].fineY = FineCoord::fromRep((int32)(uint16)g_projectiles[slot].mapY << 5);
                                         g_projectiles[slot].alt = 0;
                                         g_projectiles[slot].speed = 1;
-                                        g_projectiles[slot].worldX = bearing[0];
-                                        g_projectiles[slot].worldY = 0x4000;
+                                        g_projectiles[slot].head = angleFromWord(bearing[0]);
+                                        g_projectiles[slot].pitch = angleFromWord(0x4000);
                                         g_projectiles[slot].ttl = (int16)((((int32)sams[threatType].lockRange << 3) * (int32)g_frameRateScaling) / (int32)(sams[threatType].maxSpeed >> 6));
                                         g_projectiles[slot].specIdx = threatType;
                                         g_projectiles[slot].targetRef = planeIdx;

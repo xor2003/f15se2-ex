@@ -55,6 +55,15 @@ public:
         else return value_ == other.value_;
     }
     bool operator!=(Angle other) const { return !(*this == other); }
+    /* Signed-domain ordering, matching the int16 word compares the originals
+     * used: fixed compares signed words, modern the normalized radians. */
+    bool operator<(Angle other) const {
+        if constexpr (std::is_same_v<B, FixedBackend>) return value_.signedRaw() < other.value_.signedRaw();
+        else return value_ < other.value_;
+    }
+    bool operator<=(Angle other) const { return !(other < *this); }
+    bool operator>(Angle other) const { return other < *this; }
+    bool operator>=(Angle other) const { return !(*this < other); }
     // Sign in the same domain as the legacy signedAngle word: the fixed rep
     // reads the word's sign bit, the modern rep reads the normalized radians.
     bool isNegative() const {
@@ -66,6 +75,13 @@ public:
             const auto raw = value_.raw();
             return raw > 0 && raw < 0x8000;
         } else return value_ > 0;
+    }
+    // -1/0/+1 signum of the signed domain — the original's signOf(word).
+    int sign() const {
+        if constexpr (std::is_same_v<B, FixedBackend>) {
+            const auto s = value_.signedRaw();
+            return (s > 0) - (s < 0);
+        } else return (value_ > 0) - (value_ < 0);
     }
     static Angle quarterTurn() {
         if constexpr (std::is_same_v<B, FixedBackend>) return Angle(fixed::Angle16(0x4000));

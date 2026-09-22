@@ -316,8 +316,8 @@ skip_aam:
                                 g_projInterpX[idx],
                                 g_projInterpY[idx],
                                 g_projectiles[idx].alt,
-                                g_projectiles[idx].worldX, g_projectiles[idx].worldY,
-                                g_projectiles[idx].worldZ + 0x2000,
+                                signedAngle(g_projectiles[idx].head), signedAngle(g_projectiles[idx].pitch),
+                                signedAngle(g_projectiles[idx].bank) + 0x2000,
                                 ((g_viewMode & 0x80) && g_viewMode != 0x8b) ? 3 : 1);
             } else {
                 setDrawColor(idx < 8 ? COLOR_LIGHTRED : COLOR_FLAMING);

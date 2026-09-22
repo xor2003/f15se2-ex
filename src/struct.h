@@ -3,6 +3,8 @@
 
 #include "inttype.h"
 #include "sassert.h"
+#include "math/rotation.hpp"
+#include "math/map_position.hpp"
 
 struct JoyAxes {
     uint8 x, y;
@@ -162,11 +164,13 @@ STATIC_ASSERT(sizeof(struct ViewSnapshot) == 16);
 struct Projectile {
     uint16 mapX;      // +0x00  launch map X coord
     uint16 mapY;      // +0x02  launch map Y coord
-    int16 alt;        // +0x04  altitude (render target)
+    int16 alt;        // +0x04  altitude (render target); low bit is the track-state flag
     int16 speed;      // +0x06  speed/range term
-    int16 worldX;     // +0x08  launch world X
-    int16 worldY;     // +0x0A  launch world Y
-    int16 worldZ;     // +0x0C  launch world Z
+    /* Attitude: the original's worldX/worldY/worldZ angle words, now typed.
+     * Modern keeps sub-word steering precision the int16 deltas discarded. */
+    f15::math::Angle<f15::math::GameBackend> head;   // +0x08  was worldX
+    f15::math::Angle<f15::math::GameBackend> pitch;  // +0x0A  was worldY
+    f15::math::Angle<f15::math::GameBackend> bank;   // +0x0C  was worldZ
     int16 ttl;        // +0x0E  flight-time countdown (0 = free slot)
     int16 specIdx;    // +0x10  weapon/threat spec index into sams[]
     int16 weaponIdx;  // +0x12  index into missiles[] (player-fired)
@@ -175,9 +179,10 @@ struct Projectile {
     /* Fine (mapX<<5-scale) authoritative position. The original stepped mapX/mapY
      * in whole map units, truncating the per-step fraction; accumulating here and
      * deriving mapX/mapY (= fine>>5) keeps the sub-unit motion, so slow/oblique
-     * flight doesn't stair-step. Wraps at 21 bits to mirror the uint16 map wrap. */
-    int32 fineX; // +0x18
-    int32 fineY; // +0x1C
+     * flight doesn't stair-step. Wraps at 21 bits to mirror the uint16 map wrap.
+     * Modern keeps the sub-fine-unit fraction as well. */
+    f15::math::FineCoord<f15::math::GameBackend> fineX; // +0x18
+    f15::math::FineCoord<f15::math::GameBackend> fineY; // +0x1C
 };
 
 /* g_proj3d: the world-space origin (x,y,z) projectObjects() projects the 3D scene
