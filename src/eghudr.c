@@ -20,6 +20,7 @@
 #include "egdata.h"
 #include "math/legacy_rotation.hpp"
 #include "math/legacy_altitude.hpp"
+#include "math/legacy_airspeed.hpp"
 using f15::math::legacy::signedAngle;
 #include "inttype.h"
 #include "struct.h"
@@ -277,7 +278,7 @@ static void drawInstrumentGauges(void) {
 
     /* ---- speed tape ---- */
     {
-        uint16 knots = g_knots;
+        uint16 knots = (uint16)(int16)f15::math::legacy::knotsUnits(g_knots);
         uint8 al;
         dl = (int8)((knots / 50) - 1);
         knots = (uint16)((knots % 50) << g_tapeScaleShift);

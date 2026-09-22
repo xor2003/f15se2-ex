@@ -224,7 +224,7 @@ int main() {
     g_viewZ = 3000;
     g_altitude = Altitudes::altitude(3000.25);
     g_velocity = Speeds::speed(8100.25);
-    g_knots = 300;
+    g_knots = AirspeedMath<GameBackend>::knots(300);
     g_kbdSensitivity = 2;
     g_ourHead = g_ourPitch = g_ourRoll = {};
     rebuildOrientation();
@@ -234,12 +234,16 @@ int main() {
         require(std::isfinite(Altitudes::altitude(g_altitude)) &&
                 Altitudes::altitude(g_altitude) > 0 && Speeds::speed(g_velocity) > 0,
                 "modern flight step produced invalid airborne state");
-        require(legacy::cornerKnots(flightKnots()) == g_knots &&
-                legacy::cornerKnots(flightCornerSpeed()) == g_cornerSpeed,
-                "typed knots/corner speed diverged from the display words");
+        require(legacy::cornerKnots(flightKnots()) == legacy::cornerKnots(g_knots) &&
+                legacy::cornerKnots(flightCornerSpeed()) == legacy::cornerKnots(g_cornerSpeed),
+                "typed knots/corner speed stores diverged from the display words");
         for (double coefficient : Angles::matrix(g_orientMatrix))
             require(std::isfinite(coefficient), "modern flight matrix became non-finite");
     }
+    // The knots store is typed: indicatedKnots' fraction must survive
+    // (velocity 8100.25 -> 300.009+ knots; int16 storage truncated it).
+    require(g_knots != AirspeedMath<GameBackend>::knots(legacy::cornerKnots(g_knots)),
+            "typed knots store lost the fractional indicated airspeed");
     for (int difficulty : {1, 2})
     for (bool autopilot : {false, true})
     for (double altitude : {131072.0, 229376.0})
@@ -247,7 +251,7 @@ int main() {
         game.unk4 = difficulty;
         g_altitude = Altitudes::altitude(altitude);
         g_velocity = Speeds::speed(8100);
-        g_knots = 300;
+        g_knots = AirspeedMath<GameBackend>::knots(300);
         g_thrust = legacy::thrustFromUnits(100);
         g_setThrust = 100;
         g_fuelRemaining = 5000;
@@ -299,7 +303,7 @@ int main() {
         g_altitude = Altitudes::altitude(altitude);
         g_ourPitch = g_rollPitchTrim = {};
         advanceFlightAltitude();
-        g_knots = 0;
+        g_knots = AirspeedMath<GameBackend>::knots(0);
         g_landingTimer = f15::math::TickDuration{};
         g_nearestThreatRange = 0x7fff;
         g_groundAltitude = 0;

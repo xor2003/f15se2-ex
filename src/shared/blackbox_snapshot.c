@@ -208,7 +208,7 @@ int blackbox_snapshotWriteJson(const char *path) {
             "\"velocity\":%d,\"knots\":%d,\"fuel_remaining\":%d,"
             "\"damage_flag\":%d,\"plane_flags\":%d},\n",
             (int)f15::math::legacy::fineUnits(g_ViewX), (int)f15::math::legacy::fineUnits(g_ViewY), (int)g_viewZ, (int)f15::math::legacy::signedAngle(g_ourHead),
-            (int)f15::math::legacy::signedAngle(g_ourPitch), (int)f15::math::legacy::signedAngle(g_ourRoll), f15::math::legacy::speedUnits(g_velocity), (int)g_knots,
+            (int)f15::math::legacy::signedAngle(g_ourPitch), (int)f15::math::legacy::signedAngle(g_ourRoll), f15::math::legacy::speedUnits(g_velocity), (int)f15::math::legacy::knotsUnits(g_knots),
             (int)g_fuelRemaining, (int)g_damageTakenFlag, (int)g_playerPlaneFlags);
     fprintf(f,
             "  \"camera\":{\"mode\":%d,\"eye\":{\"x\":%d,\"y\":%d,\"z\":%d},"

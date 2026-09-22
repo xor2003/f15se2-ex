@@ -2116,7 +2116,7 @@ f15::math::FlightSpeed<f15::math::GameBackend> g_velocity;
 int16 g_enemyThreatCount;
 int16 g_camRotMatrix[9];
 struct ViewSnapshot g_viewSnapshotRing[16];
-int16 g_knots;
+f15::math::CornerSpeed<f15::math::GameBackend> g_knots;
 struct TargetSlot g_targetSlots[2];
 /* g_planeTable: lead name-index word + the 74-entry target array
    (g_planes), one contiguous block loaded from the mission file. */
@@ -2292,7 +2292,7 @@ int16 g_scopeClipRight;
 struct TileSceneObject *matrix3dt_2[5][TERRAIN_TILE_PATTERN_CAPACITY];
 int16 g_scopeClipBottom;
 f15::math::PitchCommand<f15::math::GameBackend> g_pitchInput;
-int16 g_cornerSpeed;
+f15::math::CornerSpeed<f15::math::GameBackend> g_cornerSpeed;
 struct TileSceneObject *g_curTileEntry;
 int16 g_viewHeading;
 int16 *g_overlayCenterX;

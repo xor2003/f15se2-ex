@@ -134,8 +134,8 @@ inline FlightFields readFlight() {
     f.roll = (std::uint16_t)legacy::signedAngle(g_ourRoll);
     f.speed = (std::uint32_t)legacy::speedUnits(g_velocity);
     f.altitude = legacy::altitudeUnits(g_altitude);
-    f.knots = (std::uint16_t)g_knots;
-    f.corner = (std::uint16_t)g_cornerSpeed;
+    f.knots = (std::uint16_t)legacy::knotsUnits(g_knots);
+    f.corner = (std::uint16_t)legacy::knotsUnits(g_cornerSpeed);
     f.stall = (std::uint32_t)legacy::Airspeeds::stall(g_stallSpeed);
     f.rollIn = (std::uint32_t)legacy::rollInput(g_rollInput);
     f.pitchIn = (std::uint32_t)legacy::pitchInput(g_pitchInput);
@@ -392,10 +392,10 @@ inline void initSortie() {
     g_groundAltitude = 0;
     g_altitude = legacy::altitudeFromUnits(4000);
     g_velocity = legacy::speedFromUnits(8100);
-    g_knots = 300;
+    g_knots = AirspeedMath<GameBackend>::knots(300);
     g_playerPlaneFlags = 0;        /* gear down on the runway */
     g_gearDownArmed = 1;
-    g_cornerSpeed = 100;
+    g_cornerSpeed = AirspeedMath<GameBackend>::knots(100);
     g_kbdSensitivity = 2;
     g_gunHits = g_hudVisible = 0;
     g_ejectState = g_autoCrashDive = g_currentWeaponType = 0;

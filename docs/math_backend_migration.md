@@ -977,6 +977,27 @@ bit-identical under fixed); modern smoke gained a check that
 modern sortie trace is unchanged (no bearing-dependent decision boundary
 was crossed on that profile).
 
+## Indicated-airspeed storage globals typed
+
+`g_knots` and `g_cornerSpeed` are now `CornerSpeed<GameBackend>` globals
+instead of int16 words. `g_knots` was written
+`cornerKnots(indicatedKnots(g_velocity))` — typed value narrowed to the
+knots word — while `flightKnots()` re-wrapped it for decision consumers.
+Typed storage removes the truncate/re-wrap: fixed `flightKnots()` returns
+the stored `CornerSpeed` directly (same word rep), and the modern store
+keeps the fractional indicated airspeed. All consumers narrow at the
+boundary via `legacy::knotsUnits`: the turbulence formula and Android debug
+print (fixed-only paths), audio engine pitch, HUD speed tape and
+`drawNumber`, the tacmap corner-speed bar, and the blackbox hash/snapshot
+lines. `flightKnots()` keeps its backend split — modern still reads live
+`g_velocity` rather than the (one-tick-stale) display store.
+
+Verification: fixed 60/60 with the sortie golden unchanged; modern smoke
+keeps the word-level knots/corner agreement check and adds a
+fraction-preservation check on the `g_knots` store; the modern sortie
+trace is unchanged (every consumer truncates at the boundary, so the
+stored fraction is display-inert on that profile).
+
 ## Angle magnitude read adapters
 
 `legacy_rotation.hpp` gained two fraction-preserving magnitude reads for

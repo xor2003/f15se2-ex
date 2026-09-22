@@ -112,7 +112,7 @@ f15::math::CornerSpeed<f15::math::GameBackend> flightKnots() {
 #ifdef F15_MODERN_MATH
     return SpeedMath::indicatedKnots(g_velocity);
 #else
-    return f15::math::legacy::Airspeeds::corner(g_knots);
+    return g_knots;
 #endif
 }
 
@@ -538,7 +538,7 @@ switch_break:
 #ifdef F15_MODERN_MATH
         turbulence = Aero::lowAltitudeTurbulenceRange(g_altitude, g_velocity);
 #else
-        turbulence = ((int32)g_knots * (1000 - g_viewZ)) >> 15;
+        turbulence = ((int32)f15::math::legacy::knotsUnits(g_knots) * (1000 - g_viewZ)) >> 15;
 #endif
     } else {
         turbulence = 0;
@@ -655,7 +655,7 @@ switch_break:
 
     const auto corner = Aero::cornerSpeed(g_altitude, load.load);
     s_flightCornerSpeed = corner;
-    g_cornerSpeed = f15::math::legacy::cornerKnots(corner);
+    g_cornerSpeed = corner;
     g_stallSpeed = Aero::stallThreshold(corner);
     accelerateFlightSpeed(Propulsion::targetSpeed(g_thrust,
         f15::math::legacy::Math(g_angleLut).sine(g_ourPitch),
@@ -669,9 +669,9 @@ switch_break:
     brakeFlightSpeed();
 
     horizVel = SpeedMath::horizontalSample(g_velocity, f15::math::legacy::Math(g_angleLut).cosine(g_ourPitch));
-    g_knots = f15::math::legacy::cornerKnots(SpeedMath::indicatedKnots(g_velocity));
+    g_knots = SpeedMath::indicatedKnots(g_velocity);
 
-    audio_setEnginePitch(g_knots, thrustUnits(g_thrust));
+    audio_setEnginePitch((int)f15::math::legacy::knotsUnits(g_knots), thrustUnits(g_thrust));
 
     const f15::math::legacy::Math turnRotation(g_angleLut);
     auto yaw = Aero::turnRate(g_gees, g_velocity,
@@ -704,7 +704,7 @@ switch_break:
 
 #if defined(__ANDROID__)
     android_ar_setFlightDebug(signedAngle(g_ourHead), Controls::yaw(yaw), rollInput(g_rollInput), pitchInput(g_pitchInput),
-                              g_knots, legacyLoad, turbulence,
+                              (int)f15::math::legacy::knotsUnits(g_knots), legacyLoad, turbulence,
                               static_cast<int>(f15::math::legacy::Altitudes::render(g_autopilotAltitude)), g_autopilotEngaged,
                               g_directorMode, g_frameRateScaling.word());
 #endif

@@ -96,10 +96,10 @@ void recoveryGuidance(SDL_Joystick *stick) {
         g_slowMotionMode = 2;
         g_altitude = legacy::altitudeFromUnits(3000);
         g_velocity = legacy::speedFromUnits(8100);
-        g_knots = knots;
+        g_knots = AirspeedMath<GameBackend>::knots(knots);
         g_playerPlaneFlags = 1;
         g_gearDownArmed = 0;
-        g_cornerSpeed = 100;
+        g_cornerSpeed = AirspeedMath<GameBackend>::knots(100);
         g_kbdSensitivity = 2;
         g_ViewX = legacy::viewX(0);
         g_ViewY = legacy::viewY(0);
@@ -232,10 +232,10 @@ void thrustAndFuel() {
         g_viewZ = sceneHeight;
         g_altitude = legacy::altitudeFromUnits(height);
         g_velocity = legacy::speedFromUnits(8100);
-        g_knots = 300;
+        g_knots = AirspeedMath<GameBackend>::knots(300);
         g_playerPlaneFlags = (gearUp ? 1 : 0) | (airBrake ? 8 : 0);
         g_gearDownArmed = 0;
-        g_cornerSpeed = 100;
+        g_cornerSpeed = AirspeedMath<GameBackend>::knots(100);
         g_kbdSensitivity = 2;
         require(SDL_SetJoystickVirtualAxis(stick, 1,
             stickPitch == 1 ? -32768 : stickPitch == 254 ? 32767 : 0), "set pitch axis");
@@ -357,9 +357,9 @@ void thrustAndFuel() {
             require(f15::math::legacy::Altitudes::render(g_autopilotAltitude) == altitudeTarget, "neutral input unexpectedly cancels altitude hold");
         if (disabled)
             require(g_autopilotAltitude.isZero(), "disabled zero-byte deflection must retain legacy altitude-hold cancellation");
-        require(g_cornerSpeed == corner && AirspeedBoundary<FixedBackend>::stall(g_stallSpeed) == corner * 27,
+        require(g_cornerSpeed == AirspeedMath<GameBackend>::knots(corner) && AirspeedBoundary<FixedBackend>::stall(g_stallSpeed) == corner * 27,
                 "full flight model corner/stall threshold changed");
-        require(legacy::speedUnits(g_velocity) == velocity && g_knots == velocity / 27,
+        require(legacy::speedUnits(g_velocity) == velocity && legacy::knotsUnits(g_knots) == velocity / 27,
                 "full flight model target-speed/acceleration order changed");
         require(legacy::signedAngle(g_liftForce) == lift && legacy::signedAngle(g_rollPitchTrim) == trim,
                 "lift must sample accelerated speed before braking and the initial roll");
