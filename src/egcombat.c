@@ -413,9 +413,9 @@ void updateThreatTargeting(void) {
                 testWorldPosVisible(g_projectiles[slot].mapX, g_projectiles[slot].mapY, g_projectiles[slot].alt);
 
             if (g_projectileAlt[slot] < 0 || *(int8 *)&g_posVisibleFlag != 0) {
-                g_hitMapX = g_projectiles[slot].mapX;
-                g_hitMapY = g_projectiles[slot].mapY;
-                g_hitAlt = g_projectiles[slot].alt;
+                g_hitMapPos = f15::math::legacy::mapPosition(g_projectiles[slot].mapX,
+                                                           g_projectiles[slot].mapY);
+                g_hitAlt = f15::math::legacy::terrainFromUnits(g_projectiles[slot].alt);
                 /* -3 (DOS wrote 0xfffd into a 16-bit int; as a 32-bit int that
                  * is +65533 and the impact burst lingers for ~65k frames). */
                 g_hitEffectTimer = f15::math::TickDuration::fromWord(-3);
@@ -427,22 +427,22 @@ void updateThreatTargeting(void) {
                     scheduleTimedEvent(VIEW_COCKPIT, 1);
                     makeSound(2, 2);
                     strcat(strBuf, " misses ");
-                    dist = f15::math::legacy::mapRangeDelta(g_hitMapX - g_planeTable.planes[g_loftTargetIdx].mapX,
-                                       g_hitMapY - g_planeTable.planes[g_loftTargetIdx].mapY);
+                    dist = f15::math::legacy::mapRangeDelta(f15::math::legacy::mapWordX(g_hitMapPos) - g_planeTable.planes[g_loftTargetIdx].mapX,
+                                       f15::math::legacy::mapWordY(g_hitMapPos) - g_planeTable.planes[g_loftTargetIdx].mapY);
                     if (dist < 0x100 / (g_missionStatus + 1)) {
                         destroyGroundTarget(g_loftTargetIdx);
                         strcat(strBuf, " destroyed by ");
                         strcat(strBuf,
                                missiles[g_projectiles[slot].weaponIdx].longName);
                         g_hitEffectTimer = f15::math::TickDuration::fromWord(8);
-                        g_hitAlt = 0;
+                        g_hitAlt = {};
                     } else {
-                        wp = findWaypointEntry(g_hitMapX, g_hitMapY);
+                        wp = findWaypointEntry(f15::math::legacy::mapWordX(g_hitMapPos), f15::math::legacy::mapWordY(g_hitMapPos));
                         if (wp == -1 || (g_planeTable.planes[wp].flags & 0x80))
                             goto msg_done;
                         wpX = (int16)(g_nearestTileObj->x >> 5);
                         wpY = -((int16)(g_nearestTileObj->y >> 5) - 0x8000);
-                        dist = f15::math::legacy::mapRangeDelta(g_hitMapX - wpX, g_hitMapY - wpY);
+                        dist = f15::math::legacy::mapRangeDelta(f15::math::legacy::mapWordX(g_hitMapPos) - wpX, f15::math::legacy::mapWordY(g_hitMapPos) - wpY);
                         if (dist >= 0x180 / (g_missionStatus + 2))
                             goto msg_done;
                         destroyGroundTarget(wp);
@@ -450,7 +450,7 @@ void updateThreatTargeting(void) {
                         strcat(strBuf,
                                missiles[g_projectiles[slot].weaponIdx].longName);
                         g_hitEffectTimer = f15::math::TickDuration::fromWord(8);
-                        g_hitAlt = 0;
+                        g_hitAlt = {};
                     }
                 msg_done:
                     hudMessage(strBuf);
@@ -474,9 +474,9 @@ void updateThreatTargeting(void) {
 
             if ((uint16)((abs(alt0 - g_projectiles[slot].alt) >> 5) + best) < (uint16)detR &&
                 locked != 0) {
-                g_hitMapX = g_projectiles[slot].mapX;
-                g_hitMapY = g_projectiles[slot].mapY;
-                g_hitAlt = g_projectiles[slot].alt;
+                g_hitMapPos = f15::math::legacy::mapPosition(g_projectiles[slot].mapX,
+                                                           g_projectiles[slot].mapY);
+                g_hitAlt = f15::math::legacy::terrainFromUnits(g_projectiles[slot].alt);
                 g_hitEffectTimer = f15::math::TickDuration::fromWord(8);
                 if (!g_projectiles[slot].ttl.isZero())
                     g_savedSamTtl = g_projectiles[slot].ttl;
@@ -488,9 +488,9 @@ void updateThreatTargeting(void) {
                         hudMessage(strBuf);
                         bombTarget();
                         ring = frameTick.ring(1, 8);
-                        g_particles[ring].posX = g_hitMapX;
-                        g_particles[ring].posY = g_hitMapY;
-                        g_particles[ring].alt = g_hitAlt;
+                        g_particles[ring].posX = f15::math::legacy::mapWordX(g_hitMapPos);
+                        g_particles[ring].posY = f15::math::legacy::mapWordY(g_hitMapPos);
+                        g_particles[ring].alt = f15::math::legacy::terrainUnits(g_hitAlt);
                         if (!(g_playerPlaneFlags & 0x1000))
                             appendMapEvent(5, spec);
                     }
@@ -498,12 +498,12 @@ void updateThreatTargeting(void) {
                     if (mode == 7) {
                         destroyAircraft(bestIdx);
                         ring = frameTick.ring(1, 8);
-                        g_particles[ring].posX = g_hitMapX =
-                            g_simObjects[bestIdx].posX;
-                        g_particles[ring].posY = g_hitMapY =
-                            g_simObjects[bestIdx].posY;
-                        g_particles[ring].alt = g_hitAlt =
-                            g_simObjects[bestIdx].alt;
+                        g_hitMapPos = f15::math::legacy::mapPosition((std::int16_t)g_simObjects[bestIdx].posX,
+                                         (std::int16_t)g_simObjects[bestIdx].posY);
+                        g_hitAlt = f15::math::legacy::terrainFromUnits(g_simObjects[bestIdx].alt);
+                        g_particles[ring].posX = f15::math::legacy::mapWordX(g_hitMapPos);
+                        g_particles[ring].posY = f15::math::legacy::mapWordY(g_hitMapPos);
+                        g_particles[ring].alt = f15::math::legacy::terrainUnits(g_hitAlt);
                     } else {
                         if (missileTargetCompat(g_projectiles[slot].weaponIdx, bestIdx) >
                                 randomRange(4) ||
@@ -514,7 +514,7 @@ void updateThreatTargeting(void) {
                         }
                         g_projectiles[slot].ttl = f15::math::TickDuration{};
                         g_threatActiveTimer = g_threatTimerInit;
-                        g_threatRefPos = f15::math::legacy::mapPosition(g_hitMapX, g_hitMapY);
+                        g_threatRefPos = g_hitMapPos;
                         g_threatRefZ = f15::math::legacy::renderHeightFromUnits(3000);
                     }
                     strcat(strBuf, " hit by ");

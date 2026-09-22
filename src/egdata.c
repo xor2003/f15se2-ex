@@ -2214,7 +2214,7 @@ int16 g_threatLabelTarget;
 int16 g_skyColorIndex;
 
 int16 g_sphereRingRadii[16];
-int16 g_hitMapX;
+f15::math::MapPosition<f15::math::GameBackend> g_hitMapPos;
 f15::math::TerrainHeight<f15::math::GameBackend> g_groundAltitude;
 int16 g_viewX_;
 f15::math::MapPosition<f15::math::GameBackend> g_wreckPos;
@@ -2222,10 +2222,10 @@ f15::math::MapPosition<f15::math::GameBackend> g_wreckPos;
 /* Single-byte values (only [0] is used); the extra bytes are trailing pad
  * up to the next symbol. */
 uint8 g_waterTargetId[4];
-int16 g_hitMapY;
+
 int16 sign3d3;
 int16 g_initPhase;
-int16 g_hitAlt;
+f15::math::TerrainHeight<f15::math::GameBackend> g_hitAlt;
 int16 g_viewY_;
 int16 g_planeCount;
 /* g_unusedEventHist0..2: 3-stage event-history shift register (egframe stepFlightModel);

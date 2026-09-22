@@ -327,15 +327,15 @@ extern int16 g_viewPitch;
 extern int16 g_threatLabelTarget;
 extern int16 g_skyColorIndex;
 extern int16 g_sphereRingRadii[];
-extern int16 g_hitMapX;
+extern f15::math::MapPosition<f15::math::GameBackend> g_hitMapPos;
 extern f15::math::TerrainHeight<f15::math::GameBackend> g_groundAltitude;
 extern int16 g_viewX_;
 extern f15::math::MapPosition<f15::math::GameBackend> g_wreckPos;
 extern uint8 g_waterTargetId[];
-extern int16 g_hitMapY;
+
 extern int16 sign3d3;
 extern int16 g_initPhase;
-extern int16 g_hitAlt;
+extern f15::math::TerrainHeight<f15::math::GameBackend> g_hitAlt;
 extern int16 g_viewY_;
 extern int16 g_planeCount;
 extern int16 g_unusedEventHist0;

@@ -588,9 +588,8 @@ switch_break:
             g_smokeSourceIdx = 0;
             g_planeTable.planes[0].mapX = f15::math::legacy::mapWordX(flightMapPosition());
             g_planeTable.planes[0].mapY = f15::math::legacy::mapWordY(flightMapPosition());
-            g_hitMapX = g_planeTable.planes[0].mapX;
-            g_hitMapY = g_planeTable.planes[0].mapY;
-            g_hitAlt = 0;
+            g_hitMapPos = f15::math::legacy::mapPosition(g_planeTable.planes[0].mapX, g_planeTable.planes[0].mapY);
+            g_hitAlt = {};
             g_hitEffectTimer = f15::math::TickDuration::fromWord(-8);
             makeSound(2, 2);
             g_velocity = {};
@@ -609,9 +608,9 @@ switch_break:
             g_particles[idx].spin = randomRange(0x20) << 11;
 
             g_smokeParticleSlot = idx;
-            g_hitMapX = f15::math::legacy::mapWordX(flightMapPosition());
-            g_hitMapY = f15::math::legacy::mapWordY(flightMapPosition());
-            g_hitAlt = f15::math::legacy::Altitudes::renderWord(flightSceneHeight());
+            g_hitMapPos = flightMapPosition();
+            g_hitAlt = f15::math::legacy::terrainFromUnits(
+                f15::math::legacy::Altitudes::renderWord(flightSceneHeight()));
             g_hitEffectTimer = f15::math::TickDuration::fromWord(-8);
             makeSound(0, 2);
 

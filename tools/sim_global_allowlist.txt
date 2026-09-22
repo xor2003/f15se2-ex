@@ -190,9 +190,6 @@ g_headingModulus
 g_headingPixPerDeg
 g_headingWrapOffset
 g_highGeeFlag
-g_hitAlt
-g_hitMapX
-g_hitMapY
 g_horizonEdgeX
 g_horizonGroundColor
 g_horizonNegPitch

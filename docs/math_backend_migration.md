@@ -1080,6 +1080,24 @@ Verification: `gameplay_behavior_tests` still asserts the seeded words
 through the adapters; sortie parity unchanged; modern smoke/sortie pass;
 the allowlist dropped the four migrated names.
 
+## Hit-marker storage checkpoint
+
+`g_hitMapX`/`g_hitMapY` merged into `MapPosition<GameBackend>
+g_hitMapPos` and `g_hitAlt` became `TerrainHeight<GameBackend>`. The hit
+marker is a display record: writers seed from projectile/object packed
+words or `flightMapPosition()`; consumers (`findWaypointEntry`,
+`mapRangeDelta` deltas, `projectWorldToHud`, `drawWorldLine`, particle
+copies, the threat-reference seed) narrow through `mapWordX/Y` and
+`terrainUnits`. One writer stored a compressed scene-height word
+(`renderWord(flightSceneHeight())`) — that narrowing is kept explicit via
+`terrainFromUnits(renderWord(...))` since the field's consumers are
+word-domain display paths. Chained particle/hit assignments were split
+into typed stores plus explicit narrowing.
+
+Verification: fixed focused tests and sortie parity pass unchanged;
+modern smoke/sortie pass with the golden unchanged; the allowlist dropped
+the three migrated names.
+
 ## Angle magnitude read adapters
 
 `legacy_rotation.hpp` gained two fraction-preserving magnitude reads for

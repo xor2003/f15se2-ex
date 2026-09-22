@@ -580,34 +580,32 @@ void drawWorldEffects(void) {
         }
 
         if (hitFlag) {
-            g_hitMapX = bx;
-            g_hitMapY = by;
-            g_hitAlt = (int16)bulletTracks[idx].alt;
+            g_hitMapPos = f15::math::legacy::mapPosition(bx, by);
+            g_hitAlt = f15::math::legacy::terrainFromUnits((std::int16_t)bulletTracks[idx].alt);
             g_hitEffectTimer = f15::math::TickDuration::fromWord(-1);
         }
 
         if (bulletTracks[idx].alt < 0) {
             if (g_hitEffectTimer.atMost(0)) {
-                g_hitMapX = bx;
-                g_hitMapY = by;
-                g_hitAlt = (int16)bulletTracks[idx].alt;
+                g_hitMapPos = f15::math::legacy::mapPosition(bx, by);
+                g_hitAlt = f15::math::legacy::terrainFromUnits((std::int16_t)bulletTracks[idx].alt);
                 g_hitEffectTimer = f15::math::TickDuration::fromWord(-1);
             }
             bulletTracks[idx].posX = {};
 
-            wpEntry = findWaypointEntry(g_hitMapX, g_hitMapY);
+            wpEntry = findWaypointEntry(f15::math::legacy::mapWordX(g_hitMapPos), f15::math::legacy::mapWordY(g_hitMapPos));
             if (wpEntry != -1 && !(g_planeTable.planes[wpEntry].flags & 0x80)) {
                 pointX = (int16)(g_nearestTileObj->x >> 5);
                 pointY = 0x8000 - (int16)(g_nearestTileObj->y >> 5);
 
-                if (f15::math::legacy::mapRangeDelta(g_hitMapX - pointX, g_hitMapY - pointY) <
+                if (f15::math::legacy::mapRangeDelta(f15::math::legacy::mapWordX(g_hitMapPos) - pointX, f15::math::legacy::mapWordY(g_hitMapPos) - pointY) <
                         groundHitRadiusMap(g_planeTable.planes[wpEntry].nameIndex) &&
                     (g_planeTable.planes[wpEntry].nameIndex & 0x7f) != *(uint8 *)g_landTargetId) {
                     destroyGroundTarget(wpEntry);
                     strcat(strBuf, " destroyed by gunfire");
                     hudMessage(strBuf);
                     g_hitEffectTimer = f15::math::TickDuration::fromWord(8);
-                    g_hitAlt = 0;
+                    g_hitAlt = {};
                 }
             }
         }
@@ -620,10 +618,10 @@ void drawWorldEffects(void) {
          * only gates on-screen visibility (the sparks are re-randomised every frame
          * the timer is active, giving the flicker). radius is a WORLD radius (fine
          * map units), so the burst shrinks with distance instead of a screen-px fan. */
-        projectWorldToHud(g_hitMapX, g_hitMapY, g_hitAlt);
+        projectWorldToHud(f15::math::legacy::mapWordX(g_hitMapPos), f15::math::legacy::mapWordY(g_hitMapPos), f15::math::legacy::terrainUnits(g_hitAlt));
         if (vtxScratch.vproj.x.lo != -1) {
-            long hx = (long)(uint16)g_hitMapX << 5;
-            long hy = (long)(uint16)g_hitMapY << 5;
+            long hx = (long)(uint16)f15::math::legacy::mapWordX(g_hitMapPos) << 5;
+            long hy = (long)(uint16)f15::math::legacy::mapWordY(g_hitMapPos) << 5;
             radius = EXPLOSION_WORLD_RADIUS;
             for (idx = 0; idx < 8; idx++) {
                 /* Render stream, not the sim stream: these draws run per
@@ -631,20 +629,20 @@ void drawWorldEffects(void) {
                  * rate (the scatter is re-randomized each frame anyway). */
                 int color = renderRandomRange(4) + COLOR_LIGHTRED;
                 long ex, ey, ez;
-                if (g_hitAlt > 0) {
+                if (g_hitAlt.isPositive()) {
                     /* airburst: scatter in a world-space sphere around the hit */
                     ex = hx + renderRandomRange(radius << 1) - radius;
                     ey = hy + renderRandomRange(radius << 1) - radius;
-                    ez = g_hitAlt + renderRandomRange(radius << 1) - radius;
+                    ez = f15::math::legacy::terrainUnits(g_hitAlt) + renderRandomRange(radius << 1) - radius;
                 } else {
                     /* ground burst: fan horizontally and plume upward */
                     tmp = renderRandomRange(0x8000) - 0x4000;
                     dist = renderRandomRange(radius);
                     ex = hx + sinMul(tmp, dist);
                     ey = hy - cosMul(tmp, dist);
-                    ez = g_hitAlt + renderRandomRange(radius);
+                    ez = f15::math::legacy::terrainUnits(g_hitAlt) + renderRandomRange(radius);
                 }
-                drawWorldLine(hx, hy, g_hitAlt, ex, ey, (int)ez, color);
+                drawWorldLine(hx, hy, f15::math::legacy::terrainUnits(g_hitAlt), ex, ey, (int)ez, color);
             }
         }
         if (stepped) g_hitEffectTimer.stepTowardZero();

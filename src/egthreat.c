@@ -573,9 +573,9 @@ void updateObjects(void) {
 
                 if (g_simObjectAlt[objIdx] < 0) {
                     (g_simObjects[objIdx].flags.w) &= (objIdx != 0) ? 0x1c1 : 0;
-                    g_hitMapX = g_simObjects[objIdx].posX;
-                    g_hitMapY = g_simObjects[objIdx].posY;
-                    g_hitAlt = g_simObjects[objIdx].alt;
+                    g_hitMapPos = f15::math::legacy::mapPosition((std::int16_t)g_simObjects[objIdx].posX,
+                                     (std::int16_t)g_simObjects[objIdx].posY);
+                    g_hitAlt = f15::math::legacy::terrainFromUnits(g_simObjects[objIdx].alt);
                     g_hitEffectTimer = f15::math::TickDuration::fromWord(-8);
                     if (objIdx == g_airTargetLock) {
                         g_airTargetLock = -1;
