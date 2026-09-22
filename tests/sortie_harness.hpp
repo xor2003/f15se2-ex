@@ -245,7 +245,7 @@ inline std::uint32_t hashMission() {
     h = hashAdd(h, (std::uint16_t)g_missionTick.word());
     h = hashAdd(h, (std::uint16_t)g_nearestThreatRange);
     h = hashAdd(h, (std::uint16_t)g_targetRange);
-    h = hashAdd(h, (std::uint16_t)g_targetBearing);
+    h = hashAdd(h, (std::uint16_t)legacy::signedAngle(g_targetBearing));
     h = hashAdd(h, (std::uint16_t)g_northSouthSign);
     h = hashAdd(h, (std::uint16_t)g_missionEndedFlag[0]);
     h = hashAdd(h, (std::uint16_t)(commData ? commData->landingType : 0));
@@ -327,7 +327,7 @@ inline FieldList snapFields() {
     add("m.mtick", (std::uint16_t)g_missionTick.word());
     add("m.nearR", (std::uint16_t)g_nearestThreatRange);
     add("m.tgtR", (std::uint16_t)g_targetRange);
-    add("m.tgtB", (std::uint16_t)g_targetBearing);
+    add("m.tgtB", (std::uint16_t)legacy::signedAngle(g_targetBearing));
     add("m.ns", (std::uint16_t)g_northSouthSign);
     add("m.ended", (std::uint16_t)g_missionEndedFlag[0]);
     add("m.landT2", (std::uint16_t)(commData ? commData->landingType : 0));
@@ -341,7 +341,7 @@ inline FieldList snapFields() {
 inline void dumpMission() {
     std::printf("mstatus=%d landT=%d mtick=%d nearR=%d tgtR=%d tgtB=%d ns=%d ended=%d landT2=%d corr=%d threat=%d dirDl=%d slow=%d apEng=%d\n",
                 (int)g_missionStatus, (int)g_landingTimer.word(), (int)g_missionTick.word(),
-                (int)g_nearestThreatRange, (int)g_targetRange, (int)g_targetBearing,
+                (int)g_nearestThreatRange, (int)g_targetRange, (int)legacy::signedAngle(g_targetBearing),
                 (int)g_northSouthSign, (int)g_missionEndedFlag[0],
                 commData ? (int)commData->landingType : -1, (int)g_inLandingCorridor,
                 (int)g_closestThreatIndex, (int)g_directorEventDeadline.word(),
@@ -402,7 +402,7 @@ inline void initSortie() {
     g_autopilotEngaged = 0;
     g_autopilotAltitude = {};
     g_missionTick = f15::math::TickDuration{};
-    g_waypointBearing = 0;
+    g_waypointBearing = legacy::angleFromWord(0);
     waypointIndex = 1;
     g_ViewX = legacy::viewX(5000);
     g_ViewY = legacy::viewY(-5000);

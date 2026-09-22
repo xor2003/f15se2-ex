@@ -81,7 +81,8 @@ void recoveryGuidance(SDL_Joystick *stick) {
         g_groundAltitude = 0;
         g_viewZ = 3000;
         g_autopilotAltitude = f15::math::legacy::renderHeightFromUnits(3000);
-        g_autopilotEngaged = g_waypointBearing = 0;
+        g_autopilotEngaged = 0;
+        g_waypointBearing = legacy::angleFromWord(0);
         g_missionTick = f15::math::TickDuration{};
         waypointIndex = 3;
         g_targetSlots[1].viewIndex = 1;
@@ -222,7 +223,7 @@ void thrustAndFuel() {
             autopilotCase == 2 ? -1 : autopilotCase == 3 ? -32768 : 32767;
         waypointIndex = 0;
         g_missionTick = f15::math::TickDuration::fromWord(autopilotCase == 3 ? 0 : 15);
-        g_waypointBearing = bearingTarget;
+        g_waypointBearing = legacy::angleFromWord(bearingTarget);
         if (autopilotCase) {
             g_autopilotAltitude = f15::math::legacy::renderHeightFromUnits(altitudeTarget);
             g_autopilotEngaged = autopilotCase >= 3;

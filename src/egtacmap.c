@@ -68,8 +68,8 @@ void renderHudFrame(int unused) {
      * negated to match the original waypoint-player delta. */
     const auto wpOffset = mapOffset(flightMapPosition(), waypoints[waypointIndex].mapX,
                                     waypoints[waypointIndex].mapY);
-    g_waypointBearing = signedAngle(
-        f15::math::GuidanceMath<f15::math::GameBackend>::aimBearing(-wpOffset.dx, wpOffset.dy));
+    g_waypointBearing =
+        f15::math::GuidanceMath<f15::math::GameBackend>::aimBearing(-wpOffset.dx, wpOffset.dy);
     if (g_hudVisible != 0) {
         if (g_damageTakenFlag != 0) {
             g_damageTakenFlag = 0;
@@ -183,7 +183,7 @@ void renderHudFrame(int unused) {
             if (!g_autopilotAltitude.isZero()) {
                 drawStringBothPages("AUTOPILOT", 236, 90, 0xf);
             }
-            waypointMarkerX = clampRange((((int16)(g_waypointBearing - signedAngle(g_ourHead)) >> 6) / 3) + 159, 89, 229);
+            waypointMarkerX = clampRange(((signedAngle(g_waypointBearing - g_ourHead) >> 6) / 3) + 159, 89, 229);
             setDrawColor(COLOR_LIGHTCYAN);
             drawViewportLine(waypointMarkerX - 2, 15, waypointMarkerX, 17);
             drawViewportLine(waypointMarkerX, 17, waypointMarkerX + 2, 15);

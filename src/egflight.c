@@ -488,7 +488,7 @@ switch_break:
         const auto guidance = f15::math::GuidanceMath<f15::math::GameBackend>::altitudeHold(
             g_autopilotAltitude,
             flightSceneHeight(),
-            {g_ourHead, g_ourPitch, g_ourRoll}, angleFromWord(g_waypointBearing), headingOffset, g_rollPitchTrim);
+            {g_ourHead, g_ourPitch, g_ourRoll}, g_waypointBearing, headingOffset, g_rollPitchTrim);
         g_rollInput = guidance.roll;
         g_pitchInput = guidance.pitch;
 

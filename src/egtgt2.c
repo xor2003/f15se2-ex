@@ -236,8 +236,8 @@ f15::math::WordRep<f15::math::GameBackend> computeTargetBearing(int16 targetX, i
      * targetX/targetY are already coarse words. */
     const auto offset = mapOffset(flightMapPosition(), targetX, targetY);
     if (wantBearing != 0) {
-        g_targetBearing = signedAngle(
-            f15::math::GuidanceMath<f15::math::GameBackend>::aimBearing(-offset.dx, offset.dy));
+        g_targetBearing =
+            f15::math::GuidanceMath<f15::math::GameBackend>::aimBearing(-offset.dx, offset.dy);
     }
     g_targetRange = mapRange(offset);
     return g_targetRange;

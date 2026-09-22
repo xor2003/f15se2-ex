@@ -951,6 +951,32 @@ Verification: modern `modern_sortie_tests` passes (660 ticks pinned,
 envelope worst case position 2838/heading 612 at tick 659), fixed 60/60
 including `sortie_parity_tests`.
 
+## Bearing storage globals typed
+
+`g_waypointBearing` and `g_targetBearing` are now
+`Angle<GameBackend>` globals instead of int16 words. Both were written as
+`signedAngle(GuidanceMath::aimBearing(...))` and read back through
+`angleFromWord`, so the store/load round-tripped through the word domain
+for no reason. Typed storage keeps the fractional `aimBearing` result under
+modern — autopilot waypoint guidance (`egflight.c`) and the target-in-view
+cone tests (`egtarget.c`) now see the unrounded bearing — while the fixed
+rep is the same word, so fixed behavior is unchanged bit-for-bit. The HUD
+waypoint marker (`egtacmap.c`) still truncates to pixels via `signedAngle`
+at the boundary.
+
+`g_acqAimY`, `g_viewHeading`, `g_viewHeadingOffset`, `g_aamSeekerX/Y`,
+`g_trk*`, `g_hitAlt`/`g_hitMapX/Y`, `g_threatRef*` and `g_wingmanX/Y` were
+reviewed and deliberately left raw: they are word-domain outputs feeding
+word-domain consumers (acquisition output params, the render view-matrix
+pipeline, HUD pixel math) or never-written stubs, so typing them would add
+adapters without preserving anything.
+
+Verification: fixed 60/60 (sortie golden unchanged — the typed store is
+bit-identical under fixed); modern smoke gained a check that
+`computeTargetBearing`'s stored bearing keeps sub-word precision; the
+modern sortie trace is unchanged (no bearing-dependent decision boundary
+was crossed on that profile).
+
 ## Angle magnitude read adapters
 
 `legacy_rotation.hpp` gained two fraction-preserving magnitude reads for

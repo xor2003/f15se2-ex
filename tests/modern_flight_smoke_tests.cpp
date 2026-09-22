@@ -178,6 +178,12 @@ int main() {
             (int)g_targetRange != rangeApprox(999 - 10, -999),
             "target range used the stored map words");
 
+    // The bearing store is typed: the fractional aimBearing result must
+    // survive into g_targetBearing (int16 storage truncated it before).
+    computeTargetBearing(4700, 7600, 1);
+    require(g_targetBearing != legacy::angleFromWord(legacy::signedAngle(g_targetBearing)),
+            "typed bearing store lost the fractional angle");
+
     // Loft-angle divisor: altitude 229376 compresses to scene height 65536,
     // wrapping g_viewZ to 0. Modern keeps the unwrapped divisor.
     g_viewZ = 0;
@@ -249,7 +255,7 @@ int main() {
         g_joyRawX = g_joyRawY = 128;
         g_autopilotAltitude = Altitudes::render(autopilot ? 10000 : 0);
         g_autopilotEngaged = 0;
-        g_waypointBearing = 0;
+        g_waypointBearing = legacy::angleFromWord(0);
         waypointIndex = 0;
         g_ourHead = g_ourPitch = g_ourRoll = g_rollPitchTrim = {};
         rebuildOrientation();

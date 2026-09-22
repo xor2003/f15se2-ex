@@ -614,22 +614,22 @@ int main() {
     require(range == expectedRangeApprox(300, -600),
             "computeTargetBearing stores original range approximation");
     require(g_targetRange == range, "computeTargetBearing writes g_targetRange");
-    require(static_cast<uint16>(g_targetBearing) == static_cast<uint16>(expectedBearing(-300, -600)),
+    require(static_cast<uint16>(signedAngle(g_targetBearing)) == static_cast<uint16>(expectedBearing(-300, -600)),
             "computeTargetBearing writes original bearing when requested");
-    g_targetBearing = 1234;
+    g_targetBearing = angleFromWord(1234);
     computeTargetBearing(4700, 7600, 0);
-    require(g_targetBearing == 1234, "computeTargetBearing leaves bearing unchanged when not requested");
+    require(signedAngle(g_targetBearing) == 1234, "computeTargetBearing leaves bearing unchanged when not requested");
 
     g_planeTable.planes[kMapRangeTargetIdx].mapX = 4700;
     g_planeTable.planes[kMapRangeTargetIdx].mapY = 7600;
     require(computeMapTargetRange(kMapRangeTargetIdx) == expectedRangeApprox(300, -600) &&
-                static_cast<uint16>(g_targetBearing) == static_cast<uint16>(expectedBearing(-300, -600)),
+                static_cast<uint16>(signedAngle(g_targetBearing)) == static_cast<uint16>(expectedBearing(-300, -600)),
             "computeMapTargetRange reads map target coordinates and requests original bearing update");
-    g_targetBearing = 4321;
+    g_targetBearing = angleFromWord(4321);
     g_simObjects[kSimRangeObjIdx].posX = 4700;
     g_simObjects[kSimRangeObjIdx].posY = 7600;
     require(computeSimObjectRange(kSimRangeObjIdx) == expectedRangeApprox(300, -600) &&
-                g_targetBearing == 4321,
+                signedAngle(g_targetBearing) == 4321,
             "computeSimObjectRange reads sim-object coordinates without updating bearing");
 
     // --- computeLoftAngle unsigned divide (egtgt2) --------------------------

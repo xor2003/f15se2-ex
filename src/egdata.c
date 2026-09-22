@@ -2040,7 +2040,7 @@ int16 g_acqAimY = 0;
 int16 g_lockToneFlag = 0;
 f15::math::WordRep<f15::math::GameBackend> g_targetRange = 0;
 int16 g_offscreenProjX = 0;
-int16 g_targetBearing = 0;
+f15::math::Angle<f15::math::GameBackend> g_targetBearing;
 int16 g_prevKillMarker = 0;
 int16 g_aamLeadDist = 0;
 int16 g_axisInput1 = 0;
@@ -2205,7 +2205,7 @@ uint8 g_modelVertY[0x40];
 int16 g_scopeArcRange;
 uint8 g_modelVertZ[0x10];
 ViewMode g_viewMode;
-int16 g_waypointBearing;
+f15::math::Angle<f15::math::GameBackend> g_waypointBearing;
 int16 g_viewPitch;
 int16 g_threatLabelTarget;
 

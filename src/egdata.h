@@ -318,7 +318,7 @@ extern uint8 g_modelVertY[];
 extern int16 g_scopeArcRange;
 extern uint8 g_modelVertZ[];
 extern ViewMode g_viewMode;
-extern int16 g_waypointBearing;
+extern f15::math::Angle<f15::math::GameBackend> g_waypointBearing;
 // 16-bit on purpose: view-angle math relies on 16-bit wraparound (the gimbal
 // flip in renderFrame, where side views feed roll into pitch). Native int=4
 // would make abs()/0x8000 compares misfire and invert the scene.
@@ -450,7 +450,7 @@ extern int16 g_acqAimY;
 extern int16 g_lockToneFlag;
 extern f15::math::WordRep<f15::math::GameBackend> g_targetRange;
 extern int16 g_unusedHudFlag;
-extern int16 g_targetBearing;
+extern f15::math::Angle<f15::math::GameBackend> g_targetBearing;
 extern int16 g_prevKillMarker;
 extern int16 g_aamLeadDist;
 extern int16 g_axisInput1;
