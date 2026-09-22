@@ -212,7 +212,7 @@ void updateThreatTargeting(void) {
                          (mode == 1 || mode == 2 ||
                           (mode == 3 &&
                            -(g_missionStatus * 12 - 0x40) >
-                               abs(abs((int16)(aimY - signedAngle(g_ourHead)) >> 8) - 0x40))))) {
+                               abs(abs(signedAngle(angleFromWord(aimY) - g_ourHead) >> 8) - 0x40))))) {
                         acq = samCanAcquireTarget(slot, mapEvents[scan].mapX,
                                                   mapEvents[scan].mapY, alt0, mode);
                         if (acq != 0) {
