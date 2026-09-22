@@ -341,12 +341,16 @@ skip_target_section:
         if (g_planeTable.planes[g_closestThreatIndex].flags & 0x800) {
             g_attackRangeY = 0x400;
         }
+        const auto threatOff = mapOffset(flightMapPosition(),
+                                         g_planeTable.planes[g_closestThreatIndex].mapX,
+                                         g_planeTable.planes[g_closestThreatIndex].mapY);
         if (g_planeTable.planes[g_closestThreatIndex].flags & 0x200) {
             g_groundAltitude = 0x80;
             g_attackRangeX = 0x100;
             g_attackRangeY = 0x3c0;
             if (missionAtHeight(g_groundAltitude) && flightKnots() > SpeedMath::knots(0x50)) {
-                if ((uint16)(f15::math::legacy::mapWordY(flightMapPosition()) - g_planeTable.planes[g_closestThreatIndex].mapY) * g_northSouthSign >= 0x10 && (uint16)(f15::math::legacy::mapWordY(flightMapPosition()) - g_planeTable.planes[g_closestThreatIndex].mapY) * g_northSouthSign <= 0x14) {
+                const auto forwardDist = threatOff.ringY() * g_northSouthSign;
+                if (forwardDist >= 0x10 && forwardDist <= 0x14) {
                     if (!gameOptionsEnabled(GAME_OPTION_NO_DAMAGE) &&
                         angleMagnitude(g_ourHead - angleFromWord((1 - g_northSouthSign) << 0xe)) < 0x2000) {
                         g_autoCrashDive = 1;
@@ -359,8 +363,8 @@ skip_target_section:
             g_attackRangeX += 0x100;
             g_attackRangeY += 0x200;
         }
-        if (abs(f15::math::legacy::mapWordX(flightMapPosition()) - g_planeTable.planes[g_closestThreatIndex].mapX) > (g_attackRangeX >> 5) ||
-            (abs(f15::math::legacy::mapWordY(flightMapPosition()) - g_planeTable.planes[g_closestThreatIndex].mapY) > (g_attackRangeY >> 5))) {
+        if (std::abs(threatOff.dx) > (g_attackRangeX >> 5) ||
+            (std::abs(threatOff.dy) > (g_attackRangeY >> 5))) {
             g_groundAltitude = 0;
             g_inLandingCorridor = 0;
         } else {
@@ -396,7 +400,7 @@ skip_target_section:
         }
     end_landing_check:
         if ((g_landingDoneFlag == 0) && (g_missionStatus == 0) && g_playerPlaneFlags & 0x6000) {
-            if (abs(f15::math::legacy::mapWordX(flightMapPosition()) - g_planeTable.planes[g_closestThreatIndex].mapX) < 0x10 && abs(f15::math::legacy::mapWordY(flightMapPosition()) - g_planeTable.planes[g_closestThreatIndex].mapY) < 0x10) {
+            if (std::abs(threatOff.dx) < 0x10 && std::abs(threatOff.dy) < 0x10) {
                 g_altitude = {};
                 g_velocity = {};
                 g_setThrust = 0;
