@@ -165,7 +165,7 @@ void fireGroundThreat(int16 planeIdx) {
                                          * starts at the launcher, not a stale slot value. */
                                         g_projectiles[slot].fineX = FineCoord::fromRep((int32)(uint16)g_projectiles[slot].mapX << 5);
                                         g_projectiles[slot].fineY = FineCoord::fromRep((int32)(uint16)g_projectiles[slot].mapY << 5);
-                                        g_projectiles[slot].alt = 0;
+                                        objectLinearSet(g_projectileAlt[slot], g_projectiles[slot].alt, 0);
                                         g_projectiles[slot].speed = 1;
                                         g_projectiles[slot].head = angleFromWord(bearing[0]);
                                         g_projectiles[slot].pitch = angleFromWord(0x4000);

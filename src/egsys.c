@@ -211,7 +211,10 @@ typedef struct {
 
 typedef struct {
     f15::math::FineCoord<f15::math::GameBackend> fineX, fineY; /* authoritative mapX<<5-scale position */
-    int32 alt;
+    /* Altitude shadow rep (fractional under modern) + the packed low-bit
+     * radar flag, which rides bit 0 of the packed word separately. */
+    f15::math::WordRep<f15::math::GameBackend> alt;
+    uint8 altFlag;
     f15::math::Angle<f15::math::GameBackend> head, pitch;      /* missile yaw/pitch */
     int16 ttl;
 } ProjSnap;
@@ -239,7 +242,8 @@ static void objCapture(SimObjSnap *sim, ProjSnap *proj) {
     for (i = 0; i < PROJ_MAX; i++) {
         proj[i].fineX = g_projectiles[i].fineX;
         proj[i].fineY = g_projectiles[i].fineY;
-        proj[i].alt = g_projectiles[i].alt;
+        proj[i].alt = g_projectileAlt[i];
+        proj[i].altFlag = g_projectiles[i].alt & 1;
         proj[i].head = g_projectiles[i].head;
         proj[i].pitch = g_projectiles[i].pitch;
         proj[i].ttl = g_projectiles[i].ttl;
@@ -302,7 +306,8 @@ static void objApplyInterp(const SimObjSnap *sp, const SimObjSnap *sn,
         /* alt's low bit is the track-state flag (radar draws gray when clear),
          * not real altitude — interpolate the altitude but keep the authoritative
          * flag bit so "lost track" stays gray. */
-        g_projectiles[i].alt = ((int16)lerpLinear(pp[i].alt, pn[i].alt, num, den) & ~1) | (pn[i].alt & 1);
+        f15::math::legacy::objectLinearInterpFlagged(g_projectileAlt[i], g_projectiles[i].alt,
+            pp[i].alt, pn[i].alt, pn[i].altFlag != 0, num, den);
         g_projectiles[i].head = Pose::angle(pp[i].head, pn[i].head, fraction);
         g_projectiles[i].pitch = Pose::angle(pp[i].pitch, pn[i].pitch, fraction);
     }
@@ -329,7 +334,8 @@ static void objRestore(const SimObjSnap *sn, const ProjSnap *pn) {
         g_projectiles[i].mapY = pn[i].fineY.mapWord();
         g_projInterpX[i] = f15::math::legacy::fineWord(pn[i].fineX);
         g_projInterpY[i] = f15::math::legacy::fineWord(pn[i].fineY);
-        g_projectiles[i].alt = (int16)pn[i].alt;
+        f15::math::legacy::objectLinearSetFlagged(g_projectileAlt[i], g_projectiles[i].alt,
+            pn[i].alt, pn[i].altFlag != 0);
         g_projectiles[i].head = pn[i].head;
         g_projectiles[i].pitch = pn[i].pitch;
     }

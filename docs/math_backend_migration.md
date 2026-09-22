@@ -1332,6 +1332,28 @@ Verification: fixed 60/60 (sortie parity exercises the per-tick chain),
 modern smoke, analyzer clean (egthreat retains the documented pre-existing
 warnings).
 
+## Projectile alt flag-aliased shadow
+
+`Projectile.alt` is the same per-tick-integrated packed word
+(`alt += (int16)sineVelocity(pitch, speed<<7/scaling)`) with one extra
+quirk: its low bit is the radar track-state flag, written with byte ops
+(`*(uint8*)&alt |= 1` / `&= 0xfe`) that fold ±1 into the stored value.
+`g_projectileAlt[]` is the `WordRep` shadow; `Projectile.speed` stays
+packed — it only ever holds whole speeds (`speed++` ratchet, const seeds),
+so there is no fraction to preserve.
+
+* `objectLinearSet/Advance` cover the plain writes; `objectLinearFlag0`
+  reproduces the flag byte-ops (packed bit0 moves the shadow by ±1, exactly
+  like the original word arithmetic).
+* `objectLinearInterpFlagged` ports the snapshot blend
+  `((lerp & ~1) | (pn.alt & 1))`: `ProjSnap` carries the altitude rep plus
+  the next-snapshot flag bit separately.
+* `alt == 1`, `alt & 1`, `testWorldPosVisible`, `g_hitAlt`, and the
+  `(alt0 - alt) >> n` aim deltas read the packed word — the canonical flag
+  + rounded-altitude view; `alt < 0` (impact check) reads the shadow.
+
+Verification: fixed 60/60, modern smoke, analyzer clean.
+
 ### Next acceptance boundary
 
 The decision-math surface is migrated end to end: every gameplay compare

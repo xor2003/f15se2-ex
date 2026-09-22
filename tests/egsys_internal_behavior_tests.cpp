@@ -201,7 +201,8 @@ int main() {
     g_projectiles[kProjectileSlot].mapY = 200;
     g_projectiles[kProjectileSlot].fineX = FineCoord::fromRep(100 << 5);
     g_projectiles[kProjectileSlot].fineY = FineCoord::fromRep(200 << 5);
-    g_projectiles[kProjectileSlot].alt = 300;
+    f15::math::legacy::objectLinearSet(g_projectileAlt[kProjectileSlot],
+                                       g_projectiles[kProjectileSlot].alt, 300);
     g_projectiles[kProjectileSlot].head = angleFromWord(0x0100);
     g_projectiles[kProjectileSlot].pitch = angleFromWord(0x0200);
     g_projectiles[kProjectileSlot].ttl = kProjectilePrevTtl;
@@ -225,7 +226,8 @@ int main() {
     g_projectiles[kProjectileSlot].mapY = 600;
     g_projectiles[kProjectileSlot].fineX = FineCoord::fromRep(300 << 5);
     g_projectiles[kProjectileSlot].fineY = FineCoord::fromRep(600 << 5);
-    g_projectiles[kProjectileSlot].alt = 900;
+    f15::math::legacy::objectLinearSet(g_projectileAlt[kProjectileSlot],
+                                       g_projectiles[kProjectileSlot].alt, 900);
     g_projectiles[kProjectileSlot].head = angleFromWord(0x0300);
     g_projectiles[kProjectileSlot].pitch = angleFromWord(0x0400);
     g_projectiles[kProjectileSlot].ttl = kProjectileNextTtl;

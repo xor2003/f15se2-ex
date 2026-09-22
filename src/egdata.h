@@ -73,6 +73,7 @@ extern struct Particle g_particles[8];
 extern int16 g_smokeParticleSlot;
 extern const int16 g_maneuverTable[3][8][8];
 extern struct Projectile g_projectiles[];
+extern f15::math::WordRep<f15::math::GameBackend> g_projectileAlt[];
 extern int32 g_projInterpX[];
 extern int32 g_projInterpY[];
 extern int16 g_threatScopeRange;

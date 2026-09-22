@@ -491,6 +491,55 @@ void linearShadow() {
     }
     require(std::abs(wordLerp<M>(0.0, 10.0, 1, 4) - 2.5) < 1e-12,
             "modern wordLerp lost the fraction");
+    /* Projectile.alt flag aliasing: bit0 set/clear moves the packed word by
+     * ±1 and folds into the shadow, like the original byte ops. */
+    {
+        std::int16_t shadow = 0, packed = 0;
+        using f15::math::legacy::objectLinearFlag0;
+        using f15::math::legacy::objectLinearInterpFlagged;
+        using f15::math::legacy::objectLinearSetFlagged;
+        objectLinearSet<F>(shadow, packed, 300);
+        objectLinearFlag0<F>(shadow, packed, true);
+        require(packed == 301 && shadow == 301, "fixed flag0 set diverged from alt |= 1");
+        objectLinearFlag0<F>(shadow, packed, true);
+        require(packed == 301 && shadow == 301, "fixed flag0 set was not idempotent");
+        objectLinearFlag0<F>(shadow, packed, false);
+        require(packed == 300 && shadow == 300, "fixed flag0 clear diverged from alt &= ~1");
+        /* Advance keeps the flag's ±1 in the value, like alt += v did. */
+        objectLinearFlag0<F>(shadow, packed, true);
+        objectLinearAdvance<F>(shadow, packed, 5);
+        require(packed == 306 && shadow == 306, "fixed advance after flag0 lost the flag contribution");
+    }
+    {
+        double shadow = 0;
+        std::int16_t packed = 0;
+        using f15::math::legacy::objectLinearFlag0;
+        using f15::math::legacy::objectLinearInterpFlagged;
+        using f15::math::legacy::objectLinearSetFlagged;
+        objectLinearSet<M>(shadow, packed, 100);
+        objectLinearAdvance<M>(shadow, packed, 0.4);
+        objectLinearFlag0<M>(shadow, packed, true);
+        require(packed == 101 && (packed & 1), "modern flag0 did not set packed bit0");
+        require(std::abs(shadow - 100.4 - 1) < 1e-9,
+                "modern flag0 did not fold the flag into the shadow");
+        /* Flagged interp: packed low bit forced from the next snap's flag. */
+        objectLinearInterpFlagged<M>(shadow, packed, 0.0, 10.6, true, 1, 2);
+        require((packed & 1) == 1 && packed == 5,
+                "modern flagged interp lost the next-snap flag or rounded wrong");
+        objectLinearInterpFlagged<M>(shadow, packed, 0.0, 10.6, false, 1, 2);
+        require((packed & 1) == 0 && packed == 4,
+                "modern flagged interp did not clear bit0");
+        objectLinearSetFlagged<M>(shadow, packed, 42.0, true);
+        require(packed == 43 && (packed & 1), "modern flagged set lost the flag bit");
+    }
+    /* Fixed flagged interp against the original ((lerp & ~1) | (pn & 1)). */
+    {
+        using f15::math::legacy::objectLinearInterpFlagged;
+        std::int16_t shadow = 0, packed = 0;
+        objectLinearInterpFlagged<F>(shadow, packed, (int16)300, (int16)500, true, 1, 2);
+        const int16 oracle = (int16)(((int16)(300 + (int32)((int64)(500 - 300) * 1 / 2)) & ~1) | 1);
+        require(packed == oracle && shadow == oracle, "fixed flagged interp diverged from the masked lerp");
+    }
 }
 } // namespace
 

@@ -173,6 +173,42 @@ inline WordScalar<B> wordLerp(WordScalar<B> a, WordScalar<B> b, std::int64_t num
         return a + (b - a) * (static_cast<double>(num) / den);
 }
 
+/* Projectile.alt aliases its low bit as the radar track-state flag: the
+ * original folds the flag into the stored word, so the shadow does the same
+ * — `alt |= 1` / `alt &= ~1` move the value by ±1 under both backends. */
+template<class B = GameBackend>
+inline void objectLinearFlag0(WordScalar<B> &shadow, std::int16_t &packed, bool set) {
+    const std::int16_t old = packed;
+    packed = static_cast<std::int16_t>(set ? (packed | 1) : (packed & ~1));
+    shadow = shadow + (packed - old);
+}
+
+/* Snapshot interp for a flag-aliased word: lerp the reps, then force the
+ * packed low bit from the next snapshot's flag like the original
+ * ((lerp & ~1) | (pn & 1)); the flag folds into the shadow value. */
+template<class B = GameBackend>
+inline void objectLinearInterpFlagged(WordScalar<B> &shadow, std::int16_t &packed,
+                                      WordScalar<B> a, WordScalar<B> b,
+                                      bool nextFlag, std::int64_t num, std::int64_t den) {
+    shadow = wordLerp<B>(a, b, num, den);
+    const std::int16_t w = static_cast<std::int16_t>(
+        std::lround(static_cast<double>(shadow)));
+    packed = static_cast<std::int16_t>((w & ~1) | (nextFlag ? 1 : 0));
+    shadow = shadow + (packed - w);
+}
+
+/* Restore a flag-aliased word from a snap rep + flag bit: the packed word
+ * carries the flag verbatim, the shadow folds it into the value. */
+template<class B = GameBackend>
+inline void objectLinearSetFlagged(WordScalar<B> &shadow, std::int16_t &packed,
+                                   WordScalar<B> value, bool flag) {
+    shadow = value;
+    const std::int16_t w = static_cast<std::int16_t>(
+        std::lround(static_cast<double>(shadow)));
+    packed = static_cast<std::int16_t>((w & ~1) | (flag ? 1 : 0));
+    shadow = shadow + (packed - w);
+}
+
 /* Typed attitude shadow <-> packed int16 sync for SimObject heading/pitch/
  * bank — the same shadow pattern as the fine positions. The shadow is
  * authoritative; the packed word mirrors it for layout/render/serialization

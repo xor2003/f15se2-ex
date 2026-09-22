@@ -104,7 +104,8 @@ void fireAirThreat(int16 objIdx) {
                                  * coords (posX/Y are worldX/Y>>5, so fine>>5 == map) */
                                 g_projectiles[slot].fineX = FineCoord::fromRep(objectFineRep(g_simObjectFineX[objIdx]));
                                 g_projectiles[slot].fineY = FineCoord::fromRep(objectFineRep(g_simObjectFineY[objIdx]));
-                                g_projectiles[slot].alt = g_simObjects[objIdx].alt - 25;
+                                f15::math::legacy::objectLinearSet(g_projectileAlt[slot],
+                                    g_projectiles[slot].alt, g_simObjectAlt[objIdx] - 25);
                                 g_projectiles[slot].speed = sams[idx].maxSpeed >> 6;
                                 g_projectiles[slot].head = g_simObjectHeading[objIdx];
                                 g_projectiles[slot].pitch = g_simObjectPitch[objIdx] - angleFromWord(0x400);
@@ -384,11 +385,15 @@ void updateThreatTargeting(void) {
                                                    g_projectiles[slot].speed, g_angleLut) * 256);
             if (mode == 30) {
                 step /= 2;
-                g_projectiles[slot].alt += (int16)ProjectileGuidance::sineVelocity(g_projectiles[slot].pitch,
-                                                  g_frameRateScaling.perTick(g_projectiles[slot].speed << 7), g_angleLut);
+                f15::math::legacy::objectLinearAdvance(g_projectileAlt[slot],
+                    g_projectiles[slot].alt,
+                    ProjectileGuidance::sineVelocity(g_projectiles[slot].pitch,
+                        g_frameRateScaling.perTick(g_projectiles[slot].speed << 7), g_angleLut));
             } else {
-                g_projectiles[slot].alt += (int16)ProjectileGuidance::sineVelocity(g_projectiles[slot].pitch,
-                                                  g_frameRateScaling.perTick((int16)(*(uint8 *)&g_projectiles[slot].speed << 8)), g_angleLut);
+                f15::math::legacy::objectLinearAdvance(g_projectileAlt[slot],
+                    g_projectiles[slot].alt,
+                    ProjectileGuidance::sineVelocity(g_projectiles[slot].pitch,
+                        g_frameRateScaling.perTick((int16)(*(uint8 *)&g_projectiles[slot].speed << 8)), g_angleLut));
             }
             g_projectiles[slot].fineX = g_projectiles[slot].fineX.advanced(
                 ProjectileGuidance::sineStep(g_projectiles[slot].head, step, g_angleLut));
@@ -397,17 +402,14 @@ void updateThreatTargeting(void) {
             g_projectiles[slot].mapX = g_projectiles[slot].fineX.mapWord();
             g_projectiles[slot].mapY = g_projectiles[slot].fineY.mapWord();
             (g_projectiles + slot)->ttl--;
-            if (slot < 8) {
-                if (locked == 0)
-                    *(uint8 *)&g_projectiles[slot].alt &= 0xfe;
-                else
-                    *(uint8 *)&g_projectiles[slot].alt |= 1;
-            }
+            if (slot < 8)
+                f15::math::legacy::objectLinearFlag0(g_projectileAlt[slot],
+                    g_projectiles[slot].alt, locked != 0);
             *(char *)&g_posVisibleFlag = 0;
             if ((slot & 3) == frameTick.phase(4))
                 testWorldPosVisible(g_projectiles[slot].mapX, g_projectiles[slot].mapY, g_projectiles[slot].alt);
 
-            if (g_projectiles[slot].alt < 0 || *(int8 *)&g_posVisibleFlag != 0) {
+            if (g_projectileAlt[slot] < 0 || *(int8 *)&g_posVisibleFlag != 0) {
                 g_hitMapX = g_projectiles[slot].mapX;
                 g_hitMapY = g_projectiles[slot].mapY;
                 g_hitAlt = g_projectiles[slot].alt;
@@ -764,7 +766,8 @@ void fireMissile() {
      * recomposes as 0x10000F - fine, both modulo the 21-bit mask. */
     g_projectiles[slot].fineX = FineCoord::fromRep(fineRep(g_ViewX) + 0x10);
     g_projectiles[slot].fineY = FineCoord::fromRep(0x10000F - fineRep(g_ViewY));
-    g_projectiles[slot].alt = (int16)(f15::math::legacy::Altitudes::renderWord(flightSceneHeight()) - 20);
+    f15::math::legacy::objectLinearSet(g_projectileAlt[slot], g_projectiles[slot].alt,
+        f15::math::legacy::Altitudes::renderWord(flightSceneHeight()) - 20);
     g_projectiles[slot].speed = f15::math::legacy::projectileSpeed(g_velocity);
     g_projectiles[slot].head = g_ourHead;
     g_projectiles[slot].pitch = g_ourPitch;

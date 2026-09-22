@@ -452,6 +452,10 @@ extern const int16 g_maneuverTable[3][8][8] = {
 /* g_projectiles: in-flight projectile/missile table (player rounds + threat
  * shots), 12 entries. g_viewSnapshotRing: 16-entry camera/view replay snapshot ring. */
 struct Projectile g_projectiles[12];
+/* Typed shadow of Projectile.alt: the packed int16 keeps the radar flag in
+ * bit 0; the shadow carries the fractional altitude that per-tick
+ * sineVelocity integration would otherwise quantize away under modern. */
+f15::math::WordRep<f15::math::GameBackend> g_projectileAlt[12];
 /* Per-projectile fine (worldX-scale, i.e. mapX<<5) interpolated position, filled
  * each render frame by objApplyInterp. The sim only carries the coarse uint16
  * mapX/mapY (1 unit = 32 fine); drawing/tracking a missile from mapX<<5 makes it
