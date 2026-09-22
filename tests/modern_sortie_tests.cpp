@@ -25,6 +25,11 @@
  * (a missile follows its launch attitude; at ~t390 the two backends' aircraft
  * already differ by ~1000 altitude units and ~3 deg of pitch). They are
  * pinned by layer 1 instead.
+ *
+ * --loop runs the pole-fold profile: layer-1 pin against
+ * sortie_loop_fields_modern.trace plus the harness's non-degenerate loop
+ * assertions. Layers 2/3 are skipped — trajectories decorrelate through the
+ * pole band by design, and modern takes the analog input path.
  */
 #include "sortie_harness.hpp"
 
@@ -93,26 +98,31 @@ std::uint32_t wrapDistance(std::uint32_t a, std::uint32_t b) {
     return std::min(d, 65536u - d);
 }
 
-int run(bool record, const char *recordPath) {
+int run(bool record, const char *recordPath, Profile profile) {
+    const bool loop = profile == Profile::kLoop;
     std::ofstream modernGolden;
     std::ifstream modernIn, fixedIn;
+    const char *goldenName = loop ? "sortie_loop_fields_modern.trace"
+                                  : "sortie_fields_modern.trace";
     if (record) {
         modernGolden.open(recordPath, std::ios::binary | std::ios::trunc);
         require(modernGolden.good(), "cannot open modern golden output");
         modernGolden << "sortie_fields_modern 1 seed " << kSeed << " ticks " << kSortieTicks << "\n";
     } else {
-        modernIn.open(F15_GOLDEN_DIR "/sortie_fields_modern.trace", std::ios::binary);
-        require(modernIn.good(),
-                "cannot open sortie_fields_modern.trace (record with 'record <file>')");
-        fixedIn.open(F15_GOLDEN_DIR "/sortie_fields.trace", std::ios::binary);
-        require(fixedIn.good(), "cannot open sortie_fields.trace");
+        modernIn.open((std::string(F15_GOLDEN_DIR) + "/" + goldenName).c_str(), std::ios::binary);
+        require(modernIn.good(), "cannot open modern field golden (record with 'record <file> --loop')");
+        if (!loop) {
+            fixedIn.open(F15_GOLDEN_DIR "/sortie_fields.trace", std::ios::binary);
+            require(fixedIn.good(), "cannot open sortie_fields.trace");
+        }
         std::string header;
         require(std::getline(modernIn, header).good() &&
                 header.rfind("sortie_fields_modern 1", 0) == 0,
                 "modern field golden header mismatch");
-        require(std::getline(fixedIn, header).good() &&
-                header.rfind("sortie_fields_trace 1", 0) == 0,
-                "fixed field golden header mismatch");
+        if (!loop)
+            require(std::getline(fixedIn, header).good() &&
+                    header.rfind("sortie_fields_trace 1", 0) == 0,
+                    "fixed field golden header mismatch");
     }
 
     int pinFails = 0, envelopeFails = 0;
@@ -121,10 +131,12 @@ int run(bool record, const char *recordPath) {
     using Transitions = std::vector<std::pair<int, std::uint32_t>>;
     std::unordered_map<std::string, Transitions> fixedTrans, modernTrans;
     std::unordered_map<std::string, std::uint32_t> lastFixed, lastModern;
+    LoopCheck loopCheck;
 
     for (int tick = 0; tick < kSortieTicks; ++tick) {
-        runTick(tick);
+        runTick(tick, profile);
         const auto snap = snapFields();
+        if (loop) loopObserve(loopCheck, tick);
 
         if (record) {
             modernGolden << tick;
@@ -134,12 +146,17 @@ int run(bool record, const char *recordPath) {
         }
 
         std::string modernLine, fixedLine;
-        require(std::getline(modernIn, modernLine).good() &&
-                std::getline(fixedIn, fixedLine).good(), "field golden ended early");
-        int modernTick, fixedTick;
+        require(std::getline(modernIn, modernLine).good(), "modern field golden ended early");
+        int modernTick;
         const auto pinned = parseLine(modernLine, modernTick);
-        const auto expected = parseLine(fixedLine, fixedTick);
-        require(modernTick == tick && fixedTick == tick, "field golden tick order mismatch");
+        require(modernTick == tick, "modern field golden tick order mismatch");
+        std::map<std::string, std::uint32_t> expected;
+        int fixedTick = tick;
+        if (!loop) {
+            require(std::getline(fixedIn, fixedLine).good(), "fixed field golden ended early");
+            expected = parseLine(fixedLine, fixedTick);
+            require(fixedTick == tick, "fixed field golden tick order mismatch");
+        }
 
         for (const auto &fv : snap) {
             /* Layer 1: modern golden pin — exact. */
@@ -151,6 +168,10 @@ int run(bool record, const char *recordPath) {
                                  tick, fv.first.c_str(), fv.second, pi->second);
             }
 
+            /* The fixed envelope/discrete layers are sortie-only: the loop
+             * decorrelates trajectories through the pole band by design, and
+             * the stick arrives via the analog path under modern anyway. */
+            if (loop) continue;
             const auto fi = expected.find(fv.first);
             require(fi != expected.end(), "field missing from fixed golden");
 
@@ -182,6 +203,7 @@ int run(bool record, const char *recordPath) {
             }
         }
     }
+    if (loop) loopRequire(loopCheck);
     if (record) {
         require(modernGolden.good(), "modern golden write failed");
         std::fprintf(stderr, "recorded %d modern field ticks to %s\n", kSortieTicks, recordPath);
@@ -190,7 +212,7 @@ int run(bool record, const char *recordPath) {
     {
         std::string extra;
         require(!std::getline(modernIn, extra).good() &&
-                !std::getline(fixedIn, extra).good(), "field golden has extra ticks");
+                (loop || !std::getline(fixedIn, extra).good()), "field golden has extra ticks");
     }
 
     int discreteFails = 0;
@@ -219,6 +241,13 @@ int run(bool record, const char *recordPath) {
                      pinFails, envelopeFails, discreteFails);
         return 1;
     }
+    if (loop) {
+        std::printf("modern loop: %d ticks pinned; pole band traversed "
+                    "(max pitch magnitude %u words, altitude range %u)\n",
+                    kSortieTicks, loopCheck.maxPitchMag,
+                    loopCheck.altMax - loopCheck.altMin);
+        return 0;
+    }
     std::printf("modern sortie: %d ticks pinned, envelope ok; worst vs fixed:\n", kSortieTicks);
     for (const char *k : {"f.fineX", "f.fineY", "f.alt", "f.head", "f.roll", "f.knots"})
         std::printf("  %-8s max %llu (tick %d)\n", k,
@@ -228,10 +257,14 @@ int run(bool record, const char *recordPath) {
 }
 
 int main(int argc, char **argv) {
+    const bool loop = argc >= 2 && std::string(argv[argc - 1]) == "--loop";
+    if (loop) --argc;
     const bool record = argc == 3 && std::string(argv[1]) == "record";
-    require(record || argc == 1, "usage: modern_sortie_tests [record <out.trace>]");
+    require(record || argc == 1,
+            "usage: modern_sortie_tests [record <out.trace>] [--loop]");
     initSortie();
-    const int result = run(record, record ? argv[2] : nullptr);
+    const int result = run(record, record ? argv[2] : nullptr,
+                           loop ? Profile::kLoop : Profile::kSortie);
     teardown();
     return result;
 }

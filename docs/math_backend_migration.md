@@ -1923,6 +1923,46 @@ range and stream independence (64 interleaved render draws leave the game
 sequence untouched); fixed 60/60 and modern 2/2 pass — the harness never
 calls the render path, so both sortie goldens are untouched.
 
+## Sortie harness stick injection and the loop profile
+
+The sortie harness's original stick schedule wrote `g_joyRawX/Y` (and later
+`joyAxes[]`) after `input_pumpEvents`. Investigation for the loop profile
+showed both writes are dead: `kbhit()` inside `stepFlightModel` re-pumps
+events and `updateStick()` re-derives `g_joyRaw` from `SDL_GetKeyboardState`,
+and `joyAxes` is re-derived from `g_joyRaw` inside the step — and pushed key
+events never reach `SDL_GetKeyboardState` at all, ruling out held-key
+injection too. The committed sortie golden therefore pins a *centered-stick*
+trajectory; its climb/turn/stall phase labels never reached the sim (the
+throttle/gear/weapon/autopilot keys did work — they travel the BIOS key ring,
+not the stick path).
+
+The harness now attaches a virtual joystick (`SDL_AttachVirtualJoystick`,
+2 axes, opened by the real `JOYSTICK_ADDED` -> `joy_open` path). Axis state
+persists by construction, so `updateAxes`/`readCalibratedJoystick` deliver
+the scheduled byte on every internal pump — the same path real hardware
+takes, with the full 0..255 byte range the keyboard cannot express
+(`axisForByte` inverts `axisByte`'s deadzone+scale). `kSortie` keeps the
+stick centred, preserving its e28b9a4-oracle golden exactly; the `--loop`
+profile holds a sustained pull (0xda = stick back) and drives the aircraft
+through the pole band — the vertical-loop/pole-fold path that previously
+trapped. Both backends traverse: fixed reaches ~15310 words pitch magnitude,
+modern reaches 16361 (of 16384 = exactly vertical).
+
+Gates: `sortie_loop_parity_tests` compares per-tick hashes against
+`sortie_loop_parity.trace` (recorded at HEAD — the profile exercises the
+post-tag pole-fold fix, so a tag recording would pin the original trap) and
+asserts non-degeneracy — nonzero stick input inside the pull window, pole
+band entered (|pitch| >= 0x3000), altitude range >= 4000 — so a future
+injection break fails loudly rather than recording a level flight.
+`modern_sortie_loop_tests` pins `sortie_loop_fields_modern.trace` exactly
+plus the same assertions; the fixed-envelope/discrete layers are skipped
+because pole-band trajectories decorrelate by design and modern takes the
+analog input path.
+
+Follow-up option: a stick-active variant of the sortie schedule would change
+its trajectory, so its golden would need re-recording at e28b9a4 with a
+compat-shimmed harness (the tag predates several typed globals).
+
 ## Provenance and import corrections
 
 The classes came from `f15se2-re/main`, commit `6cbbec1`, originally introduced
@@ -1963,7 +2003,7 @@ input widths or introduce new flight-model formulas.
 | Range/bearing | Legacy approximation and bearing helpers | Keep gameplay distance approximation distinct from Euclidean distance |
 | Camera precision | Fine bearing/range and Q8 eye offsets typed; outputs stay word/Q8 at the render boundary | Remaining render-internal projection math (sinMulQ8 remnants in egtacmap, view-matrix LUT path) |
 | Terrain/world coordinates | Coarse `MapPosition` typed; sub-LOD precision flows through `g_camEyeFrac*` frac bytes into `lodEyeFracQ8` | scaleCoordToLod LOD quantization is render-internal; all nearest-tile callers pass packed word sources |
-| Flight integration | stepFlightModel forces, velocity/position integration, coefficients and clamps typed end to end | Modern refresh policy vs the original periodic rebuild (see acceptance boundary) |
+| Flight integration | stepFlightModel forces, velocity/position integration, coefficients and clamps typed end to end | Refresh policy settled: `recover().needsRefresh` ports the original pole-band + roll→0 triggers, so both backends rebuild the matrix on the same cadence |
 | Combat/AI | Projectile guidance/state, bullet tracks, SimObject decision reads, acquisition, lock cones, corridor gates, fine-position shadow, attitude shadow (heading/pitch/bank), alt/speed shadows (SimObject + flag-aliased Projectile.alt) typed | Hit-test broad phases are word-domain game rules (precise swept test already typed); packed words remain synced render/serialization mirrors (Projectile.alt bit0 = radar flag) |
 | Randomness/time | Scaling helper; render-side draws split onto a dedicated non-checked stream so render frame rate cannot shift sim RNG; full audit confirms every sim-stream caller is sim-tick/init-path | Frame pacer accumulators reviewed: event counts and derived ratios, legitimately plain counters |
 

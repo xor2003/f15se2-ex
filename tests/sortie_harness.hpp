@@ -9,10 +9,9 @@
  *
  * Determinism: no wall-clock input reaches the sim. The timer IRQ is never
  * installed (timerPump no-ops), gameRand() is seeded, discrete commands go
- * through SDL key events into the BIOS ring, and stick bytes are written to
- * g_joyRawX/Y after each pump (no joystick is attached, so stepFlightModel
- * scales g_joyRaw through the keyboard curve — the same path blackbox
- * replays axes through).
+ * through SDL key events into the BIOS ring, and stick deflection arrives as
+ * a virtual joystick axis — primaryAxes -> updateAxes -> joyAxes -> the byte
+ * curve in stepFlightModel (the same path real hardware takes).
  */
 #ifndef F15_TEST_SORTIE_HARNESS_HPP
 #define F15_TEST_SORTIE_HARNESS_HPP
@@ -53,12 +52,7 @@ using namespace f15::math;
 constexpr int kSortieTicks = 660;
 constexpr std::uint32_t kSeed = 0x51e7u;
 
-/* g_joyRaw byte range used by controls_applyAxes (0x26/0xda off-centre). */
-enum : std::int16_t {
-    kStickMin = 0x26,
-    kStickCenter = 0x80,
-    kStickMax = 0xda,
-};
+
 
 inline void require(bool ok, const char *message) {
     if (!ok) { std::fprintf(stderr, "sortie: %s\n", message); std::exit(1); }
@@ -72,11 +66,17 @@ inline void pushKey(SDL_Scancode scancode, SDL_Keycode key) {
     SDL_PushEvent(&ev);
 }
 
+/* Scenario profiles. kSortie is the original all-phase profile; kLoop is a
+ * pure-aerobatics profile that forces a full vertical loop — the pole fold
+ * regression path — with no weapons or autopilot phases. */
+enum class Profile { kSortie, kLoop };
+
 /* Discrete cockpit commands for this tick, pushed before the pump so the
  * translated BIOS word reaches the key ring stepFlightModel drains. */
-inline void pushScheduleKeys(int tick) {
+inline void pushScheduleKeys(int tick, Profile profile) {
     if (tick < 40) pushKey(SDL_SCANCODE_EQUALS, SDLK_EQUALS);      // throttle ramp
     if (tick == 45) pushKey(SDL_SCANCODE_G, SDLK_G);              // gear up
+    if (profile == Profile::kLoop) return;
     if (tick == 280) for (int i = 0; i < 16; ++i)                 // throttle cut
         pushKey(SDL_SCANCODE_MINUS, SDLK_MINUS);
     if (tick == 390) pushKey(SDL_SCANCODE_W, SDLK_W);             // weapon select
@@ -90,19 +90,47 @@ inline void pushScheduleKeys(int tick) {
     if (tick == 600) pushKey(SDL_SCANCODE_P, SDLK_P);             // autopilot on
 }
 
-/* Stick position for this tick; written after input_pumpEvents because the
- * pump's updateStick() rewrites g_joyRawX/Y from (absent) keyboard arrows. */
-inline void applyScheduleStick(int tick) {
-    std::int16_t roll = kStickCenter, pitch = kStickCenter;
-    if (tick >= 60 && tick < 120) pitch = kStickMin;              // climb
-    else if (tick >= 120 && tick < 200) roll = kStickMax;         // banked turn
-    else if (tick >= 200 && tick < 280) roll = kStickMin;         // counter-turn
-    else if (tick >= 280 && tick < 340) pitch = kStickMax;        // push over
-    else if (tick >= 340 && tick < 380) pitch = 0x40;             // pull -> stall
-    else if (tick >= 420 && tick < 540) roll = 0xa0;              // sustained turn
-    else if (tick >= 540 && tick < 640) pitch = 0x90;             // descend
-    g_joyRawX = (uint8)roll;
-    g_joyRawY = (uint8)pitch;
+/* Stick input arrives through a virtual joystick — the only injection seam
+ * that survives the real input path. kbhit() inside stepFlightModel re-pumps
+ * events and updateStick() re-derives g_joyRawX/Y from SDL_GetKeyboardState,
+ * so a direct write to g_joyRaw or joyAxes is overwritten before the byte
+ * curve runs; pushed key events never reach SDL_GetKeyboardState at all. A
+ * virtual device is read by the same updateAxes() path as real hardware on
+ * every pump, so its axis state persists by construction — and it keeps the
+ * full 0..255 byte range the keyboard's three positions cannot express. */
+inline SDL_JoystickID &vjoyId() { static SDL_JoystickID id = 0; return id; }
+
+/* Inverse of joystick.c's axisByte(): byte = 0x80 + (raw*127)/32768 with a
+ * |raw|<8000 deadzone around centre. Bytes inside the deadzone band
+ * (0x62..0x9e) are unreachable and quantize to centre. */
+inline Sint16 axisForByte(std::uint8_t byte) {
+    if (byte >= 0x62 && byte <= 0x9e) return 0;
+    const int off = (int)byte - 0x80;
+    int raw = off > 0 ? (off * 32768 + 126) / 127 : -(((-off) * 32768 + 126) / 127);
+    auto produced = [](int r) {
+        int v = 0x80 + (r * 127) / 32768;
+        return v < 0 ? 0 : v > 255 ? 255 : v;
+    };
+    while (produced(raw) < (int)byte) ++raw;
+    while (produced(raw) > (int)byte) --raw;
+    return (Sint16)raw;
+}
+
+inline void applyScheduleStick(int tick, Profile profile) {
+    std::uint8_t roll = 0x80, pitch = 0x80;
+    if (profile == Profile::kLoop) {
+        /* Sustained pull (stick back = nose up): through the vertical and
+         * over the top — the pole-fold path. */
+        if (tick >= 200 && tick < 470) pitch = 0xda;
+    }
+    /* kSortie intentionally stays centred: its golden was recorded while
+     * byte writes were being absorbed by updateStick — i.e. it pins a
+     * centered-stick sortie. Real stick coverage lives in kLoop. */
+    SDL_Joystick *stick = SDL_GetJoystickFromID(vjoyId());
+    if (stick) {
+        SDL_SetJoystickVirtualAxis(stick, 0, axisForByte(roll));
+        SDL_SetJoystickVirtualAxis(stick, 1, axisForByte(pitch));
+    }
 }
 
 /* Same FNV-1a-style byte mix as blackbox_diag (kept local: the diag hashers
@@ -338,6 +366,30 @@ inline FieldList snapFields() {
     return out;
 }
 
+/* Non-degenerate proof for the loop profile: the stick reached the sim and
+ * the aircraft entered the pole band. Guards the input-injection seam —
+ * the earlier byte-write and held-key attempts each produced a level-flight
+ * "loop" that never deflected. */
+struct LoopCheck {
+    bool pitchInputSeen = false;
+    std::uint32_t maxPitchMag = 0;
+    std::uint32_t altMin = ~0u, altMax = 0;
+};
+inline void loopObserve(LoopCheck &c, int tick) {
+    const auto f = readFlight();
+    const std::uint32_t p = f.pitch;
+    const std::uint32_t mag = std::min(p, 65536u - p);
+    if (mag > c.maxPitchMag) c.maxPitchMag = mag;
+    if (tick >= 200 && tick < 470 && (std::int32_t)f.pitchIn != 0) c.pitchInputSeen = true;
+    if (f.altitude < c.altMin) c.altMin = f.altitude;
+    if (f.altitude > c.altMax) c.altMax = f.altitude;
+}
+inline void loopRequire(const LoopCheck &c) {
+    require(c.pitchInputSeen, "loop: stick input never reached the sim");
+    require(c.maxPitchMag >= 0x3000, "loop: never entered the pole band");
+    require(c.altMax - c.altMin >= 4000, "loop: no climb");
+}
+
 inline void dumpMission() {
     std::printf("mstatus=%d landT=%d mtick=%d nearR=%d tgtR=%d tgtB=%d ns=%d ended=%d landT2=%d corr=%d threat=%d dirDl=%d slow=%d apEng=%d\n",
                 (int)g_missionStatus, (int)g_landingTimer.word(), (int)g_missionTick.word(),
@@ -377,6 +429,18 @@ inline void initSortie() {
     }
 
     gameSrand(kSeed);
+
+    /* Virtual 2-axis stick: attached before the pump so the JOYSTICK_ADDED
+     * hotplug event opens it through joy_open() like real hardware. Kept
+     * centred until the schedule deflects it — kSortie never deflects, so
+     * input_preferGamepad() stays false and its byte path is unchanged. */
+    SDL_VirtualJoystickDesc stickDesc;
+    SDL_INIT_INTERFACE(&stickDesc);
+    stickDesc.type = SDL_JOYSTICK_TYPE_UNKNOWN;
+    stickDesc.name = "sortie-stick";
+    stickDesc.naxes = 2;
+    vjoyId() = SDL_AttachVirtualJoystick(&stickDesc);
+    require(vjoyId() != 0, "attach virtual joystick");
 
     g_initPhase = 1;               /* first updateFrame runs mission init */
     g_frameRateScaling = f15::math::SimRate::fromWord(15);
@@ -451,15 +515,18 @@ inline void initSortie() {
 inline void teardown() {
     gameData = nullptr;
     commData = nullptr;
+    if (vjoyId()) SDL_DetachVirtualJoystick(vjoyId());
     gfx_videoShutdown();
     SDL_Quit();
 }
 
-/* Runs one scripted tick: scheduled keys -> pump -> stick -> sim step. */
-inline void runTick(int tick) {
-    pushScheduleKeys(tick);
+/* Runs one scripted tick: scheduled keys + stick axis -> pump -> sim step.
+ * The virtual axis is set before the pump so every reader this tick (the
+ * pump's updateStick bookkeeping, then the step's own re-pump) sees it. */
+inline void runTick(int tick, Profile profile = Profile::kSortie) {
+    pushScheduleKeys(tick, profile);
+    applyScheduleStick(tick, profile);
     input_pumpEvents();
-    applyScheduleStick(tick);
     stepFlightModel();
     updateFrame();
     /* Mission init ran on tick 0 (deterministic seed via g_inputDisabled);

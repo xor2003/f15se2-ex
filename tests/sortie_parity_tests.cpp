@@ -11,9 +11,17 @@
  * prove the migration series preserved fixed-backend behavior tick-for-tick.
  * A mismatch reports the first divergent tick and subsystem.
  *
+ * The --loop profile drives a sustained stick pull through the pole band via
+ * a virtual joystick (sortie_harness.hpp explains why byte writes cannot
+ * reach the sim). Its golden tests/goldens/sortie_loop_parity.trace was
+ * recorded at HEAD: the profile exercises the post-tag pole-fold fix, so a
+ * tag recording would pin the original trap instead of the fixed behavior.
+ * The loop run also asserts the stick actually reached the sim.
+ *
  *   sortie_parity_tests                 compare against the committed golden
  *   sortie_parity_tests record <file>   write a fresh trace (run at the tag)
  *   sortie_parity_tests dump            print per-tick flight/mission fields
+ *   (append --loop for the loop profile: sortie_loop_parity.trace)
  *
  * The shared schedule/init/field readers live in sortie_harness.hpp;
  * modern_sortie_tests reuses them for the tolerance compare.
@@ -25,12 +33,12 @@ using namespace sortie;
 
 /* `fields <file>` records the named per-tick field snapshot that
  * modern_sortie_tests compares against with tolerances. */
-int recordFields(const char *path) {
+int recordFields(const char *path, Profile profile) {
     std::ofstream trace(path, std::ios::binary | std::ios::trunc);
     require(trace.good(), "cannot open field trace output");
     trace << "sortie_fields_trace 1 seed " << kSeed << " ticks " << kSortieTicks << "\n";
     for (int tick = 0; tick < kSortieTicks; ++tick) {
-        runTick(tick);
+        runTick(tick, profile);
         trace << tick;
         for (const auto &f : snapFields()) trace << ' ' << f.first << '=' << f.second;
         trace << '\n';
@@ -40,7 +48,7 @@ int recordFields(const char *path) {
     return 0;
 }
 
-int runSortie(const char *path, bool record, bool dump) {
+int runSortie(const char *path, bool record, bool dump, Profile profile) {
     std::ifstream golden;
     std::ofstream trace;
     if (record) {
@@ -57,8 +65,10 @@ int runSortie(const char *path, bool record, bool dump) {
 
     std::uint32_t flightFold = 0, objectsFold = 0;
     int divergedTick = -1;
+    LoopCheck loop;
     for (int tick = 0; tick < kSortieTicks; ++tick) {
-        runTick(tick);
+        runTick(tick, profile);
+        if (profile == Profile::kLoop) loopObserve(loop, tick);
 
         const std::uint32_t flight = hashFlight();
         const std::uint32_t camera = hashCamera();
@@ -97,6 +107,7 @@ int runSortie(const char *path, bool record, bool dump) {
     }
     /* Guard against a degenerate run (e.g. the sim never advanced). */
     require(flightFold != 0 || objectsFold != 0, "sortie produced an empty state stream");
+    if (profile == Profile::kLoop) loopRequire(loop);
     if (record) {
         require(trace.good(), "trace write failed");
         std::fprintf(stderr, "recorded %d ticks to %s\n", kSortieTicks, path);
@@ -110,21 +121,27 @@ int runSortie(const char *path, bool record, bool dump) {
 }
 
 int main(int argc, char **argv) {
+    const bool loop = argc >= 2 && std::string(argv[argc - 1]) == "--loop";
+    if (loop) --argc;
     const bool record = argc == 3 && std::string(argv[1]) == "record";
     const bool fields = argc == 3 && std::string(argv[1]) == "fields";
     const bool dump = argc >= 2 && std::string(argv[1]) == "dump";
     require(record || fields || dump || argc == 1,
-            "usage: sortie_parity_tests [record <out.trace> | fields <out.trace> | dump]");
+            "usage: sortie_parity_tests [record <out.trace> | fields <out.trace> | dump] [--loop]");
+    const Profile profile = loop ? Profile::kLoop : Profile::kSortie;
     initSortie();
     int result = 0;
     if (fields) {
-        result = recordFields(argv[2]);
+        result = recordFields(argv[2], profile);
     } else {
-        const char *path = record ? argv[2] : F15_GOLDEN_DIR "/sortie_parity.trace";
-        result = runSortie(path, record, dump);
+        const char *path = record ? argv[2]
+            : (loop ? F15_GOLDEN_DIR "/sortie_loop_parity.trace"
+                    : F15_GOLDEN_DIR "/sortie_parity.trace");
+        result = runSortie(path, record, dump, profile);
     }
     teardown();
     if (!record && !fields && !dump)
-        std::puts("sortie parity: 660 ticks match the e28b9a4 golden");
+        std::puts(loop ? "loop parity: 660 ticks match the sortie_loop golden"
+                       : "sortie parity: 660 ticks match the e28b9a4 golden");
     return result;
 }
