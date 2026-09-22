@@ -1133,6 +1133,21 @@ Verification: fixed focused tests pass (the characterization suite still
 asserts throttle recovery/damage limits in raw units); sortie parity
 unchanged; modern smoke/sortie pass; the allowlist dropped the name.
 
+## Track-camera orientation checkpoint
+
+`g_trkBearing`/`g_trkPitch`/`g_trkRoll` are now `Angle<GameBackend>` — the
+tracking camera's smoothed view orientation. The smoother's word-domain
+delta math (`(delta >> 5) * scale`) narrows the stored angles through
+`legacy::signedAngle`, new tracking solutions wrap words via
+`angleFromWord`, the external-view copy takes the typed `g_ourHead`/
+`g_ourRoll` directly, and the offscreen `R3DScene` construction narrows to
+the render word interface. Pitch comparisons against fixed thresholds are
+typed. `g_trkRange`/`g_trkSize`/`g_trkScale` stay raw as scale-factor
+bookkeeping with no distinct unit.
+
+Verification: fixed suite 60/60 incl. sortie parity; modern smoke/sortie
+pass; the allowlist dropped the three names.
+
 ## Angle magnitude read adapters
 
 `legacy_rotation.hpp` gained two fraction-preserving magnitude reads for
