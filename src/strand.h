@@ -8,6 +8,8 @@ void gameSrand(uint32 seed);
 void gameSrandFromClock(int16 *seed);
 int gameRand(void);
 int gameRand15(void);
+int renderRand15(void);
+int renderRandomRange(int maxVal);
 int16 randMul(uint16);
 
 #endif /* F15_SE2_STRAND */

@@ -1639,6 +1639,33 @@ intentionally quantizes fixed state, plus any packed-field AI internals the
 project chooses to shadow with typed state. The final acceptance
 requirements below still apply.
 
+## Render/sim RNG stream separation
+
+`drawWorldEffects` (egtarget.c, per rendered frame via `render3DView`) drew
+~26 `randomRange` values per frame for the hit-spark burst — from the same
+stream the sim uses for turbulence, AI and spawn rolls. Render frame rate
+therefore shifted sim randomness: with render interpolation, multiple (or
+zero) renders per sim tick changed how many draws the sim stream saw. The
+scatter is re-randomized every frame anyway, so the draws now use a
+dedicated render stream — `renderRand15`/`renderRandomRange` in strand.c,
+same ANSI LCG shape and `(max * rand15) >> 15` scaling, never recorded,
+replayed or clock-seeded. This is a determinism-contract fix, not a
+math-representation change; it applies identically to both backends. All
+other `randomRange`/`randMul` callers were audited and are sim-rate
+(egcombat/egflight/egframe/egthreat/egkeys) or setup-time (stgen mission
+generation).
+
+Honest caveat: pre-change blackbox recordings containing active hit bursts
+would replay with an `rng` stream mismatch — every subsequent draw shifts.
+No `.bbx` recordings are committed and the burst is the only render-path
+consumer, so the divergence window is narrow; treat it as a deliberate
+contract correction.
+
+Verification: `original_behavior_tests` covers `renderRandomRange` scaling,
+range and stream independence (64 interleaved render draws leave the game
+sequence untouched); fixed 60/60 and modern 2/2 pass — the harness never
+calls the render path, so both sortie goldens are untouched.
+
 ## Provenance and import corrections
 
 The classes came from `f15se2-re/main`, commit `6cbbec1`, originally introduced
@@ -1681,7 +1708,7 @@ input widths or introduce new flight-model formulas.
 | Terrain/world coordinates | Coarse `MapPosition` typed; sub-LOD precision flows through `g_camEyeFrac*` frac bytes into `lodEyeFracQ8` | scaleCoordToLod LOD quantization is render-internal; all nearest-tile callers pass packed word sources |
 | Flight integration | stepFlightModel forces, velocity/position integration, coefficients and clamps typed end to end | Modern refresh policy vs the original periodic rebuild (see acceptance boundary) |
 | Combat/AI | Projectile guidance/state, bullet tracks, SimObject decision reads, acquisition, lock cones, corridor gates, fine-position shadow, attitude shadow (heading/pitch/bank), alt/speed shadows (SimObject + flag-aliased Projectile.alt) typed | Hit-test broad phases are word-domain game rules (precise swept test already typed); packed words remain synced render/serialization mirrors (Projectile.alt bit0 = radar flag) |
-| Randomness/time | Only a scaling helper | Separate deterministic RNG and simulation clock contracts from numeric representation |
+| Randomness/time | Scaling helper; render-side draws split onto a dedicated non-checked stream so render frame rate cannot shift sim RNG | Simulation-clock contract typing (frame pacer accumulators, jiffies) still open |
 
 Not every integer operation is fixed-point math. Object indices, packed flags,
 table addressing, binary serialization and event counters remain integers.

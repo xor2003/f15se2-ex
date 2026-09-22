@@ -44,3 +44,21 @@ int16 randMul(uint16 arg) {
     /* DOS rand() is 15-bit (RAND_MAX 0x7fff); mask to match so the >>15 scaling yields [0, arg). */
     return (gameRand15() * (int32)arg) >> 0xf;
 }
+
+/* Render-only RNG stream. The hit-spark scatter in drawWorldEffects
+ * re-randomizes every rendered frame; consuming the game stream there would
+ * couple sim outcomes to the render frame rate (the sim stream is
+ * blackbox-checked and must depend only on sim ticks). This stream is never
+ * recorded, replayed or seeded from the clock — visuals only. */
+static uint32 s_renderRngState = 0x9d2c5680u;
+
+int renderRand15(void) {
+    /* Same ANSI/DOS LCG shape as the blackbox sim stream. */
+    s_renderRngState = s_renderRngState * 1103515245u + 12345u;
+    return (int)((s_renderRngState >> 16) & 0x7fff);
+}
+
+int renderRandomRange(int maxVal) {
+    /* Same scaling as randomRange: ((long)max * rand15) >> 15. */
+    return (int)(((long)renderRand15() * (long)maxVal) >> 15);
+}

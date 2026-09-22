@@ -31,6 +31,7 @@ extern const int16 g_angleLut[];
 extern int rangeApprox(int deltaX, int deltaY);
 extern int16 sinMul(int16 angle, int16 value);
 extern int randomRange(int maxVal);
+extern int renderRandomRange(int maxVal);
 extern uint16 signedRatio16(int16 numerator, int16 denominator);
 extern int valueToAngle(int value);
 extern int complementAngle(int value);
@@ -304,6 +305,19 @@ int main() {
         require(randomRange(maxVal) == static_cast<int>((static_cast<long>(randValue) * maxVal) >> kRandomScaleShift),
                 "randomRange scales DOS 15-bit rand output");
     }
+    // Render stream: same scaling on its own state. The hit-spark scatter
+    // draws it per rendered frame, so it must not perturb the game stream —
+    // otherwise render frame rate would shift sim randomness.
+    for (int maxVal : {1, 4, 100, 2000}) {
+        require(renderRandomRange(maxVal) >= 0 && renderRandomRange(maxVal) < maxVal,
+                "renderRandomRange out of range");
+    }
+    std::srand(1234);
+    const int randAfterBurst = std::rand() & 0x7fff;
+    for (int i = 0; i < 64; ++i) renderRandomRange(0x4000);
+    std::srand(1234);
+    require(randomRange(4096) == static_cast<int>((static_cast<long>(randAfterBurst) * 4096) >> kRandomScaleShift),
+            "render draws perturbed the game RNG stream");
 
     int16 orientationWords[9] = {};
     // --- rebuildOrientation + computeAttitudeAngles round trip --------------

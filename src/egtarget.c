@@ -11,6 +11,7 @@ using f15::math::legacy::fineUnits;
 #include "math/legacy_map.hpp"
 #include "math/guidance.hpp"
 #include "spec_units.hpp"
+#include "strand.h"
 using f15::math::legacy::fineRep;
 using f15::math::legacy::objectFineRep;
 using f15::math::legacy::signedAngle;
@@ -623,20 +624,23 @@ void drawWorldEffects(void) {
             long hy = (long)(uint16)g_hitMapY << 5;
             radius = EXPLOSION_WORLD_RADIUS;
             for (idx = 0; idx < 8; idx++) {
-                int color = randomRange(4) + COLOR_LIGHTRED;
+                /* Render stream, not the sim stream: these draws run per
+                 * rendered frame and must not shift sim RNG with the frame
+                 * rate (the scatter is re-randomized each frame anyway). */
+                int color = renderRandomRange(4) + COLOR_LIGHTRED;
                 long ex, ey, ez;
                 if (g_hitAlt > 0) {
                     /* airburst: scatter in a world-space sphere around the hit */
-                    ex = hx + randomRange(radius << 1) - radius;
-                    ey = hy + randomRange(radius << 1) - radius;
-                    ez = g_hitAlt + randomRange(radius << 1) - radius;
+                    ex = hx + renderRandomRange(radius << 1) - radius;
+                    ey = hy + renderRandomRange(radius << 1) - radius;
+                    ez = g_hitAlt + renderRandomRange(radius << 1) - radius;
                 } else {
                     /* ground burst: fan horizontally and plume upward */
-                    tmp = randomRange(0x8000) - 0x4000;
-                    dist = randomRange(radius);
+                    tmp = renderRandomRange(0x8000) - 0x4000;
+                    dist = renderRandomRange(radius);
                     ex = hx + sinMul(tmp, dist);
                     ey = hy - cosMul(tmp, dist);
-                    ez = g_hitAlt + randomRange(radius);
+                    ez = g_hitAlt + renderRandomRange(radius);
                 }
                 drawWorldLine(hx, hy, g_hitAlt, ex, ey, (int)ez, color);
             }
