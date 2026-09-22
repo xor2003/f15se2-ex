@@ -84,10 +84,10 @@ int main() {
     require(lerpAngle(0x0100, 0xFF00, kHalfNumerator, kHalfDenominator) == 0,
             "lerpAngle follows the original shortest signed 16-bit arc");
 
-    g_frameRateScaling = kFrameRateScalingFour;
+    g_frameRateScaling = f15::math::SimRate::fromWord(kFrameRateScalingFour);
     require(simStepNsNow() == NS_PER_SEC / kFrameRateScalingFour,
             "simStepNsNow divides one second by frameRateScaling");
-    g_frameRateScaling = kFrameRateScalingZero;
+    g_frameRateScaling = f15::math::SimRate::fromWord(kFrameRateScalingZero);
     require(simStepNsNow() == NS_PER_SEC,
             "simStepNsNow clamps zero scaling to one step per second");
 

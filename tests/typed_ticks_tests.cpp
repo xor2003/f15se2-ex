@@ -6,6 +6,7 @@
 
 using f15::math::Ticks;
 using f15::math::TickDuration;
+using f15::math::SimRate;
 
 /* Ticks is deliberately not templated: the sim clock is an int16 word under
  * both backends and its wrap/phase semantics are gameplay behavior. These
@@ -134,6 +135,25 @@ void testDurationSemantics() {
     require(timer.isZero(), "stepTowardZero settles at zero");
 }
 
+void testSimRate() {
+    SimRate rate = SimRate::fromWord(15);
+    /* perTick is the original v / scaling integer divide for int operands —
+     * including truncation toward zero for negatives. */
+    require(rate.perTick(300) == 20 && rate.perTick(-300) == -20,
+            "perTick integer divide, both signs");
+    require(rate.perTick(7) == 0, "perTick truncates sub-rate values");
+    /* Double operands keep the fraction — the modern step-rep divide. */
+    require(rate.perTick(10.5) == 0.7, "perTick preserves double fraction");
+    /* scaled/shifted reproduce n * scaling and scaling << n. */
+    require(rate.scaled(3) == 45 && rate.scaled(-4) == -60, "scaled both signs");
+    require(rate.shifted(1) == 30 && rate.shifted(4) == 240, "shifted");
+    require(rate.minus(1) == 14 && rate.word() == 15, "minus/word");
+    require(rate.exceeds(14) && rate.atMost(15) && rate.equals(15) &&
+                !rate.below(15) && rate.atLeast(15),
+            "threshold compares");
+    require(SimRate::fromWord(4) != rate, "rate equality");
+}
+
 void testNoPrimitiveConversion() {
     static_assert(!std::is_constructible_v<Ticks, int>,
                   "no implicit int construction");
@@ -153,6 +173,12 @@ void testNoPrimitiveConversion() {
                   "duration: no implicit int assignment");
     static_assert(!std::is_same_v<Ticks, TickDuration>,
                   "instants and durations are distinct domains");
+    static_assert(!std::is_constructible_v<SimRate, int>,
+                  "rate: no implicit int construction");
+    static_assert(!std::is_convertible_v<SimRate, int>,
+                  "rate: no implicit conversion to int");
+    static_assert(!std::is_assignable_v<SimRate &, int>,
+                  "rate: no implicit int assignment");
 }
 
 } // namespace
@@ -164,6 +190,7 @@ int main() {
     testPhases();
     testDeadlineSemantics();
     testDurationSemantics();
+    testSimRate();
     testNoPrimitiveConversion();
     std::cout << "typed_ticks_tests passed\n";
     return 0;

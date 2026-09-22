@@ -140,17 +140,17 @@ void productionCaller() {
         const auto angle = static_cast<std::uint16_t>(tick * 73);
         const auto speed = rotation_reference::word(tick * 31);
         g_ourHead = Boundary<F>::angleWord(angle);
-        g_frameRateScaling = 1 + tick % 120;
+        g_frameRateScaling = f15::math::SimRate::fromWord(1 + tick % 120);
         g_autoLandingActive = tick % 7 == 0;
         if (!g_autoLandingActive) {
-            x = dword(std::int64_t(x) + step(speed, rotation_reference::sine(angle, g_angleLut), g_frameRateScaling));
-            y = dword(std::int64_t(y) + step(speed, rotation_reference::sine(angle + 16384, g_angleLut), g_frameRateScaling));
+            x = dword(std::int64_t(x) + step(speed, rotation_reference::sine(angle, g_angleLut), g_frameRateScaling.word()));
+            y = dword(std::int64_t(y) + step(speed, rotation_reference::sine(angle + 16384, g_angleLut), g_frameRateScaling.word()));
         }
         advanceFlightHorizontal(FC::speed(speed));
         require(FC::coordinate(g_ViewX) == x && FC::coordinate(g_ViewY) == y,
                 "persistent horizontal caller differs from frozen baseline");
     }
-    g_autoLandingActive = 1; g_frameRateScaling = 0;
+    g_autoLandingActive = 1; g_frameRateScaling = f15::math::SimRate::fromWord(0);
     advanceFlightHorizontal(FC::speed(123));
     require(FC::coordinate(g_ViewX) == x && FC::coordinate(g_ViewY) == y, "automatic landing moved aircraft twice");
 }

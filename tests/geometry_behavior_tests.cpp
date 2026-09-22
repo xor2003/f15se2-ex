@@ -530,7 +530,7 @@ int main() {
             "objectToScreen rejects when HUD is hidden");
 
     // --- hudMessage / setTimedMessage HUD text + timers (egtacmap) ----------
-    g_frameRateScaling = 4; // timer = frameRateScaling * 3
+    g_frameRateScaling = f15::math::SimRate::fromWord(4); // timer = frameRateScaling * 3
     hudMessage("status");
     require(std::strcmp(tempString, "status") == 0 &&
                 g_hudMsgTimer.word() == kTimedMessageFrames,

@@ -1232,6 +1232,32 @@ Verification: fixed 60/60 (sortie parity unchanged — mission tick and
 timers feed the golden hash), modern smoke, `typed_ticks_tests` covers
 duration semantics against int16 oracles, analyzer clean.
 
+## Sim-rate divisor checkpoint
+
+`g_frameRateScaling` — the sim-ticks-per-render-frame divisor shared by
+every per-tick rate — is now `SimRate` (same header). `x / scaling`,
+`n * scaling` and `scaling << n` are gone from production code; the ~70
+call sites read `rate.perTick(x)`, `rate.scaled(n)`, `rate.shifted(n)`,
+`rate.minus(n)` or `rate.word()` at mixed-type boundaries (function
+params, index math, `(int32)`/`(char)` casts).
+
+`perTick` is deliberately generic: `v / rate` keeps the operand's own
+arithmetic — integer division for integral dividends (unchanged fixed
+semantics) and a real quotient for double step reps, so a fractional
+modern consumer survives the divide instead of truncating early.
+`g_threatDisplayTtl` and `g_savedSamTtl` joined `TickDuration` in the
+same pass; `TickDuration` gained `atLeast` and same-domain threshold
+compares.
+
+Tests seed/compare via `SimRate::fromWord`/`word()`; four compile-fail
+cases cover primitive construct/extract/assign and `x / rate` mixing.
+`typed_ticks_tests` exercises `perTick` (both signs, sub-rate truncation,
+double fraction), `scaled`/`shifted`/`minus` and threshold compares
+against int16 oracles.
+
+Verification: fixed 60/60, modern smoke, compile-fail suite extended,
+analyzer clean on all touched units.
+
 ### Next acceptance boundary
 
 The decision-math surface is migrated end to end: every gameplay compare

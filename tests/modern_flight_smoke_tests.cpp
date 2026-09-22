@@ -103,7 +103,7 @@ int main() {
     require(std::abs(Angles::radians(rollAngle) - 1.5707963267948966) < 1e-15 &&
             Angles::radians(pitchAngle) == -0.234567891,
             "single-axis attitude override quantized untouched axis");
-    g_frameRateScaling = 120;
+    g_frameRateScaling = f15::math::SimRate::fromWord(120);
     g_ourHead = g_ourPitch = g_ourRoll = {};
     rebuildOrientation();
     const RotationDeltas<ModernBackend> delta{Angles::radians(1e-7), {}, {}};
@@ -210,7 +210,7 @@ int main() {
     commData = &comm;
     game.unk4 = 2;
     g_initPhase = 1;
-    g_frameRateScaling = 15;
+    g_frameRateScaling = f15::math::SimRate::fromWord(15);
     frameTick = f15::math::Ticks::fromWord(1);
     g_thrust = legacy::thrustFromUnits(100);
     g_setThrust = 100;

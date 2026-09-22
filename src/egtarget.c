@@ -485,7 +485,7 @@ void drawWorldEffects(void) {
     int stepped = g_simStepsThisFrame > 0;
     int16 bx, by;
 
-    gunRadius = 0x200 / isqrt(g_frameRateScaling * 4 + 8);
+    gunRadius = 0x200 / isqrt(g_frameRateScaling.scaled(4) + 8);
 
     for (idx = 0; idx < g_bulletTrackCount + 4; idx++) {
         if (bulletTracks[idx].posX.isZero()) continue;
@@ -723,7 +723,7 @@ void drawHudWorldOverlay(void) {
     if (g_scopeSweepTimer.isPositive() && g_threatLabelTarget >= 0) {
         projectWorldToHudFine((int32)g_planeTable.planes[g_threatLabelTarget].mapX << 5,
                               (int32)g_planeTable.planes[g_threatLabelTarget].mapY << 5, 0);
-        drawTargetLabel(g_targetNameTable[((int16 *)&g_planeTable)[g_threatLabelTarget * 8]], g_scopeArcColor, g_scopeSweepTimer.elapsedWithin(g_frameRateScaling));
+        drawTargetLabel(g_targetNameTable[((int16 *)&g_planeTable)[g_threatLabelTarget * 8]], g_scopeArcColor, g_scopeSweepTimer.elapsedWithin(g_frameRateScaling.word()));
     }
 
     g_playerPlaneFlags &= ~0x200;
@@ -858,7 +858,7 @@ void drawHudWorldOverlay(void) {
                               g_simObjects[idx].worldY,
                               g_simObjects[idx].alt);
         drawTargetLabel(aircraftTypes[g_simObjects[idx].spec].name,
-                        g_scopeArcColor, g_scopeSweepTimer.elapsedWithin(g_frameRateScaling));
+                        g_scopeArcColor, g_scopeSweepTimer.elapsedWithin(g_frameRateScaling.word()));
     }
 
     if (g_currentWeaponType == 2 && g_viewMode == VIEW_COCKPIT) {

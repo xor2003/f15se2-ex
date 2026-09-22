@@ -115,7 +115,7 @@ void updateFrame(void) {
          * mission clock stays 1 Hz at any scaling, so 15 is just the best
          * physics resolution. ALT+A "ACCEL" now speeds the sim via the wall-clock
          * step rate (egsys.c), not by lowering this. */
-        g_frameRateScaling = 15;
+        g_frameRateScaling = f15::math::SimRate::fromWord(15);
         recalcTimeScale();
         g_mapZoomLevel = 1;
         g_radarScopeRange = 1;
@@ -392,7 +392,7 @@ skip_target_section:
                     playVoiceCue(4);
                 }
                 if ((g_playerPlaneFlags & 0x6000) == 0x6000) {
-                    if (g_landingTimer.exceeds(g_frameRateScaling)) {
+                    if (g_landingTimer.exceeds(g_frameRateScaling.word())) {
                         finalizeMission(0);
                     }
                 } else {
@@ -400,7 +400,7 @@ skip_target_section:
                         g_resupplyCount++;
                         appendMapEvent(10, g_closestThreatIndex);
                     }
-                    if (g_landingTimer.exceeds(g_frameRateScaling)) {
+                    if (g_landingTimer.exceeds(g_frameRateScaling.word())) {
                         initWeaponLoadout();
                         if (frameTick.bit(3)) {
                             hudMessage("Ready for takeoff");
@@ -422,7 +422,7 @@ skip_target_section:
             } else {
                 hudMessage("Automatic Landing Engaged");
                 g_autoLandingActive = 1;
-                i = g_frameRateScaling * 2;
+                i = g_frameRateScaling.scaled(2);
                 if (i > 14) {
                     i = 14;
                 }
@@ -470,10 +470,10 @@ skip_autopilot:
         }
     }
 
-    g_targetLeadAngle = (g_planeTable.planes[g_closestThreatIndex].flags & 0x200 && g_nearestThreatRange < 0x500) ? (((g_northSouthSign << 8) / g_frameRateScaling) + g_targetLeadAngle) & 0xfff : 0;
+    g_targetLeadAngle = (g_planeTable.planes[g_closestThreatIndex].flags & 0x200 && g_nearestThreatRange < 0x500) ? ((g_frameRateScaling.perTick(g_northSouthSign << 8)) + g_targetLeadAngle) & 0xfff : 0;
 
     frameTick++;
-    if (frameTick.mod(g_frameRateScaling) == 0) {
+    if (frameTick.mod(g_frameRateScaling.word()) == 0) {
         g_missionTick++;
         if (g_missionTick.phase(32) == 0) {
             appendMapEvent(9, 0);
@@ -487,12 +487,12 @@ skip_autopilot:
         }
     }
 
-    if (++g_frameRateAccum >= g_frameRateScaling * 4) {
+    if (++g_frameRateAccum >= g_frameRateScaling.scaled(4)) {
         /* Render/sim decoupled: the adaptive frame governor (which rescaled
          * g_frameRateScaling and added sleep ticks to throttle the loop) is
          * retired — the sim now steps fixed-rate in gameMainLoop. Keep the
          * jiffies debug readout and the periodic enemy-alert scan. */
-        g_jiffiesPerFrame = g_frameTimingAccum / g_frameRateScaling;
+        g_jiffiesPerFrame = g_frameRateScaling.perTick(g_frameTimingAccum);
         g_frameRateAccum = g_frameTimingAccum = 0;
         g_enemyAlertFlag = 0;
         for (i = 3; i < g_targetEntityCount; i++) {
@@ -539,7 +539,7 @@ void countermeasures(int16 eventType) {
             mapEvents[slot].mapY = f15::math::legacy::mapWordY(flightMapPosition());
             mapEvents[slot].type = eventType;
             mapEvents[slot].ttl =
-                -(g_missionStatus * 3 - 15) * g_frameRateScaling;
+                g_frameRateScaling.scaled(-(g_missionStatus * 3 - 15));
             switch (eventType) {
             case 1:
                 name = "Flare";
@@ -596,13 +596,13 @@ void updateBulletsAndFire(void) {
     if (g_gunAmmo <= 0) goto no_fire;
     if (g_ejectState != 0) goto no_fire;
     if (!gameOptionsEnabled(GAME_OPTION_INFINITE_WEAPONS))
-        g_gunAmmo = clampRange(g_gunAmmo - 40 / g_frameRateScaling, 0, 1000);
+        g_gunAmmo = clampRange(g_gunAmmo - g_frameRateScaling.perTick(40), 0, 1000);
     makeSound(4, 2);
     /* Round leaves the barrel along the airframe axis plus the M61's dispersion
      * cone; magnitude in fine units per step (the original 186 coarse/s). */
     yaw = (int16)signedAngle(g_ourHead) + gunSpreadAngle();
     pitch = (int16)signedAngle(g_ourPitch) + gunSpreadAngle();
-    mag = (186 << 5) / g_frameRateScaling;
+    mag = g_frameRateScaling.perTick(186 << 5);
     bulletTracks[slot].velZ = TrackMath::sineVelocity(angleFromWord(pitch), mag, g_angleLut);
     horizMag = TrackMath::cosineVelocity(angleFromWord(pitch), mag, g_angleLut);
     bulletTracks[slot].velX = TrackMath::sineVelocity(angleFromWord(yaw), horizMag, g_angleLut);
@@ -761,7 +761,7 @@ void scheduleTimedEvent(ViewMode viewMode, int16 delay) {
         return;
     }
     g_viewMode = viewMode;
-    g_directorEventDeadline = frameTick.offset(delay * g_frameRateScaling);
+    g_directorEventDeadline = frameTick.offset(g_frameRateScaling.scaled(delay));
 }
 
 // ==== seg000:0x1c21 routine_180 ====

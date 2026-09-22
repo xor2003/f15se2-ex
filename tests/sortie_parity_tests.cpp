@@ -299,7 +299,7 @@ void initSortie() {
     gameSrand(kSeed);
 
     g_initPhase = 1;               /* first updateFrame runs mission init */
-    g_frameRateScaling = 15;
+    g_frameRateScaling = f15::math::SimRate::fromWord(15);
     frameTick = f15::math::Ticks::fromWord(1);
     /* seedRng() (inside initFrameRandom, mission init) clock-seeds unless input
      * is disabled; pin the deterministic path for the init tick, then enable. */

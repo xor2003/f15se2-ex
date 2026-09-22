@@ -71,6 +71,10 @@ public:
     bool below(int n) const { return value_ < n; }
     bool exceeds(int n) const { return value_ > n; }
     bool atMost(int n) const { return value_ <= n; }
+    bool atLeast(int n) const { return value_ >= n; }
+    /* Same-domain threshold compares. */
+    bool exceeds(TickDuration n) const { return value_ > n.value_; }
+    bool atLeast(TickDuration n) const { return value_ >= n.value_; }
 
     friend bool operator==(TickDuration a, TickDuration b) { return a.value_ == b.value_; }
     friend bool operator!=(TickDuration a, TickDuration b) { return !(a == b); }
@@ -102,6 +106,41 @@ public:
     int elapsedSince(TickDuration start) const { return value_ - start.value_; }
     /* total - remaining: elapsed inside a countdown window of `total` ticks. */
     int elapsedWithin(int total) const { return total - value_; }
+};
+
+/* Sim ticks per render frame — the frame-rate scaling divisor shared by all
+ * per-tick rates. Naming the domain keeps "per sim tick" arithmetic explicit:
+ * a divide by the rate is a semantic operation, not a bare integer division,
+ * and threshold/scale reads go through named methods instead of magic
+ * expressions like `scaling << 4`. Same int16 rep under both backends. */
+class SimRate {
+    std::int16_t value_{};
+    explicit SimRate(std::int16_t v) : value_(v) {}
+public:
+    SimRate() = default;
+    static SimRate fromWord(std::int16_t v) { return SimRate(v); }
+    /* Raw count for mixed-type boundaries (function params, index math). */
+    int word() const { return value_; }
+
+    /* v / rate — the per-tick divide, in the operand's own arithmetic:
+     * int operands get the original integer division; double operands (modern
+     * fractional step reps) keep the fraction through the divide. */
+    template<class T> auto perTick(T v) const { return v / value_; }
+    /* n * rate — a duration scaled to sim ticks. */
+    int scaled(int n) const { return n * value_; }
+    /* rate << n — the power-of-two count selectors. */
+    int shifted(int n) const { return value_ << n; }
+    /* rate - 1 style index/count reads at the int boundary. */
+    int minus(int n) const { return value_ - n; }
+
+    bool isZero() const { return value_ == 0; }
+    bool equals(int n) const { return value_ == n; }
+    bool below(int n) const { return value_ < n; }
+    bool exceeds(int n) const { return value_ > n; }
+    bool atMost(int n) const { return value_ <= n; }
+    bool atLeast(int n) const { return value_ >= n; }
+    friend bool operator==(SimRate a, SimRate b) { return a.value_ == b.value_; }
+    friend bool operator!=(SimRate a, SimRate b) { return !(a == b); }
 };
 }
 #endif

@@ -67,7 +67,7 @@ void resetGameplayState() {
     g_viewX_ = g_viewY_ = 0;
     g_viewZ = 0;
     g_ourHead = angleFromWord(0);
-    g_frameRateScaling = 60;
+    g_frameRateScaling = f15::math::SimRate::fromWord(60);
     g_missionStatus = 0;
     g_difficultyTier = 0;
     g_targetEntityCount = 0;
@@ -91,7 +91,7 @@ void resetGameplayState() {
     g_missionTick = f15::math::TickDuration{};
     g_threatActiveTimer = f15::math::TickDuration{};
     g_threatTimerInit = f15::math::TickDuration{};
-    g_threatDisplayTtl = 0;
+    g_threatDisplayTtl = f15::math::TickDuration{};
     g_threatRefX = g_threatRefY = g_threatRefZ = g_threatRefHead = 0;
     g_wreckAlt = 0;
     g_wreckFallVel = 0;
@@ -299,7 +299,7 @@ int main() {
     g_projectiles[0].mapY = 1000;
     g_projectiles[0].speed = 200;
     g_projectiles[0].head = angleFromWord(0x4000);
-    g_frameRateScaling = 40;
+    g_frameRateScaling = f15::math::SimRate::fromWord(40);
     require(samCanAcquireTarget(0, 1100, 1000, 0, 0) == 1,
             "samCanAcquireTarget succeeds when projectile reaches target this frame");
     require(g_acqRange == rangeApprox(100, 0),
@@ -311,10 +311,10 @@ int main() {
     g_projectiles[0].speed = 10;
     g_projectiles[0].head = angleFromWord(0);
     g_projectiles[0].ttl = 1000;
-    g_frameRateScaling = 20;
+    g_frameRateScaling = f15::math::SimRate::fromWord(20);
     require(samCanAcquireTarget(0, 1100, 3000, 0, 1) == 0,
             "samCanAcquireTarget rejects targets outside the turn cone");
-    require(g_projectiles[0].ttl == (g_frameRateScaling << 4),
+    require(g_projectiles[0].ttl == (g_frameRateScaling.shifted(4)),
             "samCanAcquireTarget clamps far off-boresight SAM ttl for active slots");
 
     resetGameplayState();
@@ -323,7 +323,7 @@ int main() {
     g_projectiles[0].speed = 10;
     g_projectiles[0].head = angleFromWord(0);
     g_ourHead = angleFromWord(0x8000);
-    g_frameRateScaling = 20;
+    g_frameRateScaling = f15::math::SimRate::fromWord(20);
     require(samCanAcquireTarget(0, 3000, 1000, 0, 0) == 0,
             "samCanAcquireTarget mode 0 requires the forward-heading cone");
 
@@ -333,7 +333,7 @@ int main() {
     g_projectiles[0].speed = 1;
     g_projectiles[0].head = angleFromWord(static_cast<int16>(0x8000));
     g_ourHead = angleFromWord(0);
-    g_frameRateScaling = 20;
+    g_frameRateScaling = f15::math::SimRate::fromWord(20);
     require(samCanAcquireTarget(0, 1000, 3000, 0, 0) == 1,
             "samCanAcquireTarget mode 0 preserves original int16 abs(-32768) heading seam");
 
@@ -343,7 +343,7 @@ int main() {
     g_projectiles[0].speed = 1;
     g_projectiles[0].head = angleFromWord(static_cast<int16>(0x8000));
     g_ourHead = angleFromWord(0);
-    g_frameRateScaling = 20;
+    g_frameRateScaling = f15::math::SimRate::fromWord(20);
     require(samCanAcquireTarget(0, 1000, -1000, 0, 1) == 1,
             "samCanAcquireTarget preserves original int16 abs(-32768) acquisition seam");
 
@@ -393,7 +393,7 @@ int main() {
 
     // --- director event scheduling (egframe) --------------------------------
     resetGameplayState();
-    g_frameRateScaling = 20;
+    g_frameRateScaling = f15::math::SimRate::fromWord(20);
     frameTick = f15::math::Ticks::fromWord(100);
     scheduleTimedEvent((ViewMode)0x77, 4);
     require(g_viewMode == VIEW_COCKPIT && g_directorEventDeadline.word() == -1,
@@ -408,13 +408,13 @@ int main() {
             "scheduleEventCheck rejects priorities above director mode");
     scheduleEventCheck((ViewMode)0x55, 2);
     require(g_viewTargetObj == 0x55 && g_viewMode == (ViewMode)0x89 &&
-                g_directorEventDeadline == frameTick.offset(4 * g_frameRateScaling),
+                g_directorEventDeadline == frameTick.offset(g_frameRateScaling.scaled(4)),
             "scheduleEventCheck schedules a mode-2 director event");
     g_directorMode = 1;
     g_directorEventDeadline = f15::math::Ticks::fromWord(-1);
     scheduleEventCheck(0x66, 1);
     require(g_viewTargetObj == 0x66 &&
-                g_directorEventDeadline == frameTick.offset(3 * g_frameRateScaling),
+                g_directorEventDeadline == frameTick.offset(g_frameRateScaling.scaled(3)),
             "scheduleEventCheck schedules a mode-1 director event with shorter delay");
     const f15::math::Ticks pendingDeadline = g_directorEventDeadline;
     scheduleEventCheck(0x77, 1);
@@ -531,23 +531,23 @@ int main() {
 
     // --- recalcTimeScale / exitSlowMotion timing (egkeys) -------------------
     resetGameplayState();
-    g_frameRateScaling = 60;
+    g_frameRateScaling = f15::math::SimRate::fromWord(60);
     g_slowMotionMode = 0;
     recalcTimeScale();
-    require(g_frameSyncWait == 3 && g_frameRateScaling == 15 && g_bulletTrackCount == 16,
+    require(g_frameSyncWait == 3 && g_frameRateScaling.word() == 15 && g_bulletTrackCount == 16,
             "recalcTimeScale clamps frame-rate scaling and derives frame-sync wait");
-    require(g_threatTimerInit.word() == 250 * 15 && g_threatDisplayTtl == 200 * 15,
+    require(g_threatTimerInit.word() == 250 * 15 && g_threatDisplayTtl.word() == 200 * 15,
             "recalcTimeScale scales the threat timers by frame-rate scaling");
 
     resetGameplayState();
     g_slowMotionMode = 2;
-    g_frameRateScaling = 8;
+    g_frameRateScaling = f15::math::SimRate::fromWord(8);
     exitSlowMotion();
-    require(g_slowMotionMode == 1 && g_frameRateScaling == 8,
+    require(g_slowMotionMode == 1 && g_frameRateScaling.word() == 8,
             "exitSlowMotion leaves ACCEL mode without touching frame-rate scaling "
             "(render/sim decouple: ACCEL scales the wall-clock step rate instead)");
     exitSlowMotion();
-    require(g_slowMotionMode == 1 && g_frameRateScaling == 8,
+    require(g_slowMotionMode == 1 && g_frameRateScaling.word() == 8,
             "exitSlowMotion is a no-op when not in mode 2");
 
     // --- training toggle shared-state handoff (egkeys) ----------------------

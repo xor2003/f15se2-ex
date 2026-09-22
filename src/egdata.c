@@ -70,7 +70,7 @@ int16 g_difficultyTier = 1;
 int16 g_nightMode = 0;
 int16 g_inputDisabled = 0;
 int16 g_hudVisible = 1;
-int16 g_frameRateScaling = 4;
+f15::math::SimRate g_frameRateScaling = f15::math::SimRate::fromWord(4);
 
 /* g_targetCompatTable: weapon/target compatibility matrix, 20 weapons x 13 target
    categories, read as g_targetCompatTable[weaponIdx*13 + (g_shapeTargetCategory[..] & 0xf)] by
@@ -2100,7 +2100,7 @@ struct TileObject *g_nearestTileObj;
 /* buf1_3dg: 16x16 grid, indexed col+(row<<4) (0..255). */
 uint8 buf1_3dg[0x100];
 char g_savedPosVisible;
-int16 g_threatDisplayTtl;
+f15::math::TickDuration g_threatDisplayTtl;
 f15::math::StallSpeed<f15::math::GameBackend> g_stallSpeed;
 
 /* g_topLodGrid: 8x8 theater terrain grid, read as [col+(row<<3)] (0..63);
@@ -2149,7 +2149,7 @@ int16 g_viewRoll;
 struct DynTileOverride g_dynTileEntries[94];
 int16 g_threatRefZ;
 f15::math::ViewCoordinate<f15::math::GameBackend, f15::math::ViewXAxis> g_ViewX;
-int16 g_savedSamTtl;
+f15::math::TickDuration g_savedSamTtl;
 /* nearestTile: scratch record filled by findNearestTileObject()/
    drawNearestTileObject() and walked by addTileEntry(). */
 struct TileObject nearestTile;

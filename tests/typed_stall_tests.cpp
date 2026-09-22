@@ -89,7 +89,7 @@ void productionCaller() {
         g_groundAltitude = ground;
         g_viewZ = height;
         g_orientationDirty = tick % 3;
-        g_frameRateScaling = 1 + next() % 120;
+        g_frameRateScaling = f15::math::SimRate::fromWord(1 + next() % 120);
         data.unk4 = next() % 4;
         g_gunHits = next() % 20;
         const bool stalled = std::uint16_t(threshold) > std::uint16_t(speed) && std::uint16_t(ground) < std::uint16_t(height);

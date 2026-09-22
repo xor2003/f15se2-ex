@@ -125,7 +125,7 @@ void productionCaller() {
         g_rollPitchTrim = Boundary<F>::angleWord(trim);
         g_velocity = legacy::speedFromUnits(speed);
         g_groundAltitude = ground;
-        g_frameRateScaling = hz;
+        g_frameRateScaling = f15::math::SimRate::fromWord(hz);
         g_autoLandingActive = tick % 2;
         const auto rate = climb(speed, int(pitch) - trim);
         auto expected = initial;

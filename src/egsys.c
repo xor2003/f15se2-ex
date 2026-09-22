@@ -204,7 +204,7 @@ static void camApplyInterp(const CamSnapshot *p, const CamSnapshot *n, int64 num
 }
 
 static uint64 simStepNsNow(void) {
-    int scaling = g_frameRateScaling;
+    int scaling = g_frameRateScaling.word();
     int accel = g_slowMotionMode; /* 2 = ACCEL (ALT+A): step 2x faster in wall-clock */
     if (scaling < 1) scaling = 1;
     if (accel < 1) accel = 1;

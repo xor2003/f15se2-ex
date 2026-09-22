@@ -675,13 +675,13 @@ int readScreenPixel(int screenX, int screenY) {
 // ==== seg000:0xa1e4 ====
 void hudMessage(const char *src) {
     strcpy(tempString, src);
-    g_hudMsgTimer = f15::math::TickDuration::fromWord(g_frameRateScaling * 3);
+    g_hudMsgTimer = f15::math::TickDuration::fromWord(g_frameRateScaling.scaled(3));
 }
 
 // ==== seg000:0xa204 ====
 void setTimedMessage(char *message) {
     strcpy(string_3C04A, message);
-    g_dirMsgTimer = f15::math::TickDuration::fromWord(g_frameRateScaling * 3);
+    g_dirMsgTimer = f15::math::TickDuration::fromWord(g_frameRateScaling.scaled(3));
 }
 
 // ==== seg000:0xa224 ====

@@ -366,6 +366,20 @@ int main() {
     Ticks clock;
     TickDuration timer = clock;
     (void)timer;
+#elif defined(TEST_RATE_PRIMITIVE)
+    SimRate rate(15);
+    (void)rate;
+#elif defined(TEST_RATE_EXTRACTION)
+    SimRate rate;
+    int raw = rate;
+    (void)raw;
+#elif defined(TEST_RATE_ASSIGN)
+    SimRate rate;
+    rate = 15;
+#elif defined(TEST_RATE_DIVIDE)
+    SimRate rate;
+    int v = 300 / rate;
+    (void)v;
 #endif
     return 0;
 }

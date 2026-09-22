@@ -62,7 +62,7 @@ void updateThreatSites() {
             g_planeTable.planes[siteIdx].threatTimer -= 1;
             if (g_planeTable.planes[siteIdx].threatTimer <= 0) {
                 g_planeTable.planes[siteIdx].threatTimer =
-                    ((int16)(char)g_frameRateScaling << 8) /
+                    ((int16)(char)g_frameRateScaling.word() << 8) /
                         ((g_planeTable.planes[siteIdx].alertLevel >> 3) + 0x20) +
                     siteIdx / 2;
             }
@@ -78,7 +78,7 @@ void updateThreatSites() {
     if (g_mapMode == 0 && g_scopeSweepTimer.isPositive() && g_hudVisible != 0 && g_scopeArcRange > 1) {
         if (g_detailLevel != 0) {
             captureScopePanel();
-            arcRadius = (int16)((int32)clampRange(g_scopeSweepTimer.elapsedWithin(g_frameRateScaling), 1, g_frameRateScaling) * (int32)g_scopeArcRange / (int32)g_frameRateScaling) << 6;
+            arcRadius = (int16)((int32)clampRange(g_scopeSweepTimer.elapsedWithin(g_frameRateScaling.word()), 1, g_frameRateScaling.word()) * (int32)g_scopeArcRange / (int32)g_frameRateScaling.word()) << 6;
         } else {
             arcRadius = g_scopeArcRange << 6;
             g_scopeArcRange = 0;
@@ -116,7 +116,7 @@ void fireGroundThreat(int16 planeIdx) {
             g_threatToneLevel = 14;
         }
         g_scopeArcRange = score;
-        g_scopeSweepTimer = f15::math::TickDuration::fromWord(g_frameRateScaling);
+        g_scopeSweepTimer = f15::math::TickDuration::fromWord(g_frameRateScaling.word());
         g_threatLabelTarget = planeIdx;
         g_threatRadarFlag = aNone[threatType].flags & 1;
         if (g_planeTable.planes[planeIdx].alertLevel != 0) {
@@ -158,7 +158,7 @@ void fireGroundThreat(int16 planeIdx) {
                                         g_projectiles[slot].speed = 1;
                                         g_projectiles[slot].head = angleFromWord(bearing[0]);
                                         g_projectiles[slot].pitch = angleFromWord(0x4000);
-                                        g_projectiles[slot].ttl = (int16)((((int32)sams[threatType].lockRange << 3) * (int32)g_frameRateScaling) / (int32)(sams[threatType].maxSpeed >> 6));
+                                        g_projectiles[slot].ttl = (int16)((((int32)sams[threatType].lockRange << 3) * (int32)g_frameRateScaling.word()) / (int32)(sams[threatType].maxSpeed >> 6));
                                         g_projectiles[slot].specIdx = threatType;
                                         g_projectiles[slot].targetRef = planeIdx;
 
@@ -370,7 +370,7 @@ void updateObjects(void) {
                     trackSlot = frameTick.ring(2, 4) + g_bulletTrackCount;
                     /* Fine units per step + dispersion cone, like the player's
                      * gun (the original 312 coarse/s). */
-                    vel = (312 << 5) / g_frameRateScaling;
+                    vel = g_frameRateScaling.perTick(312 << 5);
                     bulletTracks[trackSlot].velZ = TrackMath::sineVelocity(
                         angleFromWord((int16)(-g_simObjects[objIdx].pitch + gunSpreadAngle())), vel, g_angleLut);
                     horizVel = TrackMath::cosineVelocity(
@@ -445,7 +445,7 @@ void updateObjects(void) {
                     }
                     rollCmd = 0;
                     if (g_simObjects[objIdx].speed < aircraftTypes[g_threatSpec].maxSpeed) {
-                        g_simObjects[objIdx].speed += 60 / g_frameRateScaling;
+                        g_simObjects[objIdx].speed += g_frameRateScaling.perTick(60);
                     } else if (g_simObjects[objIdx].alt > 300) {
                         g_simObjects[objIdx].flags.b[1] &= 0xfb;
                     }
@@ -476,8 +476,8 @@ void updateObjects(void) {
 
                 {
                     int16 u = objIdx * 36;
-                    g_simObjects[objIdx].bank.w += (rollCmd * (g_missionStatus + 2)) / g_frameRateScaling;
-                    g_simObjects[objIdx].heading.w += (g_simObjects[objIdx].bank.w >> 3) / g_frameRateScaling;
+                    g_simObjects[objIdx].bank.w += g_frameRateScaling.perTick(rollCmd * (g_missionStatus + 2));
+                    g_simObjects[objIdx].heading.w += g_frameRateScaling.perTick(g_simObjects[objIdx].bank.w >> 3);
 
                     pitchDelta = pitchCmd - g_simObjects[objIdx].pitch;
                     if (!(g_simObjects[objIdx].flags.b[0] & 0x20)) goto no_smoke;
@@ -506,7 +506,7 @@ void updateObjects(void) {
                 }
 
                 pitchDelta = clampRange(pitchDelta, -0x400, 0x400);
-                g_simObjects[objIdx].pitch += (pitchDelta << 2) / g_frameRateScaling;
+                g_simObjects[objIdx].pitch += g_frameRateScaling.perTick(pitchDelta << 2);
                 if (abs(g_simObjects[objIdx].pitch) > 0x4000) {
                     g_simObjects[objIdx].heading.b[1] += (char)0x80;
                     g_simObjects[objIdx].bank.b[1] += (char)0x80;
@@ -518,7 +518,7 @@ void updateObjects(void) {
                 moveAmt = (int16)((uint32)(uint16)(-(g_simObjects[objIdx].pitch / 2 + (int16)0x8000)) * (int32)g_simObjects[objIdx].speed >> 14);
                 moveAmt -= (int16)(std::abs(TrackMath::sineVelocity(
                     angleFromWord(g_simObjects[objIdx].bank.w), moveAmt, g_angleLut)) / 2);
-                moveAmt = moveAmt * 4 / g_frameRateScaling;
+                moveAmt = g_frameRateScaling.perTick(moveAmt * 4);
                 moveAmt >>= 2;
 
                 const auto horizStep = TrackMath::cosineVelocity(
@@ -565,7 +565,7 @@ void updateObjects(void) {
                     g_simObjects[objIdx].heading.w = (g_northSouthSign == 1) ? 0 : (int16)0x8000;
                     g_simObjects[objIdx].alt = (g_planeTable.planes[g_closestThreatIndex].flags & 0x200) ? 140 : 12;
                     if (g_simObjects[objIdx].speed > 0) {
-                        g_simObjects[objIdx].speed -= 120 / g_frameRateScaling;
+                        g_simObjects[objIdx].speed -= g_frameRateScaling.perTick(120);
                     } else {
                         (g_simObjects[objIdx].flags.w) &= 0x1c1;
                         if (objIdx == 0 && g_targetSlots[0].state >= 5) {
@@ -599,7 +599,7 @@ void updateObjects(void) {
                     o = g_simObjects[objIdx].flags.b[0];
                     if ((o & 2) &&
                         (fireOffset = (((uint8)objIdx & 8) >> 3) + (objIdx & 7) * 2,
-                         frameTick.mod(g_frameRateScaling << 4) == fireOffset * g_frameRateScaling) &&
+                         frameTick.mod(g_frameRateScaling.shifted(4)) == g_frameRateScaling.scaled(fireOffset)) &&
                         !(o & 0x20)) {
                         fireAirThreat(objIdx);
                     }

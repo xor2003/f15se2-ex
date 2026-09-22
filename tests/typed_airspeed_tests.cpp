@@ -122,16 +122,16 @@ void productionCaller() {
             g_velocity = FC::speed(expected);
         }
         const int target = next() % 24274;
-        g_frameRateScaling = 1 + next() % 120;
+        g_frameRateScaling = f15::math::SimRate::fromWord(1 + next() % 120);
         data.unk4 = next() % 4;
         const bool active = next() % 3 != 0, onGround = next() % 3 != 0, carrier = next() % 3 != 0;
         g_playerPlaneFlags = active ? 8 : 0;
         g_groundAltitude = carrier ? 128 : 0;
         g_viewZ = g_groundAltitude + (onGround ? 0 : 1);
-        expected = accelerate(expected, target, g_frameRateScaling);
+        expected = accelerate(expected, target, g_frameRateScaling.word());
         accelerateFlightSpeed(FC::speed(target));
         require(FC::speed(g_velocity) == expected, "production acceleration differs from frozen baseline");
-        expected = brake(expected, g_frameRateScaling, active, onGround, carrier, data.unk4);
+        expected = brake(expected, g_frameRateScaling.word(), active, onGround, carrier, data.unk4);
         brakeFlightSpeed();
         require(FC::speed(g_velocity) == expected, "production braking differs from frozen baseline");
     }

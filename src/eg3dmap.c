@@ -369,7 +369,7 @@ void setup3DTransform(const int16 *model, int16 angleX, int16 angleY, int16 angl
     g_sortedObjCount = 0;
     /* Scaled by sim steps this frame so the spin advances at the sim rate, not
      * the (now higher) render rate; 0 on pure interpolation frames. */
-    g_spinAngle -= g_simStepsThisFrame * (0x3000 / g_frameRateScaling);
+    g_spinAngle -= g_simStepsThisFrame * g_frameRateScaling.perTick(0x3000);
 }
 
 // ==== seg000:0x39aa ====

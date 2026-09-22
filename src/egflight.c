@@ -163,7 +163,7 @@ void advanceFlightHorizontal(f15::math::HorizontalSpeed<f15::math::GameBackend> 
     const f15::math::legacy::Math rotation(g_angleLut);
     const auto step = f15::math::HorizontalMath<f15::math::GameBackend>::increments(
         speed, rotation.sine(g_ourHead), rotation.cosine(g_ourHead),
-        f15::math::legacy::Controls::frequency(g_frameRateScaling));
+        f15::math::legacy::Controls::frequency(g_frameRateScaling.word()));
     g_ViewX += step.x;
     g_ViewY += step.y;
 }
@@ -176,7 +176,7 @@ void advanceFlightAltitude() {
         rotation.sine(g_ourPitch - g_rollPitchTrim));
     if (g_autoLandingActive == 0)
         g_altitude = VerticalMath::integrate(g_altitude, g_climbRate,
-            f15::math::legacy::Controls::frequency(g_frameRateScaling));
+            f15::math::legacy::Controls::frequency(g_frameRateScaling.word()));
     g_altitude = VerticalMath::constrain(g_altitude, Altitudes::ground(g_groundAltitude));
     g_viewZ = Altitudes::renderWord(VerticalMath::renderHeight(g_altitude));
 }
@@ -193,7 +193,7 @@ bool correctFlightStall() {
     const auto severity = gameData->unk4 == 2 || g_gunHits > 8
         ? f15::math::StallSeverity::Severe : f15::math::StallSeverity::Normal;
     const auto response = Aero::stallResponse(g_velocity, g_stallSpeed, severity,
-        f15::math::legacy::Controls::frequency(g_frameRateScaling));
+        f15::math::legacy::Controls::frequency(g_frameRateScaling.word()));
     g_ourPitch -= response.noseDrop;
     g_orientationDirty = 1;
     return response.stalled;
@@ -201,12 +201,12 @@ bool correctFlightStall() {
 
 void accelerateFlightSpeed(f15::math::FlightSpeed<f15::math::GameBackend> target) {
     g_velocity = SpeedMath::accelerate(g_velocity, target,
-        f15::math::legacy::Controls::frequency(g_frameRateScaling));
+        f15::math::legacy::Controls::frequency(g_frameRateScaling.word()));
 }
 
 void brakeFlightSpeed() {
     if (*((uint8 *)&g_playerPlaneFlags) & 8) {
-        const auto step = f15::math::legacy::Controls::frequency(g_frameRateScaling);
+        const auto step = f15::math::legacy::Controls::frequency(g_frameRateScaling.word());
         if (flightAtGround()) {
             g_velocity = SpeedMath::groundBrake(g_velocity,
                 f15::math::legacy::Airspeeds::deceleration((32 - gameData->unk4 * 8) * 27), step);
@@ -572,8 +572,8 @@ switch_break:
         // g_ejectState++;
         g_crashCamZ += clampRange(
             -(++g_ejectState - 0x20),
-            (int16)0xFF00 / g_frameRateScaling,
-            (int16)0x80 / g_frameRateScaling);
+            g_frameRateScaling.perTick((int16)0xFF00),
+            g_frameRateScaling.perTick(0x80));
         // g_crashCamZ += stall_decay_effect;
 
         if (g_crashCamZ < 0) {
@@ -626,9 +626,9 @@ switch_break:
         UpdateThrottleState();
     }
 
-    g_thrust = Propulsion::advance(g_thrust, limitedThrust, Controls::frequency(g_frameRateScaling));
+    g_thrust = Propulsion::advance(g_thrust, limitedThrust, Controls::frequency(g_frameRateScaling.word()));
 
-    if (frameTick.umod(g_frameRateScaling << 1) == 0 && g_setThrust != 0 && g_autopilotEngaged == 0) {
+    if (frameTick.umod(g_frameRateScaling.shifted(1)) == 0 && g_setThrust != 0 && g_autopilotEngaged == 0) {
         if (!gameOptionsEnabled(GAME_OPTION_INFINITE_FUEL))
             g_fuelRemaining -= ((g_setThrust * g_setThrust) / 750) + 2;
         drawFuelGauge();
@@ -705,11 +705,11 @@ switch_break:
     android_ar_setFlightDebug(signedAngle(g_ourHead), Controls::yaw(yaw), rollInput(g_rollInput), pitchInput(g_pitchInput),
                               g_knots, legacyLoad, turbulence,
                               static_cast<int>(f15::math::legacy::Altitudes::render(g_autopilotAltitude)), g_autopilotEngaged,
-                              g_directorMode, g_frameRateScaling);
+                              g_directorMode, g_frameRateScaling.word());
 #endif
 
     const auto deltas = ControlMath::increments(g_rollInput, g_pitchInput, yaw,
-                                               Controls::frequency(g_frameRateScaling));
+                                               Controls::frequency(g_frameRateScaling.word()));
     if (androidFlightControl) {
         /*
          * Phone tilt specifies only bank and pitch. Advance heading from the
@@ -788,10 +788,10 @@ switch_break:
 
     if (g_currentWeaponType == 1) {
         if (g_airTargetLock >= 0) {
-            idx = clampRange(((int)(mapRange(mapOffset(flightMapPosition(), g_simObjects[g_airTargetLock].posX, g_simObjects[g_airTargetLock].posY)) * g_frameRateScaling) >> 8), 0, 12);
+            idx = clampRange(((int)(mapRange(mapOffset(flightMapPosition(), g_simObjects[g_airTargetLock].posX, g_simObjects[g_airTargetLock].posY)) * g_frameRateScaling.word()) >> 8), 0, 12);
 
         } else {
-            idx = g_frameRateScaling - 1;
+            idx = g_frameRateScaling.minus(1);
         }
 
         idx = frameTick.offset(-idx).phase(16);
@@ -983,7 +983,7 @@ void renderFrame() {
          * the sim rate. */
         int r1, a = g_renderAlphaQ12;
         struct ViewSnapshot *s0, *s1;
-        tmp = frameTick.offset(-((g_frameRateScaling + 1) / 2) - 1).phase(16);
+        tmp = frameTick.offset(-((g_frameRateScaling.word() + 1) / 2) - 1).phase(16);
         r1 = (tmp + 1) & 0xf;
         s0 = &g_viewSnapshotRing[tmp];
         s1 = &g_viewSnapshotRing[r1];

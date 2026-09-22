@@ -66,7 +66,7 @@ extern int16 g_difficultyTier;
 extern int16 g_nightMode;
 extern int16 g_inputDisabled;
 extern int16 g_hudVisible;
-extern int16 g_frameRateScaling;
+extern f15::math::SimRate g_frameRateScaling;
 extern struct Missile missiles[20];
 extern struct MapEvent mapEvents[]; /* 12-byte marker records */
 extern struct Particle g_particles[8];
@@ -255,7 +255,7 @@ extern uint8 buf2_3dg[];
 extern struct TileObject *g_nearestTileObj;
 extern uint8 buf1_3dg[];
 extern char g_savedPosVisible;
-extern int16 g_threatDisplayTtl;
+extern f15::math::TickDuration g_threatDisplayTtl;
 extern uint8 buf_3dt[]; // #define MAX_TILE_DATA
 extern f15::math::StallSpeed<f15::math::GameBackend> g_stallSpeed;
 extern uint8 g_topLodGrid[];
@@ -295,7 +295,7 @@ extern int16 g_viewRoll;
 extern struct DynTileOverride g_dynTileEntries[]; // overlaps the following bytes with structs
 extern int16 g_threatRefZ;
 extern f15::math::ViewCoordinate<f15::math::GameBackend, f15::math::ViewXAxis> g_ViewX;
-extern int16 g_savedSamTtl;
+extern f15::math::TickDuration g_savedSamTtl;
 extern struct TileObject nearestTile;
 extern f15::math::ViewCoordinate<f15::math::GameBackend, f15::math::ViewYAxis> g_ViewY;
 extern struct ReplayLog g_replayLog;

@@ -367,15 +367,15 @@ void updateEngineSound(void) {
 
 // ==== seg000:0xdaae ====
 void recalcTimeScale(void) {
-    if (g_frameRateScaling > 15) {
-        g_frameSyncWait = clampRange((-(120 / g_frameRateScaling - 9)) >> 1, 1, 4);
+    if (g_frameRateScaling.exceeds(15)) {
+        g_frameSyncWait = clampRange((-(g_frameRateScaling.perTick(120) - 9)) >> 1, 1, 4);
     } else {
         g_frameSyncWait = 0;
     }
-    g_frameRateScaling = clampRange(g_frameRateScaling, 4 - g_slowMotionMode, 15);
-    g_bulletTrackCount = clampRange(g_frameRateScaling << 1, 3, 16);
-    g_threatTimerInit = f15::math::TickDuration::fromWord(250 * g_frameRateScaling);
-    g_threatDisplayTtl = 200 * g_frameRateScaling;
+    g_frameRateScaling = f15::math::SimRate::fromWord(clampRange(g_frameRateScaling.word(), 4 - g_slowMotionMode, 15));
+    g_bulletTrackCount = clampRange(g_frameRateScaling.shifted(1), 3, 16);
+    g_threatTimerInit = f15::math::TickDuration::fromWord(g_frameRateScaling.scaled(250));
+    g_threatDisplayTtl = f15::math::TickDuration::fromWord(g_frameRateScaling.scaled(200));
 }
 
 // ==== seg000:0xdb2b ====
