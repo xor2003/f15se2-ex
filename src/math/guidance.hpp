@@ -253,9 +253,46 @@ public:
                                                      const std::int16_t *lut) {
         if constexpr (std::is_same_v<B, FixedBackend>)
             return static_cast<std::int32_t>(
-                (static_cast<std::int64_t>(fixed::cosine(heading.value_, lut).asInt()) * step) >> 15);
+                (static_cast<int64_t>(fixed::cosine(heading.value_, lut).asInt()) * step) >> 15);
         else
             return std::cos(heading.value_) * step;
+    }
+
+    /* ---- Bullet-track velocity (sinMul/cosMul spawn decomposition) ---- */
+
+    /* sinMul(angle, mag): the rounded Q15 velocity component — fixed runs
+     * fixedMulQ14(sine(a), v) with the int16 narrowing sinMul's int16
+     * parameter and return type applied; modern keeps the exact trig product
+     * and the fractional magnitude (the cosMul(pitch, mag) chain feeds the
+     * yaw decompose without the original's int16 re-quantization). */
+    static typename FineCoord<B>::StepRep sineVelocity(Angle<B> a,
+                                                       typename FineCoord<B>::StepRep mag,
+                                                       const std::int16_t *lut) {
+        if constexpr (std::is_same_v<B, FixedBackend>)
+            return static_cast<std::int32_t>(static_cast<std::int16_t>(
+                fixed::sinMul(a.value_, static_cast<std::int16_t>(mag), lut)));
+        else
+            return std::sin(a.value_) * mag;
+    }
+    static typename FineCoord<B>::StepRep cosineVelocity(Angle<B> a,
+                                                         typename FineCoord<B>::StepRep mag,
+                                                         const std::int16_t *lut) {
+        if constexpr (std::is_same_v<B, FixedBackend>)
+            return static_cast<std::int32_t>(static_cast<std::int16_t>(
+                fixed::cosMul(a.value_, static_cast<std::int16_t>(mag), lut)));
+        else
+            return std::cos(a.value_) * mag;
+    }
+
+    /* (vel * alphaQ12) >> 12 — the Q12 render-interpolation / swept-path
+     * travel step. Fixed multiplies in int32 then truncates; modern keeps the
+     * fractional product. */
+    static typename FineCoord<B>::StepRep fineTravel(typename FineCoord<B>::StepRep vel,
+                                                     int alphaQ12) {
+        if constexpr (std::is_same_v<B, FixedBackend>)
+            return static_cast<std::int32_t>(vel * alphaQ12) >> 12;
+        else
+            return vel * alphaQ12 * (1.0 / 4096.0);
     }
 };
 }

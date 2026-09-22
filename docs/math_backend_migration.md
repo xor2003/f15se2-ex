@@ -1024,6 +1024,34 @@ golden across live projectile flight — and modern smoke pass.
 `clampRange`, `sine`/`cosine` word oracles over the full 16-bit heading space
 plus modern fractional cases.
 
+## Bullet-track checkpoint
+
+`BulletTrack` (the 20-entry gun-round/spark table) is typed the same way:
+`posX`/`posY` are `FineCoord` on the shared 21-bit ring (same mask as
+`BULLET_FINE_MASK`) and `alt`/`velX`/`velY`/`velZ` are `StepRep` — int32 under
+fixed, double under modern, so the per-step velocity and the altitude
+accumulator keep their fractions instead of re-quantizing each sim step.
+
+* `GuidanceMath::sineVelocity`/`cosineVelocity` — the `sinMul`/`cosMul`
+  spawn decompose: fixed runs `fixedMulQ14`'s rounded Q15 product with the
+  int16 parameter and result narrowing `sinMul` applied; modern keeps
+  `sin(rad)·mag` and the fractional `horizMag`/`horizVel` that the original
+  stored back into an int16 between the pitch and yaw decomposes.
+* `FineCoord::deltaFrom` — the signed centered ring delta (`fineWrapDelta`).
+* `FineCoord::isZero` — the `posX == 0` free-slot convention.
+* `GuidanceMath::fineTravel` — the `(vel * alphaQ12) >> 12` render/swept-path
+  step; fixed multiplies in int32 then truncates, modern divides exactly.
+
+Consumers: `updateBulletsAndFire` integration/spawn (player gun), the
+egthreat threat-gun spawn, `drawWorldEffects` render interpolation (`fineWord`
+at the project/draw calls), `roundToTargetDist2` swept-path hit test — its
+`long` intermediates become `double` under modern so the segment projection
+keeps fractional positions — and the hash/dump/snapshot writers on word views.
+
+Verification: fixed 59/59 (sortie parity fires guns during the golden run)
+and modern smoke pass; `typed_guidance_tests` checks the helpers against the
+real `sinMul`/`cosMul` oracles plus modern fractional cases.
+
 ### Next acceptance boundary
 
 Aircraft Euler, command, altitude, climb, airspeed and fine horizontal position

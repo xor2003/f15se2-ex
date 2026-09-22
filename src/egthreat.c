@@ -5,12 +5,14 @@
 #include "math/legacy_rotation.hpp"
 #include "math/legacy_altitude.hpp"
 #include "math/legacy_map.hpp"
+#include "math/guidance.hpp"
 using f15::math::legacy::signedAngle;
 using f15::math::legacy::angleMagnitude;
 using f15::math::legacy::angleFromWord;
 using f15::math::legacy::mapOffset;
 using f15::math::legacy::mapRange;
 using FineCoord = f15::math::FineCoord<f15::math::GameBackend>;
+using TrackMath = f15::math::GuidanceMath<f15::math::GameBackend>;
 #include "egflight.h"
 #include "egframe.h"
 #include "egkeys.h"
@@ -235,12 +237,16 @@ int16 computeThreatScore(void) {
 // ==== seg000:0x67b4 ====
 void updateObjects(void) {
     int16 candBearing, pitchCmd, viewBearing, aggrIdx, bearing, relBearing, tgtIdx, acRange, hdg, aspect, u0, e0, best, range, moveAmt, mode, fireOffset, objIdx, vel, scanIdx, pitchDelta, trackSlot, tgtX, deltaX, deltaY, rollCmd, horizMove, tgtY, smokeSlot, tgtZ;
+    /* horizontal magnitude after the pitch decompose — the original stored it
+     * back into the int16 vel; StepRep keeps the fraction under modern.
+     * Declared here so the after_missile_table goto doesn't cross its init. */
+    FineCoord::StepRep horizVel;
 
     if ((frameTick & 1) == 0 && g_smokeSourceIdx == -1) {
         g_particles[(frameTick >> 1) & 7].posX = 0;
     }
 
-    bulletTracks[((frameTick >> 2) & 3) + g_bulletTrackCount].posX = 0;
+    bulletTracks[((frameTick >> 2) & 3) + g_bulletTrackCount].posX = {};
 
     g_enemyThreatCount = g_activeThreatCount;
     g_activeThreatCount = 0;
@@ -354,13 +360,15 @@ void updateObjects(void) {
                     /* Fine units per step + dispersion cone, like the player's
                      * gun (the original 312 coarse/s). */
                     vel = (312 << 5) / g_frameRateScaling;
-                    bulletTracks[trackSlot].velZ = sinMul(-g_simObjects[objIdx].pitch + gunSpreadAngle(), vel);
-                    vel = cosMul(g_simObjects[objIdx].pitch, vel);
+                    bulletTracks[trackSlot].velZ = TrackMath::sineVelocity(
+                        angleFromWord((int16)(-g_simObjects[objIdx].pitch + gunSpreadAngle())), vel, g_angleLut);
+                    horizVel = TrackMath::cosineVelocity(
+                        angleFromWord(g_simObjects[objIdx].pitch), vel, g_angleLut);
                     hdg = g_simObjects[objIdx].heading.w + gunSpreadAngle();
-                    bulletTracks[trackSlot].velX = sinMul(hdg, vel);
-                    bulletTracks[trackSlot].velY = -cosMul(hdg, vel);
-                    bulletTracks[trackSlot].posX = g_simObjects[objIdx].worldX & BULLET_FINE_MASK;
-                    bulletTracks[trackSlot].posY = g_simObjects[objIdx].worldY & BULLET_FINE_MASK;
+                    bulletTracks[trackSlot].velX = TrackMath::sineVelocity(angleFromWord(hdg), horizVel, g_angleLut);
+                    bulletTracks[trackSlot].velY = -TrackMath::cosineVelocity(angleFromWord(hdg), horizVel, g_angleLut);
+                    bulletTracks[trackSlot].posX = FineCoord::fromRep(g_simObjects[objIdx].worldX);
+                    bulletTracks[trackSlot].posY = FineCoord::fromRep(g_simObjects[objIdx].worldY);
                     bulletTracks[trackSlot].alt = g_simObjects[objIdx].alt;
 
                 after_missile_table:

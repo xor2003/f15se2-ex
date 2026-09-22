@@ -150,7 +150,8 @@ static void writeBullets(FILE *f) {
         fprintf(f,
                 "    {\"slot\":%d,\"position\":{\"x\":%d,\"y\":%d,\"altitude\":%d},"
                 "\"velocity\":{\"x\":%d,\"y\":%d,\"z\":%d}}%s\n",
-                i, (int)b->posX, (int)b->posY, (int)b->alt,
+                i, (int)f15::math::legacy::fineWord(b->posX),
+                (int)f15::math::legacy::fineWord(b->posY), (int)b->alt,
                 (int)b->velX, (int)b->velY, (int)b->velZ,
                 i + 1 == SNAPSHOT_BULLET_COUNT ? "" : ",");
     }

@@ -18,6 +18,7 @@ extern int16_t clampRange(int16_t value, int16_t minVal, int16_t maxVal);
 extern int16_t sine(int16_t angle);
 extern int16_t cosine(int16_t angle);
 extern int16_t sinMul(int16_t angle, int16_t value);
+extern int16_t cosMul(int16_t angle, int16_t value);
 extern const int16_t g_angleLut[260];
 
 namespace {
@@ -259,8 +260,65 @@ void projectileModernCases() {
     require(std::abs(sep - 1.8 * pi / unit) < 1e-9,
         "modern angle separation wrapped onto the shortest arc");
 }
+
+/* Bullet tracks: the gun-round state migrated to FineCoord positions with
+ * typed fine velocities (the sinMul/cosMul spawn decomposition and the
+ * Q12 render/swept-path steps). */
+void bulletFixedCases() {
+    using rotation_reference::word;
+    /* velX/velY/velZ seeding: sinMul/cosMul = rounded Q15 product narrowed to
+     * int16 at the destination store. */
+    for (int raw = 0; raw < 65536; raw += 11)
+        for (int mag : {-32768, -9984, -1, 0, 1, 9984, 32767}) {
+            require(GuidanceMath<F>::sineVelocity(legacy::angleFromWord(raw), mag, g_angleLut) ==
+                    sinMul(static_cast<int16_t>(word(raw)), static_cast<int16_t>(mag)),
+                "fixed bullet sine velocity differs from sinMul");
+            require(GuidanceMath<F>::cosineVelocity(legacy::angleFromWord(raw), mag, g_angleLut) ==
+                    cosMul(static_cast<int16_t>(word(raw)), static_cast<int16_t>(mag)),
+                "fixed bullet cosine velocity differs from cosMul");
+        }
+    /* Signed ring delta: (a - b) & mask, centered past the half ring. */
+    for (int a : {0, 1, 0x100000, 0x1FFFFF})
+        for (int b : {-1, 0, 33, 0x100000, 0x1FFFFF, 0x200000}) {
+            long d = (static_cast<long>(a & 0x1FFFFF) - b) & 0x1FFFFF;
+            if (d & 0x100000) d -= 0x200000;
+            require(FineCoord<F>::fromRep(a).deltaFrom(b) == d,
+                "fixed fine ring delta changed");
+        }
+    /* Free-slot convention: rep 0, reached through default and writes. */
+    require(FineCoord<F>::fromRep(0).isZero() && !FineCoord<F>::fromRep(1).isZero(),
+        "fixed fine zero test changed");
+    /* Render/trajectory step: (vel * alphaQ12) >> 12, int32 product first. */
+    for (int vel : {-9984, -1, 0, 1, 9984, 300000})
+        for (int alpha : {0, 1, 2048, 4096})
+            require(GuidanceMath<F>::fineTravel(vel, alpha) ==
+                    static_cast<int32_t>(vel * alpha) >> 12,
+                "fixed Q12 travel step changed");
+}
+void bulletModernCases() {
+    const auto rad = Boundary<M>::radians(0.6);
+    /* Velocity components keep the exact trig product — no LUT, no round, no
+     * int16 narrow of the magnitude. */
+    require(std::abs(GuidanceMath<M>::sineVelocity(rad, 9984, g_angleLut) - std::sin(0.6) * 9984) < 1e-9,
+        "modern bullet sine velocity truncated");
+    require(std::abs(GuidanceMath<M>::cosineVelocity(rad, 9984, g_angleLut) - std::cos(0.6) * 9984) < 1e-9,
+        "modern bullet cosine velocity truncated");
+    /* Fractional positions survive accumulation and the ring delta stays
+     * centered without quantizing either endpoint. */
+    const auto pos = FineCoord<M>::fromRep(2097151.75);
+    const auto advanced = pos.advanced(GuidanceMath<M>::fineTravel(10.5, 2048));
+    require(std::abs(MapBoundary<M>::fineRep(advanced) - (2097151.75 + 5.25 - 2097152.0)) < 1e-12,
+        "modern fine advance lost the fractional step across the wrap");
+    require(std::abs(pos.deltaFrom(0.25) - (-0.5)) < 1e-12,
+        "modern fine ring delta did not center across the seam");
+    require(std::abs(FineCoord<M>::fromRep(100.5).deltaFrom(99.25) - 1.25) < 1e-12,
+        "modern fine ring delta truncated");
+    require(std::abs(GuidanceMath<M>::fineTravel(10.5, 2048) - 5.25) < 1e-12,
+        "modern Q12 travel step truncated");
+}
 }
 int main() {
     fixedCases(); modernCases(); recoveryCases(); modernApproachCases();
     projectileFixedCases(); projectileModernCases();
+    bulletFixedCases(); bulletModernCases();
 }

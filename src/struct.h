@@ -195,20 +195,21 @@ struct Proj3d {
 STATIC_ASSERT(sizeof(struct Proj3d) == 12);
 
 /* BulletTrack: a 3D moving point (player gun rounds + threat shots), 20-entry
- * table. posX/posY are FINE map units (coarse mapX<<5, wrapped to 21 bits with
- * BULLET_FINE_MASK); alt is altitude units (already the same 1/32 scale). velX/
- * velY/velZ are fine units per sim step: the coarse int16 velocities quantized
- * the firing direction to ~7.5deg steps (sinMul of a magnitude of ~12), which
- * aliased the whole tracer stream onto a handful of headings. posX == 0 marks a
+ * table. posX/posY are FINE map units (coarse mapX<<5) on the 21-bit object
+ * ring; alt is altitude units (already the same 1/32 scale). velX/velY/velZ are
+ * fine units per sim step: the coarse int16 velocities quantized the firing
+ * direction to ~7.5deg steps (sinMul of a magnitude of ~12), which aliased the
+ * whole tracer stream onto a handful of headings. StepRep keeps the int32 fixed
+ * rep and lets modern carry the sub-fine-unit fraction; posX.isZero() marks a
  * free slot. Advanced each sim step (updateBulletsAndFire), drawn interpolated
  * (drawWorldEffects). */
 struct BulletTrack {
-    int32 posX;
-    int32 posY;
-    int32 alt;
-    int32 velX;
-    int32 velY;
-    int32 velZ;
+    f15::math::FineCoord<f15::math::GameBackend> posX;
+    f15::math::FineCoord<f15::math::GameBackend> posY;
+    f15::math::FineCoord<f15::math::GameBackend>::StepRep alt;
+    f15::math::FineCoord<f15::math::GameBackend>::StepRep velX;
+    f15::math::FineCoord<f15::math::GameBackend>::StepRep velY;
+    f15::math::FineCoord<f15::math::GameBackend>::StepRep velZ;
 };
 /* Fine map coords span coarse 0..0xffff << 5; the mask keeps the DOS int16
  * coarse-wrap semantics after summing fine velocities. */

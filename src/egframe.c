@@ -1,6 +1,6 @@
 #include "math/legacy_horizontal.hpp"
 #include "math/legacy_airspeed.hpp"
-using f15::math::legacy::fineUnits;
+using f15::math::legacy::fineRep;
 using f15::math::legacy::viewX;
 using f15::math::legacy::viewY;
 using f15::math::legacy::moveX;
@@ -14,6 +14,7 @@ using f15::math::legacy::moveY;
 #include "math/legacy_rotation.hpp"
 #include "math/legacy_altitude.hpp"
 #include "math/legacy_map.hpp"
+#include "math/guidance.hpp"
 using f15::math::legacy::altitudeFromUnits;
 using f15::math::legacy::signedAngle;
 using f15::math::legacy::angleFromWord;
@@ -21,6 +22,8 @@ using f15::math::legacy::angleMagnitude;
 using f15::math::legacy::mapOffset;
 using f15::math::legacy::mapRange;
 using SpeedMath = f15::math::AirspeedMath<f15::math::GameBackend>;
+using FineCoord = f15::math::FineCoord<f15::math::GameBackend>;
+using TrackMath = f15::math::GuidanceMath<f15::math::GameBackend>;
 #include "egflight.h"
 #include "egframe.h"
 #include "android_ar.h"
@@ -555,11 +558,15 @@ void tickMessageTimers(void) {
 
 void updateBulletsAndFire(void) {
     int16 firing, mag, yaw, pitch, i, slot;
+    /* horizontal magnitude after the pitch decompose — the original stored it
+     * back into the int16 mag; StepRep keeps the fraction under modern.
+     * Declared here so the goto paths don't cross its initialization. */
+    FineCoord::StepRep horizMag;
 
     for (i = 0; i < g_bulletTrackCount + 4; i++) {
-        if (bulletTracks[i].posX != 0) {
-            bulletTracks[i].posX = (bulletTracks[i].posX + bulletTracks[i].velX) & BULLET_FINE_MASK;
-            bulletTracks[i].posY = (bulletTracks[i].posY + bulletTracks[i].velY) & BULLET_FINE_MASK;
+        if (!bulletTracks[i].posX.isZero()) {
+            bulletTracks[i].posX = bulletTracks[i].posX.advanced(bulletTracks[i].velX);
+            bulletTracks[i].posY = bulletTracks[i].posY.advanced(bulletTracks[i].velY);
             bulletTracks[i].alt += bulletTracks[i].velZ;
         }
     }
@@ -579,17 +586,17 @@ void updateBulletsAndFire(void) {
     yaw = (int16)signedAngle(g_ourHead) + gunSpreadAngle();
     pitch = (int16)signedAngle(g_ourPitch) + gunSpreadAngle();
     mag = (186 << 5) / g_frameRateScaling;
-    bulletTracks[slot].velZ = sinMul(pitch, mag);
-    mag = cosMul(pitch, mag);
-    bulletTracks[slot].velX = sinMul(yaw, mag);
-    bulletTracks[slot].velY = -cosMul(yaw, mag);
-    bulletTracks[slot].posX = (fineUnits(g_ViewX) + bulletTracks[slot].velX) & BULLET_FINE_MASK;
-    bulletTracks[slot].posY = (0x100000L - fineUnits(g_ViewY) + bulletTracks[slot].velY) & BULLET_FINE_MASK;
+    bulletTracks[slot].velZ = TrackMath::sineVelocity(angleFromWord(pitch), mag, g_angleLut);
+    horizMag = TrackMath::cosineVelocity(angleFromWord(pitch), mag, g_angleLut);
+    bulletTracks[slot].velX = TrackMath::sineVelocity(angleFromWord(yaw), horizMag, g_angleLut);
+    bulletTracks[slot].velY = -TrackMath::cosineVelocity(angleFromWord(yaw), horizMag, g_angleLut);
+    bulletTracks[slot].posX = FineCoord::fromRep(fineRep(g_ViewX) + bulletTracks[slot].velX);
+    bulletTracks[slot].posY = FineCoord::fromRep(0x100000L - fineRep(g_ViewY) + bulletTracks[slot].velY);
     bulletTracks[slot].alt = bulletTracks[slot].velZ + f15::math::legacy::Altitudes::renderWord(flightSceneHeight()) - 2;
     g_gunFiredFlag = 1;
     goto done_fire;
 no_fire:
-    bulletTracks[slot].posX = 0;
+    bulletTracks[slot].posX = {};
     g_gunFiredFlag = 0;
 done_fire:
     if (firing) {

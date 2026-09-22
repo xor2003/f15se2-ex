@@ -27,6 +27,7 @@
 #include "math/legacy_altitude.hpp"
 #include "math/legacy_rotation.hpp"
 #include "math/legacy_horizontal.hpp"
+#include "math/legacy_map.hpp"
 #include "math/legacy_propulsion.hpp"
 #include "math/legacy_flight_control.hpp"
 #include "egdata.h"
@@ -216,9 +217,9 @@ std::uint32_t hashObjects() {
         h = hashAdd(h, (std::uint16_t)o.heading.w);
     }
     for (int i = 0; i < 8; ++i) {
-        h = hashAdd(h, (std::uint32_t)bulletTracks[i].posX);
-        h = hashAdd(h, (std::uint32_t)bulletTracks[i].posY);
-        h = hashAdd(h, (std::uint32_t)bulletTracks[i].alt);
+        h = hashAdd(h, (std::uint32_t)legacy::fineWord(bulletTracks[i].posX));
+        h = hashAdd(h, (std::uint32_t)legacy::fineWord(bulletTracks[i].posY));
+        h = hashAdd(h, (std::uint32_t)(std::int32_t)bulletTracks[i].alt);
     }
     return h;
 }

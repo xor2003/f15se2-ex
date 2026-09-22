@@ -75,6 +75,21 @@ public:
     static FineCoord fromRep(Rep v) { return FineCoord(v); }
     // The (fine + step) & ring advance the original wrote at each integration site.
     FineCoord advanced(Rep step) const { return FineCoord(value_ + step); }
+    /* The posX == 0 free-slot / origin convention. */
+    bool isZero() const { return value_ == 0; }
+    /* Signed ring delta (this - other fine units) centered on [-ring/2, ring/2):
+     * the fineWrapDelta formula — mask the difference, fold the half-ring bit. */
+    Rep deltaFrom(Rep other) const {
+        if constexpr (std::is_same_v<B, FixedBackend>) {
+            const Rep d = (value_ - other) & ringMask;
+            return (d & (ringMask + 1) / 2) ? d - (ringMask + 1) : d;
+        } else {
+            Rep d = std::fmod(value_ - other, ringSize);
+            if (d >= ringSize / 2) d -= ringSize;
+            else if (d < -ringSize / 2) d += ringSize;
+            return d;
+        }
+    }
     // Derived coarse map word (fine >> 5); modern keeps the fraction until the floor.
     std::uint16_t mapWord() const {
         if constexpr (std::is_same_v<B, FixedBackend>) return static_cast<std::uint16_t>(value_ >> 5);

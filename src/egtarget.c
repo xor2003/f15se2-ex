@@ -9,8 +9,11 @@ using f15::math::legacy::fineUnits;
 #include "math/legacy_rotation.hpp"
 #include "math/legacy_altitude.hpp"
 #include "math/legacy_map.hpp"
+#include "math/guidance.hpp"
 using f15::math::legacy::signedAngle;
 using f15::math::legacy::angleMagnitude;
+using f15::math::legacy::fineWord;
+using TrackMath = f15::math::GuidanceMath<f15::math::GameBackend>;
 #include "egflight.h"
 #include "egframe.h"
 #include "egmath.h"
@@ -436,35 +439,36 @@ static int aircraftGunRadiusFine(int spec) {
     return r < 1 ? 1 : r;
 }
 
-/* Shortest wrapped delta on the 21-bit fine world torus (BULLET_FINE_MASK). */
-static long fineWrapDelta(long d) {
-    d &= BULLET_FINE_MASK;
-    if (d & ((BULLET_FINE_MASK + 1) >> 1)) d -= (BULLET_FINE_MASK + 1);
-    return d;
-}
-
 /* Squared closest-approach distance (fine units) between the round idx's swept
  * path this step (previous pos = pos-vel, to current pos) and target objIdx's
- * center. X/Y wrap on the world torus; alt does not. */
+ * center. X/Y wrap on the world torus; alt does not. Num is long under fixed
+ * (the original 64-bit intermediates) and double under modern so the
+ * fractional track state flows through the projection instead of truncating
+ * to whole fine units at the read. */
 static long roundToTargetDist2(int idx, int objIdx) {
-    long ax = fineWrapDelta((long)bulletTracks[idx].posX - ((long)g_simObjects[objIdx].posX << 5));
-    long ay = fineWrapDelta((long)bulletTracks[idx].posY - ((long)g_simObjects[objIdx].posY << 5));
-    long az = (long)bulletTracks[idx].alt - (long)g_simObjects[objIdx].alt;
+    using Num = std::conditional_t<std::is_same_v<f15::math::GameBackend,
+        f15::math::FixedBackend>, long, double>;
+    const Num ax = bulletTracks[idx].posX.deltaFrom(
+        static_cast<std::int32_t>(g_simObjects[objIdx].posX << 5));
+    const Num ay = bulletTracks[idx].posY.deltaFrom(
+        static_cast<std::int32_t>(g_simObjects[objIdx].posY << 5));
+    const Num az = static_cast<Num>(bulletTracks[idx].alt) - g_simObjects[objIdx].alt;
     /* segment vector = the round's per-step travel (= velocity) */
-    long vx = bulletTracks[idx].velX, vy = bulletTracks[idx].velY, vz = bulletTracks[idx].velZ;
-    long seg2 = vx * vx + vy * vy + vz * vz;
-    long cx, cy, cz;
+    const Num vx = bulletTracks[idx].velX, vy = bulletTracks[idx].velY,
+              vz = bulletTracks[idx].velZ;
+    const Num seg2 = vx * vx + vy * vy + vz * vz;
+    Num cx, cy, cz;
     if (seg2 == 0) {
         cx = ax; cy = ay; cz = az;
     } else {
         /* project the previous endpoint (a - v) onto the segment, clamped */
-        long dot = -((ax - vx) * vx + (ay - vy) * vy + (az - vz) * vz);
-        long t256 = dot <= 0 ? 0 : (dot >= seg2 ? 256 : (dot * 256 / seg2));
+        const Num dot = -((ax - vx) * vx + (ay - vy) * vy + (az - vz) * vz);
+        const Num t256 = dot <= 0 ? 0 : (dot >= seg2 ? 256 : (dot * 256 / seg2));
         cx = (ax - vx) + vx * t256 / 256;
         cy = (ay - vy) + vy * t256 / 256;
         cz = (az - vz) + vz * t256 / 256;
     }
-    return cx * cx + cy * cy + cz * cz;
+    return static_cast<long>(cx * cx + cy * cy + cz * cz);
 }
 
 /* Cannon tracers + explosion sparks as real world-space 3D line geometry
@@ -483,35 +487,38 @@ void drawWorldEffects(void) {
     gunRadius = 0x200 / isqrt(g_frameRateScaling * 4 + 8);
 
     for (idx = 0; idx < g_bulletTrackCount + 4; idx++) {
-        long ax, ay, az, ex, ey, ez;
-        if (bulletTracks[idx].posX == 0) continue;
+        if (bulletTracks[idx].posX.isZero()) continue;
 
         /* Render-interpolated position: rounds fly straight at constant speed,
-         * so pos + vel*alpha is exact between sim steps (no snapshots needed). */
-        ax = (bulletTracks[idx].posX + (((int32)bulletTracks[idx].velX * g_renderAlphaQ12) >> 12)) & BULLET_FINE_MASK;
-        ay = (bulletTracks[idx].posY + (((int32)bulletTracks[idx].velY * g_renderAlphaQ12) >> 12)) & BULLET_FINE_MASK;
-        az = bulletTracks[idx].alt + (((int32)bulletTracks[idx].velZ * g_renderAlphaQ12) >> 12);
-        ex = (ax + (bulletTracks[idx].velX >> 1)) & BULLET_FINE_MASK;
-        ey = (ay + (bulletTracks[idx].velY >> 1)) & BULLET_FINE_MASK;
-        ez = az + (bulletTracks[idx].velZ >> 1);
+         * so pos + vel*alpha is exact between sim steps (no snapshots needed).
+         * int32 word extraction happens only at the project/draw calls. */
+        const auto ax = bulletTracks[idx].posX.advanced(
+            TrackMath::fineTravel(bulletTracks[idx].velX, g_renderAlphaQ12));
+        const auto ay = bulletTracks[idx].posY.advanced(
+            TrackMath::fineTravel(bulletTracks[idx].velY, g_renderAlphaQ12));
+        const auto az = bulletTracks[idx].alt +
+            TrackMath::fineTravel(bulletTracks[idx].velZ, g_renderAlphaQ12);
+        const auto ex = ax.advanced(TrackMath::fineTravel(bulletTracks[idx].velX, 2048));
+        const auto ey = ay.advanced(TrackMath::fineTravel(bulletTracks[idx].velY, 2048));
+        const auto ez = az + TrackMath::fineTravel(bulletTracks[idx].velZ, 2048);
 
-        projectWorldToHudFine(ax, ay, (int)az);
+        projectWorldToHudFine(fineWord(ax), fineWord(ay), (int)az);
         prevX = vtxScratch.vproj.x.lo;
-        projectWorldToHudFine(ex, ey, (int)ez);
+        projectWorldToHudFine(fineWord(ex), fineWord(ey), (int)ez);
         if (vtxScratch.vproj.x.lo == -1 || prevX == -1) continue;
 
         /* The projectWorldToHudFine pair above gates on-screen visibility (as the
          * original did); the tracer itself is a real world-space 3D segment
          * (round -> half a velocity-step ahead) so it perspective-projects,
          * occludes and hazes with the scene instead of overlaying a flat line. */
-        drawWorldLine(ax, ay, (int)az, ex, ey, (int)ez,
+        drawWorldLine(fineWord(ax), fineWord(ay), (int)az, fineWord(ex), fineWord(ey), (int)ez,
                       idx < g_bulletTrackCount ? 0x0d : 0x0c);
 
         if (!stepped) continue;
 
         hitFlag = 0;
-        bx = (int16)(bulletTracks[idx].posX >> 5);
-        by = (int16)(bulletTracks[idx].posY >> 5);
+        bx = (int16)bulletTracks[idx].posX.mapWord();
+        by = (int16)bulletTracks[idx].posY.mapWord();
 
         if (idx < g_bulletTrackCount) {
             for (objIdx = 0; objIdx < g_groundUnitCount; objIdx++) {
@@ -541,7 +548,7 @@ void drawWorldEffects(void) {
                                 strcat(strBuf, " destroyed by gunfire");
                                 hudMessage(strBuf);
                                 g_hitEffectTimer = 8;
-                                bulletTracks[idx].posX = 0;
+                                bulletTracks[idx].posX = {};
                             }
                         }
                     }
@@ -573,7 +580,7 @@ void drawWorldEffects(void) {
                 g_hitAlt = (int16)bulletTracks[idx].alt;
                 g_hitEffectTimer = -1;
             }
-            bulletTracks[idx].posX = 0;
+            bulletTracks[idx].posX = {};
 
             wpEntry = findWaypointEntry(g_hitMapX, g_hitMapY);
             if (wpEntry != -1 && !(g_planeTable.planes[wpEntry].flags & 0x80)) {
