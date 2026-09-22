@@ -312,13 +312,15 @@ void updateObjects(void) {
                     if (((uint8)objIdx * 8 + (uint8)g_missionTick.phase(256)) & 0xbf) goto after_retarget;
                     if (!(g_simObjects[objIdx].flags.w & SIMOBJ_LONG_RANGE)) {
                         best = 0x7fff;
-                        viewBearing = computeBearing(f15::math::legacy::mapWordX(flightMapPosition()) - g_simObjects[objIdx].posX,
-                                                     g_simObjects[objIdx].posY - f15::math::legacy::mapWordY(flightMapPosition()));
+                        viewBearing = f15::math::legacy::signedAngle(TrackMath::aimBearing(
+                            f15::math::legacy::mapWordX(flightMapPosition()) - g_simObjects[objIdx].posX,
+                            g_simObjects[objIdx].posY - f15::math::legacy::mapWordY(flightMapPosition())));
                         for (scanIdx = 0; scanIdx < 8; scanIdx++) {
                             tgtIdx = randomRange(g_planeCount) + 1;
                             if (!(g_planeTable.planes[tgtIdx].flags & 0x400)) {
-                                candBearing = computeBearing(g_planeTable.planes[tgtIdx].mapX - g_simObjects[objIdx].posX,
-                                                             g_simObjects[objIdx].posY - g_planeTable.planes[tgtIdx].mapY);
+                                candBearing = f15::math::legacy::signedAngle(TrackMath::aimBearing(
+                                g_planeTable.planes[tgtIdx].mapX - g_simObjects[objIdx].posX,
+                                g_simObjects[objIdx].posY - g_planeTable.planes[tgtIdx].mapY));
                                 if (abs(viewBearing - candBearing) < best) {
                                     best = abs(viewBearing - candBearing);
                                     g_simObjects[objIdx].objType = tgtIdx;

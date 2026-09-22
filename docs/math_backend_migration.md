@@ -1156,6 +1156,21 @@ egcombat, egthreat, egtarget, egframe, egsys, egui, and stgen. Pure
 rename: fixed suite passes bit-identical; no behavior change on either
 backend.
 
+## Threat-retarget bearing checkpoint
+
+The AI retarget scan's two `computeBearing` calls (egthreat.c) now go
+through `TrackMath::aimBearing` narrowed via `signedAngle`. Fixed is
+bit-identical (`aimBearing` runs the same `computeBearing` on the
+narrowed ints); modern evaluates `atan2` on the *un-narrowed* map deltas —
+the original truncated the deltas to int16 before solving, so far-target
+bearings wrapped. The `abs(viewBearing - candBearing)` candidate compare
+keeps its original non-wrapping int semantics on both backends (a game
+rule quirk, not a width limit).
+
+Verification: sortie parity bit-identical; modern golden unchanged (the
+sortie's deltas never exceeded the word, so the correction only fires on
+wide maps); modern smoke passes.
+
 ## Throttle-command storage checkpoint
 
 `g_setThrust` is now `EngineThrust<GameBackend>` — the same engine-command
@@ -1950,7 +1965,7 @@ input widths or introduce new flight-model formulas.
 | Terrain/world coordinates | Coarse `MapPosition` typed; sub-LOD precision flows through `g_camEyeFrac*` frac bytes into `lodEyeFracQ8` | scaleCoordToLod LOD quantization is render-internal; all nearest-tile callers pass packed word sources |
 | Flight integration | stepFlightModel forces, velocity/position integration, coefficients and clamps typed end to end | Modern refresh policy vs the original periodic rebuild (see acceptance boundary) |
 | Combat/AI | Projectile guidance/state, bullet tracks, SimObject decision reads, acquisition, lock cones, corridor gates, fine-position shadow, attitude shadow (heading/pitch/bank), alt/speed shadows (SimObject + flag-aliased Projectile.alt) typed | Hit-test broad phases are word-domain game rules (precise swept test already typed); packed words remain synced render/serialization mirrors (Projectile.alt bit0 = radar flag) |
-| Randomness/time | Scaling helper; render-side draws split onto a dedicated non-checked stream so render frame rate cannot shift sim RNG | Simulation-clock contract typing (frame pacer accumulators, jiffies) still open |
+| Randomness/time | Scaling helper; render-side draws split onto a dedicated non-checked stream so render frame rate cannot shift sim RNG; full audit confirms every sim-stream caller is sim-tick/init-path | Frame pacer accumulators reviewed: event counts and derived ratios, legitimately plain counters |
 
 Not every integer operation is fixed-point math. Object indices, packed flags,
 table addressing, binary serialization and event counters remain integers.
