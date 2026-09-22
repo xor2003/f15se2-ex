@@ -366,14 +366,17 @@ void updateThreatTargeting(void) {
              * the original truncated twice per step (step's <<3/scaling divide and
              * sinMul's whole-map-unit result) — slow or oblique flight otherwise
              * stair-steps a map unit at a time. mapX/mapY are derived (fine>>5). */
-            step = (int)(((long)cosMul(signedAngle(g_projectiles[slot].pitch), g_projectiles[slot].speed) << 8) / g_frameRateScaling);
+            /* Pitch runs typed — signedAngle would re-quantize the fractional
+             * modern pitch that advanceSteering just computed. */
+            step = (int)(ProjectileGuidance::cosineVelocity(g_projectiles[slot].pitch,
+                         g_projectiles[slot].speed, g_angleLut) * 256 / g_frameRateScaling);
             if (mode == 30) {
                 step /= 2;
-                g_projectiles[slot].alt += sinMul(signedAngle(g_projectiles[slot].pitch),
-                                                  (g_projectiles[slot].speed << 7) / g_frameRateScaling);
+                g_projectiles[slot].alt += (int16)ProjectileGuidance::sineVelocity(g_projectiles[slot].pitch,
+                                                  (g_projectiles[slot].speed << 7) / g_frameRateScaling, g_angleLut);
             } else {
-                g_projectiles[slot].alt += sinMul(signedAngle(g_projectiles[slot].pitch),
-                                                  (int16)(*(uint8 *)&g_projectiles[slot].speed << 8) / g_frameRateScaling);
+                g_projectiles[slot].alt += (int16)ProjectileGuidance::sineVelocity(g_projectiles[slot].pitch,
+                                                  (int16)(*(uint8 *)&g_projectiles[slot].speed << 8) / g_frameRateScaling, g_angleLut);
             }
             g_projectiles[slot].fineX = g_projectiles[slot].fineX.advanced(
                 ProjectileGuidance::sineStep(g_projectiles[slot].head, step, g_angleLut));
