@@ -221,6 +221,11 @@ void projectileModernCases() {
         "modern aim bearing quantized or flipped the atan2 convention");
     require(std::abs(Boundary<M>::radians(GuidanceMath<M>::aimBearing(0, 0)) - (-pi)) < 1e-14,
         "modern zero-delta bearing lost the south quirk");
+    /* Fractional deltas stay fractional — the bearing must not be computed on
+     * word-rounded coordinates (computeTargetBearing regression coverage). */
+    require(std::abs(Boundary<M>::radians(GuidanceMath<M>::aimBearing(1.5, 2.25)) -
+                     std::atan2(1.5, 2.25)) < 1e-14,
+        "modern aim bearing truncated fractional deltas to ints");
     /* Fractional deltas survive steering and clamping. */
     const auto steered = GuidanceMath<M>::turnStep(Boundary<M>::radians(0.25), 15);
     require(std::abs(Boundary<M>::radians(steered) - 1.0 / 15) < 1e-14,

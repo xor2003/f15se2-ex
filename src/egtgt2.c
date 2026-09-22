@@ -10,8 +10,11 @@ using f15::math::legacy::fineUnits;
 #include "math/legacy_rotation.hpp"
 #include "math/legacy_altitude.hpp"
 #include "math/legacy_map.hpp"
+#include "math/guidance.hpp"
 using f15::math::legacy::signedAngle;
 using f15::math::legacy::angleMagnitude;
+using f15::math::legacy::mapOffset;
+using f15::math::legacy::mapRange;
 #include "egflight.h"
 #include "egframe.h"
 #include "egmath.h"
@@ -228,16 +231,15 @@ int16 computeSimObjectRange(int16 objIdx) {
 
 // ==== seg000:0xc7ea ====
 int16 computeTargetBearing(int16 targetX, int16 targetY, int16 wantBearing) {
-    int16 dx, dy;
-    /* Player side comes from the typed map position; the word extraction is
-     * exact because targetX/targetY are already coarse words. */
-    const auto pos = flightMapPosition();
-    dx = f15::math::legacy::mapWordX(pos) - targetX;
-    dy = f15::math::legacy::mapWordY(pos) - targetY;
+    /* Player side comes from the typed map position; the delta runs on it so
+     * modern doesn't round the position to a coarse word before comparing.
+     * targetX/targetY are already coarse words. */
+    const auto offset = mapOffset(flightMapPosition(), targetX, targetY);
     if (wantBearing != 0) {
-        g_targetBearing = computeBearing(-dx, dy);
+        g_targetBearing = signedAngle(
+            f15::math::GuidanceMath<f15::math::GameBackend>::aimBearing(-offset.dx, offset.dy));
     }
-    g_targetRange = rangeApprox(dx, dy);
+    g_targetRange = (int16)mapRange(offset);
     return g_targetRange;
 }
 

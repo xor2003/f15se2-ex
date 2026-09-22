@@ -181,13 +181,15 @@ public:
 
     /* ---- Projectile guidance (updateThreatTargeting / fireMissile) ---- */
 
-    /* computeBearing endpoint: the aim bearing for a plain delta pair. Fixed
-     * runs the original LUT approximation; modern evaluates atan2 directly —
-     * the table + linear interpolation was the legacy limit. (0, 0) keeps the
-     * original's south answer. */
-    static Angle<B> aimBearing(int dx, int dy) {
+    /* computeBearing endpoint: the aim bearing for a delta pair. Fixed runs
+     * the original LUT approximation on the word-narrowed ints (integer
+     * callers are exact through the double parameter); modern evaluates
+     * atan2 directly — the table + linear interpolation was the legacy limit —
+     * and keeps fractional deltas. (0, 0) keeps the original's south answer. */
+    static Angle<B> aimBearing(double dx, double dy) {
         if constexpr (std::is_same_v<B, FixedBackend>)
-            return Angle<B>(fixed::computeBearing(dx, dy));
+            return Angle<B>(fixed::computeBearing(static_cast<int>(dx),
+                                                  static_cast<int>(dy)));
         else
             return Angle<B>(dx == 0 && dy == 0 ? 32768.0 * wordRadians : std::atan2(dx, dy));
     }

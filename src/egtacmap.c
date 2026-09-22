@@ -7,8 +7,10 @@
 #include "math/legacy_rotation.hpp"
 #include "math/legacy_altitude.hpp"
 #include "math/legacy_map.hpp"
+#include "math/guidance.hpp"
 using f15::math::legacy::altitudeUnits;
 using f15::math::legacy::climbUnits;
+using f15::math::legacy::mapOffset;
 using f15::math::legacy::signedAngle;
 #include "egflight.h"
 #include "egframe.h"
@@ -57,12 +59,17 @@ void clearStatusPanel(void) {
 
 // ==== seg000:0x8e50 ====
 void renderHudFrame(int unused) {
-    int climbMarkerY, angleFixed, waypointMarkerX, circleX, angle, circleY, prevX, speedBarLen, prevY, markerX, deltaX, markerY, deltaY;
+    int climbMarkerY, angleFixed, waypointMarkerX, circleX, angle, circleY, prevX, speedBarLen, prevY, markerX, markerY;
     char seekerShift;
     // probably x,y
-    deltaX = waypoints[waypointIndex].mapX - f15::math::legacy::mapWordX(flightMapPosition());
-    deltaY = waypoints[waypointIndex].mapY - f15::math::legacy::mapWordY(flightMapPosition());
-    g_waypointBearing = computeBearing(deltaX, -deltaY);
+    /* Bearing to the waypoint feeds the autopilot guidance input (egflight.c),
+     * so the delta runs on the typed position — modern doesn't round the
+     * player to a coarse word before comparing. mapOffset gives player-waypoint;
+     * negated to match the original waypoint-player delta. */
+    const auto wpOffset = mapOffset(flightMapPosition(), waypoints[waypointIndex].mapX,
+                                    waypoints[waypointIndex].mapY);
+    g_waypointBearing = signedAngle(
+        f15::math::GuidanceMath<f15::math::GameBackend>::aimBearing(-wpOffset.dx, wpOffset.dy));
     if (g_hudVisible != 0) {
         if (g_damageTakenFlag != 0) {
             g_damageTakenFlag = 0;

@@ -1052,6 +1052,33 @@ Verification: fixed 59/59 (sortie parity fires guns during the golden run)
 and modern smoke pass; `typed_guidance_tests` checks the helpers against the
 real `sinMul`/`cosMul` oracles plus modern fractional cases.
 
+## Target/waypoint bearing checkpoint
+
+The two bearing producers that compare the player position against coarse
+map words now compute the delta on `MapPosition` via `mapOffset()` instead of
+rounding the player to a map word first:
+
+* `computeTargetBearing` (egtgt2.c) — `g_targetBearing`/`g_targetRange` feed
+  target-lock range gates and bearing cones in egtarget.c.
+* `renderHudFrame` (egtacmap.c) — `g_waypointBearing` feeds the autopilot
+  guidance input in egflight.c as well as the HUD marker.
+
+`GuidanceMath::aimBearing` widened to `double` deltas: fixed narrows to the
+`computeBearing` int endpoint (integer callers exact), modern runs `atan2` on
+the fractional deltas directly. Under fixed `mapOffset` sign-extends the int16
+map rep identically to the original `mapWordX/Y` subtraction, and `mapRange`
+mirrors `rangeApprox` literally, so both sites are bit-exact. Under modern the
+fractional player position survives into the bearing/range decisions.
+
+Sites left on word deltas are word-vs-word (`g_hitMapX`/projectile `mapX`
+acquisition terms — coarse-word authoritative state, part of the deferred
+combat/AI domain) or the 32-bit `computeBearing32`/`rangeApprox32` fine
+machinery in egmath.c, which remains under the fine-coordinate gap row.
+
+Verification: fixed 59/59 (sortie parity exercises target selection and the
+autopilot HUD path) and modern smoke pass; `typed_guidance_tests` adds the
+fractional-delta `aimBearing` case.
+
 ### Next acceptance boundary
 
 Aircraft Euler, command, altitude, climb, airspeed and fine horizontal position
