@@ -287,14 +287,46 @@ public:
         return rotation({{}, {}, -angle});
     }
     RecoveredAttitude<ModernBackend> recover(const Matrix3<ModernBackend> &matrix,
-                                            bool /*rollWasNonzero*/) const {
+                                            bool rollWasNonzero) const {
         const auto &m = matrix.value_;
         const double cp = std::hypot(m[3], m[4]);
         const double pitch = std::atan2(-m[5], cp);
-        // At a pole only the combined yaw/roll is observable. Choose roll zero.
-        const double yaw = cp > 1e-12 ? std::atan2(m[2], m[8]) : std::atan2(-m[6], m[0]);
-        const double roll = cp > 1e-12 ? std::atan2(m[3], m[4]) : 0;
-        return {{Angle<ModernBackend>(yaw), Angle<ModernBackend>(pitch), Angle<ModernBackend>(roll)}, false};
+        double yaw = std::atan2(m[2], m[8]);
+        double roll = std::atan2(m[3], m[4]);
+        /* Same refresh triggers as the fixed backend, expressed in radians:
+         * the near-pole band (|pitch| > 0x38e3 words ≈ 79.97°) and the tick a
+         * previously banked attitude first recovers zero roll. */
+        constexpr double poleBandStart = 0x38e3 * (6.28318530717958647692 / 65536);
+        const bool nearPole = std::abs(pitch) > poleBandStart;
+        bool refresh = nearPole || (rollWasNonzero && roll == 0);
+        if (cp <= 1e-12) {
+            /* Exactly on a pole only yaw+roll is observable. Canonicalize to
+             * the fixed backend's convention: roll zero, heading combined. */
+            yaw = std::atan2(-m[6], m[0]);
+            roll = 0;
+            refresh = true;
+        } else if (nearPole) {
+            /* The doubly-degenerate corner — near-pole pitch with a knife-edge
+             * bank — is unstable under the original's quantized recovery, so
+             * the fixed backend can never park there: its churned roll reading
+             * sweeps the g-load table and pitch authority returns. With exact
+             * atan2 the modern backend can hold that attitude, which dead-ends
+             * a marginal loop: g_rollGeeTable bins 58-68 (|roll| ≈ 81.6-97 deg)
+             * read load >= 128 and loadResponse clamps pitch input to zero.
+             * Canonicalize the bank into heading so the corner resolves the way
+             * the original effectively did. The window brackets the clamping
+             * bins with margin; a genuine fold reads |roll| ≈ 180 deg and an
+             * ordinary steep bank reads below the window, so both stay
+             * untouched. */
+            constexpr double bankWindowLow = 0x3800 * (6.28318530717958647692 / 65536);
+            constexpr double bankWindowHigh = 0x4800 * (6.28318530717958647692 / 65536);
+            const double absRoll = std::abs(roll);
+            if (absRoll > bankWindowLow && absRoll < bankWindowHigh) {
+                yaw = std::atan2(-m[6], m[0]);
+                roll = 0;
+            }
+        }
+        return {{Angle<ModernBackend>(yaw), Angle<ModernBackend>(pitch), Angle<ModernBackend>(roll)}, refresh};
     }
 };
 

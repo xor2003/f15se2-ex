@@ -1505,6 +1505,40 @@ render frame — a ramp-and-snap sawtooth of the full per-tick climb rate.
 
 Manual verification: F5–F9 and F10 confirmed steady by user testing.
 
+## Near-pole attitude canonicalization checkpoint (vertical-loop fix)
+
+Banked pull-ups could dead-end under modern: exact `atan2` Euler recovery can
+hold a knife-edge attitude (|pitch| ≈ 90 deg, |roll| ≈ 90 deg) that the fixed
+backend's quantized recovery physically cannot maintain — its churned roll
+reading sweeps `g_rollGeeTable` so `loadResponse` intermittently releases pitch
+authority. The exact state reads table bins 58–68 (load ≥ 128) continuously,
+clamping pitch input to zero; the aircraft parks near-vertical for ~20+ ticks
+until the stall drop tumbles it out. User-visible: a loop sometimes overran
+the top or fell sideways.
+
+`RotationMath<ModernBackend>::recover` now:
+
+* raises `needsRefresh` on the fixed pole band (|pitch| > 0x38e3 words) and on
+  the roll-to-zero transition, matching the fixed trigger semantics;
+* at an exact pole (`cos(pitch)` indistinguishable from zero) canonicalizes to
+  the fixed convention: roll zero, combined heading from `atan2(-m[6], m[0])`;
+* inside the pole band, additionally canonicalizes recovered roll inside the
+  g-load clamp window (0x3800–0x4800 words ≈ 78.75–101.25 deg, bracketing
+  bins 58–68 with margin) — collapsing bank into heading releases the clamp
+  the way fixed churn effectively did. The snap is bounded by the pole
+  distance (cos(pitch) ≤ ~0.18 inside the band).
+
+A genuine post-fold inverted attitude recovers |roll| ≈ 180 deg and is left
+untouched, so a clean vertical loop still folds over the top exactly as
+fixed does.
+
+Verified by replay-driven probes across speed 4500–6500 and roll inputs
+0x6e–0xaf: modern knife-edge clamp ticks are now zero or below the fixed
+backend's own residual (≤8 vs 15 worst case); the clean centered loop folds
+at the same tick as fixed. `typed_rotation_tests` pins the corner contract:
+exact recovery everywhere else, knife-edge canonicalized, fold preserved,
+sub-window banks untouched. Fixed suite 60/60 including sortie parity.
+
 ### Next acceptance boundary
 
 The decision-math surface is migrated end to end: every gameplay compare

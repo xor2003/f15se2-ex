@@ -147,10 +147,23 @@ void modernPrecision() {
         const auto a = angles<M>(i * 61, i * 127, i * 211);
         orthogonal(math.rotation(a), 2e-14);
         orthogonal(math.objectRotation(a), 2e-14);
-        const auto rebuilt = MC::matrix(math.rotation(math.recover(math.rotation(a), false).angles));
+        const auto recovered = math.recover(math.rotation(a), false);
+        const auto rebuilt = MC::matrix(math.rotation(recovered.angles));
         const auto original = MC::matrix(math.rotation(a));
+        double roundTrip = 0;
         for (int j = 0; j < 9; ++j)
-            require(std::abs(rebuilt[j] - original[j]) < 2e-14, "modern attitude round trip");
+            roundTrip = std::max(roundTrip, std::abs(rebuilt[j] - original[j]));
+        /* Exact recovery preserves the attitude bit for bit. The only legal
+         * divergence is the near-pole knife-edge canonicalization: roll folded
+         * into heading, refresh raised, with the snap bounded by the pole
+         * distance (cos(pitch) <= ~0.18 inside the band). */
+        if (roundTrip >= 2e-14) {
+            require(recovered.needsRefresh &&
+                    MC::radians(recovered.angles.roll) == 0 &&
+                    std::abs(MC::radians(recovered.angles.pitch)) > 0x38e3 * (2 * pi / 65536) &&
+                    roundTrip < 0.5,
+                    "modern recovery changed attitude outside the pole corner");
+        }
         const auto product = math.objectRotation(a) * cameraRotation(math, a);
         const auto m = MC::matrix(product);
         for (int j = 0; j < 9; ++j)
@@ -239,6 +252,39 @@ void attitudeAndDeltas() {
         for (int j = 0; j < 9; ++j)
             require(std::abs(MC::matrix(matrix)[j] - MC::matrix(rebuilt)[j]) < 1e-14,
                     "modern vertical attitude convention");
+    }
+    /* Near-pole knife-edge canonicalization: with |pitch| in the fixed pole
+     * band and |roll| inside the g-load clamp zone (about 79-101 deg, covering
+     * table bins 58-68), the recovered attitude collapses the bank into
+     * heading (roll zero, refresh raised) so an exact knife-edge cannot
+     * dead-end the pitch clamp the way the original's quantized churn never
+     * allowed. A genuine fold recovers |roll| near 180 deg and a bank below
+     * the clamp zone keeps full pitch authority, so both pass through
+     * untouched. */
+    constexpr double pi = 3.14159265358979323846;
+    const double polePitch = 16000 * (2 * pi / 65536); // ~87.9 deg, inside the band
+    for (double rollSign : {-1.0, 1.0}) {
+        const auto knifeEdge = modern.rotation({MC::angleWord(4000), MC::radians(polePitch),
+                                                MC::radians(rollSign * M_PI / 2)});
+        const auto collapsed = modern.recover(knifeEdge, false);
+        require(collapsed.needsRefresh && MC::radians(collapsed.angles.roll) == 0,
+                "modern knife-edge pole attitude not canonicalized");
+        const auto folded = modern.rotation({MC::angleWord(4000), MC::radians(polePitch),
+                                             MC::radians(rollSign * M_PI)});
+        const auto kept = modern.recover(folded, false);
+        require(std::abs(std::abs(MC::radians(kept.angles.roll)) - M_PI) < 1e-9,
+                "modern post-fold inverted attitude canonicalized");
+        const auto belowClamp = modern.rotation({MC::angleWord(4000), MC::radians(polePitch),
+                                                 MC::radians(rollSign * M_PI / 3)});
+        const auto free = modern.recover(belowClamp, false);
+        require(std::abs(std::abs(MC::radians(free.angles.roll)) - M_PI / 3) < 1e-9,
+                "modern pole bank below the clamp zone canonicalized");
+        const auto steepOnly = modern.rotation({MC::angleWord(4000), MC::radians(0.7),
+                                                MC::radians(rollSign * M_PI / 2)});
+        const auto untouched = modern.recover(steepOnly, false);
+        require(std::abs(std::abs(MC::radians(untouched.angles.roll)) - M_PI / 2) < 1e-9 &&
+                !untouched.needsRefresh,
+                "modern sub-pole steep bank canonicalized");
     }
     // Persistent state and the actual flight caller are checked tick by tick.
     auto expected = rotation_reference::rotation(1200, 400, 800, g_angleLut);
