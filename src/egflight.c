@@ -1005,9 +1005,19 @@ void renderFrame() {
             g_viewPitch = lerpViewAngle(s0->pitch, s1->pitch, a);
             g_viewRoll = lerpViewAngle(s0->roll, s1->roll, a);
         }
-        g_camEyeX = s0->worldX + (int32)(((int64)(s1->worldX - s0->worldX) * a) >> 12);
-        g_camEyeY = s0->worldY + (int32)(((int64)(s1->worldY - s0->worldY) * a) >> 12);
-        g_camEyeZ = s0->alt + (((int32)(s1->alt - s0->alt) * a) >> 12);
+        /* The >>12 ring lerp drops up to a full unit of fraction — recover it
+         * as the Q8 eye frac (floor semantics: the product's low 12 bits are
+         * always the non-negative remainder) so the delayed cam doesn't step
+         * a fine unit at a time under modern. */
+        const int64 ex = (int64)(s1->worldX - s0->worldX) * a;
+        const int64 ey = (int64)(s1->worldY - s0->worldY) * a;
+        const int64 ez = (int64)(s1->alt - s0->alt) * a;
+        g_camEyeX = s0->worldX + (int32)(ex >> 12);
+        g_camEyeY = s0->worldY + (int32)(ey >> 12);
+        g_camEyeZ = s0->alt + (int32)(ez >> 12);
+        g_camEyeFracX = (int16)((ex & 0xfff) >> 4);
+        g_camEyeFracY = (int16)((ey & 0xfff) >> 4);
+        g_camEyeFracZ = (int16)((ez & 0xfff) >> 4);
         break;
     }
     case VIEW_EXT_SIDE:

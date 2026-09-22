@@ -209,8 +209,8 @@ skip_aam:
     if (g_detailLevel >= 4) {
         depthShift = 0;
     } else {
-        depthShift = (g_hudVisible != 0 && (uint16)(g_nearestThreatRange + f15::math::legacy::Altitudes::renderWord(flightSceneHeight())) > 1500) ? 1 : 0;
-        if (g_hudVisible != 0 && (uint16)(g_nearestThreatRange + f15::math::legacy::Altitudes::renderWord(flightSceneHeight())) > 4000) {
+        depthShift = (g_hudVisible != 0 && (uint16)(g_nearestThreatRange + f15::math::legacy::Altitudes::renderWord(g_sceneHeightRender)) > 1500) ? 1 : 0;
+        if (g_hudVisible != 0 && (uint16)(g_nearestThreatRange + f15::math::legacy::Altitudes::renderWord(g_sceneHeightRender)) > 4000) {
             depthShift = 2;
         }
     }
@@ -283,7 +283,7 @@ skip_aam:
                     abs(g_simObjects[idx].posY - g_planeTable.planes[g_closestThreatIndex].mapY) < g_attackRangeY >> 5) {
                     marker = 0x80;
                 }
-                if (flightSceneHeight() != f15::math::legacy::Altitudes::render(0x80) || marker == 0x80) {
+                if (g_sceneHeightRender != f15::math::legacy::Altitudes::render(0x80) || marker == 0x80) {
                     drawAircraftShadow(
                                     (&aircraftTypes[g_simObjects[idx].spec].viewModelId)[(g_projDepth > planeFineDepth) ? 0 : 1],
                                     objectFineRep(g_simObjectFineX[idx]), objectFineRep(g_simObjectFineY[idx]),
@@ -353,7 +353,7 @@ skip_aam:
     /* Player's own aircraft fire */
     if (!(g_viewMode & 0x80)) goto done;
     if (g_viewMode == VIEW_TARGET) goto done;
-    if (flightSceneHeight().isZero() && g_ejectState != 0) goto done;
+    if (g_sceneHeightRender.isZero() && g_ejectState != 0) goto done;
 
     drawWorldObject(((g_playerPlaneFlags & 1) == 0) + 6, fineRep(g_ViewX),
                     0x01000000 - fineRep(g_ViewY),
@@ -362,9 +362,9 @@ skip_aam:
                     2 - depthShift);
 
     if (f15::math::AltitudeMath<f15::math::GameBackend>::belowSceneHeight(
-            flightSceneHeight(), f15::math::legacy::renderHeightFromUnits(1000)) && g_nightMode == 0) {
+            g_sceneHeightRender, f15::math::legacy::renderHeightFromUnits(1000)) && g_nightMode == 0) {
         drawAircraftShadow(((g_playerPlaneFlags & 1) == 0) + 6,
-                        (int32)fineUnits(g_ViewX), 0x01000000L - fineUnits(g_ViewY),
+                        fineRep(g_ViewX), 0x01000000 - fineRep(g_ViewY),
                         g_groundAltitude, signedAngle(g_ourHead), signedAngle(g_ourPitch), signedAngle(g_ourRoll), 2);
     }
 
@@ -565,7 +565,7 @@ void drawWorldEffects(void) {
                 }
             }
         } else {
-            dist = (abs((int16)(bulletTracks[idx].alt - f15::math::legacy::Altitudes::renderWord(flightSceneHeight()))) >> 5) + abs((int16)(bx - f15::math::legacy::mapWordX(flightMapPosition()))) + abs((int16)(by - f15::math::legacy::mapWordY(flightMapPosition())));
+            dist = (abs((int16)(bulletTracks[idx].alt - f15::math::legacy::Altitudes::renderWord(g_sceneHeightRender))) >> 5) + abs((int16)(bx - f15::math::legacy::mapWordX(flightMapPosition()))) + abs((int16)(by - f15::math::legacy::mapWordY(flightMapPosition())));
             dist = abs(dist);
             if (dist < 0x20) {
                 hitFlag = 1;
@@ -688,7 +688,7 @@ void drawHudWorldOverlay(void) {
 
                 missileSpec = missiles[missleSpec[missileSpecIndex].weaponIdx].specIndex;
 
-                if (missileSpec == 28 && computeMapTargetRange(g_groundTargetLock) < ((int)f15::math::legacy::Altitudes::render(flightSceneHeight()) >> 5) * 5 && g_projDepth < 0) {
+                if (missileSpec == 28 && computeMapTargetRange(g_groundTargetLock) < ((int)f15::math::legacy::Altitudes::render(g_sceneHeightRender) >> 5) * 5 && g_projDepth < 0) {
                     g_lockToneFlag = 1;
                 }
 
