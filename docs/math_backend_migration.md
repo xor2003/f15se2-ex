@@ -1047,6 +1047,21 @@ asserts the raw-unit fall cadence and the terminal-velocity step;
 allowlist ratchet shrank by the four migrated names; modern smoke and
 sortie pass with the golden unchanged.
 
+## Ground altitude checkpoint
+
+`g_groundAltitude` is now `TerrainHeight<GameBackend>` — the same signed
+world-elevation domain the `Altitudes::ground` adapters already produced.
+The `Altitudes::ground(g_groundAltitude)` wrap sites now pass the typed
+value directly, `missionAtHeight` takes `TerrainHeight`, the `!= 0`
+carrier/ground checks read `!isZero()`, and the remaining word consumers
+(the `prevAlt` word compare, `drawAircraftShadow`) narrow through
+`terrainUnits`; tests seed via `terrainFromUnits`.
+
+Verification: fixed focused tests pass (typed altitude/airspeed/stall/
+aerodynamics suites seed and compare through the adapters; sortie parity
+unchanged); modern smoke and sortie pass with the golden unchanged; the
+allowlist dropped the migrated name.
+
 ## Angle magnitude read adapters
 
 `legacy_rotation.hpp` gained two fraction-preserving magnitude reads for
