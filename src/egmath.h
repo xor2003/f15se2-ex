@@ -16,7 +16,10 @@ void drawAircraftShadow(int16 shapeId, f15::math::FineRep<f15::math::GameBackend
                         f15::math::WordRep<f15::math::GameBackend> groundAltitude,
                         int16 objYaw, int16 objPitch, int16 objRoll, int16 scaleShift);
 void drawWorldLine(long worldX1, long worldY1, int alt1, long worldX2, long worldY2, int alt2, int color);
-void drawTargetView(int shapeId, int32 worldX, int32 worldY, int altitude, int objYaw, int objPitch, int objRoll, int mode, int shift);
+void drawTargetView(int shapeId, f15::math::FineRep<f15::math::GameBackend> worldX,
+                    f15::math::FineRep<f15::math::GameBackend> worldY,
+                    f15::math::WordRep<f15::math::GameBackend> altitude,
+                    int objYaw, int objPitch, int objRoll, int mode, int shift);
 int shapeDataOffset(int shapeId);
 int16 clampRange(int16 value, int16 minVal, int16 maxVal);
 int egClampValue(int value, int minVal, int maxVal);

@@ -11,6 +11,7 @@ using Propulsion = f15::math::PropulsionMath<f15::math::GameBackend>;
 using f15::math::legacy::speedWord;
 using f15::math::legacy::speedFromUnits;
 using f15::math::legacy::fineRep;
+using f15::math::legacy::objectFineRep;
 using CamMath = f15::math::GuidanceMath<f15::math::GameBackend>;
 using SpeedMath = f15::math::AirspeedMath<f15::math::GameBackend>;
 using TickDuration = f15::math::TickDuration;
@@ -927,8 +928,10 @@ static int32 eyeFromQ8(double q8, int16 *frac) {
     return (int32)base;
 }
 
-void computeTrackingCameraAngles(double targetX, double targetY, int16 targetAlt,
-                                 double viewX, double viewY, int16 viewAlt,
+void computeTrackingCameraAngles(double targetX, double targetY,
+                                 f15::math::WordRep<f15::math::GameBackend> targetAlt,
+                                 double viewX, double viewY,
+                                 f15::math::WordRep<f15::math::GameBackend> viewAlt,
                                  int16 *heading, int16 *pitch) {
     enum { WORLD_Y_EXTENT = 0x100000 };
     const double dx = targetX - viewX;
@@ -941,18 +944,19 @@ void computeTrackingCameraAngles(double targetX, double targetY, int16 targetAlt
      * components equally (computeBearing32); modern atan2 keeps the full
      * width and fraction. */
     *heading = signedAngle(CamMath::wideBearing(dx, -dy));
-    *pitch = -signedAngle(CamMath::wideBearing((int32)targetAlt - viewAlt, range));
+    *pitch = -signedAngle(CamMath::wideBearing((double)targetAlt - (double)viewAlt, range));
 }
 
 // something to do with view switching?
 void renderFrame() {
     int16 camDist, savedCamDist, camOffset, tmp;
-    g_camEyeX = g_viewTargetX = fineUnits(g_ViewX);
+    g_viewTargetX = fineRep(g_ViewX);
+    g_camEyeX = fineUnits(g_ViewX);
     g_camEyeY = fineUnits(g_ViewY);
-    g_viewTargetY = 0x100000 - fineUnits(g_ViewY);
+    g_viewTargetY = 0x100000 - fineRep(g_ViewY);
     g_camEyeZ = f15::math::legacy::Altitudes::renderWord(flightSceneHeight()) + 0x18;
     g_camEyeFracX = g_camEyeFracY = g_camEyeFracZ = 0;
-    g_viewTargetAlt = f15::math::legacy::Altitudes::renderWord(flightSceneHeight());
+    g_viewTargetAlt = f15::math::legacy::Altitudes::render(flightSceneHeight());
     camDist = g_externalCamDist = clampRange(g_externalCamDist, 2, 8);
     switch (g_viewMode) {
     case VIEW_COCKPIT:
@@ -1043,9 +1047,9 @@ void renderFrame() {
                 if (!g_projectiles[g_viewTargetObj].ttl.isZero()) {
                     /* Fine (sub-mapX-unit) interpolated position so the tracking
                      * camera doesn't lurch in 32-unit steps (the "earthquake"). */
-                    g_viewTargetX = (uint32)g_projInterpX[g_viewTargetObj];
-                    g_viewTargetY = (uint32)g_projInterpY[g_viewTargetObj];
-                    g_viewTargetAlt = g_projectiles[g_viewTargetObj].alt;
+                    g_viewTargetX = g_projInterpX[g_viewTargetObj];
+                    g_viewTargetY = g_projInterpY[g_viewTargetObj];
+                    g_viewTargetAlt = g_projectileAlt[g_viewTargetObj];
                 } else {
                     g_projectiles[g_viewTargetObj].head = g_ourHead;
                     g_projectiles[g_viewTargetObj].pitch = g_ourPitch;
@@ -1054,9 +1058,9 @@ void renderFrame() {
                 camDist = 5;
             } else {
                 // .... g_viewTargetObj & 0x1f
-                g_viewTargetX = g_simObjects[g_viewTargetObj & 0x1f].worldX;
-                g_viewTargetY = g_simObjects[g_viewTargetObj & 0x1f].worldY;
-                g_viewTargetAlt = g_simObjects[g_viewTargetObj & 0x1f].alt;
+                g_viewTargetX = objectFineRep(g_simObjectFineX[g_viewTargetObj & 0x1f]);
+                g_viewTargetY = objectFineRep(g_simObjectFineY[g_viewTargetObj & 0x1f]);
+                g_viewTargetAlt = g_simObjectAlt[g_viewTargetObj & 0x1f];
                 camDist = 5;
             }
         } else {
@@ -1067,9 +1071,9 @@ void renderFrame() {
             if (g_autopilotEngaged != 0 && g_directorEventDeadline.word() == -1) camDist = 6;
         }
         if (g_directorMode == 0) camDist = savedCamDist;
-        computeTrackingCameraAngles((int32)g_viewTargetX, (int32)g_viewTargetY,
+        computeTrackingCameraAngles(g_viewTargetX, g_viewTargetY,
                                     g_viewTargetAlt, fineRep(g_ViewX), fineRep(g_ViewY),
-                                    f15::math::legacy::Altitudes::renderWord(flightSceneHeight()),
+                                    f15::math::legacy::Altitudes::render(flightSceneHeight()),
                                     &g_viewHeading, &g_viewPitch);
         g_viewRoll = 0;
         camOffset = (int16)CamMath::cosineVelocity(angleFromWord(g_viewPitch), 0x18 << camDist, g_angleLut);

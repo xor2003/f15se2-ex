@@ -296,9 +296,9 @@ int16 computeBearing32(int32 deltaX, int32 deltaY) {
  * each other between sim ticks, so the tracked model jittered on a ~32-unit grid.
  * Differencing the fine coords (once, below) and taking the bearing/pitch off those
  * fine deltas removes both the beat and the coarse angular snapping. */
-void drawTargetView(int shapeId, int32 worldX, int32 worldY, int altitude, int objYaw, int objPitch, int objRoll, int mode, int shift) {
+void drawTargetView(int shapeId, FineRep worldX, FineRep worldY, WordScalar<> altitude, int objYaw, int objPitch, int objRoll, int mode, int shift) {
     double dxFine, dyFine;
-    int32 dzFine;
+    FineRep dzFine;
     int unused;
     int horizonY;
     int bearing;
@@ -331,7 +331,7 @@ void drawTargetView(int shapeId, int32 worldX, int32 worldY, int altitude, int o
         g_trkRoll = 0;
         relX = (int)dxFine >> 5;
         relY = (int)dyFine >> 5;
-        relZ = (int)(dzFine >> 5);
+        relZ = (int)std::floor(dzFine / 32.0);
         /* Bearing/pitch off the fine deltas so the tracked model glides; the range
          * (model size / tracking scale) keeps the original coarse magnitude. */
         bearing = signedAngle(CamMath::wideBearing(dxFine, -dyFine));
@@ -396,7 +396,7 @@ void drawTargetView(int shapeId, int32 worldX, int32 worldY, int altitude, int o
     } else {
         relX = ((int)dxFine >> 5) << 4;
         relY = ((int)dyFine >> 5) << 4;
-        relZ = (int)(dzFine >> 1);
+        relZ = (int)std::floor(dzFine / 2.0);
         g_trkBearing = signedAngle(g_ourHead);
         g_trkPitch = g_extViewPitch;
         g_trkRoll = signedAngle(g_ourRoll);

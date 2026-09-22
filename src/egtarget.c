@@ -827,9 +827,9 @@ void drawHudWorldOverlay(void) {
         /* Fine (integrated) world position, not the coarse posX/posY seed, so the
          * tracked model doesn't jitter on the ÷32 grid as the view interpolates. */
         drawTargetView(aircraftTypes[g_simObjects[wpIdx].spec].viewModelId,
-                       g_simObjects[wpIdx].worldX,
-                       g_simObjects[wpIdx].worldY,
-                       g_simObjects[wpIdx].alt,
+                       objectFineRep(g_simObjectFineX[wpIdx]),
+                       objectFineRep(g_simObjectFineY[wpIdx]),
+                       g_simObjectAlt[wpIdx],
                        g_simObjects[wpIdx].heading.w,
                        g_simObjects[wpIdx].pitch,
                        g_simObjects[wpIdx].bank.w,

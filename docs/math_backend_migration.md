@@ -1459,6 +1459,27 @@ the accumulator each render frame.
 Verification: fixed 60/60 incl. sortie parity (identical arithmetic —
 every remainder is provably 0), modern smoke, analyzer clean.
 
+## F10 target-view fraction checkpoint
+
+F10 (`VIEW_TARGET` → `drawTargetView`) had the same boundary loss on its
+own path: `int32`/`int` position params truncated the target's sub-fine
+fraction, and the tracking camera's aim globals (`g_viewTargetX/Y`,
+`g_viewTargetAlt`) were int-typed, so F8/F9/F10's tracked aim quantized
+to fine units while the eye kept Q8 precision.
+
+* `drawTargetView` params → `FineRep`/`WordRep`; `dxFine`/`dyFine`/`dzFine`
+  are computed fractionally and feed `wideBearing`/`wideRange` and the
+  pitch scale directly. Under fixed the fractional terms vanish and the
+  expressions reduce verbatim.
+* `g_viewTargetX/Y` → `FineRep`, `g_viewTargetAlt` → `WordRep` (egdata);
+  `computeTrackingCameraAngles` takes `double` X/Y + `WordRep` altitude.
+* `renderFrame` seeds the aim from `fineRep(g_ViewX/Y)` and the typed
+  render altitude; projectile aim uses `g_projInterpX/Y` +
+  `g_projectileAlt`; sim-object aim uses `objectFineRep` + `g_simObjectAlt`.
+
+Verification: fixed 60/60 incl. sortie parity, modern build + smoke,
+analyzer clean (relocated pre-existing findings only).
+
 ### Next acceptance boundary
 
 The decision-math surface is migrated end to end: every gameplay compare

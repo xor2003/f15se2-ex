@@ -2253,12 +2253,12 @@ float g_hudProjXf = 0.0f;
 float g_hudProjYf = 0.0f;
 int16 g_scopeClipLeft;
 int16 g_scopeClipTop;
-int32 g_viewTargetX;
+f15::math::FineRep<f15::math::GameBackend> g_viewTargetX;
 int16 g_loftTargetIdx;
-int32 g_viewTargetY;
+f15::math::FineRep<f15::math::GameBackend> g_viewTargetY;
 int16 g_crashCamX;
 uint8 g_landTargetId[2];
-int16 g_viewTargetAlt;
+f15::math::WordRep<f15::math::GameBackend> g_viewTargetAlt;
 int16 g_viewTargetObj;
 /* g_itoaScratch: itoa scratch buffer for assembling HUD/MFD numeric strings. */
 char g_itoaScratch[12];
