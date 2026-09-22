@@ -253,7 +253,7 @@ skip_aam:
 
         if (airSelect && range > g_targetRange && lockedRange < g_targetRange && !(g_viewMode & 0x80) &&
             !(g_simObjects[idx].flags.b[0] & 0x20) &&
-            g_simObjects[idx].speed != 0) {
+            g_simObjectSpeed[idx] != 0) {
             computeTargetBearing(g_simObjects[idx].posX, g_simObjects[idx].posY, 1);
             if (angleMagnitude(g_ourHead + angleFromWord(g_viewHeadingOffset) - angleFromWord(g_targetBearing)) < 0x2000) {
                 range = g_targetRange;
