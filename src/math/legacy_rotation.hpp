@@ -139,7 +139,39 @@ inline std::int16_t wordProductQ14(double uword, std::int16_t speed) {
 /* Word-domain scalar rep matching wordRep: int16 under fixed, double under
  * modern — for control-signal quantities (command deltas) that stay raw. */
 template<class B = GameBackend>
-using WordScalar = std::conditional_t<std::is_same_v<B, FixedBackend>, std::int16_t, double>;
+using WordScalar = WordRep<B>;
+
+/* Packed int16 linear fields (SimObject alt/speed) get the same shadow
+ * contract as attitude: shadow authoritative, packed word mirrors it.
+ * Fixed keeps the int16 store semantics — the delta narrows to the word the
+ * original cast produced; modern keeps the fraction. */
+template<class B = GameBackend, class T>
+inline void objectLinearSet(WordScalar<B> &shadow, std::int16_t &packed, T value) {
+    if constexpr (std::is_same_v<B, FixedBackend>)
+        shadow = static_cast<std::int16_t>(value);
+    else
+        shadow = static_cast<double>(value);
+    packed = static_cast<std::int16_t>(std::lround(static_cast<double>(shadow)));
+}
+template<class B = GameBackend, class T>
+inline void objectLinearAdvance(WordScalar<B> &shadow, std::int16_t &packed, T delta) {
+    if constexpr (std::is_same_v<B, FixedBackend>)
+        shadow = static_cast<std::int16_t>(shadow + static_cast<std::int16_t>(delta));
+    else
+        shadow = shadow + static_cast<double>(delta);
+    packed = static_cast<std::int16_t>(std::lround(static_cast<double>(shadow)));
+}
+
+/* lerpLinear on word-domain reps — truncating int64 lerp under fixed,
+ * fractional under modern. */
+template<class B = GameBackend>
+inline WordScalar<B> wordLerp(WordScalar<B> a, WordScalar<B> b, std::int64_t num, std::int64_t den) {
+    if constexpr (std::is_same_v<B, FixedBackend>)
+        return static_cast<std::int16_t>(a + static_cast<std::int32_t>(
+            static_cast<std::int64_t>(b - a) * num / den));
+    else
+        return a + (b - a) * (static_cast<double>(num) / den);
+}
 
 /* Typed attitude shadow <-> packed int16 sync for SimObject heading/pitch/
  * bank — the same shadow pattern as the fine positions. The shadow is

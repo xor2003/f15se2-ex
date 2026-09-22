@@ -2134,6 +2134,8 @@ f15::math::ViewCoordinate<f15::math::GameBackend, f15::math::ViewYAxis> g_simObj
 f15::math::Angle<f15::math::GameBackend> g_simObjectHeading[20];
 f15::math::Angle<f15::math::GameBackend> g_simObjectPitch[20];
 f15::math::Angle<f15::math::GameBackend> g_simObjectBank[20];
+f15::math::WordRep<f15::math::GameBackend> g_simObjectAlt[20];
+f15::math::WordRep<f15::math::GameBackend> g_simObjectSpeed[20];
 
 /* g_wingmanX/811: viewX/viewY scratch for the player tile-object world pos. */
 uint16 g_wingmanX = 0;

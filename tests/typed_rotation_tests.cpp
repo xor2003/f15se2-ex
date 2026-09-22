@@ -434,6 +434,64 @@ void attitudeShadow() {
         require(std::abs(wordRep<M>(shadow) - 1.0) < 1e-9, "modern shadow lost the fraction");
     }
 }
+
+void linearShadow() {
+    using f15::math::legacy::objectLinearSet;
+    using f15::math::legacy::objectLinearAdvance;
+    using f15::math::legacy::wordLerp;
+    using F = f15::math::FixedBackend;
+    using M = f15::math::ModernBackend;
+    /* objectLinearSet: fixed narrows like the int16 store, packed mirrors. */
+    {
+        std::int16_t shadow = 0, packed = 0;
+        objectLinearSet<F>(shadow, packed, 140);
+        require(shadow == 140 && packed == 140, "fixed linear set changed the word");
+        objectLinearSet<F>(shadow, packed, 40000);
+        require(shadow == static_cast<int16>(40000) && packed == static_cast<int16>(40000),
+                "fixed linear set lost the int16 wrap");
+    }
+    /* objectLinearAdvance: fixed wraps like int16 += of the narrowed delta. */
+    {
+        std::int16_t shadow = 0, packed = 0;
+        objectLinearAdvance<F>(shadow, packed, static_cast<int32>(0x8000));
+        require(shadow == static_cast<int16>(0x8000) && packed == static_cast<int16>(0x8000),
+                "fixed linear advance lost the int16 wrap");
+        objectLinearAdvance<F>(shadow, packed, 5.9);
+        require(shadow == static_cast<int16>(static_cast<int16>(0x8000) + 5),
+                "fixed advance did not narrow the fractional delta");
+    }
+    /* Modern: fractional deltas accumulate in the shadow; packed mirrors
+     * only once a full word accrues. */
+    {
+        double shadow = 0;
+        std::int16_t packed = 0;
+        objectLinearSet<M>(shadow, packed, 100);
+        require(packed == 100, "modern linear set did not mirror");
+        objectLinearAdvance<M>(shadow, packed, 0.4);
+        require(packed == 100, "modern packed word moved before a full word");
+        objectLinearAdvance<M>(shadow, packed, 0.4);
+        objectLinearAdvance<M>(shadow, packed, 0.4);
+        require(packed == 101, "modern packed word did not round the accumulation");
+        require(std::abs(shadow - 101.2) < 1e-12, "modern linear shadow lost the fraction");
+        /* A wide modern delta is not narrowed to int16. */
+        objectLinearAdvance<M>(shadow, packed, 70000.5);
+        require(std::abs(shadow - 70101.7) < 1e-6, "modern advance narrowed a wide delta");
+    }
+    /* wordLerp: truncating int64 lerp under fixed, fractional under modern. */
+    for (const int a : {0, 100, -300, 32000, -32000}) {
+        for (const int b : {0, 50, -100, 30000, -30000}) {
+            for (const int num : {0, 1, 7}) {
+                const int den = 8;
+                const int16 oracle = static_cast<int16>(
+                    a + static_cast<int32>(static_cast<int64>(b - a) * num / den));
+                require(wordLerp<F>(static_cast<int16>(a), static_cast<int16>(b), num, den) == oracle,
+                        "fixed wordLerp diverged from the int64 lerp");
+            }
+        }
+    }
+    require(std::abs(wordLerp<M>(0.0, 10.0, 1, 4) - 2.5) < 1e-12,
+            "modern wordLerp lost the fraction");
+}
 } // namespace
 
 int main() {
@@ -442,5 +500,6 @@ int main() {
     attitudeAndDeltas();
     typedEulerState();
     attitudeShadow();
+    linearShadow();
     std::puts("typed rotation backends and production callers passed");
 }

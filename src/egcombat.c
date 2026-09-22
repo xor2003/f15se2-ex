@@ -152,16 +152,16 @@ void spawnEnemyAircraft(int16 slot, int16 objType) {
     if (g_planeTable.planes[objType].flags & 0x200) {
         g_simObjects[slot].posX = g_northSouthSign * 3 + g_planeTable.planes[objType].mapX;
         g_simObjects[slot].posY = g_planeTable.planes[objType].mapY - g_northSouthSign * 12;
-        g_simObjects[slot].alt = 140;
-        g_simObjects[slot].speed = 100;
+        f15::math::legacy::objectLinearSet(g_simObjectAlt[slot], g_simObjects[slot].alt, 140);
+        f15::math::legacy::objectLinearSet(g_simObjectSpeed[slot], g_simObjects[slot].speed, 100);
         /* heading.b[1] += 0xfc — a -0x400-word turn step. */
         objectAttitudeAdvance(g_simObjectHeading[slot], g_simObjects[slot].heading.w,
             angleFromWord(-0x400));
     } else {
         g_simObjects[slot].posX = g_planeTable.planes[objType].mapX;
         g_simObjects[slot].posY = 30 * g_northSouthSign + g_planeTable.planes[objType].mapY;
-        g_simObjects[slot].alt = 12;
-        g_simObjects[slot].speed = 10;
+        f15::math::legacy::objectLinearSet(g_simObjectAlt[slot], g_simObjects[slot].alt, 12);
+        f15::math::legacy::objectLinearSet(g_simObjectSpeed[slot], g_simObjects[slot].speed, 10);
     }
     objectFineSet<ViewXAxis>(g_simObjectFineX[slot], g_simObjects[slot].worldX,
                              (int32)(uint16)g_simObjects[slot].posX << 5);
@@ -259,7 +259,7 @@ void updateThreatTargeting(void) {
                             scan != g_projectiles[slot].targetLock)
                             continue;
                         if ((g_simObjects[scan].flags.b[0] & 2) &&
-                            g_simObjects[scan].speed != 0) {
+                            g_simObjectSpeed[scan] != 0) {
                             acq = samCanAcquireTarget(slot, g_simObjects[scan].posX,
                                                       g_simObjects[scan].posY,
                                                       g_simObjects[scan].alt, mode);
@@ -587,7 +587,7 @@ void destroyAircraft(int16 objIdx) {
         g_wreckFallVel = 0x80;
         eventType = 3;
         appendMapEvent(eventType, (g_simObjects[objIdx].flags.w & 0x4000 ? 0x80 : 0) + g_simObjects[objIdx].spec);
-        if (g_simObjects[objIdx].speed != 0) goto done;
+        if (g_simObjectSpeed[objIdx] != 0) goto done;
         g_simObjects[objIdx].flags.w &= 0x1c1;
     done:;
     }

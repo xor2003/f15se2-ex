@@ -1302,6 +1302,36 @@ against int16 oracles.
 Verification: fixed 60/60, modern smoke, compile-fail suite extended,
 analyzer clean on all touched units.
 
+## SimObject alt/speed linear shadow checkpoint
+
+`SimObject.alt` and `SimObject.speed` were the last packed `int16` fields
+integrated every sim tick (`alt += (int16)sineVelocity(pitch, moveAmt)`,
+`speed +=/-= scaling.perTick(...)`), which quantized each step to a word
+under modern. They now follow the same shadow contract as attitude:
+
+* `g_simObjectAlt[]`/`g_simObjectSpeed[]` are `WordRep<GameBackend>`
+  (int16 fixed / double modern) shadows declared beside the attitude
+  arrays; the packed `SimObject` words remain the synced layout/render/
+  serialization mirrors.
+* All writes go through `legacy::objectLinearSet`/`objectLinearAdvance`,
+  which narrows each delta to the int16 word the original cast produced
+  under fixed and keeps the fraction under modern. `wordLerp` ports the
+  `lerpLinear` snapshot blend onto word reps.
+* Decision compares read the shadow (`speed != 0`, `alt < 0`,
+  `alt <= 30000`, `speed < maxSpeed`, the pitch-vs-alt dive gates);
+  word-domain consumers — `tgtZ` aim words, `wordProductQ14` magnitudes,
+  `testWorldPosVisible`, `g_hitAlt`/`g_wreckAlt`, bullet tracks, HUD
+  diffs — read the packed mirror, the canonical rounded word view.
+* `SimObjSnap.alt` carries the rep; world-file load re-seeds the shadows
+  after the `FlightUnit` memcpy. Tests seed through `objectLinearSet`.
+
+`typed_rotation_tests::linearShadow` oracles the helpers against int16
+wrap/truncation and proves modern fractional accumulation and wide deltas.
+
+Verification: fixed 60/60 (sortie parity exercises the per-tick chain),
+modern smoke, analyzer clean (egthreat retains the documented pre-existing
+warnings).
+
 ### Next acceptance boundary
 
 The decision-math surface is migrated end to end: every gameplay compare
@@ -1310,9 +1340,10 @@ that reads a typed source does so through a backend-dispatched helper
 `aimBearing`, `wideBearing`/`wideRange`, `limitTurn`, the typed flight
 quantities). The remaining raw math falls into three reviewed categories:
 
-* packed-file-layout state (`SimObject`, `planes[]`, event records) whose
-  words are authoritative — reads are typed at decision sites, but the
-  fields themselves have no fraction to preserve;
+* packed-file-layout state (`SimObject` pos/flags/spec/objType, `planes[]`,
+  event records) whose words are authoritative — the integrated fields
+  (worldX/worldY, heading/pitch/bank, alt/speed) all carry typed shadows,
+  so what remains packed has no per-tick fraction to preserve;
 * render/HUD/projection internals (view matrix, `scaleCoordToLod` LOD
   quantization, `projectWorldToHud*`, tacmap panning) — the reviewed
   render boundary where word/Q8 outputs are the contract;

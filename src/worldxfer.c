@@ -60,6 +60,8 @@ extern f15::math::ViewCoordinate<f15::math::GameBackend, f15::math::ViewYAxis> g
 extern f15::math::Angle<f15::math::GameBackend> g_simObjectHeading[];
 extern f15::math::Angle<f15::math::GameBackend> g_simObjectPitch[];
 extern f15::math::Angle<f15::math::GameBackend> g_simObjectBank[];
+extern f15::math::WordRep<f15::math::GameBackend> g_simObjectAlt[];
+extern f15::math::WordRep<f15::math::GameBackend> g_simObjectSpeed[];
 extern uint8 g_shapeTargetCategory[];
 extern uint8 g_tileKillTally[];
 extern char g_stringPool[];
@@ -143,6 +145,11 @@ void worldImportToEgame(void) {
             f15::math::legacy::angleFromWord(g_simObjects[i].pitch));
         f15::math::legacy::objectAttitudeSet(g_simObjectBank[i], g_simObjects[i].bank.w,
             f15::math::legacy::angleFromWord(g_simObjects[i].bank.w));
+        /* And the packed alt/speed words seed their linear shadows. */
+        f15::math::legacy::objectLinearSet(g_simObjectAlt[i], g_simObjects[i].alt,
+            g_simObjects[i].alt);
+        f15::math::legacy::objectLinearSet(g_simObjectSpeed[i], g_simObjects[i].speed,
+            g_simObjects[i].speed);
     }
 
     memcpy(g_shapeTargetCategory, wldReadBuf7, CATEGORY_BYTES);

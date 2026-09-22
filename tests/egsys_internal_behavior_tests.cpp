@@ -189,7 +189,7 @@ int main() {
         g_simObjectFineY[0], g_simObjects[0].worldY, 2000);
     g_simObjects[0].posX = 31;
     g_simObjects[0].posY = 62;
-    g_simObjects[0].alt = 300;
+    f15::math::legacy::objectLinearSet(g_simObjectAlt[0], g_simObjects[0].alt, 300);
     f15::math::legacy::objectAttitudeSet(g_simObjectHeading[0], g_simObjects[0].heading.w,
         angleFromWord(0x0100));
     f15::math::legacy::objectAttitudeSet(g_simObjectPitch[0], g_simObjects[0].pitch,
@@ -213,7 +213,7 @@ int main() {
         g_simObjectFineY[0], g_simObjects[0].worldY, 2400);
     g_simObjects[0].posX = 37;
     g_simObjects[0].posY = 75;
-    g_simObjects[0].alt = 500;
+    f15::math::legacy::objectLinearSet(g_simObjectAlt[0], g_simObjects[0].alt, 500);
     f15::math::legacy::objectAttitudeSet(g_simObjectHeading[0], g_simObjects[0].heading.w,
         angleFromWord(0x0300));
     f15::math::legacy::objectAttitudeSet(g_simObjectPitch[0], g_simObjects[0].pitch,

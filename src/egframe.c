@@ -22,6 +22,7 @@ using f15::math::legacy::angleMagnitude;
 using f15::math::legacy::mapOffset;
 using f15::math::legacy::mapRange;
 using f15::math::legacy::objectFineAdvance;
+using f15::math::legacy::objectLinearSet;
 using f15::math::legacy::objectFineSet;
 using f15::math::legacy::objectAttitudeSet;
 using f15::math::ViewXAxis;
@@ -154,8 +155,8 @@ void updateFrame(void) {
                 for (i = 0; i < g_groundUnitCount - 4; i++) {
                     if ((i & 1) == 0) {
                         g_simObjects[i].flags.b[0] |= 2;
-                        g_simObjects[i].alt = 2200;
-                        g_simObjects[i].speed = 300;
+                        objectLinearSet(g_simObjectAlt[i], g_simObjects[i].alt, 2200);
+                        objectLinearSet(g_simObjectSpeed[i], g_simObjects[i].speed, 300);
                         g_simObjects[i].posX = i * 12 + f15::math::legacy::mapWordX(flightMapPosition()) - 36;
                         g_simObjects[i].posY = f15::math::legacy::mapWordY(flightMapPosition()) - (i * 0x20 + 150) * g_northSouthSign;
                         objectFineSet<ViewXAxis>(g_simObjectFineX[i], g_simObjects[i].worldX,
@@ -170,8 +171,8 @@ void updateFrame(void) {
         }
         if (gameData->theater != 6) {
             g_simObjects[1].flags.b[0] |= 2;
-            g_simObjects[1].alt = 2100;
-            g_simObjects[1].speed = 700;
+            objectLinearSet(g_simObjectAlt[1], g_simObjects[1].alt, 2100);
+            objectLinearSet(g_simObjectSpeed[1], g_simObjects[1].speed, 700);
             g_wingmanX = f15::math::legacy::mapWordX(flightMapPosition());
             g_wingmanY = 80 * g_northSouthSign + f15::math::legacy::mapWordY(flightMapPosition());
             objectFineSet<ViewXAxis>(g_simObjectFineX[1], g_simObjects[1].worldX,
@@ -309,11 +310,11 @@ void updateFrame(void) {
             if ((g_planeTable.planes[g_closestThreatIndex].flags & 0x200) != 0) {
                 g_simObjects[objIdx].posX += g_northSouthSign * 5;
                 g_simObjects[objIdx].posY += (i & 1) * g_northSouthSign * 0x10;
-                g_simObjects[objIdx].alt = 132;
+                objectLinearSet(g_simObjectAlt[objIdx], g_simObjects[objIdx].alt, 132);
             } else {
                 g_simObjects[objIdx].posX += 10;
                 g_simObjects[objIdx].posY += ((i + g_closestThreatIndex) & 3) * 0x10;
-                g_simObjects[objIdx].alt = 4;
+                objectLinearSet(g_simObjectAlt[objIdx], g_simObjects[objIdx].alt, 4);
             }
             objectFineSet<ViewXAxis>(g_simObjectFineX[objIdx], g_simObjects[objIdx].worldX,
                                      (int32)g_simObjects[objIdx].posX << 5);
@@ -338,8 +339,8 @@ void updateFrame(void) {
             if ((g_simObjects[objIdx].flags.b[0] & 2) == 0) {
                 spawnEnemyAircraft(objIdx, g_closestThreatIndex);
                 g_simObjects[objIdx].flags.w = 0x207;
-                g_simObjects[objIdx].alt = 1000;
-                g_simObjects[objIdx].speed = 250;
+                objectLinearSet(g_simObjectAlt[objIdx], g_simObjects[objIdx].alt, 1000);
+                objectLinearSet(g_simObjectSpeed[objIdx], g_simObjects[objIdx].speed, 250);
                 objectFineAdvance<ViewYAxis>(g_simObjectFineY[objIdx], g_simObjects[objIdx].worldY,
                                              g_northSouthSign * 0x3000);
             }
@@ -787,7 +788,7 @@ void generateRandomRadioMessage(void) {
     case 1:
         do {
             idx = randomRange(g_groundUnitCount);
-        } while (g_simObjects[idx].speed == 0);
+        } while (g_simObjectSpeed[idx] == 0);
         g_viewTargetObj = idx + 0x20;
         g_viewMode = VIEW_MISSILE;
         strcpy(strBuf, aircraftTypes[g_simObjects[idx].spec].name);

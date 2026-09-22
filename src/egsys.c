@@ -199,7 +199,9 @@ typedef struct {
      * fractional under modern so interpolation keeps sub-fine precision. */
     f15::math::HorizontalBoundary<f15::math::GameBackend>::Rep worldX, worldY;
     uint16 posX, posY;
-    int16 alt;
+    /* Linear shadow rep captured for alt — int16 under fixed, fractional
+     * under modern so interpolation keeps sub-word precision. */
+    f15::math::WordRep<f15::math::GameBackend> alt;
     /* Attitude reps captured from the object shadows — the packed int16 word
      * under fixed, fractional under modern so interpolation keeps sub-word
      * precision. */
@@ -228,7 +230,7 @@ static void objCapture(SimObjSnap *sim, ProjSnap *proj) {
         sim[i].worldY = f15::math::legacy::objectFineRep(g_simObjectFineY[i]);
         sim[i].posX = g_simObjects[i].posX;
         sim[i].posY = g_simObjects[i].posY;
-        sim[i].alt = g_simObjects[i].alt;
+        sim[i].alt = g_simObjectAlt[i];
         sim[i].head = g_simObjectHeading[i];
         sim[i].pitch = g_simObjectPitch[i];
         sim[i].bank = g_simObjectBank[i];
@@ -270,7 +272,8 @@ static void objApplyInterp(const SimObjSnap *sp, const SimObjSnap *sn,
                 HBoundary::coordinate<f15::math::ViewYAxis>(sn[i].worldY), fraction)));
         g_simObjects[i].posX = (uint16)(g_simObjects[i].worldX >> 5);
         g_simObjects[i].posY = (uint16)(g_simObjects[i].worldY >> 5);
-        g_simObjects[i].alt = (int16)lerpLinear(sp[i].alt, sn[i].alt, num, den);
+        f15::math::legacy::objectLinearSet(g_simObjectAlt[i], g_simObjects[i].alt,
+            f15::math::legacy::wordLerp(sp[i].alt, sn[i].alt, num, den));
         /* enemy AI flips its pose representation the same way as the player
          * (egthreat pitch>0x4000: head+=0x8000, bank+=0x8000, pitch reflected) —
          * Pose::interpolate snaps the whole triple on that flip. */
@@ -314,7 +317,7 @@ static void objRestore(const SimObjSnap *sn, const ProjSnap *pn) {
             g_simObjectFineY[i], g_simObjects[i].worldY, sn[i].worldY);
         g_simObjects[i].posX = sn[i].posX;
         g_simObjects[i].posY = sn[i].posY;
-        g_simObjects[i].alt = sn[i].alt;
+        f15::math::legacy::objectLinearSet(g_simObjectAlt[i], g_simObjects[i].alt, sn[i].alt);
         f15::math::legacy::objectAttitudeSet(g_simObjectHeading[i], g_simObjects[i].heading.w, sn[i].head);
         f15::math::legacy::objectAttitudeSet(g_simObjectPitch[i], g_simObjects[i].pitch, sn[i].pitch);
         f15::math::legacy::objectAttitudeSet(g_simObjectBank[i], g_simObjects[i].bank.w, sn[i].bank);

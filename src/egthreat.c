@@ -18,6 +18,8 @@ using f15::math::legacy::attitudeStep;
 using f15::math::legacy::wordProductQ14;
 using f15::math::legacy::objectAttitudeSet;
 using f15::math::legacy::objectAttitudeAdvance;
+using f15::math::legacy::objectLinearSet;
+using f15::math::legacy::objectLinearAdvance;
 using f15::math::legacy::mapOffset;
 using f15::math::legacy::mapRange;
 using f15::math::legacy::objectFineAdvance;
@@ -274,7 +276,7 @@ void updateObjects(void) {
     for (objIdx = 0; objIdx < g_groundUnitCount; objIdx++) {
         if (g_simObjects[objIdx].flags.b[0] & 1) {
             g_threatSpec = g_simObjects[objIdx].spec;
-            if ((g_simObjects[objIdx].flags.b[0] & 2) && g_simObjects[objIdx].speed != 0) {
+            if ((g_simObjects[objIdx].flags.b[0] & 2) && g_simObjectSpeed[objIdx] != 0) {
                 mode = 0;
                 if (!(g_simObjects[objIdx].flags.b[0] & 4)) {
                     const int friendlyAircraft = campaignFriendlyAircraft(objIdx, g_groundUnitCount, g_simObjects[objIdx].objType);
@@ -423,7 +425,7 @@ void updateObjects(void) {
                         rollCmd = frameTick.bit(11) ? -0x4000 : 0x4000;
                     }
                     if (pitchCmd == (int16)0xa000) {
-                        if (-(signedAngle(g_simObjectPitch[objIdx].shiftedDown(3)) - 3000) > g_simObjects[objIdx].alt) {
+                        if (-(signedAngle(g_simObjectPitch[objIdx].shiftedDown(3)) - 3000) > g_simObjectAlt[objIdx]) {
                             pitchCmd = (int16)(wordRep(g_simObjectPitch[objIdx]) + 0x1000);
                         }
                     }
@@ -452,7 +454,7 @@ void updateObjects(void) {
                                     aircraftTypes[g_threatSpec].maneuverability * 256);
 
                 if ((g_simObjects[objIdx].flags.w) & 0x400) {
-                    if (g_simObjects[objIdx].speed < 150) {
+                    if (g_simObjectSpeed[objIdx] < 150) {
                         objectAttitudeSet(g_simObjectPitch[objIdx], g_simObjects[objIdx].pitch,
                                           AircraftAngle{});
                     } else {
@@ -460,9 +462,10 @@ void updateObjects(void) {
                                               angleFromWord(0x100));
                     }
                     rollCmd = 0;
-                    if (g_simObjects[objIdx].speed < aircraftTypes[g_threatSpec].maxSpeed) {
-                        g_simObjects[objIdx].speed += g_frameRateScaling.perTick(60);
-                    } else if (g_simObjects[objIdx].alt > 300) {
+                    if (g_simObjectSpeed[objIdx] < aircraftTypes[g_threatSpec].maxSpeed) {
+                        objectLinearAdvance(g_simObjectSpeed[objIdx], g_simObjects[objIdx].speed,
+                                            g_frameRateScaling.perTick(60.0));
+                    } else if (g_simObjectAlt[objIdx] > 300) {
                         g_simObjects[objIdx].flags.b[1] &= 0xfb;
                     }
                 }
@@ -518,7 +521,7 @@ void updateObjects(void) {
 
                 if (g_simObjectPitch[objIdx].isNegative() &&
                     -(TrackMath::sineVelocity(g_simObjectPitch[objIdx], 2000,
-                                              g_angleLut) - 200) > g_simObjects[objIdx].alt &&
+                                              g_angleLut) - 200) > g_simObjectAlt[objIdx] &&
                     ((g_simObjects[objIdx].flags.w) & 0x220) == 0) {
                     pitchDelta = 0x400;
                 }
@@ -555,18 +558,18 @@ void updateObjects(void) {
                     -TrackMath::cosineVelocity(
                         g_simObjectHeading[objIdx], horizStep, g_angleLut));
 
-                g_simObjects[objIdx].alt += (int16)TrackMath::sineVelocity(
-                    g_simObjectPitch[objIdx], moveAmt, g_angleLut);
+                objectLinearAdvance(g_simObjectAlt[objIdx], g_simObjects[objIdx].alt,
+                    TrackMath::sineVelocity(g_simObjectPitch[objIdx], moveAmt, g_angleLut));
 
                 g_simObjects[objIdx].posX = (int16)(g_simObjects[objIdx].worldX >> 5);
                 g_simObjects[objIdx].posY = (int16)(g_simObjects[objIdx].worldY >> 5);
 
-                if (g_simObjects[objIdx].alt <= 30000) goto alt_ok;
+                if (g_simObjectAlt[objIdx] <= 30000) goto alt_ok;
                 objectAttitudeSet(g_simObjectPitch[objIdx], g_simObjects[objIdx].pitch,
                                   AircraftAngle{});
             alt_ok:
 
-                if (g_simObjects[objIdx].alt < 0) {
+                if (g_simObjectAlt[objIdx] < 0) {
                     (g_simObjects[objIdx].flags.w) &= (objIdx != 0) ? 0x1c1 : 0;
                     g_hitMapX = g_simObjects[objIdx].posX;
                     g_hitMapY = g_simObjects[objIdx].posY;
@@ -592,16 +595,18 @@ void updateObjects(void) {
                                       AircraftAngle{});
                     objectAttitudeSet(g_simObjectHeading[objIdx], g_simObjects[objIdx].heading.w,
                                       angleFromWord(g_northSouthSign == 1 ? 0 : -0x8000));
-                    g_simObjects[objIdx].alt = (g_planeTable.planes[g_closestThreatIndex].flags & 0x200) ? 140 : 12;
-                    if (g_simObjects[objIdx].speed > 0) {
-                        g_simObjects[objIdx].speed -= g_frameRateScaling.perTick(120);
+                    objectLinearSet(g_simObjectAlt[objIdx], g_simObjects[objIdx].alt,
+                        (g_planeTable.planes[g_closestThreatIndex].flags & 0x200) ? 140 : 12);
+                    if (g_simObjectSpeed[objIdx] > 0) {
+                        objectLinearAdvance(g_simObjectSpeed[objIdx], g_simObjects[objIdx].speed,
+                                            -g_frameRateScaling.perTick(120.0));
                     } else {
                         (g_simObjects[objIdx].flags.w) &= 0x1c1;
                         if (objIdx == 0 && g_targetSlots[0].state >= 5) {
                             (g_simObjects[objIdx].flags.w) = 0;
                         }
                     }
-                    if (objIdx >= g_groundUnitCount - 4 && g_simObjects[objIdx].speed < 100) {
+                    if (objIdx >= g_groundUnitCount - 4 && g_simObjectSpeed[objIdx] < 100) {
                         (g_simObjects[objIdx].flags.w) &= 0x1c1;
                         (g_simObjects[objIdx].flags.w) |= 0x406;
                     }

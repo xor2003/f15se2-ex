@@ -356,9 +356,11 @@ void initSortie() {
     for (int i = 0; i < 4; ++i) {
         g_simObjects[i].posX = (uint16)(9000 + i * 4000);
         g_simObjects[i].posY = (uint16)(15000 + i * 3000);
-        g_simObjects[i].alt = (int16)(200 + i * 50);
-        g_simObjects[i].heading.w = (int16)(i * 8192);
-        g_simObjects[i].speed = 40;
+        f15::math::legacy::objectLinearSet(g_simObjectAlt[i], g_simObjects[i].alt,
+                                           (int16)(200 + i * 50));
+        f15::math::legacy::objectAttitudeSet(g_simObjectHeading[i], g_simObjects[i].heading.w,
+                                             f15::math::legacy::angleFromWord((int16)(i * 8192)));
+        f15::math::legacy::objectLinearSet(g_simObjectSpeed[i], g_simObjects[i].speed, 40);
         g_simObjects[i].spec = 1;
         g_simObjects[i].flags.w = 0x100;
     }

@@ -26,6 +26,13 @@ template<class B> class AltitudeMath;
 template<class B> class HorizontalMath;
 template<class B> struct Boundary;
 
+/* Word-domain scalar rep — int16 under fixed, double under modern. For
+ * control-signal diffs and packed-word shadows (linear quantities like the
+ * SimObject alt/speed words) that are not angles but still carry a modern
+ * fraction. */
+template<class B>
+using WordRep = std::conditional_t<std::is_same_v<B, FixedBackend>, std::int16_t, double>;
+
 // Representation is deliberately absent from the public quantity API.
 template<class B> class Angle {
     using Rep = std::conditional_t<std::is_same_v<B, FixedBackend>, fixed::Angle16, double>;
