@@ -23,6 +23,14 @@ inline int32 specYawClamp(int16 turnRate) { return (int32)turnRate * 0x80; }
 inline int32 specPitchDiveLimit(int16 turnRate) { return (int32)turnRate << 0xb; }
 inline int32 specPitchClimbLimit(int16 turnRate) { return (int32)turnRate << 9; }
 
+/* -g_projDepth is forward distance in map units; spec lockRange counts
+ * map units/8. The A2A HUD lock gate uses the exact >> 3 conversion, the
+ * A2G gate the original's / 7 approximation, and the firm-lock (red tint)
+ * check the tighter >> 2 scale. */
+inline int32 specRangeFromDepth(int32 mapDepth) { return mapDepth >> 3; }
+inline int32 specRangeFromDepthApprox(int32 mapDepth) { return mapDepth / 7; }
+inline int32 specFirmRangeFromDepth(int32 mapDepth) { return mapDepth >> 2; }
+
 /* aircraftTypes[].maneuverability clamps the AI's roll command word
  * (x0x1000) and the per-tick rollCmd-vs-bank lead — how far the bank word
  * may chase the command in one step (x256). */

@@ -10,6 +10,7 @@ using f15::math::legacy::fineUnits;
 #include "math/legacy_altitude.hpp"
 #include "math/legacy_map.hpp"
 #include "math/guidance.hpp"
+#include "spec_units.hpp"
 using f15::math::legacy::signedAngle;
 using f15::math::legacy::angleFromWord;
 using f15::math::legacy::angleMagnitude;
@@ -694,12 +695,12 @@ void drawHudWorldOverlay(void) {
                         if (missleSpec[missileSpecIndex].ammo != 0) {
                             setDrawColor(COLOR_WHITE);;
                             if ((rangeApprox(vtxScratch.vproj.x.lo - 160, vtxScratch.vproj.y.lo - 56) < 48 || g_lockToneFlag != 0) &&
-                                -g_projDepth / 7 < sams[missileSpec].lockRange &&
+                                f15::specRangeFromDepthApprox(-g_projDepth) < sams[missileSpec].lockRange &&
                                 sams[missileSpec].weaponClass != 7) {
                                 if (sams[missileSpec].weaponClass != 28 || g_lockToneFlag != 0) {
                                     g_lockToneFlag = 1;
                                     lockFlag = 1;
-                                    if (sams[missileSpec].lockRange > (-g_projDepth >> 1 >> 1)) {
+                                    if (sams[missileSpec].lockRange > f15::specFirmRangeFromDepth(-g_projDepth)) {
                                         setDrawColor(COLOR_LIGHTRED);
                                     }
                                 }
@@ -800,10 +801,10 @@ void drawHudWorldOverlay(void) {
                     if (missleSpec[missileSpecIndex].ammo != 0 && sams[missileSpec].weaponClass == 7) {
                         setDrawColor(COLOR_WHITE);;
                         if (rangeApprox(vtxScratch.vproj.x.lo - 160, vtxScratch.vproj.y.lo - 56) < 48) {
-                            if (-g_projDepth >> 3 < sams[missileSpec].lockRange) {
+                            if (f15::specRangeFromDepth(-g_projDepth) < sams[missileSpec].lockRange) {
                                 g_lockToneFlag = 1;
                                 lockFlag = 1;
-                                if (-g_projDepth >> 1 >> 1 < sams[missileSpec].lockRange) {
+                                if (f15::specFirmRangeFromDepth(-g_projDepth) < sams[missileSpec].lockRange) {
                                     setDrawColor(COLOR_LIGHTRED);
                                 }
                             }

@@ -1376,7 +1376,10 @@ formulas: `specProjSpeed` (maxSpeed >> 6), `specLockRangeUnits`
 `specPitchDiveLimit`/`specPitchClimbLimit` (turnRate << 11 / << 9 — the
 asymmetric dive-vs-climb clamp), `specRollCmdClamp` (maneuverability *
 0x1000) and `specBankStepClamp` (maneuverability * 256, the per-tick
-rollCmd-vs-bank lead). All expressions are arithmetically identical —
+rollCmd-vs-bank lead). The HUD lock gates get the inverse direction:
+`specRangeFromDepth` (-projDepth >> 3), `specRangeFromDepthApprox` (the
+A2G path's / 7) and `specFirmRangeFromDepth` (>> 2, the red-tint close
+lock). All expressions are arithmetically identical —
 pure naming, no behavior change. `SimObject.flags` bit masks stay hex:
 the project policy classifies packed flags as bookkeeping, not math, and
 per-bit semantics are not established.
