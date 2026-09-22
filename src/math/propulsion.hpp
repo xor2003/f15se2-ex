@@ -56,6 +56,10 @@ public:
     EngineThrust() = default;
     bool isZero() const { return value_ == 0; }
     bool operator==(EngineThrust other) const { return value_ == other.value_; }
+    bool operator<(EngineThrust other) const { return value_ < other.value_; }
+    bool operator>(EngineThrust other) const { return value_ > other.value_; }
+    bool operator<=(EngineThrust other) const { return value_ <= other.value_; }
+    bool operator>=(EngineThrust other) const { return value_ >= other.value_; }
 };
 
 template<class B> class PropulsionMath {

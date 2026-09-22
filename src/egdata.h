@@ -167,7 +167,7 @@ extern int16 g_viewZ;
 #endif
 extern f15::math::FlightAltitude<f15::math::GameBackend> g_altitude;
 extern char g_orientationDirty;
-extern int16 g_setThrust;
+extern f15::math::EngineThrust<f15::math::GameBackend> g_setThrust;
 extern f15::math::TickDuration g_joyCalibTimer;
 extern int16 g_hudBottomY;
 extern const int16 g_rearViewShape[];

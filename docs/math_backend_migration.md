@@ -1118,6 +1118,21 @@ Verification: fixed focused tests pass (eg3drast suites seed the typed
 spin angle through `angleFromWord`); sortie parity unchanged; modern
 smoke/sortie pass; the allowlist dropped the migrated name.
 
+## Throttle-command storage checkpoint
+
+`g_setThrust` is now `EngineThrust<GameBackend>` — the same engine-command
+domain as the typed `g_thrust` it spools toward, so the requested/actual
+pair can no longer mix with plain ints. All writes go through
+`legacy::thrustFromUnits` (the command is integer-unit by design — lever
+positions are 0..144); unit arithmetic (`thrust²` fuel burn, `*80` brakes
+approximation, `/3` gauge pixels, `clampRange` steps) narrows through
+`thrustUnits`, and the recovery writer assigns `recoveryThrust()`'s typed
+result directly. `EngineThrust` gained the same-unit ordering operators.
+
+Verification: fixed focused tests pass (the characterization suite still
+asserts throttle recovery/damage limits in raw units); sortie parity
+unchanged; modern smoke/sortie pass; the allowlist dropped the name.
+
 ## Angle magnitude read adapters
 
 `legacy_rotation.hpp` gained two fraction-preserving magnitude reads for

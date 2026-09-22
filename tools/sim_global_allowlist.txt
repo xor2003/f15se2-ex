@@ -314,7 +314,6 @@ g_scopeClipBottom
 g_scopeClipLeft
 g_scopeClipRight
 g_scopeClipTop
-g_setThrust
 g_shapeTargetCategory
 g_simStepsThisFrame
 g_skyColorIndex

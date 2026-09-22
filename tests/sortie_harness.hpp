@@ -142,7 +142,7 @@ inline FlightFields readFlight() {
     f.lift = (std::uint16_t)legacy::signedAngle(g_liftForce);
     f.trim = (std::uint16_t)legacy::signedAngle(g_rollPitchTrim);
     f.thrust = (std::uint16_t)legacy::thrustUnits(g_thrust);
-    f.setThrust = (std::uint16_t)g_setThrust;
+    f.setThrust = (std::uint16_t)f15::math::legacy::thrustUnits(g_setThrust);
     f.fuel = (std::uint16_t)f15::math::legacy::fuelUnits(g_fuelRemaining);
     f.gees = (std::uint32_t)legacy::loadSixteenths(g_gees);
     f.viewX = (std::uint16_t)g_viewX_;
@@ -386,7 +386,7 @@ inline void initSortie() {
     g_inputDisabled = 1;
     g_rngSeed = (int16)kSeed;
     g_thrust = legacy::thrustFromUnits(35);
-    g_setThrust = 5;
+    g_setThrust = f15::math::legacy::thrustFromUnits(5);
     g_fuelRemaining = f15::math::legacy::fuelFromUnits(9000);
     g_viewZ = 4000;
     g_groundAltitude = {};

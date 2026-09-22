@@ -148,7 +148,7 @@ void updateFrame(void) {
             g_northSouthSign = (mapOffset(flightMapPosition(), waypoints[1].mapX, waypoints[1].mapY).ringY() < 0x8000u) ? 1 : -1;
             g_altitude = altitudeFromUnits(2000);
             g_velocity = f15::math::legacy::speedFromUnits(8100);
-            g_setThrust = 100;
+            g_setThrust = f15::math::legacy::thrustFromUnits(100);
             UpdateThrottleState();
             *(char *)&g_playerPlaneFlags |= 1;
             *(char *)&g_playerPlaneFlags &= ~8;
@@ -421,7 +421,7 @@ skip_target_section:
             if (std::abs(threatOff.dx) < 0x10 && std::abs(threatOff.dy) < 0x10) {
                 g_altitude = {};
                 g_velocity = {};
-                g_setThrust = 0;
+                g_setThrust = {};
                 g_ViewX = viewX((int32)g_planeTable.planes[g_closestThreatIndex].mapX << 5);
                 g_ViewY = viewY((int32)(0x8000 - g_planeTable.planes[g_closestThreatIndex].mapY) << 5);
             } else {

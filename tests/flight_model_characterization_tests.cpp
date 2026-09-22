@@ -74,7 +74,7 @@ void recoveryGuidance(SDL_Joystick *stick) {
         g_frameRateScaling = f15::math::SimRate::fromWord(hz);
         frameTick = f15::math::Ticks::fromWord(1);
         g_thrust = legacy::thrustFromUnits(35);
-        g_setThrust = 5;
+        g_setThrust = f15::math::legacy::thrustFromUnits(5);
         g_fuelRemaining = f15::math::legacy::fuelFromUnits(5000);
         g_gunHits = g_hudVisible = g_inputDisabled = 0;
         g_ejectState = g_autoCrashDive = g_currentWeaponType = 0;
@@ -135,7 +135,7 @@ void recoveryGuidance(SDL_Joystick *stick) {
         stepFlightModel();
         require(legacy::rollInput(g_rollInput) == rollCommand, "recovery roll changed");
         require(legacy::pitchInput(g_pitchInput) == pitchCommand, "recovery pitch changed");
-        require(g_setThrust == throttle, "recovery throttle changed");
+        require(f15::math::legacy::thrustUnits(g_setThrust) == throttle, "recovery throttle changed");
         require((g_playerPlaneFlags & 9) == ((knots >= 350 ? 1 : 0) | (brake ? 8 : 0)), "recovery gear/brakes changed");
         require(g_slowMotionMode == slow, "recovery slow-motion transition changed");
     }
@@ -204,7 +204,7 @@ void thrustAndFuel() {
         g_frameRateScaling = f15::math::SimRate::fromWord(hz);
         frameTick = f15::math::Ticks::fromWord((int16)(fuelTick ? hz * 2 : 1));
         g_thrust = legacy::thrustFromUnits(initial);
-        g_setThrust = requested;
+        g_setThrust = f15::math::legacy::thrustFromUnits((std::int16_t)requested);
         g_fuelRemaining = f15::math::legacy::fuelFromUnits((std::int16_t)fuel);
         g_gunHits = damage;
         g_hudVisible = 0;
@@ -345,7 +345,7 @@ void thrustAndFuel() {
                 "flight input reaches requested position or disabled sentinel");
         require(legacy::thrustUnits(g_thrust) == expected, "full flight model thrust response changed");
         require(f15::math::legacy::fuelUnits(g_fuelRemaining) == remaining, "full flight model fuel cadence/depletion changed");
-        require(g_setThrust == target, "damage thrust limit changed");
+        require(f15::math::legacy::thrustUnits(g_setThrust) == target, "damage thrust limit changed");
         const int actualLoad = legacy::loadSixteenths(g_gees);
         if (actualLoad != gees)
             std::fprintf(stderr, "hz=%d height=%d roll=%d stick=%d raw=%d pitch=%d load=%d expected=%d\n",

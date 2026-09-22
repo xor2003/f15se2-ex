@@ -219,7 +219,7 @@ int main() {
     g_frameRateScaling = f15::math::SimRate::fromWord(15);
     frameTick = f15::math::Ticks::fromWord(1);
     g_thrust = legacy::thrustFromUnits(100);
-    g_setThrust = 100;
+    g_setThrust = f15::math::legacy::thrustFromUnits(100);
     g_fuelRemaining = f15::math::legacy::fuelFromUnits(5000);
     g_viewZ = 3000;
     g_altitude = Altitudes::altitude(3000.25);
@@ -253,7 +253,7 @@ int main() {
         g_velocity = Speeds::speed(8100);
         g_knots = AirspeedMath<GameBackend>::knots(300);
         g_thrust = legacy::thrustFromUnits(100);
-        g_setThrust = 100;
+        g_setThrust = f15::math::legacy::thrustFromUnits(100);
         g_fuelRemaining = f15::math::legacy::fuelFromUnits(5000);
         g_playerPlaneFlags = 1;
         g_joyRawX = g_joyRawY = 128;

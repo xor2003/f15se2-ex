@@ -242,7 +242,7 @@ void stepFlightModel(void) {
         g_ourPitch = g_ourRoll = {};
         g_altitude = {};
         g_velocity = {};
-        g_viewZ = g_setThrust = 0;
+        g_viewZ = 0; g_setThrust = {};
         g_thrust = {};
 
         if (gameData->difficulty == 0) {
@@ -288,7 +288,7 @@ void stepFlightModel(void) {
     if (input_takeFlightThrottle(&pointerThrottle) && !joy_hasThrottleAxis()) {
         /* Touch uses the same target-thrust state and gauge update as the
          * original +/- keys; only the input device is modern. */
-        g_setThrust = clampRange(pointerThrottle, 0, 100);
+        g_setThrust = f15::math::legacy::thrustFromUnits(clampRange(pointerThrottle, 0, 100));
         UpdateThrottleState();
         *((uint8 *)&g_playerPlaneFlags) &= 0xF7; /* release wheel brakes */
         if (g_autopilotEngaged == 1) {
@@ -309,7 +309,7 @@ void stepFlightModel(void) {
     {
         const int throttle = joy_throttleChange();
         if (throttle >= 0 && g_inputDisabled == 0) {
-            g_setThrust = throttle;
+            g_setThrust = f15::math::legacy::thrustFromUnits((std::int16_t)throttle);
             UpdateThrottleState();
             if (throttle > 0) g_playerPlaneFlags &= ~8;
         }
@@ -327,33 +327,33 @@ void stepFlightModel(void) {
             hudMessage("Look off");
         goto switch_break;
     case SCAN_MINUS:
-        g_setThrust = clampRange(g_setThrust - 10, 0, 100);
+        g_setThrust = f15::math::legacy::thrustFromUnits((std::int16_t)clampRange((int)f15::math::legacy::thrustUnits(g_setThrust) - 10, 0, 100));
         UpdateThrottleState();
         goto switch_break;
     case SCAN_EQUAL:
-        g_setThrust = clampRange(g_setThrust + ((g_setThrust < 10) ? 5 : 10), 0, 100);
+        g_setThrust = f15::math::legacy::thrustFromUnits((std::int16_t)clampRange((int)f15::math::legacy::thrustUnits(g_setThrust) + ((g_setThrust < f15::math::legacy::thrustFromUnits(10)) ? 5 : 10), 0, 100));
         UpdateThrottleState();
         *((uint8 *)&g_playerPlaneFlags) &= 0xF7; // ~8
         goto switch_break;
     case SCAN_A:
-        g_setThrust = 0x90;
+        g_setThrust = f15::math::legacy::thrustFromUnits(0x90);
         UpdateThrottleState();
         *((uint8 *)&g_playerPlaneFlags) &= 0xF7; // ~8
         goto switch_break;
     case SCAN_SHIFT_EQUAL:
-        g_setThrust = 100;
+        g_setThrust = f15::math::legacy::thrustFromUnits(100);
         UpdateThrottleState();
         *((uint8 *)&g_playerPlaneFlags) &= 0xF7; // ~8
         goto post_key_B_check;
     case SCAN_SHIFT_MINUS:
-        g_setThrust = 0;
+        g_setThrust = {};
         makeSound(16, 0);
         UpdateThrottleState();
         goto switch_break;
     case SCAN_B:
         *((uint8 *)&g_playerPlaneFlags) ^= 8;
     post_key_B_check:
-        if (!(*((uint8 *)&g_playerPlaneFlags) & 8) && !g_groundAltitude.isZero() && g_setThrust == 100) {
+        if (!(*((uint8 *)&g_playerPlaneFlags) & 8) && !g_groundAltitude.isZero() && g_setThrust == f15::math::legacy::thrustFromUnits(100)) {
             g_velocity = speedFromUnits(1350);
             makeSound(28, 2);
         }
@@ -391,7 +391,7 @@ switch_break:
         --g_joyCalibTimer;
     }
 
-    if (g_setThrust != 0 && g_thrust.isZero()) {
+    if (!g_setThrust.isZero() && g_thrust.isZero()) {
         makeSound(14, 2);
     }
 
@@ -473,7 +473,7 @@ switch_break:
         makeSound(32, 2);
     }
 
-    if (flightAtGround() && g_setThrust == 0 && !(*((uint8 *)&g_playerPlaneFlags) & 8)) {
+    if (flightAtGround() && g_setThrust.isZero() && !(*((uint8 *)&g_playerPlaneFlags) & 8)) {
         *((uint8 *)&g_playerPlaneFlags) |= 8;
         hudMessage("Brakes on");
     }
@@ -504,7 +504,7 @@ switch_break:
                 static_cast<f15::math::RecoveryDirection>(g_northSouthSign), inRecoveryCorridor != 0);
             if (approach.exitSlowMotion) exitSlowMotion();
             *((uint8 *)&g_playerPlaneFlags) &= 0xF7;
-            if (approach.allowBrakes && SpeedMath::knots(g_setThrust * 80) < flightKnots()) *((uint8 *)&g_playerPlaneFlags) |= 8;
+            if (approach.allowBrakes && SpeedMath::knots((int)f15::math::legacy::thrustUnits(g_setThrust) * 80) < flightKnots()) *((uint8 *)&g_playerPlaneFlags) |= 8;
             const auto bankTarget = f15::math::GuidanceMath<f15::math::GameBackend>::recoveryBank(
                 approach.bearing, g_ourHead,
                 SpeedMath::speedFromKnots(flightKnots()), inRecoveryCorridor != 0);
@@ -515,9 +515,9 @@ switch_break:
                 {g_ourHead, g_ourPitch, g_ourRoll}, bankTarget, g_rollPitchTrim);
             g_rollInput = recovery.roll;
 
-            g_setThrust = f15::math::legacy::thrustUnits(
+            g_setThrust =
                 f15::math::GuidanceMath<f15::math::GameBackend>::recoveryThrust(
-                    bankTarget, approach.height));
+                    bankTarget, approach.height);
             UpdateThrottleState();
 
             g_pitchInput = recovery.pitch;
@@ -527,7 +527,7 @@ switch_break:
             }
 
             if (flightAtGround()) {
-                g_setThrust = 0;
+                g_setThrust = {};
                 g_rollInput = {};
                 g_playerPlaneFlags |= 8;
                 g_pitchInput = {};
@@ -593,7 +593,7 @@ switch_break:
             g_hitEffectTimer = f15::math::TickDuration::fromWord(-8);
             makeSound(2, 2);
             g_velocity = {};
-            g_setThrust = 0;
+            g_setThrust = {};
         }
 
         if ((g_ejectState & 0xFFFC) == 0x10 && frameTick.phase(4) == 1) {
@@ -619,19 +619,19 @@ switch_break:
         }
     }
 
-    const auto requestedThrust = thrustFromUnits(g_setThrust);
+    const auto requestedThrust = g_setThrust;
     const auto limitedThrust = Propulsion::limitForDamage(requestedThrust, g_gunHits);
     if (Propulsion::requiresDamageLimit(requestedThrust, g_gunHits)) {
-        g_setThrust = thrustUnits(limitedThrust);
+        g_setThrust = limitedThrust;
         UpdateThrottleState();
     }
 
     g_thrust = Propulsion::advance(g_thrust, limitedThrust, Controls::frequency(g_frameRateScaling.word()));
 
-    if (frameTick.umod(g_frameRateScaling.shifted(1)) == 0 && g_setThrust != 0 && g_autopilotEngaged == 0) {
+    if (frameTick.umod(g_frameRateScaling.shifted(1)) == 0 && !g_setThrust.isZero() && g_autopilotEngaged == 0) {
         if (!gameOptionsEnabled(GAME_OPTION_INFINITE_FUEL))
             g_fuelRemaining -= f15::math::legacy::fuelFromUnits(
-                (std::int16_t)(((g_setThrust * g_setThrust) / 750) + 2));
+                (std::int16_t)(((int)f15::math::legacy::thrustUnits(g_setThrust) * (int)f15::math::legacy::thrustUnits(g_setThrust) / 750) + 2));
         drawFuelGauge();
     }
 
@@ -699,7 +699,7 @@ switch_break:
     if (g_autoCrashDive != 0) {
         g_pitchInput = pitchCommand(-0x400 - signedAngle(g_ourPitch));
         g_velocity = {};
-        g_setThrust = 0;
+        g_setThrust = {};
     }
 
 #if defined(__ANDROID__)
@@ -1238,10 +1238,10 @@ void UpdateThrottleState(void) {
         setDrawColor(COLOR_BLACK);
         fillRectBoth(212, 127, 222, 175);
         setDrawColor(COLOR_LIGHTRED);
-        fillRectBoth(212, -(g_setThrust / 3 - 175), 222, 175);
-        if (100 < g_setThrust) {
+        fillRectBoth(212, -((int)f15::math::legacy::thrustUnits(g_setThrust) / 3 - 175), 222, 175);
+        if (g_setThrust > f15::math::legacy::thrustFromUnits(100)) {
             setDrawColor(COLOR_YELLOW);
-            fillRectBoth(212, -(g_setThrust / 3 - 175), 222, 142);
+            fillRectBoth(212, -((int)f15::math::legacy::thrustUnits(g_setThrust) / 3 - 175), 222, 142);
         }
     }
 }

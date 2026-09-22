@@ -1917,7 +1917,7 @@ ViewMode g_lastViewKey = VIEW_COCKPIT;
 f15::math::TickDuration g_lastSpawnTick;
 
 /* g_setThrust: player thrust setting. g_joyCalibTimer: a frame timer. */
-int16 g_setThrust = 0;
+f15::math::EngineThrust<f15::math::GameBackend> g_setThrust;
 
 /* ammoNumX[3]: screen x-coordinate of the ammo-count readout for each
  * missileSpecIndex (0..2). */
