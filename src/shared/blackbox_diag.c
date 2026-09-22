@@ -179,7 +179,7 @@ static uint32 hashTargetMission(void) {
     uint32 h = 2166136261u;
     h = hashAdd(h, (uint16)g_trackedEnemyIdx); h = hashAdd(h, (uint16)g_airTargetLock);
     h = hashAdd(h, (uint16)g_groundTargetLock); h = hashAdd(h, (uint16)g_aamLockActive);
-    h = hashAdd(h, (uint16)g_targetInHudFlag); h = hashAdd(h, (uint16)g_targetLeadAngle);
+    h = hashAdd(h, (uint16)g_targetInHudFlag); h = hashAdd(h, (uint16)f15::math::legacy::signedAngle(g_targetLeadAngle));
     h = hashAdd(h, (uint16)g_missionStatus); h = hashAdd(h, (uint16)g_missionTick.word());
     h = hashAdd(h, g_missionEndedFlag[0]); h = hashAdd(h, (uint16)g_enemyAirRemaining);
     h = hashAdd(h, (uint16)g_enemyGroundRemaining); h = hashAdd(h, (uint16)g_finalThreatScore);

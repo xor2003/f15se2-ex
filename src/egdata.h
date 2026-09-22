@@ -385,7 +385,7 @@ extern char string_3C04A[80];
 extern int16 g_mapMode;
 extern int16 g_enemyAlertFlag;
 extern int16 g_activePanelMode;
-extern int16 g_targetLeadAngle;
+extern f15::math::Angle<f15::math::GameBackend> g_targetLeadAngle;
 extern char *g_targetNameTable[MODEL_SLOT_CAPACITY];
 extern int16 g_closestThreatIndex;
 extern int16 g_curLod;

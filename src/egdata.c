@@ -2281,7 +2281,7 @@ int16 g_enemyGroundRemaining;
 int16 g_mapMode;
 int16 g_enemyAlertFlag;
 int16 g_activePanelMode;
-int16 g_targetLeadAngle;
+f15::math::Angle<f15::math::GameBackend> g_targetLeadAngle;
 char *g_targetNameTable[MODEL_SLOT_CAPACITY];
 int16 g_closestThreatIndex;
 int16 g_curLod;

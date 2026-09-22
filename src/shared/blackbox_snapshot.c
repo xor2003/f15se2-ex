@@ -228,7 +228,7 @@ int blackbox_snapshotWriteJson(const char *path) {
             "\"enemy_ground_remaining\":%d,\"final_threat_score\":%d},\n",
             (int)g_trackedEnemyIdx, (int)g_airTargetLock,
             (int)g_groundTargetLock, (int)g_aamLockActive,
-            (int)g_targetInHudFlag, (int)g_targetLeadAngle,
+            (int)g_targetInHudFlag, (int)f15::math::legacy::signedAngle(g_targetLeadAngle),
             (int)g_missionStatus, (int)g_missionTick.word(),
             (unsigned)g_missionEndedFlag[0], (int)g_enemyAirRemaining,
             (int)g_enemyGroundRemaining, (int)g_finalThreatScore);

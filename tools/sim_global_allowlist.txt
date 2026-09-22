@@ -362,7 +362,6 @@ g_tapeText3
 g_tapeTickPitch
 g_targetEntityCount
 g_targetInHudFlag
-g_targetLeadAngle
 g_targetViewParams
 g_threatLabelTarget
 g_threatRadarFlag

@@ -1148,6 +1148,18 @@ bookkeeping with no distinct unit.
 Verification: fixed suite 60/60 incl. sortie parity; modern smoke/sortie
 pass; the allowlist dropped the three names.
 
+## Target lead-angle dial checkpoint
+
+`g_targetLeadAngle` is now `Angle<GameBackend>` — the rotating gun-lead
+dial fed by the per-tick north/south sign. The `& 0xfff` wrap is kept as
+an explicit word boundary (`angleFromWord` of the masked sum): the dial is
+a 4096-position indicator by design, so both backends retain the same
+coarse quantization. Blackbox hash and snapshot reads narrow through
+`signedAngle`.
+
+Verification: fixed focused tests pass; sortie parity unchanged; modern
+smoke/sortie pass; the allowlist dropped the name.
+
 ## Angle magnitude read adapters
 
 `legacy_rotation.hpp` gained two fraction-preserving magnitude reads for

@@ -475,7 +475,7 @@ skip_autopilot:
         }
     }
 
-    g_targetLeadAngle = (g_planeTable.planes[g_closestThreatIndex].flags & 0x200 && g_nearestThreatRange < 0x500) ? ((g_frameRateScaling.perTick(g_northSouthSign << 8)) + g_targetLeadAngle) & 0xfff : 0;
+    g_targetLeadAngle = (g_planeTable.planes[g_closestThreatIndex].flags & 0x200 && g_nearestThreatRange < 0x500) ? f15::math::legacy::angleFromWord(((g_frameRateScaling.perTick(g_northSouthSign << 8)) + f15::math::legacy::signedAngle(g_targetLeadAngle)) & 0xfff) : f15::math::Angle<f15::math::GameBackend>{};
 
     frameTick++;
     if (frameTick.mod(g_frameRateScaling.word()) == 0) {
