@@ -179,7 +179,6 @@ g_frameSyncWait
 g_frameTimingAccum
 g_gearDownArmed
 g_geeReadoutX
-g_groundAltitude
 g_groundTargetLock
 g_groundUnitCount
 g_gunAmmo

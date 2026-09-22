@@ -59,9 +59,9 @@ using TickDuration = f15::math::TickDuration;
 #include <string.h>
 
 /* Private helpers for this translation unit. */
-static bool missionAtHeight(int16 height) {
+static bool missionAtHeight(f15::math::TerrainHeight<f15::math::GameBackend> height) {
     using namespace f15::math;
-    return AltitudeMath<GameBackend>::atGround(flightSceneHeight(), legacy::Altitudes::ground(height));
+    return AltitudeMath<GameBackend>::atGround(flightSceneHeight(), height);
 }
 
 void updateFrame(void);
@@ -353,7 +353,7 @@ void updateFrame(void) {
 
 skip_target_section:
     if (g_nearestThreatRange < 0x200 || missionAtHeight(g_groundAltitude)) {
-        g_groundAltitude = 0;
+        g_groundAltitude = {};
         g_attackRangeX = 0xa0;
         g_attackRangeY = 0x800;
         if (g_planeTable.planes[g_closestThreatIndex].flags & 0x800) {
@@ -363,7 +363,7 @@ skip_target_section:
                                          g_planeTable.planes[g_closestThreatIndex].mapX,
                                          g_planeTable.planes[g_closestThreatIndex].mapY);
         if (g_planeTable.planes[g_closestThreatIndex].flags & 0x200) {
-            g_groundAltitude = 0x80;
+            g_groundAltitude = f15::math::legacy::terrainFromUnits(0x80);
             g_attackRangeX = 0x100;
             g_attackRangeY = 0x3c0;
             if (missionAtHeight(g_groundAltitude) && flightKnots() > SpeedMath::knots(0x50)) {
@@ -383,7 +383,7 @@ skip_target_section:
         }
         if (std::abs(threatOff.dx) > (g_attackRangeX >> 5) ||
             (std::abs(threatOff.dy) > (g_attackRangeY >> 5))) {
-            g_groundAltitude = 0;
+            g_groundAltitude = {};
             g_inLandingCorridor = 0;
         } else {
             g_inLandingCorridor = 1;
@@ -433,7 +433,7 @@ skip_target_section:
                 }
                 g_velocity = f15::math::legacy::speedFromUnits(5400);
                 g_altitude = f15::math::AltitudeMath<f15::math::GameBackend>::landingApproach(
-                    g_altitude, f15::math::legacy::Altitudes::ground(g_groundAltitude), i);
+                    g_altitude, g_groundAltitude, i);
                 using HorizontalMath = f15::math::HorizontalMath<f15::math::GameBackend>;
                 g_ViewX = HorizontalMath::approach(g_ViewX, viewX((int32)g_planeTable.planes[g_closestThreatIndex].mapX << 5), i);
                 g_ViewY = HorizontalMath::approach(g_ViewY, viewY((int32)(0x8000 - g_planeTable.planes[g_closestThreatIndex].mapY) << 5), i);
@@ -446,7 +446,7 @@ skip_target_section:
 
 skip_autopilot:
     if (g_inLandingCorridor == 0) {
-        if (missionAtHeight(0)) {
+        if (missionAtHeight({})) {
             if (!android_ar_preventCrashes() &&
                 !gameOptionsEnabled(GAME_OPTION_NO_DAMAGE) &&
                 (gameData->unk4 != 0 || g_gunHits > 4 || g_fuelRemaining.isZero()) &&

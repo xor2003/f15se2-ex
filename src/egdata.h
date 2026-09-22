@@ -328,7 +328,7 @@ extern int16 g_threatLabelTarget;
 extern int16 g_skyColorIndex;
 extern int16 g_sphereRingRadii[];
 extern int16 g_hitMapX;
-extern int16 g_groundAltitude;
+extern f15::math::TerrainHeight<f15::math::GameBackend> g_groundAltitude;
 extern int16 g_viewX_;
 extern f15::math::MapPosition<f15::math::GameBackend> g_wreckPos;
 extern uint8 g_waterTargetId[];

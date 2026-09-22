@@ -84,7 +84,7 @@ void keyDispatch(uint16 scanCode) {
         break;
     case SCAN_L:
         if (!f15::math::AltitudeMath<f15::math::GameBackend>::atGround(
-                flightSceneHeight(), f15::math::legacy::Altitudes::ground(g_groundAltitude))) {
+                flightSceneHeight(), g_groundAltitude)) {
             *(char *)&g_playerPlaneFlags ^= 1;
             g_gearDownArmed = 0;
             makeSound(32, 2);

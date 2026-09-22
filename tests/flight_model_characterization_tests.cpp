@@ -78,7 +78,7 @@ void recoveryGuidance(SDL_Joystick *stick) {
         g_fuelRemaining = f15::math::legacy::fuelFromUnits(5000);
         g_gunHits = g_hudVisible = g_inputDisabled = 0;
         g_ejectState = g_autoCrashDive = g_currentWeaponType = 0;
-        g_groundAltitude = 0;
+        g_groundAltitude = {};
         g_viewZ = 3000;
         g_autopilotAltitude = f15::math::legacy::renderHeightFromUnits(3000);
         g_autopilotEngaged = 0;
@@ -212,7 +212,7 @@ void thrustAndFuel() {
         g_autopilotAltitude = {};
         g_autopilotEngaged = 0;
         g_ejectState = g_autoCrashDive = g_currentWeaponType = 0;
-        g_groundAltitude = 0;
+        g_groundAltitude = {};
         const int sceneHeight = height < 8192 ? height : height < 16384 ?
             (height - 8192) / 2 + 8192 : (height - 16384) / 4 + 12288;
         const int altitudeTarget = autopilotCase == 1 ? sceneHeight + 1 :

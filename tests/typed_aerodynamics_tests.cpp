@@ -114,7 +114,7 @@ void productionCaller() {
                 "production lift/trim differs from frozen baseline");
         g_autoLandingActive = 1;
         g_altitude = AltitudeBoundary<F>::altitude(1000);
-        g_groundAltitude = 0;
+        g_groundAltitude = {};
         advanceFlightAltitude();
         const auto product = std::int64_t(std::uint16_t(speed) / 10) * rotation_reference::sine(pitch - expectedTrim, g_angleLut);
         const int expectedClimb = word(rotation_reference::floorDivide(product, 32768) +

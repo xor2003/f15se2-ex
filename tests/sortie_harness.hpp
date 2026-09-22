@@ -389,7 +389,7 @@ inline void initSortie() {
     g_setThrust = 5;
     g_fuelRemaining = f15::math::legacy::fuelFromUnits(9000);
     g_viewZ = 4000;
-    g_groundAltitude = 0;
+    g_groundAltitude = {};
     g_altitude = legacy::altitudeFromUnits(4000);
     g_velocity = legacy::speedFromUnits(8100);
     g_knots = AirspeedMath<GameBackend>::knots(300);

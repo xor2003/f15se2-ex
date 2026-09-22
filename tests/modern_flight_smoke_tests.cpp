@@ -112,7 +112,7 @@ int main() {
             "production orientation discarded modern fractional state");
     g_altitude = Altitudes::altitude(90000.25);
     g_velocity = Speeds::speed(8100.25);
-    g_groundAltitude = g_autoLandingActive = 0;
+    g_groundAltitude = {}; g_autoLandingActive = 0;
     g_ourPitch = g_rollPitchTrim = {};
     advanceFlightAltitude();
     require(Altitudes::altitude(g_altitude) == 90000.25,
@@ -132,7 +132,7 @@ int main() {
     // Stall-warning caller regression: the height leg must use the full-range
     // scene height. At altitude 229376 the compressed scene height is 65536,
     // which wraps to word 0 in g_viewZ — below the 200-unit warning floor.
-    g_groundAltitude = g_autoLandingActive = 0;
+    g_groundAltitude = {}; g_autoLandingActive = 0;
     for (double altitude : {0.0, 100.0, 199.5, 200.0, 800.0, 229376.0, 229376.5, 262144.0}) {
         g_altitude = Altitudes::altitude(altitude);
         g_velocity = Speeds::speed(0);
@@ -306,7 +306,7 @@ int main() {
         g_knots = AirspeedMath<GameBackend>::knots(0);
         g_landingTimer = f15::math::TickDuration{};
         g_nearestThreatRange = 0x7fff;
-        g_groundAltitude = 0;
+        g_groundAltitude = {};
         updateFrame();
         require(g_landingTimer.word() == (altitude == 0 ? 0 : 1),
                 "mission ground contact lost altitude range or fractional precision");

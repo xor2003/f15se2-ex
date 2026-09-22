@@ -86,7 +86,7 @@ void productionCaller() {
         g_ourPitch = legacy::angleFromWord(pitch);
         g_velocity = FC::speed(speed);
         g_stallSpeed = legacy::stallFromUnits(threshold);
-        g_groundAltitude = ground;
+        g_groundAltitude = f15::math::legacy::terrainFromUnits((std::int16_t)ground);
         g_viewZ = height;
         g_orientationDirty = tick % 3;
         g_frameRateScaling = f15::math::SimRate::fromWord(1 + next() % 120);
@@ -100,7 +100,7 @@ void productionCaller() {
     }
     data.unk4 = 0;
     g_gunHits = 0;
-    g_groundAltitude = 0;
+    g_groundAltitude = {};
     g_viewZ = 1;
     g_stallSpeed = legacy::stallFromUnits(2);
     g_velocity = FC::speed(1);
@@ -109,7 +109,7 @@ void productionCaller() {
     require(correctFlightStall() && legacy::signedAngle(g_ourPitch) == 100 && g_orientationDirty == 1,
             "zero rounded drop must still mark a stall correction");
     gameData = nullptr;
-    g_groundAltitude = g_viewZ;
+    g_groundAltitude = f15::math::legacy::terrainFromUnits(g_viewZ);
     require(!correctFlightStall(), "grounded aircraft must not need stall severity state");
     gameData = saved;
 }

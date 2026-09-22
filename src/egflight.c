@@ -122,7 +122,7 @@ f15::math::CornerSpeed<f15::math::GameBackend> flightCornerSpeed() {
 
 static bool flightAtGround() {
     return f15::math::AltitudeMath<f15::math::GameBackend>::atGround(
-        flightSceneHeight(), f15::math::legacy::Altitudes::ground(g_groundAltitude));
+        flightSceneHeight(), g_groundAltitude);
 }
 
 bool flightStallWarningRequired() {
@@ -131,7 +131,7 @@ bool flightStallWarningRequired() {
 
 static bool flightAboveGround() {
     return f15::math::AltitudeMath<f15::math::GameBackend>::aboveGround(
-        flightSceneHeight(), f15::math::legacy::Altitudes::ground(g_groundAltitude));
+        flightSceneHeight(), g_groundAltitude);
 }
 
 void stepFlightModel();
@@ -178,7 +178,7 @@ void advanceFlightAltitude() {
     if (g_autoLandingActive == 0)
         g_altitude = VerticalMath::integrate(g_altitude, g_climbRate,
             f15::math::legacy::Controls::frequency(g_frameRateScaling.word()));
-    g_altitude = VerticalMath::constrain(g_altitude, Altitudes::ground(g_groundAltitude));
+    g_altitude = VerticalMath::constrain(g_altitude, g_groundAltitude);
     g_viewZ = Altitudes::renderWord(VerticalMath::renderHeight(g_altitude));
 }
 
@@ -211,7 +211,7 @@ void brakeFlightSpeed() {
         if (flightAtGround()) {
             g_velocity = SpeedMath::groundBrake(g_velocity,
                 f15::math::legacy::Airspeeds::deceleration((32 - gameData->unk4 * 8) * 27), step);
-            if (g_groundAltitude != 0) g_velocity = SpeedMath::carrierStop(g_velocity);
+            if (!g_groundAltitude.isZero()) g_velocity = SpeedMath::carrierStop(g_velocity);
         } else g_velocity = SpeedMath::airBrake(g_velocity, step);
     }
     g_velocity = SpeedMath::constrain(g_velocity);
@@ -353,7 +353,7 @@ void stepFlightModel(void) {
     case SCAN_B:
         *((uint8 *)&g_playerPlaneFlags) ^= 8;
     post_key_B_check:
-        if (!(*((uint8 *)&g_playerPlaneFlags) & 8) && g_groundAltitude != 0 && g_setThrust == 100) {
+        if (!(*((uint8 *)&g_playerPlaneFlags) & 8) && !g_groundAltitude.isZero() && g_setThrust == 100) {
             g_velocity = speedFromUnits(1350);
             makeSound(28, 2);
         }
@@ -762,7 +762,7 @@ switch_break:
     advanceFlightHorizontal(horizVel);
 
     if (flightAtGround()) {
-        if (prevAlt > g_groundAltitude && g_inLandingCorridor != 0) {
+        if (prevAlt > f15::math::legacy::terrainUnits(g_groundAltitude) && g_inLandingCorridor != 0) {
             makeSound(12, 2);
             // temp_bx = g_closestThreatIndex << 4;
 

@@ -2215,7 +2215,7 @@ int16 g_skyColorIndex;
 
 int16 g_sphereRingRadii[16];
 int16 g_hitMapX;
-int16 g_groundAltitude;
+f15::math::TerrainHeight<f15::math::GameBackend> g_groundAltitude;
 int16 g_viewX_;
 f15::math::MapPosition<f15::math::GameBackend> g_wreckPos;
 

@@ -368,7 +368,7 @@ skip_aam:
             g_sceneHeightRender, f15::math::legacy::renderHeightFromUnits(1000)) && g_nightMode == 0) {
         drawAircraftShadow(((g_playerPlaneFlags & 1) == 0) + 6,
                         fineRep(g_ViewX), 0x01000000 - fineRep(g_ViewY),
-                        g_groundAltitude, signedAngle(g_ourHead), signedAngle(g_ourPitch), signedAngle(g_ourRoll), 2);
+                        f15::math::legacy::terrainUnits(g_groundAltitude), signedAngle(g_ourHead), signedAngle(g_ourPitch), signedAngle(g_ourRoll), 2);
     }
 
 done:;

@@ -127,7 +127,7 @@ void renderHudFrame(int unused) {
             // stall warning display
             if (flightKnots() < flightCornerSpeed() &&
                 !f15::math::AltitudeMath<f15::math::GameBackend>::atGround(
-                    flightSceneHeight(), f15::math::legacy::Altitudes::ground(g_groundAltitude)) &&
+                    flightSceneHeight(), g_groundAltitude) &&
                 frameTick.bit(0)) {
                 drawStringActivePage("stall warning", 132, 30, 0xf);
             }

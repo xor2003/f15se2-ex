@@ -126,8 +126,8 @@ void productionCaller() {
         data.unk4 = next() % 4;
         const bool active = next() % 3 != 0, onGround = next() % 3 != 0, carrier = next() % 3 != 0;
         g_playerPlaneFlags = active ? 8 : 0;
-        g_groundAltitude = carrier ? 128 : 0;
-        g_viewZ = g_groundAltitude + (onGround ? 0 : 1);
+        g_groundAltitude = f15::math::legacy::terrainFromUnits(carrier ? 128 : 0);
+        g_viewZ = f15::math::legacy::terrainUnits(g_groundAltitude) + (onGround ? 0 : 1);
         expected = accelerate(expected, target, g_frameRateScaling.word());
         accelerateFlightSpeed(FC::speed(target));
         require(FC::speed(g_velocity) == expected, "production acceleration differs from frozen baseline");
