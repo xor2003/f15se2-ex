@@ -10,6 +10,7 @@
 #include "math/legacy_altitude.hpp"
 #include "math/legacy_map.hpp"
 #include "math/guidance.hpp"
+#include "spec_units.hpp"
 using f15::math::legacy::signedAngle;
 using f15::math::legacy::angleFromWord;
 using f15::math::legacy::angleMagnitude;
@@ -106,12 +107,12 @@ void fireAirThreat(int16 objIdx) {
                                 g_projectiles[slot].fineY = FineCoord::fromRep(objectFineRep(g_simObjectFineY[objIdx]));
                                 f15::math::legacy::objectLinearSet(g_projectileAlt[slot],
                                     g_projectiles[slot].alt, g_simObjectAlt[objIdx] - 25);
-                                g_projectiles[slot].speed = sams[idx].maxSpeed >> 6;
+                                g_projectiles[slot].speed = f15::specProjSpeed(sams[idx].maxSpeed);
                                 g_projectiles[slot].head = g_simObjectHeading[objIdx];
                                 g_projectiles[slot].pitch = g_simObjectPitch[objIdx] - angleFromWord(0x400);
                                 g_projectiles[slot].bank = g_simObjectBank[objIdx];
 
-                                g_projectiles[slot].ttl = f15::math::TickDuration::fromWord((int16)((((int32)sams[idx].lockRange << 3) * (int32)g_frameRateScaling.word()) / (int32)g_projectiles[slot].speed));
+                                g_projectiles[slot].ttl = f15::math::TickDuration::fromWord((int16)((f15::specLockRangeUnits(sams[idx].lockRange) * (int32)g_frameRateScaling.word()) / (int32)g_projectiles[slot].speed));
 
                                 g_projectiles[slot].specIdx = idx;
                                 g_projectiles[slot].targetRef = -objIdx;
@@ -244,7 +245,7 @@ void updateThreatTargeting(void) {
                         !(g_simObjects[-g_projectiles[slot].targetRef].flags.b[0] & 8))
                         locked = 0;
                 }
-                if (g_projectiles[slot].speed < (sams[spec].maxSpeed >> 6) && frameTick.bit(0))
+                if (g_projectiles[slot].speed < f15::specProjSpeed(sams[spec].maxSpeed) && frameTick.bit(0))
                     g_projectiles[slot].speed++;
             } else {
                 best = 0x7fff;
@@ -278,7 +279,7 @@ void updateThreatTargeting(void) {
                         }
                     }
                 }
-                if (g_projectiles[slot].speed < (sams[spec].maxSpeed >> 6) && frameTick.bit(0)) {
+                if (g_projectiles[slot].speed < f15::specProjSpeed(sams[spec].maxSpeed) && frameTick.bit(0)) {
                     g_projectiles[slot].speed++;
                     aimY = signedAngle(g_projectiles[slot].head);
                     aimIsHeading = true;
@@ -343,8 +344,8 @@ void updateThreatTargeting(void) {
                 if (slot < 8)
                     delta = ProjectileGuidance::limitTurn(delta, -(g_missionStatus + 1) << 8,
                                                           (g_missionStatus + 1) << 8);
-                delta = ProjectileGuidance::limitTurn(delta, -(sams[spec].turnRate * 0x80),
-                                                      sams[spec].turnRate * 0x80);
+                delta = ProjectileGuidance::limitTurn(delta, -f15::specYawClamp(sams[spec].turnRate),
+                                                      f15::specYawClamp(sams[spec].turnRate));
                 g_projectiles[slot].head += ProjectileGuidance::turnStep(delta, g_frameRateScaling.word());
                 g_projectiles[slot].bank = ProjectileGuidance::bankFromTurn(delta);
                 f15::math::Angle<f15::math::GameBackend> pitchAim;
@@ -357,8 +358,8 @@ void updateThreatTargeting(void) {
                                           abs((int16)best));
                 }
                 auto bear = pitchAim - g_projectiles[slot].pitch;
-                bear = ProjectileGuidance::limitTurn(bear, -(sams[spec].turnRate << 0xb),
-                                                     sams[spec].turnRate << 9);
+                bear = ProjectileGuidance::limitTurn(bear, -f15::specPitchDiveLimit(sams[spec].turnRate),
+                                                     f15::specPitchClimbLimit(sams[spec].turnRate));
                 g_projectiles[slot].pitch += ProjectileGuidance::turnStep(bear, g_frameRateScaling.word());
             } else {
                 if (g_projectiles[slot].pitch.isPositive() && mode != 30)
@@ -773,7 +774,7 @@ void fireMissile() {
     g_projectiles[slot].pitch = g_ourPitch;
     g_projectiles[slot].bank = g_ourRoll;
 
-    g_projectiles[slot].ttl = f15::math::TickDuration::fromWord((int16)(((int32)sams[spec].lockRange << (6 - (sams[spec].weaponClass == 6 ? 3 : 2))) * (int32)g_frameRateScaling.word() / (int32)((sams[spec].maxSpeed >> 6) + 1)) + 6);
+    g_projectiles[slot].ttl = f15::math::TickDuration::fromWord((int16)((f15::specLockRangeUnits(sams[spec].lockRange) * (sams[spec].weaponClass == 6 ? 1 : 2)) * (int32)g_frameRateScaling.word() / (int32)(f15::specProjSpeed(sams[spec].maxSpeed) + 1)) + 6);
 
     if (g_projectiles[slot].ttl.atMost(6)) {
         g_projectiles[slot].ttl = f15::math::TickDuration::fromWord(999);

@@ -7,6 +7,7 @@
 #include "math/legacy_altitude.hpp"
 #include "math/legacy_map.hpp"
 #include "math/guidance.hpp"
+#include "spec_units.hpp"
 using f15::math::legacy::signedAngle;
 using f15::math::legacy::angleMagnitude;
 using f15::math::legacy::angleSeparation;
@@ -169,7 +170,7 @@ void fireGroundThreat(int16 planeIdx) {
                                         g_projectiles[slot].speed = 1;
                                         g_projectiles[slot].head = angleFromWord(bearing[0]);
                                         g_projectiles[slot].pitch = angleFromWord(0x4000);
-                                        g_projectiles[slot].ttl = f15::math::TickDuration::fromWord((int16)((((int32)sams[threatType].lockRange << 3) * (int32)g_frameRateScaling.word()) / (int32)(sams[threatType].maxSpeed >> 6)));
+                                        g_projectiles[slot].ttl = f15::math::TickDuration::fromWord((int16)((f15::specLockRangeUnits(sams[threatType].lockRange) * (int32)g_frameRateScaling.word()) / (int32)f15::specProjSpeed(sams[threatType].maxSpeed)));
                                         g_projectiles[slot].specIdx = threatType;
                                         g_projectiles[slot].targetRef = planeIdx;
 
@@ -447,11 +448,11 @@ void updateObjects(void) {
                     rollCmd = 0x3000;
                 }
 
-                rollCmd = clampRange(rollCmd, -aircraftTypes[g_threatSpec].maneuverability * 0x1000,
-                                     aircraftTypes[g_threatSpec].maneuverability * 0x1000);
+                rollCmd = clampRange(rollCmd, -f15::specRollCmdClamp(aircraftTypes[g_threatSpec].maneuverability),
+                                     f15::specRollCmdClamp(aircraftTypes[g_threatSpec].maneuverability));
                 rollCmd = wordClamp((int16)(rollCmd - wordRep(g_simObjectBank[objIdx])),
-                                    -aircraftTypes[g_threatSpec].maneuverability * 256,
-                                    aircraftTypes[g_threatSpec].maneuverability * 256);
+                                    -f15::specBankStepClamp(aircraftTypes[g_threatSpec].maneuverability),
+                                    f15::specBankStepClamp(aircraftTypes[g_threatSpec].maneuverability));
 
                 if ((g_simObjects[objIdx].flags.w) & 0x400) {
                     if (g_simObjectSpeed[objIdx] < 150) {

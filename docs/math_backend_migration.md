@@ -1367,6 +1367,23 @@ file-layout record. Diagnostics read `.word()` at their int16 boundary.
 
 Verification: fixed 60/60, modern smoke, analyzer clean.
 
+## Spec-table unit-scale naming checkpoint
+
+`src/spec_units.hpp` names the `sams[]`/`aircraftTypes[]` table-unit
+conversions that `struct.h` field comments documented only as raw
+formulas: `specProjSpeed` (maxSpeed >> 6), `specLockRangeUnits`
+(lockRange << 3), `specYawClamp` (turnRate * 0x80),
+`specPitchDiveLimit`/`specPitchClimbLimit` (turnRate << 11 / << 9 — the
+asymmetric dive-vs-climb clamp), `specRollCmdClamp` (maneuverability *
+0x1000) and `specBankStepClamp` (maneuverability * 256, the per-tick
+rollCmd-vs-bank lead). All expressions are arithmetically identical —
+pure naming, no behavior change. `SimObject.flags` bit masks stay hex:
+the project policy classifies packed flags as bookkeeping, not math, and
+per-bit semantics are not established.
+
+Verification: fixed 60/60 incl. sortie parity (exercises the guidance
+clamps and ttl estimates), modern smoke, analyzer clean on both TUs.
+
 ### Next acceptance boundary
 
 The decision-math surface is migrated end to end: every gameplay compare
