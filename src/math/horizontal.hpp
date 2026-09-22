@@ -10,6 +10,10 @@ template<class B> struct HorizontalBoundary;
 template<class B> class HorizontalMath;
 template<class B, class Axis> class ViewDisplacement;
 
+/* Fine-coordinate rep (int32 fixed / double modern): the sub-fine-unit
+ * fraction survives under modern; under fixed it is the original int32 word. */
+template<class B> using FineRep = std::conditional_t<std::is_same_v<B, FixedBackend>, std::int32_t, double>;
+
 namespace detail {
 inline std::int32_t signedDword(std::uint32_t bits) {
     return static_cast<std::int32_t>(bits <= INT32_MAX ? std::int64_t(bits) : std::int64_t(bits) - 4294967296LL);

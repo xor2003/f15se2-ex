@@ -461,9 +461,10 @@ f15::math::WordRep<f15::math::GameBackend> g_projectileAlt[12];
  * mapX/mapY (1 unit = 32 fine); drawing/tracking a missile from mapX<<5 makes it
  * jump 32 fine units per step, which the director tracking-camera amplifies into
  * a world "earthquake". These hold the sub-mapX-unit interpolated position so the
- * model and the director bearing move smoothly. */
-int32 g_projInterpX[12];
-int32 g_projInterpY[12];
+ * model and the director bearing move smoothly — the rep carries the sub-fine
+ * fraction under modern so the model submit's view-frac stays exact. */
+f15::math::FineRep<f15::math::GameBackend> g_projInterpX[12];
+f15::math::FineRep<f15::math::GameBackend> g_projInterpY[12];
 int16 g_threatScopeRange = 4;
 int16 g_trackedEnemyIdx = -1;
 f15::math::Ticks frameTick;

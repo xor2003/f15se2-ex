@@ -11,6 +11,8 @@ using f15::math::legacy::fineUnits;
 #include "math/legacy_map.hpp"
 #include "math/guidance.hpp"
 #include "spec_units.hpp"
+using f15::math::legacy::fineRep;
+using f15::math::legacy::objectFineRep;
 using f15::math::legacy::signedAngle;
 using f15::math::legacy::angleFromWord;
 using f15::math::legacy::angleMagnitude;
@@ -103,7 +105,7 @@ void updateTargetLock(void) {
 
     /* Fire at g_viewMode == 0x8b (sidewinder lock) */
     if (g_viewMode == VIEW_TARGET) {
-        drawWorldObject(6, (int32)fineUnits(g_ViewX), 0x01000000L - fineUnits(g_ViewY),
+        drawWorldObject(6, fineRep(g_ViewX), 0x01000000 - fineRep(g_ViewY),
                         g_viewZ + 0x10, signedAngle(g_ourHead), signedAngle(g_ourPitch), signedAngle(g_ourRoll), 2);
     }
 
@@ -283,7 +285,7 @@ skip_aam:
                 if (flightSceneHeight() != f15::math::legacy::Altitudes::render(0x80) || marker == 0x80) {
                     drawAircraftShadow(
                                     (&aircraftTypes[g_simObjects[idx].spec].viewModelId)[(g_projDepth > planeFineDepth) ? 0 : 1],
-                                    g_simObjects[idx].worldX, g_simObjects[idx].worldY,
+                                    objectFineRep(g_simObjectFineX[idx]), objectFineRep(g_simObjectFineY[idx]),
                                     marker, g_simObjects[idx].heading.w,
                                     g_simObjects[idx].pitch, g_simObjects[idx].bank.w,
                                     -(signOf(depthShift) - 2));
@@ -293,7 +295,7 @@ skip_aam:
             /* Draw the target */
             drawWorldObject(
                 (&aircraftTypes[g_simObjects[idx].spec].viewModelId)[(g_projDepth > planeFineDepth) ? 0 : 1],
-                g_simObjects[idx].worldX, g_simObjects[idx].worldY, g_simObjects[idx].alt,
+                objectFineRep(g_simObjectFineX[idx]), objectFineRep(g_simObjectFineY[idx]), g_simObjectAlt[idx],
                 g_simObjects[idx].heading.w, g_simObjects[idx].pitch,
                 g_simObjects[idx].bank.w, 2 - depthShift);
         } else {
@@ -323,7 +325,7 @@ skip_aam:
                 drawWorldObject(sams[g_projectiles[idx].specIdx].modelId,
                                 g_projInterpX[idx],
                                 g_projInterpY[idx],
-                                g_projectiles[idx].alt,
+                                g_projectileAlt[idx],
                                 signedAngle(g_projectiles[idx].head), signedAngle(g_projectiles[idx].pitch),
                                 signedAngle(g_projectiles[idx].bank) + 0x2000,
                                 ((g_viewMode & 0x80) && g_viewMode != 0x8b) ? 3 : 1);
@@ -352,8 +354,8 @@ skip_aam:
     if (g_viewMode == VIEW_TARGET) goto done;
     if (flightSceneHeight().isZero() && g_ejectState != 0) goto done;
 
-    drawWorldObject(((g_playerPlaneFlags & 1) == 0) + 6, (int32)fineUnits(g_ViewX),
-                    0x01000000L - fineUnits(g_ViewY), g_viewZ + 0x10, signedAngle(g_ourHead), signedAngle(g_ourPitch), signedAngle(g_ourRoll),
+    drawWorldObject(((g_playerPlaneFlags & 1) == 0) + 6, fineRep(g_ViewX),
+                    0x01000000 - fineRep(g_ViewY), g_viewZ + 0x10, signedAngle(g_ourHead), signedAngle(g_ourPitch), signedAngle(g_ourRoll),
                     2 - depthShift);
 
     if (f15::math::AltitudeMath<f15::math::GameBackend>::belowSceneHeight(

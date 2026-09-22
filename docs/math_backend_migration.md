@@ -1428,6 +1428,37 @@ Verification: fixed 60/60 incl. sortie parity, modern smoke (its
 `g_targetRange` assert now truncates at the word boundary it means to
 check), analyzer clean on egthreat/egtarget/egtgt2.
 
+## Model-submit fraction checkpoint (external-view shake fix)
+
+The F5–F9 model shake was a modern-only boundary loss in
+`drawWorldObjectCore` (egmath.c): the object-vs-eye rel kept the camera's
+Q8 fraction (`g_camEyeFrac*`, folded into `setViewPositionFrac`) but the
+object's own sub-fine-unit fraction died at the `int32 worldX` parameter —
+every model sat up to ±1 fine unit off its true position, alternating with
+the accumulator each render frame.
+
+* `drawWorldObject`/`drawAircraftShadow` take `FineRep`/`WordRep` params
+  (int32/int16 under fixed — identical values; double under modern).
+* The rel position is carried as `FineRep` through all three scale
+  branches; the int submit takes `floor` (the original arithmetic `>>`
+  semantics) and the dropped remainder joins the eye frac in
+  `vfx`/`vfy`/`vfz` — same `pos − frac/256` contract `transformAndCull`
+  already documents, mirroring drawTargetView's frac convention
+  (Y negated). Under fixed every remainder is 0 and the formulas reduce
+  verbatim to the originals.
+* Call sites pass the fractional sources: `fineRep(g_ViewX/Y)` for the
+  player model, `objectFineRep(g_simObjectFineX/Y)` + `g_simObjectAlt` for
+  sim objects, `g_projectileAlt` for projectiles; `g_projInterpX/Y` are
+  rep-typed (`fineRep(FineCoord)` fills) so the snapshot interpolation
+  reaches the submit — word-domain consumers (`(uint32)` camera target,
+  `projectWorldToHudFine` int32) still get the same truncated values.
+* `egmath.h` spells the params with the non-gated `FineRep`/`WordRep`
+  aliases (horizontal.hpp/rotation.hpp) so the boundary checker needs no
+  allowlist entry for the header.
+
+Verification: fixed 60/60 incl. sortie parity (identical arithmetic —
+every remainder is provably 0), modern smoke, analyzer clean.
+
 ### Next acceptance boundary
 
 The decision-math surface is migrated end to end: every gameplay compare

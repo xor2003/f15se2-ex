@@ -12,6 +12,8 @@ using f15::math::legacy::fineUnits;
 #include "math/guidance.hpp"
 using f15::math::legacy::signedAngle;
 using f15::math::legacy::fineRep;
+using f15::math::legacy::FineRep;
+using f15::math::legacy::WordScalar;
 using f15::math::legacy::mapRangeDelta;
 using CamMath = f15::math::GuidanceMath<f15::math::GameBackend>;
 #include "egframe.h"
@@ -113,27 +115,30 @@ void load15Flt3d3() {
 }
 
 static void drawWorldObjectCore(int16 shapeId, int isShadow,
-                                int32 worldX, int32 worldY, int16 altitude, int16 objYaw,
+                                FineRep worldX, FineRep worldY, WordScalar<> altitude, int16 objYaw,
                                 int16 objPitch, int16 objRoll, int16 scaleShift) {
     int16 *drawPg;
     int dataOff;
     long relX;
     long relY;
     int altDiff;
-    int shiftAmt;
     int efx = 0, efy = 0, efz = 0;
     int vfx, vfy, vfz;
+    /* Fractional fine-units rel position: modern carries the object's own
+     * sub-fine remainder (the int32 boundary dropped it, stepping the model
+     * ±1 fine unit against the fraction-carrying camera). Each scale branch
+     * folds it into the view frac next to the eye remainder. */
+    FineRep relXf = worldX - fineRep(g_ViewX);
+    FineRep relYf = worldY + fineRep(g_ViewY) - 0x01000000;
+    FineRep altDf = altitude - g_viewZ;
 
     dataOff = shapeDataOffset(shapeId);
     logShapeReplacementIfPresent(shapeId);
     drawPg = g_pageFront;
-    relX = worldX - fineUnits(g_ViewX);
-    relY = worldY + fineUnits(g_ViewY) - 0x01000000L;
-    altDiff = altitude - g_viewZ;
     if ((g_viewMode & 0x80) != 0) {
-        relX += fineUnits(g_ViewX) - g_camEyeX;
-        relY += g_camEyeY - fineUnits(g_ViewY);
-        altDiff += g_viewZ - g_camEyeZ;
+        relXf += fineRep(g_ViewX) - g_camEyeX;
+        relYf += g_camEyeY - fineRep(g_ViewY);
+        altDf += g_viewZ - g_camEyeZ;
         /* Q8 remainder of the external eye position (true eye is frac/256
          * further along each axis than the integer subtracted above). */
         efx = g_camEyeFracX;
@@ -142,32 +147,41 @@ static void drawWorldObjectCore(int16 shapeId, int isShadow,
     }
     scaleShift = (g_halfScaleRender != 0) ? (scaleShift - 2) : (scaleShift - 3);
     if (scaleShift > 0) {
-        shiftLongLeftInPlace(scaleShift, &relX);
-        shiftLongLeftInPlace(scaleShift, &relY);
-        altDiff <<= (char)scaleShift;
-        vfx = efx << scaleShift;
-        vfy = efy << scaleShift;
-        vfz = efz << scaleShift;
+        const FineRep sx = relXf * (1 << scaleShift);
+        const FineRep sy = relYf * (1 << scaleShift);
+        const FineRep sz = altDf * (1 << scaleShift);
+        relX = (long)std::floor(sx);
+        relY = (long)std::floor(sy);
+        altDiff = (int)std::floor(sz);
+        /* frac = eyeQ8 scaled to submit units ∓ the sub-unit remainder the
+         * int submit drops (signs as below: +relX / −relY / −altDiff). */
+        vfx = (int)(efx * (1 << scaleShift) - (sx - relX) * 256);
+        vfy = (int)(efy * (1 << scaleShift) + (sy - relY) * 256);
+        vfz = (int)(efz * (1 << scaleShift) - (sz - altDiff) * 256);
     } else if (scaleShift < 0) {
-        /* full int, not just the low byte: native shift uses all 32 bits */
-        long preX = relX, preY = relY;
-        int preZ = altDiff;
-        shiftAmt = -scaleShift;
-        shiftLongRightInPlace(shiftAmt, &relX);
-        shiftLongRightInPlace(shiftAmt, &relY);
-        altDiff >>= (char)shiftAmt;
+        /* full int, not just the low byte: native shift uses all 32 bits.
+         * floor(/2^s) is the original arithmetic >> under fixed (and keeps
+         * the remainder non-negative so the frac below stays exact). */
+        const int shiftAmt = -scaleShift;
+        const FineRep preX = relXf, preY = relYf, preZ = altDf;
+        relX = (long)std::floor(preX / (double)(1 << shiftAmt));
+        relY = (long)std::floor(preY / (double)(1 << shiftAmt));
+        altDiff = (int)std::floor(preZ / (double)(1 << shiftAmt));
         /* Viewer fraction (Q8, submit units) combining the fraction the
          * arithmetic shift floors away (up to 8 fine units at full scale) with
          * the eye remainder — close objects (own plane in chase view,
          * just-fired missiles) otherwise step. Signs follow the submit below:
          * posX carries +relX, posY carries −relY, viewPosZ = −altDiff. */
-        vfx = (efx - ((int)(preX - (relX << shiftAmt)) << 8)) >> shiftAmt;
-        vfy = (((int)(preY - (relY << shiftAmt)) << 8) + efy) >> shiftAmt;
-        vfz = (efz - ((preZ - (altDiff << shiftAmt)) << 8)) >> shiftAmt;
+        vfx = (efx - (int)((preX - relX * (1 << shiftAmt)) * 256)) >> shiftAmt;
+        vfy = (efy + (int)((preY - relY * (1 << shiftAmt)) * 256)) >> shiftAmt;
+        vfz = (efz - (int)((preZ - altDiff * (1 << shiftAmt)) * 256)) >> shiftAmt;
     } else {
-        vfx = efx;
-        vfy = efy;
-        vfz = efz;
+        relX = (long)std::floor((double)relXf);
+        relY = (long)std::floor((double)relYf);
+        altDiff = (int)std::floor((double)altDf);
+        vfx = (int)(efx - (relXf - relX) * 256);
+        vfy = (int)(efy + (relYf - relY) * 256);
+        vfz = (int)(efz - (altDf - altDiff) * 256);
     }
     if ((long)(int16)labs(relX) < (long)0x7FFF) {
         if ((long)(int16)labs(relY) < (long)0x7FFF) {
@@ -178,7 +192,8 @@ static void drawWorldObjectCore(int16 shapeId, int isShadow,
                 R3DSubmit obj = {g_world3dData + dataOff, shapeId & 0x7f,
                                  replacementShapeContainer(shapeId),
                                  -objYaw, objPitch, objRoll,
-                                 (int16)relX, -(int16)relY, altitude != 0,
+                                 (int16)relX, -(int16)relY,
+                                 (int)std::lround((double)altitude) != 0,
                                  isShadow};
                 obj.shapeId = replacementShapeSlot(shapeId);
                 r3d_submit(&obj);
@@ -187,7 +202,7 @@ static void drawWorldObjectCore(int16 shapeId, int isShadow,
     }
 }
 
-void drawWorldObject(int16 shapeId, int32 worldX, int32 worldY, int16 altitude, int16 objYaw, int16 objPitch, int16 objRoll, int16 scaleShift) {
+void drawWorldObject(int16 shapeId, FineRep worldX, FineRep worldY, WordScalar<> altitude, int16 objYaw, int16 objPitch, int16 objRoll, int16 scaleShift) {
     drawWorldObjectCore(shapeId, 0, worldX, worldY, altitude, objYaw, objPitch, objRoll, scaleShift);
 }
 
@@ -195,7 +210,7 @@ void drawWorldObject(int16 shapeId, int32 worldX, int32 worldY, int16 altitude, 
  * carrying the plane's true attitude. The GPU backend flattens the oriented model
  * onto the ground plane and draws it translucent (a banking plane's shadow
  * foreshortens); the software backend draws it level in flat black. */
-void drawAircraftShadow(int16 shapeId, int32 worldX, int32 worldY, int16 groundAltitude,
+void drawAircraftShadow(int16 shapeId, FineRep worldX, FineRep worldY, WordScalar<> groundAltitude,
                         int16 objYaw, int16 objPitch, int16 objRoll, int16 scaleShift) {
     drawWorldObjectCore(shapeId, 1, worldX, worldY, groundAltitude, objYaw, objPitch, objRoll, scaleShift);
 }

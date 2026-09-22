@@ -47,8 +47,10 @@ inline MapPosition<GameBackend> mapPosition(ViewCoordinate<GameBackend, ViewXAxi
 // The coarse map words stored in g_viewX_/g_viewY_ and the frozen layouts.
 inline std::int16_t mapWordX(MapPosition<GameBackend> p) { return Maps::wordX(p); }
 inline std::int16_t mapWordY(MapPosition<GameBackend> p) { return Maps::wordY(p); }
-// int32 fine-coordinate rep for word-domain stores (g_projInterpX, snapshots).
+// int32 fine-coordinate rep for word-domain stores (snapshots).
 inline std::int32_t fineWord(FineCoord<GameBackend> v) { return Maps::fineWord(v); }
+// Untruncated fine-coordinate rep for render caches (g_projInterpX).
+inline typename FineCoord<GameBackend>::StepRep fineRep(FineCoord<GameBackend> v) { return Maps::fineRep(v); }
 
 /* Word-unit offset from the typed position to stored map coordinates. Each
  * argument keeps its original promotion (uint16 zero-extends, int16

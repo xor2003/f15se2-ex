@@ -14,6 +14,12 @@ template<class Axis> inline std::int32_t fineUnits(ViewCoordinate<GameBackend, A
  * this instead of the int32 fineUnits word boundary. */
 template<class Axis> inline auto fineRep(ViewCoordinate<GameBackend, Axis> v) { return Horizontal::coordinate(v); }
 
+/* Fine-coordinate rep (int32 fixed / double modern) for the model-submit
+ * boundary: drawWorldObject takes positions in it so the object's sub-fine
+ * fraction reaches the view-frac path instead of truncating to the packed
+ * int32 word — the eye fraction alone left close models stepping. */
+using FineRep = f15::math::FineRep<GameBackend>;
+
 /* SimObject.worldX/worldY shadow writes. The packed int32 field is the frozen
  * FlightUnit layout that serialization, snapshots and word-domain consumers
  * read; the shadow ViewCoordinate carries the modern sub-fine-unit fraction.

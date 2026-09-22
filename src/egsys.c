@@ -293,16 +293,16 @@ static void objApplyInterp(const SimObjSnap *sp, const SimObjSnap *sn,
         const auto fraction = f15::math::FrameFraction::fromTicks(num, den);
         /* Default to the authoritative (next) position so a just-fired /
          * non-interpolated slot still has a valid fine value. */
-        g_projInterpX[i] = f15::math::legacy::fineWord(pn[i].fineX);
-        g_projInterpY[i] = f15::math::legacy::fineWord(pn[i].fineY);
+        g_projInterpX[i] = f15::math::legacy::fineRep(pn[i].fineX);
+        g_projInterpY[i] = f15::math::legacy::fineRep(pn[i].fineY);
         if (pp[i].ttl.atMost(0) || pn[i].ttl.word() != pp[i].ttl.word() - 1)
             continue;
         g_projectiles[i].fineX = Fine::interpolate(pp[i].fineX, pn[i].fineX, fraction);
         g_projectiles[i].fineY = Fine::interpolate(pp[i].fineY, pn[i].fineY, fraction);
         g_projectiles[i].mapX = g_projectiles[i].fineX.mapWord();
         g_projectiles[i].mapY = g_projectiles[i].fineY.mapWord();
-        g_projInterpX[i] = f15::math::legacy::fineWord(g_projectiles[i].fineX);
-        g_projInterpY[i] = f15::math::legacy::fineWord(g_projectiles[i].fineY);
+        g_projInterpX[i] = f15::math::legacy::fineRep(g_projectiles[i].fineX);
+        g_projInterpY[i] = f15::math::legacy::fineRep(g_projectiles[i].fineY);
         /* alt's low bit is the track-state flag (radar draws gray when clear),
          * not real altitude — interpolate the altitude but keep the authoritative
          * flag bit so "lost track" stays gray. */
@@ -332,8 +332,8 @@ static void objRestore(const SimObjSnap *sn, const ProjSnap *pn) {
         g_projectiles[i].fineY = pn[i].fineY;
         g_projectiles[i].mapX = pn[i].fineX.mapWord();
         g_projectiles[i].mapY = pn[i].fineY.mapWord();
-        g_projInterpX[i] = f15::math::legacy::fineWord(pn[i].fineX);
-        g_projInterpY[i] = f15::math::legacy::fineWord(pn[i].fineY);
+        g_projInterpX[i] = f15::math::legacy::fineRep(pn[i].fineX);
+        g_projInterpY[i] = f15::math::legacy::fineRep(pn[i].fineY);
         f15::math::legacy::objectLinearSetFlagged(g_projectileAlt[i], g_projectiles[i].alt,
             pn[i].alt, pn[i].altFlag != 0);
         g_projectiles[i].head = pn[i].head;
