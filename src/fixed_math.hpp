@@ -440,6 +440,24 @@ constexpr Angle16 computeBearing(int deltaX, int deltaY) {
     return Angle16(result);
 }
 
+/* computeBearing32: shift both deltas right together until the magnitude fits
+ * the word domain, then run computeBearing — the angle depends only on the
+ * ratio, so the shared shift preserves it. */
+constexpr Angle16 bearingWide(std::int32_t deltaX, std::int32_t deltaY) {
+    const std::int32_t m = (deltaX < 0 ? -deltaX : deltaX) | (deltaY < 0 ? -deltaY : deltaY);
+    int sh = 0;
+    while ((m >> sh) > 0x3fff) ++sh;
+    return computeBearing(static_cast<int>(deltaX >> sh), static_cast<int>(deltaY >> sh));
+}
+
+/* rangeApprox32: the max + min/2 approximation at full 32-bit width — no
+ * int16 truncation and no 0x7fff cap. */
+constexpr std::int32_t rangeWide(std::int32_t dx, std::int32_t dy) {
+    if (dx < 0) dx = -dx;
+    if (dy < 0) dy = -dy;
+    return dx > dy ? dx + (dy >> 1) : dy + (dx >> 1);
+}
+
 template <typename Table>
 constexpr Angle16 valueToAngle(int value, const Table &table) {
     /* Original Iasin special-cases the bit pattern 0x8000 and returns -90 deg

@@ -32,8 +32,8 @@ void brakeFlightSpeed();
 void advanceFlightHorizontal(f15::math::HorizontalSpeed<f15::math::GameBackend> speed);
 
 int16 isqrt(int16 value);
-void computeTrackingCameraAngles(int32 targetX, int32 targetY, int16 targetAlt,
-                                 int32 viewX, int32 viewY, int16 viewAlt,
+void computeTrackingCameraAngles(double targetX, double targetY, int16 targetAlt,
+                                 double viewX, double viewY, int16 viewAlt,
                                  int16 *heading, int16 *pitch);
 void UpdateThrottleState(void);
 void drawFuelGauge(void);

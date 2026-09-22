@@ -9,6 +9,8 @@ using Propulsion = f15::math::PropulsionMath<f15::math::GameBackend>;
 #include "math/legacy_map.hpp"
 using f15::math::legacy::speedWord;
 using f15::math::legacy::speedFromUnits;
+using f15::math::legacy::fineRep;
+using CamMath = f15::math::GuidanceMath<f15::math::GameBackend>;
 using SpeedMath = f15::math::AirspeedMath<f15::math::GameBackend>;
 using Aero = f15::math::AerodynamicsMath<f15::math::GameBackend>;
 using f15::math::legacy::fineUnits;
@@ -914,26 +916,30 @@ static int poseSnapsQ12(const struct ViewSnapshot *s0, const struct ViewSnapshot
            dr >= 0x4000 || dr <= -0x4000;
 }
 
-/* split a Q8 fixed-point eye coordinate into the integer part + [0,255] frac */
-static int32 eyeFromQ8(long q8, int16 *frac) {
-    *frac = (int16)(q8 & 0xff);
-    return (int32)(q8 >> 8);
+/* split a Q8 fixed-point eye coordinate into the integer part + [0,255] frac.
+ * double input so the modern backend keeps fractional fine coordinates and
+ * trig products until this Q8 render boundary. */
+static int32 eyeFromQ8(double q8, int16 *frac) {
+    const double base = std::floor(q8 / 256.0);
+    *frac = (int16)(q8 - base * 256.0);
+    return (int32)base;
 }
 
-void computeTrackingCameraAngles(int32 targetX, int32 targetY, int16 targetAlt,
-                                 int32 viewX, int32 viewY, int16 viewAlt,
+void computeTrackingCameraAngles(double targetX, double targetY, int16 targetAlt,
+                                 double viewX, double viewY, int16 viewAlt,
                                  int16 *heading, int16 *pitch) {
     enum { WORLD_Y_EXTENT = 0x100000 };
-    int32 dx = targetX - viewX;
+    const double dx = targetX - viewX;
     /* Target Y is a world coordinate, while viewY is the renderer's inverted
      * coordinate. Convert them to the same space before taking the delta. */
-    int32 dy = targetY - (WORLD_Y_EXTENT - viewY);
-    int32 range = rangeApprox32(dx, dy);
+    const double dy = targetY - (WORLD_Y_EXTENT - viewY);
+    const auto range = CamMath::wideRange(dx, dy);
 
-    /* Fine world deltas exceed int16 on normal maps. computeBearing32 scales
-     * both components equally, preserving the angle without truncation. */
-    *heading = computeBearing32(dx, -dy);
-    *pitch = -computeBearing32((int32)targetAlt - viewAlt, range);
+    /* Fine world deltas exceed int16 on normal maps. Fixed scales both
+     * components equally (computeBearing32); modern atan2 keeps the full
+     * width and fraction. */
+    *heading = signedAngle(CamMath::wideBearing(dx, -dy));
+    *pitch = -signedAngle(CamMath::wideBearing((int32)targetAlt - viewAlt, range));
 }
 
 // something to do with view switching?
@@ -999,8 +1005,8 @@ void renderFrame() {
         g_viewRoll = 0;
         /* Q8 eye: a whole-fine-unit eye position lurches visibly at close cam
          * distance as the offset rotates with the (smoothly interpolated) heading. */
-        g_camEyeX = eyeFromQ8(sinMulQ8(signedAngle(g_ourHead) + 0x4000, 0x18 << camDist) + ((long)fineUnits(g_ViewX) << 8), &g_camEyeFracX);
-        g_camEyeY = eyeFromQ8(cosMulQ8(signedAngle(g_ourHead) + 0x4000, 0x18 << camDist) + ((long)fineUnits(g_ViewY) << 8), &g_camEyeFracY);
+        g_camEyeX = eyeFromQ8(CamMath::sineOffsetQ8(g_ourHead + angleFromWord(0x4000), 0x18 << camDist, g_angleLut) + fineRep(g_ViewX) * 256.0, &g_camEyeFracX);
+        g_camEyeY = eyeFromQ8(CamMath::cosineOffsetQ8(g_ourHead + angleFromWord(0x4000), 0x18 << camDist, g_angleLut) + fineRep(g_ViewY) * 256.0, &g_camEyeFracY);
         break;
     case VIEW_EXT_UNUSED:
         g_viewHeading = 0x8000;
@@ -1012,8 +1018,8 @@ void renderFrame() {
         g_viewHeading = signedAngle(g_ourHead);
         g_viewPitch = 0;
         g_viewRoll = 0;
-        g_camEyeX = eyeFromQ8(sinMulQ8(signedAngle(g_ourHead) + 0x8000, 0x18 << camDist) + ((long)fineUnits(g_ViewX) << 8), &g_camEyeFracX);
-        g_camEyeY = eyeFromQ8(cosMulQ8(signedAngle(g_ourHead) + 0x8000, 0x18 << camDist) + ((long)fineUnits(g_ViewY) << 8), &g_camEyeFracY);
+        g_camEyeX = eyeFromQ8(CamMath::sineOffsetQ8(g_ourHead + angleFromWord((int16)0x8000), 0x18 << camDist, g_angleLut) + fineRep(g_ViewX) * 256.0, &g_camEyeFracX);
+        g_camEyeY = eyeFromQ8(CamMath::cosineOffsetQ8(g_ourHead + angleFromWord((int16)0x8000), 0x18 << camDist, g_angleLut) + fineRep(g_ViewY) * 256.0, &g_camEyeFracY);
         g_camEyeZ = (4 << camDist) + f15::math::legacy::Altitudes::renderWord(flightSceneHeight());
         break;
     case VIEW_EXT_TARGET:
@@ -1060,21 +1066,21 @@ void renderFrame() {
         }
         if (g_directorMode == 0) camDist = savedCamDist;
         computeTrackingCameraAngles((int32)g_viewTargetX, (int32)g_viewTargetY,
-                                    g_viewTargetAlt, fineUnits(g_ViewX), fineUnits(g_ViewY),
+                                    g_viewTargetAlt, fineRep(g_ViewX), fineRep(g_ViewY),
                                     f15::math::legacy::Altitudes::renderWord(flightSceneHeight()),
                                     &g_viewHeading, &g_viewPitch);
         g_viewRoll = 0;
-        camOffset = cosMul(g_viewPitch, 0x18 << camDist);
+        camOffset = (int16)CamMath::cosineVelocity(angleFromWord(g_viewPitch), 0x18 << camDist, g_angleLut);
         if (g_viewTargetObj & 0x60 || g_directorMode != 0) {
             if (g_viewMode == VIEW_EXT_TARGET) {
-                g_camEyeX = eyeFromQ8(sinMulQ8(g_viewHeading + 0x8000, camOffset) + ((long)fineUnits(g_ViewX) << 8), &g_camEyeFracX);
-                g_camEyeY = eyeFromQ8(cosMulQ8(g_viewHeading + 0x8000, camOffset) + ((long)fineUnits(g_ViewY) << 8), &g_camEyeFracY);
-                g_camEyeZ = (int16)eyeFromQ8(sinMulQ8(g_viewPitch, 0x18 << camDist) + ((long)((4 << camDist) + f15::math::legacy::Altitudes::renderWord(flightSceneHeight())) << 8), &g_camEyeFracZ);
+                g_camEyeX = eyeFromQ8(CamMath::sineOffsetQ8(angleFromWord((int16)(g_viewHeading + 0x8000)), camOffset, g_angleLut) + fineRep(g_ViewX) * 256.0, &g_camEyeFracX);
+                g_camEyeY = eyeFromQ8(CamMath::cosineOffsetQ8(angleFromWord((int16)(g_viewHeading + 0x8000)), camOffset, g_angleLut) + fineRep(g_ViewY) * 256.0, &g_camEyeFracY);
+                g_camEyeZ = (int16)eyeFromQ8(CamMath::sineOffsetQ8(angleFromWord(g_viewPitch), 0x18 << camDist, g_angleLut) + ((4 << camDist) + f15::math::legacy::Altitudes::renderWord(flightSceneHeight())) * 256.0, &g_camEyeFracZ);
                 g_viewPitch = -g_viewPitch;
             } else {
-                g_camEyeX = eyeFromQ8(sinMulQ8(g_viewHeading, camOffset) + ((long)g_viewTargetX << 8), &g_camEyeFracX);
-                g_camEyeY = eyeFromQ8(cosMulQ8(g_viewHeading, camOffset) + (((long)0x100000 - (long)g_viewTargetY) << 8), &g_camEyeFracY);
-                g_camEyeZ = (int16)eyeFromQ8((((long)(4 << camDist) + g_viewTargetAlt) << 8) - sinMulQ8(g_viewPitch, 0x18 << camDist), &g_camEyeFracZ);
+                g_camEyeX = eyeFromQ8(CamMath::sineOffsetQ8(angleFromWord(g_viewHeading), camOffset, g_angleLut) + g_viewTargetX * 256.0, &g_camEyeFracX);
+                g_camEyeY = eyeFromQ8(CamMath::cosineOffsetQ8(angleFromWord(g_viewHeading), camOffset, g_angleLut) + (0x100000 - (double)g_viewTargetY) * 256.0, &g_camEyeFracY);
+                g_camEyeZ = (int16)eyeFromQ8(((4 << camDist) + g_viewTargetAlt) * 256.0 - CamMath::sineOffsetQ8(angleFromWord(g_viewPitch), 0x18 << camDist, g_angleLut), &g_camEyeFracZ);
                 if (g_viewTargetObj & 0x40 && g_planeTable.planes[g_viewTargetObj & 0x3f].flags & 0x200 && g_camEyeZ < 132) {
                     g_camEyeZ = 132;
                     g_camEyeFracZ = 0;
@@ -1084,10 +1090,10 @@ void renderFrame() {
         } else {
             g_viewHeading = signedAngle(g_projectiles[g_viewTargetObj].head);
             g_viewPitch = (int16)(signedAngle(g_projectiles[g_viewTargetObj].pitch) - 0x400);
-            camOffset = cosMul(g_viewPitch, 0x10 << camDist);
-            g_camEyeX = eyeFromQ8(((long)g_viewTargetX << 8) - sinMulQ8(g_viewHeading, camOffset), &g_camEyeFracX);
-            g_camEyeY = eyeFromQ8(((long)0x100000 << 8) - (cosMulQ8(g_viewHeading, camOffset) + ((long)g_viewTargetY << 8)), &g_camEyeFracY);
-            g_camEyeZ = (int16)eyeFromQ8(((long)g_viewTargetAlt << 8) - sinMulQ8(g_viewPitch, 0x10 << camDist), &g_camEyeFracZ);
+            camOffset = (int16)CamMath::cosineVelocity(angleFromWord(g_viewPitch), 0x10 << camDist, g_angleLut);
+            g_camEyeX = eyeFromQ8((double)g_viewTargetX * 256.0 - CamMath::sineOffsetQ8(angleFromWord(g_viewHeading), camOffset, g_angleLut), &g_camEyeFracX);
+            g_camEyeY = eyeFromQ8(0x100000 * 256.0 - (CamMath::cosineOffsetQ8(angleFromWord(g_viewHeading), camOffset, g_angleLut) + (double)g_viewTargetY * 256.0), &g_camEyeFracY);
+            g_camEyeZ = (int16)eyeFromQ8((double)g_viewTargetAlt * 256.0 - CamMath::sineOffsetQ8(angleFromWord(g_viewPitch), 0x10 << camDist, g_angleLut), &g_camEyeFracZ);
         }
         break;
     case VIEW_EJECT:

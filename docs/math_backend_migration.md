@@ -1098,6 +1098,41 @@ Verification: fixed 59/59 (sortie parity exercises target selection and the
 autopilot HUD path; object AI runs in the golden sortie) and modern smoke
 pass; `typed_guidance_tests` adds the fractional-delta `aimBearing` case.
 
+## Camera fine-machinery checkpoint
+
+The tracked/tracking camera math that differences FINE world deltas is typed:
+
+* `GuidanceMath::wideBearing` — the `computeBearing32` endpoint: fixed runs
+  the shared shift-to-fit + LUT bearing on int32-narrowed deltas (integer
+  callers exact); modern evaluates atan2 on the un-narrowed, possibly
+  fractional deltas — no shift, no LUT.
+* `GuidanceMath::wideRange` — `rangeApprox32`: max + min/2 on the magnitudes,
+  int32 under fixed / double under modern, uncapped both ways.
+* `GuidanceMath::sineOffsetQ8`/`cosineOffsetQ8` — `sinMulQ8`/`cosMulQ8`:
+  `(sine * mag) >> 7` on the Q15 table value under fixed; `trig(rad) * mag *
+  2^8` under modern.
+* `eyeFromQ8` (egflight.c) takes the Q8 sum as double: the integer part is
+  `floor(q8 / 256)` and the frac byte the sub-unit remainder — identical to
+  `>>8`/`&0xff` on integer inputs, and under modern the fractional view
+  position (`fineRep`) and trig product flow into the Q8 sum so the frac byte
+  carries real sub-word precision.
+
+Consumers: `drawTargetView` (egmath.c) — its `dxFine`/`dyFine` are now
+fraction-capable (`fineRep` instead of `fineUnits`) so the tracked-model
+bearing/pitch keep the modern sub-word position; `computeTrackingCameraAngles`
+(egflight.c, signature widened to double) and the chase/target/follow/side
+camera eye offsets in `renderFrame`, where `g_ourHead` stays typed through the
+trig instead of round-tripping through `signedAngle`. The camera outputs stay
+word/int32 globals — the render boundary — and the deliberate float offset
+block in `drawTargetView` (keyed to the view matrix's sine table) is
+untouched.
+
+Verification: fixed 59/59 (sortie parity exercises external/tracking views
+during the golden run) and modern smoke pass; `typed_guidance_tests` checks
+`wideBearing`/`wideRange` against the real `computeBearing32`/`rangeApprox32`
+oracles and the Q8 helpers against `sinMulQ8`/`cosMulQ8` plus modern
+fractional cases.
+
 ### Next acceptance boundary
 
 Aircraft Euler, command, altitude, climb, airspeed and fine horizontal position
@@ -1149,10 +1184,10 @@ input widths or introduce new flight-model formulas.
 | Orientation | Typed persistent matrix/Euler state, fixed/double recovery, axis deltas and render pose interpolation | Typed control inputs, legacy scalar consumer removal and modern refresh integration |
 | Projection/HUD | Selected projection, clipping, HUD rotation helpers | Verify against current rasterizer and HUD state, including invalid/depth sentinels |
 | Range/bearing | Legacy approximation and bearing helpers | Keep gameplay distance approximation distinct from Euclidean distance |
-| Camera precision | Not complete | sinMulQ8/cosMulQ8, camera fractional remainders, fine-coordinate bearing/range in egmath.c |
+| Camera precision | Fine bearing/range and Q8 eye offsets typed; outputs stay word/Q8 at the render boundary | Remaining render-internal projection math (sinMulQ8 remnants in egtacmap, view-matrix LUT path) |
 | Terrain/world coordinates | Coarse `MapPosition` typed with fixed-word/fractional-double storage and boundary word adapters | scaleCoordToLod, fractional LOD remainders, world wrapping and render-pipeline coordinate reads in eg3dproj.c/stterr.c/egtgt2.c/egmath.c |
-| Flight integration | Not complete | stepFlightModel forces, velocity/position integration, coefficients, tick scaling, clamps |
-| Combat/AI | Not complete | Projectile fine positions, guidance, collision/proximity thresholds, movement and acquisition math |
+| Flight integration | stepFlightModel forces, velocity/position integration, coefficients and clamps typed end to end | Modern refresh policy vs the original periodic rebuild (see acceptance boundary) |
+| Combat/AI | Projectile guidance/state, bullet tracks, SimObject decision reads and acquisition typed; fields stay word-precision where file layout is frozen | Collision/proximity threshold math on packed fields; word-domain AI internals that have no typed source to preserve |
 | Randomness/time | Only a scaling helper | Separate deterministic RNG and simulation clock contracts from numeric representation |
 
 Not every integer operation is fixed-point math. Object indices, packed flags,

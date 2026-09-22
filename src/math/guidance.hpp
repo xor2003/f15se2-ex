@@ -286,6 +286,56 @@ public:
             return std::cos(a.value_) * mag;
     }
 
+    /* ---- Camera/tracked-view fine machinery ---- */
+
+    /* computeBearing32 endpoint: bearing on deltas too wide for the word
+     * domain. Fixed runs the shared shift-to-fit + LUT bearing on the
+     * int32-narrowed values (integer callers exact); modern evaluates atan2
+     * directly on the un-narrowed deltas, keeping fractions. (0, 0) keeps the
+     * original's south answer. */
+    static Angle<B> wideBearing(double dx, double dy) {
+        if constexpr (std::is_same_v<B, FixedBackend>)
+            return Angle<B>(fixed::bearingWide(static_cast<std::int32_t>(dx),
+                                                 static_cast<std::int32_t>(dy)));
+        else
+            return Angle<B>(dx == 0 && dy == 0 ? 32768.0 * wordRadians : std::atan2(dx, dy));
+    }
+
+    /* rangeApprox32: max + min/2 on the magnitudes at 32-bit width — no int16
+     * truncation, no 0x7fff cap. Modern keeps the fraction. */
+    static typename FineCoord<B>::StepRep wideRange(double dx, double dy) {
+        if constexpr (std::is_same_v<B, FixedBackend>)
+            return fixed::rangeWide(static_cast<std::int32_t>(dx),
+                                    static_cast<std::int32_t>(dy));
+        else {
+            const double ax = std::fabs(dx), ay = std::fabs(dy);
+            return ax > ay ? ax + ay * 0.5 : ay + ax * 0.5;
+        }
+    }
+
+    /* sinMulQ8/cosMulQ8: the camera eye offsets — a Q8-scaled trig product
+     * ((sine * mag) >> 7 on the Q15 table value). Fixed reproduces it on the
+     * int16-narrowed magnitude; modern keeps sin(rad)*mag*2^8 with the
+     * fractional magnitude. */
+    static typename FineCoord<B>::StepRep sineOffsetQ8(Angle<B> a, double mag,
+                                                       const std::int16_t *lut) {
+        if constexpr (std::is_same_v<B, FixedBackend>)
+            return static_cast<std::int32_t>(
+                (static_cast<long>(fixed::sine(a.value_, lut).asInt()) *
+                 static_cast<int>(mag)) >> 7);
+        else
+            return std::sin(a.value_) * mag * 256.0;
+    }
+    static typename FineCoord<B>::StepRep cosineOffsetQ8(Angle<B> a, double mag,
+                                                         const std::int16_t *lut) {
+        if constexpr (std::is_same_v<B, FixedBackend>)
+            return static_cast<std::int32_t>(
+                (static_cast<long>(fixed::cosine(a.value_, lut).asInt()) *
+                 static_cast<int>(mag)) >> 7);
+        else
+            return std::cos(a.value_) * mag * 256.0;
+    }
+
     /* (vel * alphaQ12) >> 12 — the Q12 render-interpolation / swept-path
      * travel step. Fixed multiplies in int32 then truncates; modern keeps the
      * fractional product. */

@@ -8,7 +8,12 @@ using f15::math::legacy::fineUnits;
 #include "egcode.h"
 #include "egdata.h"
 #include "math/legacy_rotation.hpp"
+#include "math/legacy_map.hpp"
+#include "math/guidance.hpp"
 using f15::math::legacy::signedAngle;
+using f15::math::legacy::fineRep;
+using f15::math::legacy::mapRangeDelta;
+using CamMath = f15::math::GuidanceMath<f15::math::GameBackend>;
 #include "egframe.h"
 #include "egmath.h"
 #include "egtacmap.h"
@@ -277,7 +282,8 @@ int16 computeBearing32(int32 deltaX, int32 deltaY) {
  * Differencing the fine coords (once, below) and taking the bearing/pitch off those
  * fine deltas removes both the beat and the coarse angular snapping. */
 void drawTargetView(int shapeId, int32 worldX, int32 worldY, int altitude, int objYaw, int objPitch, int objRoll, int mode, int shift) {
-    int32 dxFine, dyFine, dzFine;
+    double dxFine, dyFine;
+    int32 dzFine;
     int unused;
     int horizonY;
     int bearing;
@@ -300,20 +306,22 @@ void drawTargetView(int shapeId, int32 worldX, int32 worldY, int altitude, int o
     logShapeReplacementIfPresent(shapeId);
     *g_targetViewParams = 1;
 
-    dxFine = worldX - fineUnits(g_ViewX);
-    dyFine = worldY - fineUnits(g_ViewY);
+    /* fineRep keeps the fractional modern view position — the deltas feed the
+     * bearing/pitch below without the int32 truncation fineUnits applies. */
+    dxFine = worldX - fineRep(g_ViewX);
+    dyFine = worldY - fineRep(g_ViewY);
     dzFine = altitude - g_viewZ;
 
     if (mode < 2) {
         g_trkRoll = 0;
-        relX = (int)(dxFine >> 5);
-        relY = (int)(dyFine >> 5);
+        relX = (int)dxFine >> 5;
+        relY = (int)dyFine >> 5;
         relZ = (int)(dzFine >> 5);
         /* Bearing/pitch off the fine deltas so the tracked model glides; the range
          * (model size / tracking scale) keeps the original coarse magnitude. */
-        bearing = computeBearing32(dxFine, -dyFine);
-        pitch = computeBearing32(dzFine, rangeApprox32(dxFine, dyFine));
-        range = rangeApprox(relZ, rangeApprox(relX, relY));
+        bearing = signedAngle(CamMath::wideBearing(dxFine, -dyFine));
+        pitch = signedAngle(CamMath::wideBearing(dzFine, CamMath::wideRange(dxFine, dyFine)));
+        range = (int)mapRangeDelta(relZ, (int)mapRangeDelta(relX, relY));
 
         if (mode == 1) {
             g_trkRange = range;
@@ -371,8 +379,8 @@ void drawTargetView(int shapeId, int32 worldX, int32 worldY, int altitude, int o
             fracZ = roundToInt((relZ - relZf) * 256.0f);
         }
     } else {
-        relX = (int)(dxFine >> 5) << 4;
-        relY = (int)(dyFine >> 5) << 4;
+        relX = ((int)dxFine >> 5) << 4;
+        relY = ((int)dyFine >> 5) << 4;
         relZ = (int)(dzFine >> 1);
         g_trkBearing = signedAngle(g_ourHead);
         g_trkPitch = g_extViewPitch;

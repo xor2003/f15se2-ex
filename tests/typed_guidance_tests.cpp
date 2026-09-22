@@ -19,6 +19,10 @@ extern int16_t sine(int16_t angle);
 extern int16_t cosine(int16_t angle);
 extern int16_t sinMul(int16_t angle, int16_t value);
 extern int16_t cosMul(int16_t angle, int16_t value);
+extern int16_t computeBearing32(int32_t deltaX, int32_t deltaY);
+extern int32_t rangeApprox32(int32_t deltaX, int32_t deltaY);
+extern long sinMulQ8(int angle, int value);
+extern long cosMulQ8(int angle, int value);
 extern const int16_t g_angleLut[260];
 
 namespace {
@@ -321,9 +325,46 @@ void bulletModernCases() {
     require(std::abs(GuidanceMath<M>::fineTravel(10.5, 2048) - 5.25) < 1e-12,
         "modern Q12 travel step truncated");
 }
+
+/* Camera/tracked-view fine machinery: computeBearing32/rangeApprox32 and the
+ * Q8 eye offsets (sinMulQ8/cosMulQ8). */
+void cameraFixedCases() {
+    for (int dx : {-0x1FFFFF, -70000, -1, 0, 1, 40000, 70000, 0x1FFFFF})
+        for (int dy : {-0x1FFFFF, -33000, 0, 12345, 0x1FFFFF}) {
+            require(legacy::signedAngle(GuidanceMath<F>::wideBearing(dx, dy)) ==
+                    computeBearing32(dx, dy),
+                "fixed wide bearing differs from computeBearing32");
+            require(GuidanceMath<F>::wideRange(dx, dy) == rangeApprox32(dx, dy),
+                "fixed wide range differs from rangeApprox32");
+        }
+    for (int raw = 0; raw < 65536; raw += 97)
+        for (int mag : {-9984, -1, 0, 1, 9984}) {
+            require(GuidanceMath<F>::sineOffsetQ8(legacy::angleFromWord(raw), mag, g_angleLut) ==
+                    sinMulQ8(raw, mag), "fixed Q8 sine offset differs from sinMulQ8");
+            require(GuidanceMath<F>::cosineOffsetQ8(legacy::angleFromWord(raw), mag, g_angleLut) ==
+                    cosMulQ8(raw, mag), "fixed Q8 cosine offset differs from cosMulQ8");
+        }
+}
+void cameraModernCases() {
+    const double unit = 6.28318530717958647692 / 65536;
+    /* atan2 on the full-width deltas — no shift-to-fit narrowing. */
+    require(std::abs(Boundary<M>::radians(GuidanceMath<M>::wideBearing(70000.5, -33000.25)) -
+                     std::atan2(70000.5, -33000.25)) < 1e-14,
+        "modern wide bearing narrowed the fine deltas");
+    /* Uncapped max + min/2 on the magnitudes, fraction kept. */
+    require(std::abs(GuidanceMath<M>::wideRange(-70000.5, 33000.25) - (70000.5 + 16500.125)) < 1e-9,
+        "modern wide range truncated or capped");
+    /* Q8 offset keeps the exact trig product scaled by 2^8. */
+    const auto rad = Boundary<M>::radians(0.6);
+    require(std::abs(GuidanceMath<M>::sineOffsetQ8(rad, 24, g_angleLut) - std::sin(0.6) * 24 * 256) < 1e-9,
+        "modern Q8 sine offset truncated");
+    require(std::abs(GuidanceMath<M>::cosineOffsetQ8(rad, 24, g_angleLut) - std::cos(0.6) * 24 * 256) < 1e-9,
+        "modern Q8 cosine offset truncated");
+}
 }
 int main() {
     fixedCases(); modernCases(); recoveryCases(); modernApproachCases();
     projectileFixedCases(); projectileModernCases();
     bulletFixedCases(); bulletModernCases();
+    cameraFixedCases(); cameraModernCases();
 }
