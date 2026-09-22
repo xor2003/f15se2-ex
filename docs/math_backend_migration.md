@@ -1135,16 +1135,26 @@ fractional cases.
 
 ### Next acceptance boundary
 
-Aircraft Euler, command, altitude, climb, airspeed and fine horizontal position
-storage plus stall threshold, lift correction and pitch trim are typed, but most scalar control
-producers and consumers remain legacy math. Migrate target-speed generation,
-corner-speed and thrust/force generation, object state and remaining
-read adapters before selecting modern flight math; changing the angle backend
-alone would still quantize at these consumers. Keep modern refresh policy distinct from the original periodic rebuild,
-which intentionally quantizes fixed state. Then migrate flight
-position/velocity/forces and their consumers with explicit
-units, frames and file/render adapters. Projection, terrain, combat and AI remain
-unmigrated. The final acceptance requirements below still apply.
+The decision-math surface is migrated end to end: every gameplay compare
+that reads a typed source does so through a backend-dispatched helper
+(`mapOffset`/`mapRange`/`ringX`, `angleMagnitude`/`angleSeparation`,
+`aimBearing`, `wideBearing`/`wideRange`, `limitTurn`, the typed flight
+quantities). The remaining raw math falls into three reviewed categories:
+
+* packed-file-layout state (`SimObject`, `planes[]`, event records) whose
+  words are authoritative — reads are typed at decision sites, but the
+  fields themselves have no fraction to preserve;
+* render/HUD/projection internals (view matrix, `scaleCoordToLod` LOD
+  quantization, `projectWorldToHud*`, tacmap panning) — the reviewed
+  render boundary where word/Q8 outputs are the contract;
+* integer bookkeeping (counters, ammo, timers, indices) that is not
+  fixed-point math at all.
+
+Before declaring backend equivalence complete, the remaining judgment call
+is the modern refresh policy vs the original periodic rebuild, which
+intentionally quantizes fixed state, plus any packed-field AI internals the
+project chooses to shadow with typed state. The final acceptance
+requirements below still apply.
 
 ## Provenance and import corrections
 
@@ -1185,9 +1195,9 @@ input widths or introduce new flight-model formulas.
 | Projection/HUD | Selected projection, clipping, HUD rotation helpers | Verify against current rasterizer and HUD state, including invalid/depth sentinels |
 | Range/bearing | Legacy approximation and bearing helpers | Keep gameplay distance approximation distinct from Euclidean distance |
 | Camera precision | Fine bearing/range and Q8 eye offsets typed; outputs stay word/Q8 at the render boundary | Remaining render-internal projection math (sinMulQ8 remnants in egtacmap, view-matrix LUT path) |
-| Terrain/world coordinates | Coarse `MapPosition` typed with fixed-word/fractional-double storage and boundary word adapters | scaleCoordToLod, fractional LOD remainders, world wrapping and render-pipeline coordinate reads in eg3dproj.c/stterr.c/egtgt2.c/egmath.c |
+| Terrain/world coordinates | Coarse `MapPosition` typed; sub-LOD precision flows through `g_camEyeFrac*` frac bytes into `lodEyeFracQ8` | scaleCoordToLod LOD quantization is render-internal; all nearest-tile callers pass packed word sources |
 | Flight integration | stepFlightModel forces, velocity/position integration, coefficients and clamps typed end to end | Modern refresh policy vs the original periodic rebuild (see acceptance boundary) |
-| Combat/AI | Projectile guidance/state, bullet tracks, SimObject decision reads and acquisition typed; fields stay word-precision where file layout is frozen | Collision/proximity threshold math on packed fields; word-domain AI internals that have no typed source to preserve |
+| Combat/AI | Projectile guidance/state, bullet tracks, SimObject decision reads, acquisition, lock cones and landing/corridor gates typed | Hit-test broad phases are word-domain game rules (precise swept test already typed); packed-field AI internals have no fraction to preserve |
 | Randomness/time | Only a scaling helper | Separate deterministic RNG and simulation clock contracts from numeric representation |
 
 Not every integer operation is fixed-point math. Object indices, packed flags,
