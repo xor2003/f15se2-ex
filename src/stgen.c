@@ -232,9 +232,9 @@ counterMore1k:
         missionTargetY = ((missionTargetY >> 0xa) << 0xa) + 0x200;
     }
     for (idx = 0; idx < flightUnitCount - 4; idx++) {
-        if ((flightUnits[idx].flags & 0x80) != 0) {
+        if ((flightUnits[idx].flags & SIMOBJ_WAYPOINTED) != 0) {
             maxRange = (baseDist[0] / 4) * (4 - difficultySaved);
-            if ((flightUnits[idx].flags & 0x40) != 0) {
+            if ((flightUnits[idx].flags & SIMOBJ_LONG_RANGE) != 0) {
                 maxRange = baseDist[0] << 1;
             }
             do {
@@ -255,7 +255,7 @@ counterMore1k:
                 }
             }
         }
-        if (((flightUnits[idx].flags & 0x100) != 0) && (escortMissionFlag != -1)) {
+        if (((flightUnits[idx].flags & SIMOBJ_TRACKED_SITE) != 0) && (escortMissionFlag != -1)) {
             positionUnit(idx, playerStartLoc);
             flightUnits[idx].fuel = DEFAULT_FUEL;
         }
@@ -402,7 +402,7 @@ void positionUnit(int16 unit, int16 loc) {
     flightUnits[unit].heading = 0xfc00;
     flightUnits[unit].pitch = 0;
     flightUnits[unit].roll = 0;
-    flightUnits[unit].flags |= 0x403;
+    flightUnits[unit].flags |= SIMOBJ_ACTIVE | SIMOBJ_ALIVE | SIMOBJ_CLIMBOUT;
     flightUnits[unit].waypointIdx = loc;
     flightUnits[unit].fuel = ((int32)planes[planeType].range << 0xd) / flightUnits[unit].maxSpeed;
 }

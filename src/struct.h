@@ -217,6 +217,57 @@ struct BulletTrack {
 #define BULLET_FINE_MASK 0x1FFFFF
 
 #pragma pack(1)
+/* SimObject.flags bit semantics. The word persists from the on-disk
+ * FlightUnit record (worldImportToEgame seeds it from the target's
+ * targetFlags), so high-byte bits carry double duty: on aircraft spawns
+ * they are the sim role bits below; on imported ground objects they
+ * arrive as WorldObject.targetFlags (0x100 airbase / 0x200 large /
+ * 0x400 waypoint / 0x800 disabled). Sim code only ever adds bits — the
+ * targetFlags meanings stay readable on ground objects while aircraft
+ * reinterpret the same positions.
+ *
+ * Low byte (b[0]) — dynamic sim state:
+ *   ACTIVE      participates in threat/target processing (set at spawn)
+ *   ALIVE       object alive; cleared on cleanup (egsys snapshot `alive`)
+ *   ENGAGED     committed to an engagement; threat AI stops retargeting
+ *   UNDER_FIRE  hit flash — set on hit, cleared as damage decays
+ *   PAINTED     a SAM/weapon has locked this object (<0x180 acq range)
+ *   DESTROYED   kill counted by destroyAircraft; filtered from targeting
+ *   LONG_RANGE  disk attr: long-range placement unit (stgen)
+ *   WAYPOINTED  disk attr: waypoint-driven unit (stgen)
+ * High byte (b[1]) — aircraft roles (targetFlags on ground objects):
+ *   TRACKED_SITE  escort flight (air) / airbase site (ground): enables the
+ *                 padlock-follow target path
+ *   INTERCEPTOR   pursuit-lead (interceptor) target mode / imported "large"
+ *   CLIMBOUT      post-spawn climb to altitude at max speed / imported
+ *                 "waypoint"
+ *   ENEMY_AIR     counts toward g_enemyAirRemaining / imported "disabled"
+ *   EGRESSING     heading home: wings level, decelerate, then despawn
+ *   ONSCREEN      position inside the view frustum this frame; visible
+ *                 aircraft get the AI pitch-up response
+ *   ALERTED       alert raised (damage > 0xc0); recorded in map events
+ * PERSIST_MASK    bits that survive the threat-recycle clear
+ *                 (ACTIVE|LONG_RANGE|WAYPOINTED|TRACKED_SITE). */
+enum SimObjectFlag : uint16 {
+    SIMOBJ_ACTIVE       = 0x0001,
+    SIMOBJ_ALIVE        = 0x0002,
+    SIMOBJ_ENGAGED      = 0x0004,
+    SIMOBJ_UNDER_FIRE   = 0x0008,
+    SIMOBJ_PAINTED      = 0x0010,
+    SIMOBJ_DESTROYED    = 0x0020,
+    SIMOBJ_LONG_RANGE   = 0x0040,
+    SIMOBJ_WAYPOINTED   = 0x0080,
+    SIMOBJ_TRACKED_SITE = 0x0100,
+    SIMOBJ_INTERCEPTOR  = 0x0200,
+    SIMOBJ_CLIMBOUT     = 0x0400,
+    SIMOBJ_ENEMY_AIR    = 0x0800,
+    SIMOBJ_EGRESSING    = 0x1000,
+    SIMOBJ_ONSCREEN     = 0x2000,
+    SIMOBJ_ALERTED      = 0x4000,
+    SIMOBJ_PERSIST_MASK = SIMOBJ_ACTIVE | SIMOBJ_LONG_RANGE |
+                          SIMOBJ_WAYPOINTED | SIMOBJ_TRACKED_SITE, // 0x01c1
+};
+
 struct SimObject {
     int16 objType; // +0x00  spec index into g_planes
     uint16 posX;   // +0x02  world X seed; worldX = posX << 5

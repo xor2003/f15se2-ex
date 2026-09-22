@@ -189,7 +189,7 @@ static uint64 simStepNsNow(void) {
  * each sim step, write an interpolated copy into the live fields for the render,
  * then restore the authoritative "next". Identity gating avoids tweening across
  * a slot reuse / teleport (which would streak):
- *   - sim objects: only while alive (flags bit1) in both frames and the world
+ *   - sim objects: only while alive (SIMOBJ_ALIVE) in both frames and the world
  *     position moved less than a step could plausibly carry it (a real step
  *     advances a few hundred world units; a reuse/respawn jumps map-scale).
  *   - projectiles: ttl decrements by exactly 1 per step in flight and a reused
@@ -240,7 +240,7 @@ static void objCapture(SimObjSnap *sim, ProjSnap *proj) {
         sim[i].head = g_simObjectHeading[i];
         sim[i].pitch = g_simObjectPitch[i];
         sim[i].bank = g_simObjectBank[i];
-        sim[i].alive = (g_simObjects[i].flags.b[0] & 2) ? 1 : 0;
+        sim[i].alive = (g_simObjects[i].flags.w & SIMOBJ_ALIVE) ? 1 : 0;
     }
     for (i = 0; i < PROJ_MAX; i++) {
         proj[i].fineX = g_projectiles[i].fineX;

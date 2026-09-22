@@ -80,7 +80,7 @@ void fireAirThreat(int16 objIdx) {
 
         if (g_simObjects[objIdx].damage > 0xc0) {
             g_enemyAlertFlag++;
-            g_simObjects[objIdx].flags.b[1] |= 0x40;
+            g_simObjects[objIdx].flags.w |= SIMOBJ_ALERTED;
             updateThreatAlert();
 
             slot = objIdx % (g_missionStatus + 1);
@@ -126,7 +126,7 @@ void fireAirThreat(int16 objIdx) {
                                 scheduleEventCheck(objIdx + 0x20, 2);
 
                                 if (randomRange(4) == 0) {
-                                    g_simObjects[objIdx].flags.b[0] |= 4;
+                                    g_simObjects[objIdx].flags.w |= SIMOBJ_ENGAGED;
                                 }
                             }
                         }
@@ -134,9 +134,9 @@ void fireAirThreat(int16 objIdx) {
                 }
             }
         }
-        g_simObjects[objIdx].flags.b[0] |= 8;
+        g_simObjects[objIdx].flags.w |= SIMOBJ_UNDER_FIRE;
     } else {
-        g_simObjects[objIdx].flags.b[0] &= 0xf7;
+        g_simObjects[objIdx].flags.w &= ~SIMOBJ_UNDER_FIRE;
         g_simObjects[objIdx].damage -= 0x20;
     }
 
@@ -171,11 +171,11 @@ void spawnEnemyAircraft(int16 slot, int16 objType) {
                              (int32)(uint16)g_simObjects[slot].posY << 5);
     objectAttitudeSet(g_simObjectPitch[slot], g_simObjects[slot].pitch, AircraftAngle{});
     objectAttitudeSet(g_simObjectBank[slot], g_simObjects[slot].bank.w, AircraftAngle{});
-    g_simObjects[slot].flags.w |= 0x403;
+    g_simObjects[slot].flags.w |= SIMOBJ_ACTIVE | SIMOBJ_ALIVE | SIMOBJ_CLIMBOUT;
     g_simObjects[slot].objType = objType;
     g_simObjects[slot].timer = (int16)(((int32)aircraftTypes[spec].range << 11) * (int32)g_frameRateScaling.word() / (int32)aircraftTypes[spec].maxSpeed);
     if (g_padlockAircraft == -1) {
-        g_simObjects[slot].flags.b[1] &= 0xfe;
+        g_simObjects[slot].flags.w &= ~SIMOBJ_TRACKED_SITE;
     }
     placeString(objType);
     strcat(strBuf, " - ");
@@ -244,7 +244,7 @@ void updateThreatTargeting(void) {
                         !(g_planeTable.planes[g_projectiles[slot].targetRef].flags & 0x10))
                         locked = 0;
                     if (g_projectiles[slot].targetRef <= 0 &&
-                        !(g_simObjects[-g_projectiles[slot].targetRef].flags.b[0] & 8))
+                        !(g_simObjects[-g_projectiles[slot].targetRef].flags.w & SIMOBJ_UNDER_FIRE))
                         locked = 0;
                 }
                 if (g_projectiles[slot].speed < f15::specProjSpeed(sams[spec].maxSpeed) && frameTick.bit(0))
@@ -262,7 +262,7 @@ void updateThreatTargeting(void) {
                         if (g_projectiles[slot].targetLock != -1 &&
                             scan != g_projectiles[slot].targetLock)
                             continue;
-                        if ((g_simObjects[scan].flags.b[0] & 2) &&
+                        if ((g_simObjects[scan].flags.w & SIMOBJ_ALIVE) &&
                             g_simObjectSpeed[scan] != 0) {
                             acq = samCanAcquireTarget(slot, g_simObjects[scan].posX,
                                                       g_simObjects[scan].posY,
@@ -274,7 +274,7 @@ void updateThreatTargeting(void) {
                                 alt0 = g_simObjects[scan].alt;
                                 locked = 1;
                                 if (best < 0x180) {
-                                    g_simObjects[scan].flags.b[0] |= 0x10;
+                                    g_simObjects[scan].flags.w |= SIMOBJ_PAINTED;
                                     scheduleEventCheck(scan + 0x20, 1);
                                 }
                             }
@@ -576,24 +576,24 @@ int samCanAcquireTarget(int slot, int targetX, int targetY, int targetAlt, int m
 void destroyAircraft(int16 objIdx) {
     int16 eventType;
 
-    if (!(g_simObjects[objIdx].flags.b[0] & 0x20)) {
+    if (!(g_simObjects[objIdx].flags.w & SIMOBJ_DESTROYED)) {
         aircraftTypes[g_simObjects[objIdx].spec].killCount += 1;
-        if (g_simObjects[objIdx].flags.w & 0x800) {
+        if (g_simObjects[objIdx].flags.w & SIMOBJ_ENEMY_AIR) {
             g_enemyAirRemaining--;
         }
         if (objIdx == g_padlockAircraft) {
             g_padlockAircraft = -1;
         }
-        g_simObjects[objIdx].flags.b[0] |= 0x20;
+        g_simObjects[objIdx].flags.w |= SIMOBJ_DESTROYED;
         g_smokeSourceIdx = -1;
         g_wreckPos = f15::math::legacy::mapPosition((std::int16_t)g_simObjects[objIdx].posX,
                                                   (std::int16_t)g_simObjects[objIdx].posY);
         g_wreckAlt = f15::math::legacy::terrainFromUnits(g_simObjects[objIdx].alt);
         g_wreckFallVel = f15::math::legacy::climbFromUnits(0x80);
         eventType = 3;
-        appendMapEvent(eventType, (g_simObjects[objIdx].flags.w & 0x4000 ? 0x80 : 0) + g_simObjects[objIdx].spec);
+        appendMapEvent(eventType, (g_simObjects[objIdx].flags.w & SIMOBJ_ALERTED ? 0x80 : 0) + g_simObjects[objIdx].spec);
         if (g_simObjectSpeed[objIdx] != 0) goto done;
-        g_simObjects[objIdx].flags.w &= 0x1c1;
+        g_simObjects[objIdx].flags.w &= SIMOBJ_PERSIST_MASK;
     done:;
     }
     strcpy(strBuf, aircraftTypes[g_simObjects[objIdx].spec].name);

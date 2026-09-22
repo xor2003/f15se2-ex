@@ -276,13 +276,13 @@ void updateObjects(void) {
     g_enemyThreatCount = g_activeThreatCount;
     g_activeThreatCount = 0;
     for (objIdx = 0; objIdx < g_groundUnitCount; objIdx++) {
-        if (g_simObjects[objIdx].flags.b[0] & 1) {
+        if (g_simObjects[objIdx].flags.w & SIMOBJ_ACTIVE) {
             g_threatSpec = g_simObjects[objIdx].spec;
-            if ((g_simObjects[objIdx].flags.b[0] & 2) && g_simObjectSpeed[objIdx] != 0) {
+            if ((g_simObjects[objIdx].flags.w & SIMOBJ_ALIVE) && g_simObjectSpeed[objIdx] != 0) {
                 mode = 0;
-                if (!(g_simObjects[objIdx].flags.b[0] & 4)) {
+                if (!(g_simObjects[objIdx].flags.w & SIMOBJ_ENGAGED)) {
                     const int friendlyAircraft = campaignFriendlyAircraft(objIdx, g_groundUnitCount, g_simObjects[objIdx].objType);
-                    if (!friendlyAircraft && !g_threatActiveTimer.isZero() && (!((g_simObjects[objIdx].flags.w) & 0x140) || g_threatActiveTimer.exceeds(g_threatDisplayTtl))) {
+                    if (!friendlyAircraft && !g_threatActiveTimer.isZero() && (!(g_simObjects[objIdx].flags.w & (SIMOBJ_TRACKED_SITE | SIMOBJ_LONG_RANGE)) || g_threatActiveTimer.exceeds(g_threatDisplayTtl))) {
                         tgtX = f15::math::legacy::mapWordX(g_threatRefPos);
                         tgtY = f15::math::legacy::mapWordY(g_threatRefPos);
                         tgtZ = f15::math::legacy::Altitudes::render(g_threatRefZ);
@@ -292,7 +292,7 @@ void updateObjects(void) {
                     }
 
                     mode = 3;
-                    if ((g_simObjects[objIdx].flags.w) & 0x100) {
+                    if ((g_simObjects[objIdx].flags.w) & SIMOBJ_TRACKED_SITE) {
                         if (g_padlockAircraft != -1) {
                             const auto pickAngle = g_simObjectHeading[g_padlockAircraft] +
                                 angleFromWord((objIdx & 7) * 0x800 - 0x1800);
@@ -310,7 +310,7 @@ void updateObjects(void) {
                     }
 
                     if (((uint8)objIdx * 8 + (uint8)g_missionTick.phase(256)) & 0xbf) goto after_retarget;
-                    if (!(g_simObjects[objIdx].flags.b[0] & 0x40)) {
+                    if (!(g_simObjects[objIdx].flags.w & SIMOBJ_LONG_RANGE)) {
                         best = 0x7fff;
                         viewBearing = computeBearing(f15::math::legacy::mapWordX(flightMapPosition()) - g_simObjects[objIdx].posX,
                                                      g_simObjects[objIdx].posY - f15::math::legacy::mapWordY(flightMapPosition()));
@@ -329,7 +329,7 @@ void updateObjects(void) {
                         if (((int)mapRange(mapOffset(flightMapPosition(), g_simObjects[objIdx].posX,
                                                     g_simObjects[objIdx].posY)) >> 6) > 350 &&
                             objIdx != 0) {
-                            (g_simObjects[objIdx].flags.w) &= 0x1c1;
+                            (g_simObjects[objIdx].flags.w) &= SIMOBJ_PERSIST_MASK;
                             g_simObjects[objIdx].timer = 0;
                         }
                     }
@@ -349,7 +349,7 @@ void updateObjects(void) {
                 }
 
                 tgtX = g_planeTable.planes[g_simObjects[objIdx].objType].mapX;
-                if ((g_simObjects[objIdx].flags.w) & 0x200) {
+                if ((g_simObjects[objIdx].flags.w) & SIMOBJ_INTERCEPTOR) {
                     tgtZ = g_simObjects[objIdx].posX - tgtX;
                     tgtY = g_planeTable.planes[g_simObjects[objIdx].objType].mapY;
                     tgtX = (int16)(tgtX - (int)tgtZ * 2);
@@ -365,7 +365,7 @@ void updateObjects(void) {
                 mode = 2;
 
             got_target:
-                if (mode == 3 && (g_simObjects[objIdx].flags.b[0] & 8)) {
+                if (mode == 3 && (g_simObjects[objIdx].flags.w & SIMOBJ_UNDER_FIRE)) {
                     tgtX = f15::math::legacy::mapWordX(flightMapPosition());
                     tgtY = f15::math::legacy::mapWordY(flightMapPosition());
                     tgtZ = g_simObjectAlt[objIdx];
@@ -455,7 +455,7 @@ void updateObjects(void) {
                                     -f15::specBankStepClamp(aircraftTypes[g_threatSpec].maneuverability),
                                     f15::specBankStepClamp(aircraftTypes[g_threatSpec].maneuverability));
 
-                if ((g_simObjects[objIdx].flags.w) & 0x400) {
+                if ((g_simObjects[objIdx].flags.w) & SIMOBJ_CLIMBOUT) {
                     if (g_simObjectSpeed[objIdx] < 150) {
                         objectAttitudeSet(g_simObjectPitch[objIdx], g_simObjects[objIdx].pitch,
                                           AircraftAngle{});
@@ -468,11 +468,11 @@ void updateObjects(void) {
                         objectLinearAdvance(g_simObjectSpeed[objIdx], g_simObjects[objIdx].speed,
                                             g_frameRateScaling.perTick(60.0));
                     } else if (g_simObjectAlt[objIdx] > 300) {
-                        g_simObjects[objIdx].flags.b[1] &= 0xfb;
+                        g_simObjects[objIdx].flags.w &= ~SIMOBJ_CLIMBOUT;
                     }
                 }
 
-                if (g_simObjects[objIdx].flags.b[0] & 0x30) {
+                if (g_simObjects[objIdx].flags.w & (SIMOBJ_PAINTED | SIMOBJ_DESTROYED)) {
                     rollCmd = 0x400;
                 }
 
@@ -481,13 +481,13 @@ void updateObjects(void) {
                                         g_simObjects[objIdx].posY,
                                         g_simObjects[objIdx].alt);
                     if (*(int8 *)&g_posVisibleFlag != 0) {
-                        g_simObjects[objIdx].flags.b[1] |= 0x20;
+                        g_simObjects[objIdx].flags.w |= SIMOBJ_ONSCREEN;
                     } else {
-                        g_simObjects[objIdx].flags.b[1] &= 0xdf;
+                        g_simObjects[objIdx].flags.w &= ~SIMOBJ_ONSCREEN;
                     }
                 }
 
-                if ((g_simObjects[objIdx].flags.w) & 0x2000) {
+                if ((g_simObjects[objIdx].flags.w) & SIMOBJ_ONSCREEN) {
                     pitchCmd = 0x3000;
                 }
 
@@ -503,7 +503,7 @@ void updateObjects(void) {
                         g_simObjectBank[objIdx].shiftedDown(3).dividedBy(g_frameRateScaling.word()));
 
                     pitchDelta = pitchCmd - wordRep(g_simObjectPitch[objIdx]);
-                    if (!(g_simObjects[objIdx].flags.b[0] & 0x20)) goto no_smoke;
+                    if (!(g_simObjects[objIdx].flags.w & SIMOBJ_DESTROYED)) goto no_smoke;
                     pitchDelta = -0x200;
                     if (frameTick.phase(4)) goto no_smoke;
                     smokeSlot = frameTick.ring(1, 8);
@@ -524,7 +524,7 @@ void updateObjects(void) {
                 if (g_simObjectPitch[objIdx].isNegative() &&
                     -(TrackMath::sineVelocity(g_simObjectPitch[objIdx], 2000,
                                               g_angleLut) - 200) > g_simObjectAlt[objIdx] &&
-                    ((g_simObjects[objIdx].flags.w) & 0x220) == 0) {
+                    (g_simObjects[objIdx].flags.w & (SIMOBJ_INTERCEPTOR | SIMOBJ_DESTROYED)) == 0) {
                     pitchDelta = 0x400;
                 }
 
@@ -540,7 +540,7 @@ void updateObjects(void) {
                                       AircraftAngle::halfTurn() - g_simObjectPitch[objIdx]);
                 }
 
-                g_simObjects[objIdx].flags.b[0] &= 0xef;
+                g_simObjects[objIdx].flags.w &= ~SIMOBJ_PAINTED;
 
                 moveAmt = wordProductQ14(uwordRep(-(g_simObjectPitch[objIdx].dividedBy(2) +
                                                     AircraftAngle::halfTurn())),
@@ -572,7 +572,7 @@ void updateObjects(void) {
             alt_ok:
 
                 if (g_simObjectAlt[objIdx] < 0) {
-                    (g_simObjects[objIdx].flags.w) &= (objIdx != 0) ? 0x1c1 : 0;
+                    (g_simObjects[objIdx].flags.w) &= (objIdx != 0) ? SIMOBJ_PERSIST_MASK : 0;
                     g_hitMapPos = f15::math::legacy::mapPosition((std::int16_t)g_simObjects[objIdx].posX,
                                      (std::int16_t)g_simObjects[objIdx].posY);
                     g_hitAlt = f15::math::legacy::terrainFromUnits(g_simObjects[objIdx].alt);
@@ -583,14 +583,14 @@ void updateObjects(void) {
                 }
 
                 if (range < 0x10 && mode == 2) {
-                    if ((g_simObjects[objIdx].flags.w) & 0x200) {
-                        (g_simObjects[objIdx].flags.w) |= 0x1000;
+                    if ((g_simObjects[objIdx].flags.w) & SIMOBJ_INTERCEPTOR) {
+                        (g_simObjects[objIdx].flags.w) |= SIMOBJ_EGRESSING;
                     } else {
-                        (g_simObjects[objIdx].flags.w) |= 0x200;
+                        (g_simObjects[objIdx].flags.w) |= SIMOBJ_INTERCEPTOR;
                     }
                 }
 
-                if ((g_simObjects[objIdx].flags.w) & 0x1000) {
+                if ((g_simObjects[objIdx].flags.w) & SIMOBJ_EGRESSING) {
                     objectAttitudeSet(g_simObjectBank[objIdx], g_simObjects[objIdx].bank.w,
                                       AircraftAngle{});
                     objectAttitudeSet(g_simObjectPitch[objIdx], g_simObjects[objIdx].pitch,
@@ -603,19 +603,19 @@ void updateObjects(void) {
                         objectLinearAdvance(g_simObjectSpeed[objIdx], g_simObjects[objIdx].speed,
                                             -g_frameRateScaling.perTick(120.0));
                     } else {
-                        (g_simObjects[objIdx].flags.w) &= 0x1c1;
+                        (g_simObjects[objIdx].flags.w) &= SIMOBJ_PERSIST_MASK;
                         if (objIdx == 0 && g_targetSlots[0].state >= 5) {
                             (g_simObjects[objIdx].flags.w) = 0;
                         }
                     }
                     if (objIdx >= g_groundUnitCount - 4 && g_simObjectSpeed[objIdx] < 100) {
-                        (g_simObjects[objIdx].flags.w) &= 0x1c1;
-                        (g_simObjects[objIdx].flags.w) |= 0x406;
+                        (g_simObjects[objIdx].flags.w) &= SIMOBJ_PERSIST_MASK;
+                        (g_simObjects[objIdx].flags.w) |= SIMOBJ_ALIVE | SIMOBJ_ENGAGED | SIMOBJ_CLIMBOUT;
                     }
                 }
 
                 if (--g_simObjects[objIdx].timer == 0) {
-                    g_simObjects[objIdx].flags.b[0] |= 4;
+                    g_simObjects[objIdx].flags.w |= SIMOBJ_ENGAGED;
                     best = 0x7fff;
                     for (scanIdx = 3; scanIdx < g_planeScanCount; scanIdx++) {
                         if ((g_planeTable.planes[scanIdx].flags & 0x101) == 1) {
@@ -631,12 +631,11 @@ void updateObjects(void) {
                 }
 
                 {
-                    char o;
-                    o = g_simObjects[objIdx].flags.b[0];
-                    if ((o & 2) &&
+                    const uint16 o = g_simObjects[objIdx].flags.w;
+                    if ((o & SIMOBJ_ALIVE) &&
                         (fireOffset = (((uint8)objIdx & 8) >> 3) + (objIdx & 7) * 2,
                          frameTick.mod(g_frameRateScaling.shifted(4)) == g_frameRateScaling.scaled(fireOffset)) &&
-                        !(o & 0x20)) {
+                        !(o & SIMOBJ_DESTROYED)) {
                         fireAirThreat(objIdx);
                     }
                 }
@@ -646,7 +645,7 @@ void updateObjects(void) {
                         if (objIdx != 0) {
                             if (224 / (g_missionStatus + 2) < g_missionTick.elapsedSince(g_lastSpawnTick)) {
                                 tgtIdx = randomRange(g_planeScanCount);
-                                if (!g_threatActiveTimer.isZero() || (g_simObjects[objIdx].flags.b[0] & 0x80)) {
+                                if (!g_threatActiveTimer.isZero() || (g_simObjects[objIdx].flags.w & SIMOBJ_WAYPOINTED)) {
                                     if ((g_planeTable.planes[tgtIdx].flags & 0x181) == 1) {
                                         if (g_simObjects[objIdx].spec == g_planeTable.planes[tgtIdx].alertLevel) {
                                             if (g_missionStatus * 2 >= g_enemyThreatCount) {

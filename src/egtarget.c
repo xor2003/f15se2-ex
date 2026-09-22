@@ -241,7 +241,7 @@ skip_aam:
             lockedRange = 0;
         }
     } else if (g_currentWeaponType == 1 &&
-               (g_simObjects[g_airTargetLock].flags.b[0] & 0x22) == 2) {
+               (g_simObjects[g_airTargetLock].flags.w & (SIMOBJ_ALIVE | SIMOBJ_DESTROYED)) == SIMOBJ_ALIVE) {
         /* A2A missile selected and the designated target is still a live
            contact: hold the lock (T cycles to the next one). */
         airSelect = 0;
@@ -253,14 +253,14 @@ skip_aam:
 
     best = -1;
     for (idx = 0; idx < g_groundUnitCount; idx++) {
-        if (!(g_simObjects[idx].flags.b[0] & 2))
+        if (!(g_simObjects[idx].flags.w & SIMOBJ_ALIVE))
             goto next2;
 
         if (computeSimObjectRange(idx) >= 4800 && g_directorMode == 0)
             goto next2;
 
         if (airSelect && range > g_targetRange && lockedRange < g_targetRange && !(g_viewMode & 0x80) &&
-            !(g_simObjects[idx].flags.b[0] & 0x20) &&
+            !(g_simObjects[idx].flags.w & SIMOBJ_DESTROYED) &&
             g_simObjectSpeed[idx] != 0) {
             computeTargetBearing(g_simObjects[idx].posX, g_simObjects[idx].posY, 1);
             if (angleMagnitude(g_ourHead + angleFromWord(g_viewHeadingOffset) - g_targetBearing) < 0x2000) {
@@ -535,7 +535,7 @@ void drawWorldEffects(void) {
 
         if (idx < g_bulletTrackCount) {
             for (objIdx = 0; objIdx < g_groundUnitCount; objIdx++) {
-                if ((g_simObjects[objIdx].flags.b[0] & 0x22) == 2) {
+                if ((g_simObjects[objIdx].flags.w & (SIMOBJ_ALIVE | SIMOBJ_DESTROYED)) == SIMOBJ_ALIVE) {
 
                     dist = (abs((int16)(bulletTracks[idx].alt - g_simObjects[objIdx].alt)) >> 5) +
                            abs((int16)(bx - g_simObjects[objIdx].posX)) +
@@ -553,7 +553,7 @@ void drawWorldEffects(void) {
                         if (d2 < r2) {
 
                             hitFlag = 1;
-                            g_simObjects[objIdx].flags.b[0] |= 0x10;
+                            g_simObjects[objIdx].flags.w |= SIMOBJ_PAINTED;
                             g_hitEffectTimer = f15::math::TickDuration::fromWord(1);
 
                             if (d2 * 4 < r2) {

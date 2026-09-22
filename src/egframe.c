@@ -155,7 +155,7 @@ void updateFrame(void) {
             if (gameData->totalScore == 0 && gameData->theater != 6) {
                 for (i = 0; i < g_groundUnitCount - 4; i++) {
                     if ((i & 1) == 0) {
-                        g_simObjects[i].flags.b[0] |= 2;
+                        g_simObjects[i].flags.w |= SIMOBJ_ALIVE;
                         objectLinearSet(g_simObjectAlt[i], g_simObjects[i].alt, 2200);
                         objectLinearSet(g_simObjectSpeed[i], g_simObjects[i].speed, 300);
                         g_simObjects[i].posX = i * 12 + f15::math::legacy::mapWordX(flightMapPosition()) - 36;
@@ -171,7 +171,7 @@ void updateFrame(void) {
             }
         }
         if (gameData->theater != 6) {
-            g_simObjects[1].flags.b[0] |= 2;
+            g_simObjects[1].flags.w |= SIMOBJ_ALIVE;
             objectLinearSet(g_simObjectAlt[1], g_simObjects[1].alt, 2100);
             objectLinearSet(g_simObjectSpeed[1], g_simObjects[1].speed, 700);
             g_wingmanX = f15::math::legacy::mapWordX(flightMapPosition());
@@ -292,7 +292,7 @@ void updateFrame(void) {
 
     if (g_prevThreatIndex != g_closestThreatIndex && (g_planeTable.planes[g_closestThreatIndex].flags & 0x800) == 0) {
         for (i = 1; i <= 2; i++) {
-            g_simObjects[g_groundUnitCount - i].flags.b[0] &= ~2;
+            g_simObjects[g_groundUnitCount - i].flags.w &= ~SIMOBJ_ALIVE;
             g_simObjects[g_groundUnitCount - i].spec = g_planeTable.planes[g_closestThreatIndex].flags & 0x400 ? 13 : 0;
             if (customWorldScenarioIs("SVN")) {
                 g_simObjects[g_groundUnitCount - i].spec =
@@ -305,7 +305,7 @@ void updateFrame(void) {
         }
         for (i = 3; i <= 4; i++) {
             objIdx = g_groundUnitCount - i;
-            g_simObjects[objIdx].flags.b[0] |= 2;
+            g_simObjects[objIdx].flags.w |= SIMOBJ_ALIVE;
             g_simObjects[objIdx].posX = g_planeTable.planes[g_closestThreatIndex].mapX;
             g_simObjects[objIdx].posY = g_planeTable.planes[g_closestThreatIndex].mapY;
             if ((g_planeTable.planes[g_closestThreatIndex].flags & 0x200) != 0) {
@@ -337,9 +337,9 @@ void updateFrame(void) {
     if (frameTick.phase(128) == 0) {
         if ((g_planeTable.planes[g_closestThreatIndex].flags & 0x800) == 0) {
             objIdx = g_groundUnitCount - 2 + frameTick.ring(7, 2);
-            if ((g_simObjects[objIdx].flags.b[0] & 2) == 0) {
+            if ((g_simObjects[objIdx].flags.w & SIMOBJ_ALIVE) == 0) {
                 spawnEnemyAircraft(objIdx, g_closestThreatIndex);
-                g_simObjects[objIdx].flags.w = 0x207;
+                g_simObjects[objIdx].flags.w = SIMOBJ_ACTIVE | SIMOBJ_ALIVE | SIMOBJ_ENGAGED | SIMOBJ_INTERCEPTOR;
                 objectLinearSet(g_simObjectAlt[objIdx], g_simObjects[objIdx].alt, 1000);
                 objectLinearSet(g_simObjectSpeed[objIdx], g_simObjects[objIdx].speed, 250);
                 objectFineAdvance<ViewYAxis>(g_simObjectFineY[objIdx], g_simObjects[objIdx].worldY,
@@ -509,7 +509,7 @@ skip_autopilot:
         }
         for (i = 0; i < g_groundUnitCount; i++) {
             if (g_simObjects[i].damage > 0xc0 &&
-                (g_simObjects[i].flags.b[0] & 2) != 0) {
+                (g_simObjects[i].flags.w & SIMOBJ_ALIVE) != 0) {
                 g_enemyAlertFlag++;
                 break;
             }

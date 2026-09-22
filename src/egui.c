@@ -111,7 +111,7 @@ void drawTacticalMap(char page) {
         i += 2;
     }
     for (i = 0; i < g_groundUnitCount; i++) {
-        if ((g_simObjects[i].flags.b[0] & 2) && g_simObjects[i].speed != 0) {
+        if ((g_simObjects[i].flags.w & SIMOBJ_ALIVE) && g_simObjects[i].speed != 0) {
             projectMapPoint(g_simObjects[i].posX, g_simObjects[i].posY);
             if (g_projDepth != -1) {
                 if (g_currentWeaponType == 1 && i == g_airTargetLock) {

@@ -1137,6 +1137,25 @@ Full sweep of the three RNG streams confirms the deterministic contract:
 The audit found no remaining render-path consumption of the sim stream;
 the earlier `drawWorldEffects` fix was the only violation.
 
+## SimObject.flags semantics checkpoint
+
+`SimObject.flags` gained a named `SimObjectFlag` enum in `struct.h` with
+the full bit decode. The word persists from the on-disk `FlightUnit`
+record (`worldImportToEgame` seeds it from `targetFlags` and writes it
+back), so the high-byte bits are overloaded: aircraft spawns use the sim
+role bits (TRACKED_SITE, INTERCEPTOR, CLIMBOUT, ENEMY_AIR, EGRESSING,
+ONSCREEN, ALERTED) while imported ground objects carry `targetFlags`
+meanings (airbase/large/waypoint/disabled) at the same positions. The low
+byte is pure dynamic state (ACTIVE, ALIVE, ENGAGED, UNDER_FIRE, PAINTED,
+DESTROYED) plus the disk placement attrs LONG_RANGE/WAYPOINTED;
+`SIMOBJ_PERSIST_MASK` names the `&= 0x1c1` threat-recycle clear.
+
+All byte accesses (`flags.b[0]`/`b[1]`) were normalized to word ops with
+the named constants — identical on the little-endian union — across
+egcombat, egthreat, egtarget, egframe, egsys, egui, and stgen. Pure
+rename: fixed suite passes bit-identical; no behavior change on either
+backend.
+
 ## Throttle-command storage checkpoint
 
 `g_setThrust` is now `EngineThrust<GameBackend>` — the same engine-command
