@@ -79,6 +79,15 @@ inline auto mapRange(MapOffset<B> offset) {
         return dx > dy ? dx + dy * 0.5 : dy + dx * 0.5;
     }
 }
+
+/* rangeApprox on a plain word-domain delta pair (both sides already coarse
+ * words — no typed position to preserve). Same fixed/modern split as
+ * mapRange. */
+template<class B = GameBackend>
+inline auto mapRangeDelta(int dx, int dy) {
+    using Rep = typename MapOffset<B>::Rep;
+    return mapRange(MapOffset<B>{static_cast<Rep>(dx), static_cast<Rep>(dy)});
+}
 }
 }
 #endif

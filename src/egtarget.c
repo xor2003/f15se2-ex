@@ -587,7 +587,7 @@ void drawWorldEffects(void) {
                 pointX = (int16)(g_nearestTileObj->x >> 5);
                 pointY = 0x8000 - (int16)(g_nearestTileObj->y >> 5);
 
-                if (rangeApprox(g_hitMapX - pointX, g_hitMapY - pointY) <
+                if (f15::math::legacy::mapRangeDelta(g_hitMapX - pointX, g_hitMapY - pointY) <
                         groundHitRadiusMap(g_planeTable.planes[wpEntry].nameIndex) &&
                     (g_planeTable.planes[wpEntry].nameIndex & 0x7f) != *(uint8 *)g_landTargetId) {
                     destroyGroundTarget(wpEntry);

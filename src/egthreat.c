@@ -8,6 +8,7 @@
 #include "math/guidance.hpp"
 using f15::math::legacy::signedAngle;
 using f15::math::legacy::angleMagnitude;
+using f15::math::legacy::angleSeparation;
 using f15::math::legacy::angleFromWord;
 using f15::math::legacy::mapOffset;
 using f15::math::legacy::mapRange;
@@ -182,16 +183,17 @@ void fireGroundThreat(int16 planeIdx) {
 
 // ==== seg000:0x660e routine_324 ====
 int16 computeThreatRangeBearing(int16 threatX, int16 threatY, int16 threatAlt, int16 threatType, int16 *outBearing, int16 *outRange) {
-    int16 p, a, bearing, range, deltaX, deltaY;
+    int16 p, a, bearing, range;
     uint16 score;
 
     if (threatType == 0 || threatType == -1) {
         return 0;
     }
-    deltaX = f15::math::legacy::mapWordX(flightMapPosition()) - threatX;
-    deltaY = f15::math::legacy::mapWordY(flightMapPosition()) - threatY;
-    range = (uint16)rangeApprox(deltaX, deltaY) >> 6;
-    bearing = computeBearing(deltaX, -deltaY);
+    /* Player-to-threat delta on the typed map position — modern keeps the
+     * fractional position instead of rounding to a coarse word first. */
+    const auto offset = mapOffset(flightMapPosition(), threatX, threatY);
+    range = (uint16)mapRange(offset) >> 6;
+    bearing = signedAngle(TrackMath::aimBearing(offset.dx, -offset.dy));
     score = (score = (aNone[threatType].dangerTier + g_missionStatus * 2 + 3) * aNone[threatType].lethality / 16) * (((uint16)f15::math::legacy::Altitudes::renderWord(flightSceneHeight()) >> 6) + 0x40) >> 7;
     *outBearing = bearing;
     *outRange = range;
@@ -269,13 +271,15 @@ void updateObjects(void) {
                     mode = 3;
                     if ((g_simObjects[objIdx].flags.w) & 0x100) {
                         if (g_padlockAircraft != -1) {
-                            tgtX = sinMul((objIdx & 7) * 0x800 + g_simObjects[g_padlockAircraft].heading.w - 0x1800,
-                                          g_simObjects[g_padlockAircraft].speed) +
-                                   g_simObjects[g_padlockAircraft].posX;
+                            const auto pickAngle = angleFromWord((int16)(
+                                (objIdx & 7) * 0x800 + g_simObjects[g_padlockAircraft].heading.w - 0x1800));
+                            tgtX = (int16)((int)TrackMath::sineVelocity(pickAngle,
+                                          g_simObjects[g_padlockAircraft].speed, g_angleLut) +
+                                   g_simObjects[g_padlockAircraft].posX);
 
-                            tgtY = g_simObjects[g_padlockAircraft].posY -
-                                   cosMul((objIdx & 7) * 0x800 + g_simObjects[g_padlockAircraft].heading.w - 0x1800,
-                                          g_simObjects[g_padlockAircraft].speed);
+                            tgtY = (int16)(g_simObjects[g_padlockAircraft].posY -
+                                   (int)TrackMath::cosineVelocity(pickAngle,
+                                          g_simObjects[g_padlockAircraft].speed, g_angleLut));
 
                             tgtZ = g_simObjects[g_padlockAircraft].alt + (objIdx & 7) * 0x40;
                             goto set_target_alt;
@@ -331,9 +335,9 @@ void updateObjects(void) {
                                : 12;
                 } else {
                     tgtY = g_planeTable.planes[g_simObjects[objIdx].objType].mapY + g_northSouthSign * 0x500;
-                    tgtZ = rangeApprox(g_simObjects[objIdx].posX - tgtX,
+                    tgtZ = (int16)(f15::math::legacy::mapRangeDelta(g_simObjects[objIdx].posX - tgtX,
                                        g_simObjects[objIdx].posY - tgtY) +
-                           2000;
+                           2000);
                 }
                 mode = 2;
 
@@ -345,16 +349,18 @@ void updateObjects(void) {
                 }
                 deltaX = tgtX - g_simObjects[objIdx].posX;
                 deltaY = tgtY - g_simObjects[objIdx].posY;
-                bearing = computeBearing(deltaX, -deltaY);
-                range = rangeApprox(deltaX, deltaY);
-                pitchCmd = computeBearing((tgtZ - g_simObjects[objIdx].alt) >> 5, range);
+                bearing = signedAngle(TrackMath::aimBearing(deltaX, -deltaY));
+                range = (int16)f15::math::legacy::mapRangeDelta(deltaX, deltaY);
+                pitchCmd = signedAngle(TrackMath::aimBearing((tgtZ - g_simObjects[objIdx].alt) >> 5, range));
                 pitchCmd = clampRange(pitchCmd, -0x2000, 0x1000);
                 if (mode == 1 && (uint16)range < 0x600) {
                     g_activeThreatCount++;
                     if ((uint16)range >= 0x400) goto after_missile_table;
                     if (frameTick & 3) goto after_missile_table;
-                    if (abs(g_simObjects[objIdx].heading.w - bearing) >= 0x800) goto after_missile_table;
-                    if (abs(g_simObjects[objIdx].pitch - pitchCmd) >= 0x800) goto after_missile_table;
+                    if (angleSeparation(angleFromWord(g_simObjects[objIdx].heading.w),
+                                        angleFromWord(bearing)) >= 0x800) goto after_missile_table;
+                    if (angleSeparation(angleFromWord(g_simObjects[objIdx].pitch),
+                                        angleFromWord(pitchCmd)) >= 0x800) goto after_missile_table;
 
                     trackSlot = ((frameTick >> 2) & 3) + g_bulletTrackCount;
                     /* Fine units per step + dispersion cone, like the player's
@@ -408,7 +414,9 @@ void updateObjects(void) {
                     goto after_accel;
                 }
 
-                rollCmd = clampRange(bearing - g_simObjects[objIdx].heading.w, -0x3000, 0x3000) << 1;
+                rollCmd = signedAngle(TrackMath::limitTurn(
+                    angleFromWord(bearing) - angleFromWord(g_simObjects[objIdx].heading.w),
+                    -0x3000, 0x3000)) << 1;
                 if (mode == 1 && g_missionStatus + 1 <= g_enemyThreatCount) {
                     rollCmd = 0x3000;
                 }
@@ -486,7 +494,8 @@ void updateObjects(void) {
             no_smoke:
 
                 if (g_simObjects[objIdx].pitch < 0 &&
-                    -(sinMul(g_simObjects[objIdx].pitch, 2000) - 200) > g_simObjects[objIdx].alt &&
+                    -(TrackMath::sineVelocity(angleFromWord(g_simObjects[objIdx].pitch), 2000,
+                                              g_angleLut) - 200) > g_simObjects[objIdx].alt &&
                     ((g_simObjects[objIdx].flags.w) & 0x220) == 0) {
                     pitchDelta = 0x400;
                 }
@@ -502,16 +511,21 @@ void updateObjects(void) {
                 g_simObjects[objIdx].flags.b[0] &= 0xef;
 
                 moveAmt = (int16)((uint32)(uint16)(-(g_simObjects[objIdx].pitch / 2 + (int16)0x8000)) * (int32)g_simObjects[objIdx].speed >> 14);
-                moveAmt -= abs(sinMul(g_simObjects[objIdx].bank.w, moveAmt)) >> 1;
+                moveAmt -= (int16)(std::abs(TrackMath::sineVelocity(
+                    angleFromWord(g_simObjects[objIdx].bank.w), moveAmt, g_angleLut)) / 2);
                 moveAmt = moveAmt * 4 / g_frameRateScaling;
                 moveAmt >>= 2;
 
-                horizMove = cosMul(g_simObjects[objIdx].pitch, moveAmt);
+                horizMove = (int16)TrackMath::cosineVelocity(
+                    angleFromWord(g_simObjects[objIdx].pitch), moveAmt, g_angleLut);
 
-                g_simObjects[objIdx].worldX += (int32)sinMul(g_simObjects[objIdx].heading.w, horizMove);
-                g_simObjects[objIdx].worldY -= (int32)cosMul(g_simObjects[objIdx].heading.w, horizMove);
+                g_simObjects[objIdx].worldX += (int32)TrackMath::sineVelocity(
+                    angleFromWord(g_simObjects[objIdx].heading.w), horizMove, g_angleLut);
+                g_simObjects[objIdx].worldY -= (int32)TrackMath::cosineVelocity(
+                    angleFromWord(g_simObjects[objIdx].heading.w), horizMove, g_angleLut);
 
-                g_simObjects[objIdx].alt += sinMul(g_simObjects[objIdx].pitch, moveAmt);
+                g_simObjects[objIdx].alt += (int16)TrackMath::sineVelocity(
+                    angleFromWord(g_simObjects[objIdx].pitch), moveAmt, g_angleLut);
 
                 g_simObjects[objIdx].posX = (int16)(g_simObjects[objIdx].worldX >> 5);
                 g_simObjects[objIdx].posY = (int16)(g_simObjects[objIdx].worldY >> 5);
@@ -562,8 +576,9 @@ void updateObjects(void) {
                     best = 0x7fff;
                     for (scanIdx = 3; scanIdx < g_planeScanCount; scanIdx++) {
                         if ((g_planeTable.planes[scanIdx].flags & 0x101) == 1) {
-                            smokeSlot = rangeApprox(g_simObjects[objIdx].posX - g_planeTable.planes[scanIdx].mapX,
-                                                    g_simObjects[objIdx].posY - g_planeTable.planes[scanIdx].mapY);
+                            smokeSlot = (int16)f15::math::legacy::mapRangeDelta(
+                                g_simObjects[objIdx].posX - g_planeTable.planes[scanIdx].mapX,
+                                g_simObjects[objIdx].posY - g_planeTable.planes[scanIdx].mapY);
                             if (smokeSlot < best) {
                                 g_simObjects[objIdx].objType = scanIdx;
                                 best = smokeSlot;
@@ -594,7 +609,7 @@ void updateObjects(void) {
                                             if (g_missionStatus * 2 >= g_enemyThreatCount) {
                                                 deltaX = g_threatRefX - g_planeTable.planes[tgtIdx].mapX;
                                                 deltaY = g_threatRefY - g_planeTable.planes[tgtIdx].mapY;
-                                                range = (uint16)rangeApprox(deltaX, deltaY) >> 6;
+                                                range = (uint16)f15::math::legacy::mapRangeDelta(deltaX, deltaY) >> 6;
                                                 acRange = aircraftTypes[g_threatSpec].range;
                                                 if ((uint16)(acRange / 2) > (uint16)range) {
                                                     g_lastSpawnTick = g_missionTick;

@@ -80,7 +80,8 @@ void fireAirThreat(int16 objIdx) {
             if (g_missionStatus * 2 >= g_enemyThreatCount &&
                 g_projectiles[slot].ttl == 0 &&
                 acqRange > 8 &&
-                abs(bearing - g_simObjects[objIdx].heading.w) < 0x1800) {
+                angleSeparation(angleFromWord(bearing),
+                                angleFromWord(g_simObjects[objIdx].heading.w)) < 0x1800) {
 
                 idx = g_simObjects[objIdx].weaponType;
 
@@ -406,7 +407,7 @@ void updateThreatTargeting(void) {
                     scheduleTimedEvent(VIEW_COCKPIT, 1);
                     makeSound(2, 2);
                     strcat(strBuf, " misses ");
-                    dist = rangeApprox(g_hitMapX - g_planeTable.planes[g_loftTargetIdx].mapX,
+                    dist = (uint16)f15::math::legacy::mapRangeDelta(g_hitMapX - g_planeTable.planes[g_loftTargetIdx].mapX,
                                        g_hitMapY - g_planeTable.planes[g_loftTargetIdx].mapY);
                     if (dist < (uint16)(0x100 / (g_missionStatus + 1))) {
                         destroyGroundTarget(g_loftTargetIdx);
@@ -421,7 +422,7 @@ void updateThreatTargeting(void) {
                             goto msg_done;
                         wpX = (int16)(g_nearestTileObj->x >> 5);
                         wpY = -((int16)(g_nearestTileObj->y >> 5) - 0x8000);
-                        dist = rangeApprox(g_hitMapX - wpX, g_hitMapY - wpY);
+                        dist = (uint16)f15::math::legacy::mapRangeDelta(g_hitMapX - wpX, g_hitMapY - wpY);
                         if (dist >= (uint16)(0x180 / (g_missionStatus + 2)))
                             goto msg_done;
                         destroyGroundTarget(wp);
@@ -519,8 +520,8 @@ int samCanAcquireTarget(int slot, int targetX, int targetY, int targetAlt, int m
 
     dx = targetX - g_projectiles[slot].mapX;
     dy = targetY - g_projectiles[slot].mapY;
-    range = rangeApprox(dx, dy);
-    g_acqAimY = computeBearing(dx, -dy);
+    range = f15::math::legacy::mapRangeDelta(dx, dy);
+    g_acqAimY = signedAngle(ProjectileGuidance::aimBearing(dx, -dy));
     if (g_projectiles[slot].speed * 24 / g_frameRateScaling > range) {
         g_acqRange = range;
         return 1;

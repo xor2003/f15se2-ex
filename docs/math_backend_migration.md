@@ -1070,14 +1070,33 @@ map rep identically to the original `mapWordX/Y` subtraction, and `mapRange`
 mirrors `rangeApprox` literally, so both sites are bit-exact. Under modern the
 fractional player position survives into the bearing/range decisions.
 
-Sites left on word deltas are word-vs-word (`g_hitMapX`/projectile `mapX`
-acquisition terms — coarse-word authoritative state, part of the deferred
-combat/AI domain) or the 32-bit `computeBearing32`/`rangeApprox32` fine
-machinery in egmath.c, which remains under the fine-coordinate gap row.
+The SimObject AI/threat decision surface follows the same pattern. The struct
+is file-layout frozen (`FLIGHTUNIT_SIZE`, memcpy'd world records), so fields
+stay raw words and decision reads go through typed adapters:
+
+* `computeThreatRangeBearing` (egthreat.c) — the player-to-threat delta runs
+  on `mapOffset`/`mapRange`/`aimBearing` like `computeTargetBearing`.
+* `updateObjects` (egthreat.c) — steering `bearing`/`pitchCmd` via
+  `aimBearing`; `heading.w`/`pitch`/`bank.w` field reads via `angleFromWord`;
+  `abs(a - b)` cone checks via `angleSeparation` (unwrapped plain diff,
+  matching `abs(int16 - int16)`); the bank-steering clamp via `limitTurn`;
+  `sinMul`/`cosMul` products via `sineVelocity`/`cosineVelocity`. Fields
+  (`worldX`, `alt`, `heading.w`) stay word-precision because the file layout
+  cannot hold fractions — the typed reads keep the math backend-explicit.
+* `samCanAcquireTarget`, the SAM launch cone check, and the hit-map
+  `rangeApprox` sites (egcombat.c, egtarget.c) — `mapRangeDelta`/
+  `aimBearing`/`angleSeparation` on the word deltas.
+
+`legacy::mapRangeDelta(dx, dy)` wraps `mapRange` for plain word-domain delta
+pairs (no typed position to preserve); fixed reproduces `rangeApprox` exactly
+including the int16 re-wrap. Maneuver-table index arithmetic (`relBearing`,
+`aspect` octants) and field self-updates (`heading.w += bank.w >> 3 …`,
+`posX = worldX >> 5` derives) stay raw — table addressing and boundary writes
+are integer/file-layout concerns per the coverage notes.
 
 Verification: fixed 59/59 (sortie parity exercises target selection and the
-autopilot HUD path) and modern smoke pass; `typed_guidance_tests` adds the
-fractional-delta `aimBearing` case.
+autopilot HUD path; object AI runs in the golden sortie) and modern smoke
+pass; `typed_guidance_tests` adds the fractional-delta `aimBearing` case.
 
 ### Next acceptance boundary
 
