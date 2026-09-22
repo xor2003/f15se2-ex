@@ -27,6 +27,13 @@ option(COVERAGE "Build with gcov code-coverage instrumentation" OFF)
 # through the front end each run.
 option(AUTOSTART "Skip menus and start a mission directly (DEBUG_AUTOSTART)" OFF)
 
+# Authoritative-server multiplayer (docs/networking.md). Native-only for now:
+# adds the f15server headless sim + --connect client mode via
+# GameNetworkingSockets. Requires protobuf (set F15_PROTOBUF_ROOT to a prefix
+# containing include/, lib/, bin/protoc when no system -dev package exists).
+option(F15_NET "Build multiplayer: f15server + --connect client (GameNetworkingSockets)" OFF)
+set(F15_PROTOBUF_ROOT "" CACHE PATH "protobuf prefix (include/lib/bin/protoc) when no system package")
+
 #==============================================================================
 # Global settings
 #==============================================================================
@@ -150,6 +157,7 @@ set(EGAME_SOURCES
     ${SRC_DIR}/egtgt2.c
     ${SRC_DIR}/egmath.c
     ${SRC_DIR}/egkeys.c
+    ${SRC_DIR}/egplayer.c
     ${SRC_DIR}/egpic.c
     ${SRC_DIR}/egdata.c
     ${SRC_DIR}/egfarbuf.c
@@ -528,4 +536,64 @@ if(COVERAGE)
     else()
         message(WARNING "COVERAGE=ON but gcovr not found; the `coverage` target is unavailable")
     endif()
+endif()
+
+#==============================================================================
+# Networking (F15_NET): authoritative server + GNS client mode
+#==============================================================================
+if(F15_NET)
+    # protobuf: GNS generates code for its internal handshake messages. Use a
+    # system package if present, else the F15_PROTOBUF_ROOT prefix (e.g. an
+    # unpacked apt download: usr/include, usr/lib/<triplet>, usr/bin/protoc).
+    if(F15_PROTOBUF_ROOT)
+        set(Protobuf_INCLUDE_DIR "${F15_PROTOBUF_ROOT}/usr/include" CACHE PATH "" FORCE)
+        find_library(Protobuf_LIBRARY
+            NAMES protobuf libprotobuf
+            PATHS "${F15_PROTOBUF_ROOT}/usr/lib" "${F15_PROTOBUF_ROOT}/usr/lib/x86_64-linux-gnu"
+            NO_DEFAULT_PATH)
+        set(Protobuf_PROTOC_EXECUTABLE "${F15_PROTOBUF_ROOT}/usr/bin/protoc" CACHE FILEPATH "" FORCE)
+    endif()
+    find_package(Protobuf REQUIRED)
+
+    set(GAMENETWORKINGSOCKETS_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    set(GAMENETWORKINGSOCKETS_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+    set(BUILD_SHARED_LIB OFF CACHE BOOL "" FORCE) # static-only: our protobuf.a is non-PIC
+    set(BUILD_STATIC_LIB ON CACHE BOOL "" FORCE)
+    set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+    set(BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    set(BUILD_TOOLS OFF CACHE BOOL "" FORCE)
+    set(Protobuf_USE_STATIC_LIBS ON CACHE BOOL "" FORCE)
+    set(USE_CRYPTO OpenSSL CACHE STRING "" FORCE)
+    set(USE_CRYPTO25519 OpenSSL CACHE STRING "" FORCE)
+    FetchContent_Declare(
+        GameNetworkingSockets
+        GIT_REPOSITORY "https://github.com/ValveSoftware/GameNetworkingSockets.git"
+        GIT_TAG "v1.4.1"
+        UPDATE_DISCONNECTED TRUE
+    )
+    FetchContent_MakeAvailable(GameNetworkingSockets)
+
+    add_library(f15net STATIC
+        ${SRC_DIR}/net/codec.cpp
+        ${SRC_DIR}/net/commands.cpp
+        ${SRC_DIR}/net/gns_transport.cpp
+        ${SRC_DIR}/net/snapshot.cpp
+    )
+    target_include_directories(f15net PUBLIC
+        ${SRC_DIR} ${SRC_DIR}/net ${SRC_DIR}/compat64 ${SRC_DIR}/shared)
+    target_link_libraries(f15net PUBLIC GameNetworkingSockets::GameNetworkingSockets_s)
+    target_compile_definitions(f15net PUBLIC F15_NET=1)
+
+    target_compile_definitions(f15se2_core PUBLIC F15_NET=1)
+    target_sources(f15se2 PRIVATE ${SRC_DIR}/net/netclient.cpp)
+    target_link_libraries(f15se2 PRIVATE f15net)
+
+    add_executable(f15server ${SRC_DIR}/server/f15server.cpp)
+    target_include_directories(f15server PRIVATE ${SRC_DIR} ${SRC_DIR}/shared)
+    target_link_libraries(f15server PRIVATE f15se2_core f15net)
+
+    # net unit tests: serializer + protocol round-trip, cmd mapping
+    add_behavior_test(net_codec_tests SOURCES
+        ${SRC_DIR}/net/codec.cpp ${SRC_DIR}/net/commands.cpp)
+    add_behavior_test(player_ctx_tests LINK_CORE)
 endif()

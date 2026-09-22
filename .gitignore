@@ -24,3 +24,5 @@ coverage.txt
 *.gcda
 *.gcno
 *.actual.bmp
+build-net/
+build-base/

@@ -9,6 +9,7 @@
 #include "worldxfer.h"
 #include "egkeys.h"
 #include "egmath.h"
+#include "egplayer.h"
 #include "egtacmap.h"
 #include "egthreat.h"
 #include "egtypes.h"
@@ -29,7 +30,8 @@
 void updateFrame(void);
 void dispatchKeyScancode();
 void tickMessageTimers();
-void updateBulletsAndFire();
+void moveBullets();
+void tryPlayerFire();
 void updateTracerParticles();
 void applyGravityFall();
 void initFrameRandom();
@@ -38,13 +40,70 @@ void findWaypointFeatures();
 void moveStuff();
 void moveNearFar(void *nearPtr, int16 count);
 int16 setCommWorldbufPtr();
+/* updateFrame is split into ordered segments (see the function body): the
+ * P-segments only touch player-scoped globals, the W-segments world state.
+ * Single-player calls them interleaved exactly as before; the net server runs
+ * the W pass once and the P pass per PlayerSim context. */
+static void framePlayerPre(void);
+static void frameTacmapBlip(void);
+static void framePlayerTimers(void);
+static void frameThreatScan(void);
+static void framePlayerMission(void);
+static void frameWorldTick(void);
 
 // ==== seg000:0x0720 ====
+/* Original order, preserved for single-player:
+ *   P-pre W-sims P-fire W-tracers P-gravity P-tacmap P-timers W-threat
+ *   P-mission W-tick P-keys
+ * The server calls updateWorldFrame() once + updatePlayerFrame() per ctx. */
 void updateFrame(void) {
+    framePlayerPre();
+    updateThreatSites();
+    updateObjects();
+    updateThreatTargeting();
+    tickMessageTimers();
+    moveBullets();
+    tryPlayerFire();
+    updateTracerParticles();
+    applyGravityFall();
+    frameTacmapBlip();
+    framePlayerTimers();
+    frameThreatScan();
+    framePlayerMission();
+    frameWorldTick();
+    dispatchKeyScancode();
+}
+
+/* World-only pass for the authoritative server (runs once per tick while a
+ * valid player ctx is resident - frameThreatScan reads the resident ctx's
+ * position). */
+void updateWorldFrame(void) {
+    updateThreatSites();
+    updateObjects();
+    updateThreatTargeting();
+    tickMessageTimers();
+    moveBullets();
+    updateTracerParticles();
+    frameThreatScan();
+    frameWorldTick();
+}
+
+/* Per-player pass for the authoritative server (runs per ctx). */
+void updatePlayerFrame(void) {
+    framePlayerPre();
+    tryPlayerFire();
+    applyGravityFall();
+    if (!g_headlessSim)
+        frameTacmapBlip(); /* presentation-only: no renderer on the server */
+    framePlayerTimers();
+    framePlayerMission();
+    dispatchKeyScancode();
+}
+
+static void framePlayerPre(void) {
     int16 tmp, unused;
     uint16 val;
-    uint16 screenY;
-    int16 i, objIdx;
+    int16 i;
 
     g_viewX_ = (int16)((g_ViewX + 0x10L) >> 5);
     g_viewY_ = -((int16)((g_ViewY + 0x10L) >> 5) - 0x8000);
@@ -152,14 +211,12 @@ void updateFrame(void) {
         g_viewY_ = val;
         g_ViewY = (int32)(0x8000 - g_viewY_) << 5;
     }
+    (void)unused;
+}
 
-    updateThreatSites();
-    updateObjects();
-    updateThreatTargeting();
-    tickMessageTimers();
-    updateBulletsAndFire();
-    updateTracerParticles();
-    applyGravityFall();
+static void frameTacmapBlip(void) {
+    uint16 val;
+    uint16 screenY;
 
     if (objectToScreen(g_viewX_, g_viewY_, (int16 *)&val, (int16 *)&screenY) != 0) {
         /* Software retained-page patch: erase last frame's player blip from the cached
@@ -180,7 +237,9 @@ void updateFrame(void) {
 
     g_unusedViewXSnap = g_viewX_;
     g_unusedViewYSnap = g_viewY_;
+}
 
+static void framePlayerTimers(void) {
     if (g_directorEventDeadline == frameTick) {
         if (g_autopilotEngaged == 0) {
             g_viewMode = VIEW_COCKPIT;
@@ -194,6 +253,11 @@ void updateFrame(void) {
         g_destroyedCueDeadline = 0;
         playVoiceCue(2);
     }
+}
+
+static void frameThreatScan(void) {
+    int16 tmp;
+    int16 i, objIdx;
 
     if ((frameTick & 7) != 0) goto skip_target_section;
 
@@ -265,7 +329,12 @@ void updateFrame(void) {
         g_unusedEventHist0 = 0;
     }
 
-skip_target_section:
+skip_target_section:;
+}
+
+static void framePlayerMission(void) {
+    int16 i;
+
     if (g_nearestThreatRange < 0x200 || g_groundAltitude == g_viewZ) {
         g_groundAltitude = 0;
         g_attackRangeX = 0xa0;
@@ -381,6 +450,10 @@ skip_autopilot:
     }
 
     g_targetLeadAngle = (g_planeTable.planes[g_closestThreatIndex].flags & 0x200 && g_nearestThreatRange < 0x500) ? (((g_northSouthSign << 8) / g_frameRateScaling) + g_targetLeadAngle) & 0xfff : 0;
+}
+
+static void frameWorldTick(void) {
+    int16 i;
 
     frameTick++;
     if (frameTick % g_frameRateScaling == 0) {
@@ -420,7 +493,6 @@ skip_autopilot:
             }
         }
     }
-    dispatchKeyScancode();
 }
 
 // ==== seg000:0x14e8 ====
@@ -482,8 +554,8 @@ void tickMessageTimers(void) {
     }
 }
 
-void updateBulletsAndFire(void) {
-    int16 firing, mag, yaw, pitch, i, slot;
+void moveBullets(void) {
+    int16 i;
 
     for (i = 0; i < g_bulletTrackCount + 4; i++) {
         if (bulletTracks[i].posX != 0) {
@@ -492,6 +564,12 @@ void updateBulletsAndFire(void) {
             bulletTracks[i].alt += bulletTracks[i].velZ;
         }
     }
+}
+
+/* Player gun trigger + tracer spawn; reads the ctx's axis/button state. */
+void tryPlayerFire(void) {
+    int16 firing, mag, yaw, pitch, slot;
+
     if (!(frameTick & 1)) {
         return;
     }
@@ -704,6 +782,7 @@ void generateRandomRadioMessage(void) {
 
 // ==== seg000:0x1d10 ====
 void appendMapEvent(int16 eventType, int16 eventArg) {
+    simEventsMapEvent(eventType, eventArg); /* net: forward as NE_MAP_EVENT */
     if (g_eventLogCount >= 255) {
         return;
     }
@@ -734,7 +813,10 @@ void placeString(int16 waypointIdx) {
 // ==== seg000:0x1e0e ====
 void initMissionStrings() {
     int16 nameIdx, i;
-    worldImportToEgame();
+    /* Net clients receive the world tables in MISSION_SETUP instead of
+     * importing from the local START state. */
+    if (!g_netClientMode)
+        worldImportToEgame();
     g_targetNameTable[0] = g_stringPool;
     nameIdx = 1;
     for (i = 0; i < 750; ++i) {

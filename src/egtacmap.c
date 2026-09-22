@@ -6,6 +6,7 @@
 #include "egdata.h"
 #include "egframe.h"
 #include "egmath.h"
+#include "egplayer.h"
 #include "egtacmap.h"
 #include "egthreat.h"
 #include "egtypes.h"
@@ -623,12 +624,14 @@ int readScreenPixel(int screenX, int screenY) {
 void hudMessage(const char *src) {
     strcpy(tempString, src);
     g_hudMsgTimer = g_frameRateScaling * 3;
+    simEventsHudMessage(src); /* net server turns this into NE_HUD_MESSAGE */
 }
 
 // ==== seg000:0xa204 ====
 void setTimedMessage(char *message) {
     strcpy(string_3C04A, message);
     g_dirMsgTimer = g_frameRateScaling * 3;
+    simEventsTimedMessage(message);
 }
 
 // ==== seg000:0xa224 ====

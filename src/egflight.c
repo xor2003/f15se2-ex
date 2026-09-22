@@ -18,6 +18,7 @@
 #include "const.h"
 #include "comm.h"
 #include "eginput.h"
+#include "egplayer.h"
 #include "input.h"
 
 #include <dos.h>
@@ -88,8 +89,8 @@ void stepFlightModel(void) {
     }
 
     keyScancode = 0;
-    if (kbhit()) {
-        keyScancode = egReadKey();
+    if (simInputKeyWaiting()) {
+        keyScancode = simInputReadKey();
         if (g_autopilotEngaged == 1) {
             g_directorMode =
                 g_autopilotEngaged =
@@ -97,8 +98,8 @@ void stepFlightModel(void) {
         }
     }
 
-    while (kbhit()) {
-        egReadKey(); // Flush keyboard buffer
+    while (simInputKeyWaiting()) {
+        simInputReadKey(); // Flush keyboard buffer
     }
 
     // Main key dispatch logic
@@ -176,15 +177,9 @@ switch_break:
         joyAxes[0] = 0;
         joyAxes[1] = 0;
     } else {
-        if (input_preferGamepad()) {
-            readCalibratedJoystick();
-        } else {
-
-            // temp_si = g_kbdSensitivity + 1;
-            joyAxes[0] = (uint8)(((int16)((uint8)g_joyRawX - 0x80) * (g_kbdSensitivity + 1)) / 3) - 0x80;
-
-            joyAxes[1] = (uint8)(((int16)((uint8)g_joyRawY - 0x80) * (g_kbdSensitivity + 1)) / 3) - 0x80;
-        }
+        /* InputSource seam (egplayer.h): local ops reproduce the original
+         * gamepad/keyboard read; remote ops feed net client's stick. */
+        simInputPollAxes(&joyAxes[0], &joyAxes[1]);
     }
 
     g_rollInput = ((uint16)joyAxes[0] >> 4) - 8;

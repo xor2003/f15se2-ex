@@ -11,6 +11,8 @@
 #include "offsets.h"
 #include "log.h"
 #include "gfx.h"
+#include "gfx_impl.h"
+#include "r3d.h"
 #include "slot.h"
 #include "const.h"
 #include "comm.h"
@@ -24,6 +26,30 @@
 /* Private helpers for this translation unit. */
 void drawCockpit();
 void runGameSession();
+
+/* Process-level COMM/GAME blocks + game_init(). These live in the core lib so
+ * both f15se2-ex and the headless f15server can run the same boot path
+ * (F15_NET). */
+struct GameComm commBuffer;
+struct Game gameBuffer;
+
+void game_init(const int16 showIntro) {
+    commData = &commBuffer;
+    gameData = &gameBuffer;
+
+    commData->needSplash = showIntro;
+    commData->setupUseJoy = 0;
+    commData->setupDetail = 4; /* 4 = extended detail: full LOD + long-range draw distance */
+
+    gfx_initState();
+    gfx_setMode13();
+    r3d_init();
+
+    /* F15.SPR (radar/tac-map/HUD sprite sheet) lives in a sprite-buffer image, not
+     * a page. Allocated once here; START decodes f15.spr into it and EGAME blits
+     * from it via gfxBufPtr (the handle). */
+    commData->gfxInitResult = (int16)gfx_allocSpriteBuf();
+}
 
 /* Restore mutable EGAME globals that the DOS executable reinitialized whenever
  * START launched it for a new mission. The native port keeps EGAME in the same

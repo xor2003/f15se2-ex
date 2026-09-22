@@ -33,26 +33,7 @@
 const int RET_MENU = 0xc;
 const int RET_DEBRIEFING = 0x23;
 
-struct GameComm commBuffer;
-struct Game gameBuffer;
-
-void game_init(const int16 showIntro) {
-    commData = &commBuffer;
-    gameData = &gameBuffer;
-
-    commData->needSplash = showIntro;
-    commData->setupUseJoy = 0;
-    commData->setupDetail = 4; /* 4 = extended detail: full LOD + long-range draw distance */
-
-    gfx_initState();
-    gfx_setMode13();
-    r3d_init();
-
-    /* F15.SPR (radar/tac-map/HUD sprite sheet) lives in a sprite-buffer image, not
-     * a page. Allocated once here; START decodes f15.spr into it and EGAME blits
-     * from it via gfxBufPtr (the handle). */
-    commData->gfxInitResult = (int16)gfx_allocSpriteBuf();
-}
+void game_init(const int16 showIntro); /* egmain.c (core lib; shared with f15server) */
 
 /* In-process entry points for START.EXE / EGAME.EXE / END.EXE — three separate
  * DOS programs in the original, here linked into this single executable and
@@ -62,6 +43,9 @@ int egame_main(void);
 int end_main(void);
 bool setGamePath(const char *path);
 bool verifyGameAssets();
+#ifdef F15_NET
+int netClientMain(const char *hostPort, const char *name);
+#endif
 
 /* Graceful application shutdown, registered with the input pump as the
  * window-close (SDL_EVENT_QUIT) handler so closing the window quits from any
@@ -83,6 +67,8 @@ void usage(int errcode) {
 
 int main(int argc, char *argv[]) {
     int16 showIntro = 1;
+    const char *netAddr = 0;
+    const char *pilotName = "Viper";
     log_set_app("f15");
     if (!setGamePath(getenv("F15SE2_DIR"))) goto shutdown;
     /* process cmdline args */
@@ -95,6 +81,16 @@ int main(int argc, char *argv[]) {
             if (!setGamePath(argv[i + 1])) goto shutdown;
             i++;
         }
+#ifdef F15_NET
+        else if (strcmp(optStr, "--connect") == 0) {
+            if (i + 1 >= argc) { printf("Option requires an argument: --connect\n"); usage(1); }
+            netAddr = argv[++i];
+        }
+        else if (strcmp(optStr, "--name") == 0) {
+            if (i + 1 >= argc) { printf("Option requires an argument: --name\n"); usage(1); }
+            pilotName = argv[++i];
+        }
+#endif
         else {
             printf("Unrecognized option: '%s'\n", optStr);
             usage(1);
@@ -106,6 +102,15 @@ int main(int argc, char *argv[]) {
     game_init(showIntro);
     joy_init();
     input_setQuitHandler(app_quit);
+
+#ifdef F15_NET
+    if (netAddr) {
+        /* Network client: skip START menus, fly under the server's authority. */
+        log_set_app("netclient");
+        netClientMain(netAddr, pilotName);
+        goto shutdown;
+    }
+#endif
 
     while (true) {
         int err;

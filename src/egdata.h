@@ -427,6 +427,8 @@ extern int16 g_targetBearing;
 extern int16 g_prevKillMarker;
 extern int16 g_aamLeadDist;
 extern int16 g_axisInput1;
+extern uint8 g_exitMsgDigit;
+extern uint8 g_exitMsgTerm;
 extern int16 *g_targetViewParams;
 extern int16 g_trkRange;
 extern int16 g_trkBearing;

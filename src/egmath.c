@@ -7,6 +7,7 @@
 #include "egdata.h"
 #include "egframe.h"
 #include "egmath.h"
+#include "egplayer.h"
 #include "egtacmap.h"
 #include "egthreat.h"
 #include "egtypes.h"
@@ -515,7 +516,10 @@ int16 readAxisInput(int16 axisIdx) {
     if (g_inputDisabled) {
         value = 0;
     } else {
-        value = ((commData->setupUseJoy) ? misc_readJoystick(axisIdx) : 0) + g_axisInputAccum[axisIdx];
+        /* InputSource seam (egplayer.h): the local ops return the joystick
+         * trigger under setupUseJoy; remote ops return the net client's held
+         * button bit. Keyboard fire still flows via g_axisInputAccum. */
+        value = simInputFireButton(axisIdx) + g_axisInputAccum[axisIdx];
     }
     return value;
 }
