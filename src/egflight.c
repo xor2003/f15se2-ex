@@ -954,9 +954,14 @@ void renderFrame() {
     g_camEyeX = fineUnits(g_ViewX);
     g_camEyeY = fineUnits(g_ViewY);
     g_viewTargetY = 0x100000 - fineRep(g_ViewY);
-    g_camEyeZ = f15::math::legacy::Altitudes::renderWord(flightSceneHeight()) + 0x18;
     g_camEyeFracX = g_camEyeFracY = g_camEyeFracZ = 0;
-    g_viewTargetAlt = f15::math::legacy::Altitudes::render(flightSceneHeight());
+    /* The eye rides the render-interpolated scene height (fractional under
+     * modern) so camera, model and terrain share one interpolation state —
+     * reading the live per-tick altitude sawtooths the view vertically. */
+    g_camEyeZ = (int16)eyeFromQ8(
+        (f15::math::legacy::Altitudes::render(g_sceneHeightRender) + 0x18) * 256.0,
+        &g_camEyeFracZ);
+    g_viewTargetAlt = f15::math::legacy::Altitudes::render(g_sceneHeightRender);
     camDist = g_externalCamDist = clampRange(g_externalCamDist, 2, 8);
     switch (g_viewMode) {
     case VIEW_COCKPIT:
@@ -1026,7 +1031,9 @@ void renderFrame() {
         g_viewRoll = 0;
         g_camEyeX = eyeFromQ8(CamMath::sineOffsetQ8(g_ourHead + angleFromWord((int16)0x8000), 0x18 << camDist, g_angleLut) + fineRep(g_ViewX) * 256.0, &g_camEyeFracX);
         g_camEyeY = eyeFromQ8(CamMath::cosineOffsetQ8(g_ourHead + angleFromWord((int16)0x8000), 0x18 << camDist, g_angleLut) + fineRep(g_ViewY) * 256.0, &g_camEyeFracY);
-        g_camEyeZ = (4 << camDist) + f15::math::legacy::Altitudes::renderWord(flightSceneHeight());
+        g_camEyeZ = (int16)eyeFromQ8(
+            ((4 << camDist) + f15::math::legacy::Altitudes::render(g_sceneHeightRender)) * 256.0,
+            &g_camEyeFracZ);
         break;
     case VIEW_EXT_TARGET:
     case VIEW_MISSILE:
@@ -1073,7 +1080,7 @@ void renderFrame() {
         if (g_directorMode == 0) camDist = savedCamDist;
         computeTrackingCameraAngles(g_viewTargetX, g_viewTargetY,
                                     g_viewTargetAlt, fineRep(g_ViewX), fineRep(g_ViewY),
-                                    f15::math::legacy::Altitudes::render(flightSceneHeight()),
+                                    f15::math::legacy::Altitudes::render(g_sceneHeightRender),
                                     &g_viewHeading, &g_viewPitch);
         g_viewRoll = 0;
         camOffset = (int16)CamMath::cosineVelocity(angleFromWord(g_viewPitch), 0x18 << camDist, g_angleLut);
@@ -1081,7 +1088,7 @@ void renderFrame() {
             if (g_viewMode == VIEW_EXT_TARGET) {
                 g_camEyeX = eyeFromQ8(CamMath::sineOffsetQ8(angleFromWord((int16)(g_viewHeading + 0x8000)), camOffset, g_angleLut) + fineRep(g_ViewX) * 256.0, &g_camEyeFracX);
                 g_camEyeY = eyeFromQ8(CamMath::cosineOffsetQ8(angleFromWord((int16)(g_viewHeading + 0x8000)), camOffset, g_angleLut) + fineRep(g_ViewY) * 256.0, &g_camEyeFracY);
-                g_camEyeZ = (int16)eyeFromQ8(CamMath::sineOffsetQ8(angleFromWord(g_viewPitch), 0x18 << camDist, g_angleLut) + ((4 << camDist) + f15::math::legacy::Altitudes::renderWord(flightSceneHeight())) * 256.0, &g_camEyeFracZ);
+                g_camEyeZ = (int16)eyeFromQ8(CamMath::sineOffsetQ8(angleFromWord(g_viewPitch), 0x18 << camDist, g_angleLut) + ((4 << camDist) + f15::math::legacy::Altitudes::render(g_sceneHeightRender)) * 256.0, &g_camEyeFracZ);
                 g_viewPitch = -g_viewPitch;
             } else {
                 g_camEyeX = eyeFromQ8(CamMath::sineOffsetQ8(angleFromWord(g_viewHeading), camOffset, g_angleLut) + g_viewTargetX * 256.0, &g_camEyeFracX);

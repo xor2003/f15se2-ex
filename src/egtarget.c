@@ -106,7 +106,8 @@ void updateTargetLock(void) {
     /* Fire at g_viewMode == 0x8b (sidewinder lock) */
     if (g_viewMode == VIEW_TARGET) {
         drawWorldObject(6, fineRep(g_ViewX), 0x01000000 - fineRep(g_ViewY),
-                        g_viewZ + 0x10, signedAngle(g_ourHead), signedAngle(g_ourPitch), signedAngle(g_ourRoll), 2);
+                        f15::math::legacy::Altitudes::render(g_sceneHeightRender) + 0x10,
+                        signedAngle(g_ourHead), signedAngle(g_ourPitch), signedAngle(g_ourRoll), 2);
     }
 
     if (g_aamLockCooldown != 0) {
@@ -355,7 +356,9 @@ skip_aam:
     if (flightSceneHeight().isZero() && g_ejectState != 0) goto done;
 
     drawWorldObject(((g_playerPlaneFlags & 1) == 0) + 6, fineRep(g_ViewX),
-                    0x01000000 - fineRep(g_ViewY), g_viewZ + 0x10, signedAngle(g_ourHead), signedAngle(g_ourPitch), signedAngle(g_ourRoll),
+                    0x01000000 - fineRep(g_ViewY),
+                    f15::math::legacy::Altitudes::render(g_sceneHeightRender) + 0x10,
+                    signedAngle(g_ourHead), signedAngle(g_ourPitch), signedAngle(g_ourRoll),
                     2 - depthShift);
 
     if (f15::math::AltitudeMath<f15::math::GameBackend>::belowSceneHeight(

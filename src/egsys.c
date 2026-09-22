@@ -97,6 +97,7 @@ static void camCapture(CamSnapshot *s) {
 static void camRestore(const CamSnapshot *s) {
     g_ViewX = s->viewX;
     g_ViewY = s->viewY;
+    g_sceneHeightRender = s->viewZ;
     g_viewZ = f15::math::legacy::Altitudes::renderWord(s->viewZ);
     g_ourHead = s->head;
     g_ourPitch = s->pitch;
@@ -135,9 +136,10 @@ static void camApplyInterp(const CamSnapshot *p, const CamSnapshot *n, int64 num
         : Pose::linearOffset(p->rollPitchTrim, n->rollPitchTrim, fraction);
     g_ViewX = x;
     g_ViewY = y;
-    g_viewZ = f15::math::legacy::Altitudes::renderWord(
+    g_sceneHeightRender =
         f15::math::AltitudeMath<f15::math::GameBackend>::interpolate(
-            p->viewZ, n->viewZ, f15::math::FrameFraction::fromTicks(num, den)));
+            p->viewZ, n->viewZ, f15::math::FrameFraction::fromTicks(num, den));
+    g_viewZ = f15::math::legacy::Altitudes::renderWord(g_sceneHeightRender);
     g_ourHead = pose.yaw;
     g_ourPitch = pose.pitch;
     g_ourRoll = pose.roll;
@@ -295,8 +297,23 @@ static void objApplyInterp(const SimObjSnap *sp, const SimObjSnap *sn,
          * non-interpolated slot still has a valid fine value. */
         g_projInterpX[i] = f15::math::legacy::fineRep(pn[i].fineX);
         g_projInterpY[i] = f15::math::legacy::fineRep(pn[i].fineY);
+#ifdef F15_MODERN_MATH
+        /* Modern: interpolate whenever both snapshots are the same live slot.
+         * The fixed ttl−1 gate assumes the update path decrements ttl once per
+         * step — a shot whose update skips the decrement, or keeps flying past
+         * ttl=0, snaps instead of lerping and the tracking camera sawtooths
+         * against the interpolated player state. A reused slot passes through
+         * ttl==0 and a respawn teleports, so both guard against streaks. */
+        if (pp[i].ttl.word() == 0 || pn[i].ttl.word() == 0 ||
+            std::abs(f15::math::legacy::fineRep(pn[i].fineX) -
+                     f15::math::legacy::fineRep(pp[i].fineX)) >= OBJ_TELEPORT_GUARD ||
+            std::abs(f15::math::legacy::fineRep(pn[i].fineY) -
+                     f15::math::legacy::fineRep(pp[i].fineY)) >= OBJ_TELEPORT_GUARD)
+            continue;
+#else
         if (pp[i].ttl.atMost(0) || pn[i].ttl.word() != pp[i].ttl.word() - 1)
             continue;
+#endif
         g_projectiles[i].fineX = Fine::interpolate(pp[i].fineX, pn[i].fineX, fraction);
         g_projectiles[i].fineY = Fine::interpolate(pp[i].fineY, pn[i].fineY, fraction);
         g_projectiles[i].mapX = g_projectiles[i].fineX.mapWord();

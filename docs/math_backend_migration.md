@@ -1480,6 +1480,31 @@ to fine units while the eye kept Q8 precision.
 Verification: fixed 60/60 incl. sortie parity, modern build + smoke,
 analyzer clean (relocated pre-existing findings only).
 
+## Render-interpolated scene height checkpoint (F5–F9 vertical shake fix)
+
+External views shook ~10px vertically under modern: `flightSceneHeight()`
+returns the **live per-tick** `g_altitude` under `F15_MODERN_MATH` (fixed
+returns the interpolated `g_viewZ`), so `renderFrame`'s camera eye Z stepped
+per sim tick while the model's altitude (`g_viewZ`-derived) interpolated per
+render frame — a ramp-and-snap sawtooth of the full per-tick climb rate.
+
+* `g_sceneHeightRender` — new `RenderHeight<GameBackend>` global carrying
+  the fractional lerp result before `g_viewZ` truncation, written by
+  `camApplyInterp` and synced by `camRestore` (egsys.c).
+* `renderFrame` camera eye Z and tracking-aim altitude now read
+  `g_sceneHeightRender` instead of `flightSceneHeight()`; the F5/F6/F7/F9
+  eye-Z paths go through `eyeFromQ8` so the eye keeps its sub-word fraction
+  (terrain `lodEyeFracQ8` and model `vfz` compensate identically).
+* Player model altitude args pass `render(g_sceneHeightRender) + 0x10`
+  (fractional under modern, identical word under fixed).
+* Projectile render-interp gate relaxed under modern: interpolate whenever
+  both snapshots are the same live slot (`ttl != 0` both sides + teleport
+  guard), since the strict `ttl−1` gate skips shots whose update path does
+  not decrement every step — leaving `g_projectileAlt` per-tick while the
+  tracking eye interpolated. Fixed keeps the original gate verbatim.
+
+Manual verification: F5–F9 and F10 confirmed steady by user testing.
+
 ### Next acceptance boundary
 
 The decision-math surface is migrated end to end: every gameplay compare

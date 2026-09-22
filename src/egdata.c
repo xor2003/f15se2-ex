@@ -2259,6 +2259,12 @@ f15::math::FineRep<f15::math::GameBackend> g_viewTargetY;
 int16 g_crashCamX;
 uint8 g_landTargetId[2];
 f15::math::WordRep<f15::math::GameBackend> g_viewTargetAlt;
+/* Render-time interpolated scene height — camApplyInterp's fractional lerp
+ * result before the g_viewZ word truncation. The render path (camera eye,
+ * tracking aim, model altitude) reads this so camera and model share one
+ * interpolation state; flightSceneHeight() instead returns the live
+ * per-tick altitude under modern, which produced a vertical sawtooth. */
+f15::math::RenderHeight<f15::math::GameBackend> g_sceneHeightRender;
 int16 g_viewTargetObj;
 /* g_itoaScratch: itoa scratch buffer for assembling HUD/MFD numeric strings. */
 char g_itoaScratch[12];

@@ -370,6 +370,7 @@ extern f15::math::FineRep<f15::math::GameBackend> g_viewTargetY;
 extern int16 g_crashCamX;
 extern uint8 g_landTargetId[];
 extern f15::math::WordRep<f15::math::GameBackend> g_viewTargetAlt;
+extern f15::math::RenderHeight<f15::math::GameBackend> g_sceneHeightRender;
 extern int16 g_viewTargetObj;
 extern char g_itoaScratch[];
 extern int16 g_crashCamY;
