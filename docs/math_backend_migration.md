@@ -36,8 +36,10 @@ original limits have been removed or that combat/AI/rendering are modernized.
 The fixed build retains the complete fixed-reference suite. The modern build
 registers `modern_flight_smoke_tests`, which links its real core, statically
 verifies modern state types, checks persistent fractional orientation and the
-removed altitude/speed cutoffs, and executes 120 production flight steps.
-This smoke test is not a completed sortie or full modern behavior coverage.
+removed altitude/speed cutoffs, and executes 120 production flight steps,
+plus `modern_sortie_tests`, which runs the shared scripted sortie and is
+described in the acceptance section below. The smoke test alone is not a
+completed sortie or full modern behavior coverage.
 
 The production `advanceFlightOrientation` now delegates ordered matrix updates
 to `FlightControlMath<B>::advanceOrientation`. Fixed and modern specializations
@@ -894,12 +896,60 @@ as `blackbox_diag`) after every tick.
   dump (`sortie_parity_tests dump` prints the raw fields per tick).
 * Honest limits: this covers the scripted profile on an empty world — no
   loaded mission assets, terrain, rendering, or real-time pacing. It does
-  not cover interactive `.bbx` recorded sorties, and modern-backend traces
-  intentionally diverge (the golden is fixed-backend only). A passing run
-  proves the migration series preserved fixed behavior *for this profile*,
-  not every reachable game state.
+  not cover interactive `.bbx` recorded sorties, and the exact-hash golden
+  is fixed-backend only (modern acceptance lives in `modern_sortie_tests`,
+  next section). A passing run proves the migration series preserved fixed
+  behavior *for this profile*, not every reachable game state.
 
 Verification: fixed 59/59 (new `sortie_parity_tests`) and modern smoke pass.
+
+## Modern sortie acceptance gate
+
+`tests/sortie_harness.hpp` now holds the scripted-sortie driver (seed 20967,
+660 ticks, the same takeoff/climb/turn/stall/weapons/autopilot schedule),
+shared by `sortie_parity_tests` (fixed, exact-hash golden) and
+`modern_sortie_tests` (modern build only). The harness also emits a
+per-field trace — every hashed field by name and value each tick — used as
+the comparison basis (`tests/goldens/sortie_fields.trace` for fixed,
+`sortie_fields_modern.trace` for modern).
+
+`modern_sortie_tests` applies three layers:
+
+1. **Modern golden pin** — all hashed fields, every tick, compared exactly
+   against `sortie_fields_modern.trace`. The modern backend is deterministic,
+   so any behavioral change breaks the pin and the golden is regenerated
+   deliberately via `modern_sortie_tests record <file>`. This is the primary
+   regression net for modern behavior.
+2. **Player-flight envelope vs fixed** — `f.*` fields only, with tolerances
+   set to ~2x the measured divergence on this sortie: fine position 8192,
+   altitude/viewZ 4096 units, attitude 2048 words (wrap-safe, ~11 deg),
+   speed 1500, knots 64, and small budgets for control/load/thrust/fuel.
+   Chaos legitimately decorrelates the world over 660 ticks — measured
+   worst case is position ~2800 units and heading ~612 words (~3.4 deg) at
+   tick 659 — but the player trajectory must stay inside the envelope; a
+   dead-end state like the near-pole knife-edge park would leave it.
+3. **Schedule-driven discrete transitions** — gear, eject, autopilot,
+   damage, gun hits, mission status and related flags must take the same
+   ordered sequence of values, each transition within 64 ticks. The one
+   measured shift is the 350-knot gear auto-retract firing ~20 ticks early
+   under fractional speed accumulation — a legitimate threshold-timing
+   difference. Missing, extra or reordered transitions fail.
+
+Object, weapon and projectile internals are deliberately *not* compared
+against fixed: they decorrelate legitimately (at ~t390 the aircraft already
+differ by ~1000 altitude units and ~3 deg of pitch, so a missile launched on
+the same key follows a different attitude into the ground). They are pinned
+only by layer 1.
+
+Honest limits: same scripted profile, same empty world — this does not
+cover loaded missions, combat AI decisions, rendering, or interactive
+recordings, and it does not make modern behavior identical to fixed; it
+certifies that the same scripted sortie stays bounded-equivalent and
+structurally intact under modern math.
+
+Verification: modern `modern_sortie_tests` passes (660 ticks pinned,
+envelope worst case position 2838/heading 612 at tick 659), fixed 60/60
+including `sortie_parity_tests`.
 
 ## Angle magnitude read adapters
 
@@ -1791,6 +1841,14 @@ orthogonality and scenario-level outcomes. Cover takeoff, turns, stall,
 landing, missile pursuit, wrap boundaries and long flights. Rendering FPS must
 not determine simulation step count or outcomes. Do not claim that a handful
 of matching scalar tests guarantees identical missions.
+
+Current state vs that checklist: the scripted sortie harness now exists and
+both backends run it (fixed exact golden; modern pin + envelope + discrete
+transitions, see the acceptance section). Still missing: loaded mission
+assets, landing and missile-pursuit outcomes, wrap-boundary scenarios,
+interactive `.bbx` recordings, real-time pacing, and multi-platform runs —
+so modern coverage remains a scripted-profile acceptance gate, not a
+certification of the whole game.
 
 Reproduce standalone Clang checks from the repository root:
 

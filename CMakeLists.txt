@@ -521,7 +521,18 @@ if(F15SE2_MODERN_MATH)
         add_executable(modern_flight_smoke_tests tests/modern_flight_smoke_tests.cpp)
         target_link_libraries(modern_flight_smoke_tests PRIVATE f15se2_core)
         add_test(NAME modern_flight_smoke_tests COMMAND modern_flight_smoke_tests)
-        set_tests_properties(modern_flight_smoke_tests PROPERTIES
+
+        # Whole-sortie modern acceptance: same scripted sortie as the fixed
+        # parity golden, compared per-field with documented tolerances.
+        add_executable(modern_sortie_tests tests/modern_sortie_tests.cpp)
+        target_include_directories(modern_sortie_tests PRIVATE
+            ${SRC_DIR}/compat64 ${SRC_DIR} ${SRC_DIR}/shared ${SRC_DIR}/generated)
+        target_compile_definitions(modern_sortie_tests PRIVATE
+            F15_GOLDEN_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/goldens")
+        target_link_libraries(modern_sortie_tests PRIVATE f15se2_core Threads::Threads)
+        add_test(NAME modern_sortie_tests COMMAND modern_sortie_tests)
+
+        set_tests_properties(modern_flight_smoke_tests modern_sortie_tests PROPERTIES
             ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
     endif()
     return() # Fixed-reference fixtures require the default fixed build.
