@@ -1118,6 +1118,25 @@ Verification: fixed focused tests pass (eg3drast suites seed the typed
 spin angle through `angleFromWord`); sortie parity unchanged; modern
 smoke/sortie pass; the allowlist dropped the migrated name.
 
+## RNG contract audit
+
+Full sweep of the three RNG streams confirms the deterministic contract:
+
+* **Sim stream** (`gameRand15`/`gameRand`/`randMul`/`randomRange`, seeded
+  by `g_rngSeed`, blackbox-recorded/replayed): every caller is sim-tick
+  or init-path — object/particle spawns gated by `frameTick.phase`,
+  damage/mask rolls, AI target selection, turbulence, gun dispersion,
+  director picks. No render file (`eg3d*`, `egsphere`, `eghudr`,
+  `r3d_gl`, `egtacmap`) consumes it.
+* **Render stream** (`renderRand15`/`renderRandomRange`, private LCG
+  state): only the `drawWorldEffects` hit-spark scatter — never recorded,
+  replayed, or seeded from the sim clock.
+* **Debrief stream** (`randSeed`/`randState`): confined to
+  `endata.c`/`enfile.c`/`enrand.h` — end-of-mission module only.
+
+The audit found no remaining render-path consumption of the sim stream;
+the earlier `drawWorldEffects` fix was the only violation.
+
 ## Throttle-command storage checkpoint
 
 `g_setThrust` is now `EngineThrust<GameBackend>` — the same engine-command
