@@ -190,7 +190,9 @@ void spawnEnemyAircraft(int16 slot, int16 objType) {
 void updateThreatTargeting(void) {
     int16 slot, scan, mode, spec, locked, aimY, bestIdx, step;
     int16 viewX, viewY, alt0, wpX, wpY, ring, acq, wp;
-    uint16 best, dist;
+    /* best/dist carry mapRange results — fractional under modern; the
+     * uint16 wrap on uncapped modern ranges was a legacy limit. */
+    f15::math::WordRep<f15::math::GameBackend> best, dist;
 
     switchIndicatorColor(0, 8);
     switchIndicatorColor(1, 8);
@@ -265,7 +267,7 @@ void updateThreatTargeting(void) {
                             acq = samCanAcquireTarget(slot, g_simObjects[scan].posX,
                                                       g_simObjects[scan].posY,
                                                       g_simObjects[scan].alt, mode);
-                            if ((unsigned)g_acqRange < best && acq != 0) {
+                            if (g_acqRange < best && acq != 0) {
                                 aimY = g_acqAimY;
                                 best = g_acqRange;
                                 bestIdx = scan;
@@ -292,7 +294,7 @@ void updateThreatTargeting(void) {
                                  (mode != 5 && !(g_planeTable.planes[scan].flags & 8))) &&
                                 (acq = samCanAcquireTarget(slot, g_planeTable.planes[scan].mapX,
                                                            g_planeTable.planes[scan].mapY, 0, mode),
-                                 (unsigned)g_acqRange < best && acq != 0)) {
+                                 g_acqRange < best && acq != 0)) {
                                 aimY = g_acqAimY;
                                 aimIsHeading = false;
                                 best = g_acqRange;
@@ -351,11 +353,11 @@ void updateThreatTargeting(void) {
                 f15::math::Angle<f15::math::GameBackend> pitchAim;
                 if (slot < 8 && best < 0x400) {
                     pitchAim = ProjectileGuidance::aimBearing((alt0 - g_projectiles[slot].alt) >> 4,
-                                                              abs((int16)best));
+                                                              f15::math::legacy::wordAbs(best));
                 } else {
                     pitchAim = ProjectileGuidance::aimBearing(((alt0 - g_projectiles[slot].alt) >> 5) +
-                                              (abs((int16)best) > 0x140 ? abs((int16)best) >> 3 : 0),
-                                          abs((int16)best));
+                                              (f15::math::legacy::wordAbs(best) > 0x140 ? (int)f15::math::legacy::wordAbs(best) >> 3 : 0),
+                                          f15::math::legacy::wordAbs(best));
                 }
                 auto bear = pitchAim - g_projectiles[slot].pitch;
                 bear = ProjectileGuidance::limitTurn(bear, -f15::specPitchDiveLimit(sams[spec].turnRate),
@@ -425,9 +427,9 @@ void updateThreatTargeting(void) {
                     scheduleTimedEvent(VIEW_COCKPIT, 1);
                     makeSound(2, 2);
                     strcat(strBuf, " misses ");
-                    dist = (uint16)f15::math::legacy::mapRangeDelta(g_hitMapX - g_planeTable.planes[g_loftTargetIdx].mapX,
+                    dist = f15::math::legacy::mapRangeDelta(g_hitMapX - g_planeTable.planes[g_loftTargetIdx].mapX,
                                        g_hitMapY - g_planeTable.planes[g_loftTargetIdx].mapY);
-                    if (dist < (uint16)(0x100 / (g_missionStatus + 1))) {
+                    if (dist < 0x100 / (g_missionStatus + 1)) {
                         destroyGroundTarget(g_loftTargetIdx);
                         strcat(strBuf, " destroyed by ");
                         strcat(strBuf,
@@ -440,8 +442,8 @@ void updateThreatTargeting(void) {
                             goto msg_done;
                         wpX = (int16)(g_nearestTileObj->x >> 5);
                         wpY = -((int16)(g_nearestTileObj->y >> 5) - 0x8000);
-                        dist = (uint16)f15::math::legacy::mapRangeDelta(g_hitMapX - wpX, g_hitMapY - wpY);
-                        if (dist >= (uint16)(0x180 / (g_missionStatus + 2)))
+                        dist = f15::math::legacy::mapRangeDelta(g_hitMapX - wpX, g_hitMapY - wpY);
+                        if (dist >= 0x180 / (g_missionStatus + 2))
                             goto msg_done;
                         destroyGroundTarget(wp);
                         strcat(strBuf, " destroyed by ");
@@ -534,11 +536,12 @@ void updateThreatTargeting(void) {
 
 // ==== seg000:0x85be ====
 int samCanAcquireTarget(int slot, int targetX, int targetY, int targetAlt, int mode) {
-    int range, dx, dy;
+    int dx, dy;
 
     dx = targetX - g_projectiles[slot].mapX;
     dy = targetY - g_projectiles[slot].mapY;
-    range = f15::math::legacy::mapRangeDelta(dx, dy);
+    /* auto keeps mapRangeDelta's rep — fractional under modern. */
+    auto range = f15::math::legacy::mapRangeDelta(dx, dy);
     g_acqAimY = signedAngle(ProjectileGuidance::aimBearing(dx, -dy));
     if (g_frameRateScaling.perTick(g_projectiles[slot].speed * 24) > range) {
         g_acqRange = range;

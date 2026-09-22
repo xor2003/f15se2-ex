@@ -88,6 +88,17 @@ inline auto mapRangeDelta(int dx, int dy) {
     using Rep = typename MapOffset<B>::Rep;
     return mapRange(MapOffset<B>{static_cast<Rep>(dx), static_cast<Rep>(dy)});
 }
+
+/* abs on a word-domain scalar where the original wrote abs((int16)v):
+ * fixed keeps the (int16) wrap + abs of the word; modern takes the
+ * un-narrowed magnitude — the word wrap was a width limit, not gameplay. */
+template<class B = GameBackend, class T>
+inline auto wordAbs(T v) {
+    if constexpr (std::is_same_v<B, FixedBackend>)
+        return std::abs(static_cast<int>(static_cast<std::int16_t>(v)));
+    else
+        return std::fabs(static_cast<double>(v));
+}
 }
 }
 #endif

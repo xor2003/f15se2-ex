@@ -1387,6 +1387,22 @@ per-bit semantics are not established.
 Verification: fixed 60/60 incl. sortie parity (exercises the guidance
 clamps and ttl estimates), modern smoke, analyzer clean on both TUs.
 
+## Acquisition range globals checkpoint
+
+`g_acqRange` and `g_nearestThreatRange` are now `WordRep<GameBackend>` —
+they carry `mapRange`/`mapRangeDelta` results, which are fractional and
+uncapped under modern (`mapRange` drops the legacy 0x7fff return cap).
+The `int16`/`uint16` stores re-narrowed that: `(int16)dist` truncated the
+fraction, and `(uint16)mapRangeDelta(...)` could wrap a >64k modern range
+into the small-hit-compare domain. `updateThreatTargeting`'s `best`/`dist`
+locals follow the rep, `abs((int16)best)` reads through the new
+`wordAbs` compat helper, and the `(unsigned)` compare casts drop —
+the values are non-negative by construction. `g_acqAimY` stays int16 —
+it's a word-domain out-param by contract.
+
+Verification: fixed 60/60 incl. sortie parity, modern smoke, analyzer
+clean on egcombat/egframe/egdata.
+
 ### Next acceptance boundary
 
 The decision-math surface is migrated end to end: every gameplay compare

@@ -2034,7 +2034,7 @@ int16 g_modelEvenOddBit = 0;
 int16 g_mapLodIndex = 0;
 int16 g_threatSpec = 0;
 int16 g_activeThreatCount = 0;
-int16 g_acqRange = 0;
+f15::math::WordRep<f15::math::GameBackend> g_acqRange = 0;
 int16 g_acqAimY = 0;
 int16 g_lockToneFlag = 0;
 int16 g_targetRange = 0;
@@ -2081,7 +2081,7 @@ f15::math::TickDuration g_missionTick;
 int16 g_gunFiredFlag;
 int16 g_damageTakenFlag;
 int16 g_threatRefHead;
-int16 g_nearestThreatRange;
+f15::math::WordRep<f15::math::GameBackend> g_nearestThreatRange;
 
 /* gameData: far pointer to the shared Game struct, set at startup. */
 int16 g_finalThreatScore;

@@ -260,7 +260,7 @@ void updateFrame(void) {
             const auto dist = mapRange(mapOffset(flightMapPosition(),
                                                  g_planeTable.planes[i].mapX, g_planeTable.planes[i].mapY));
             if (dist < g_nearestThreatRange) {
-                g_nearestThreatRange = (int16)dist;
+                g_nearestThreatRange = dist;
                 g_closestThreatIndex = i;
             }
         }
