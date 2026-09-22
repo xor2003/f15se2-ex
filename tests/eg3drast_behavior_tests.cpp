@@ -1,6 +1,7 @@
 #include "eg3drast.h"
 #include "egcode.h"
 #include "egdata.h"
+#include "math/legacy_rotation.hpp"
 
 #include <cstdlib>
 #include <cstring>
@@ -117,7 +118,7 @@ int main() {
 
     modelStream[0] = kTransformOpcode;
     g_modelStreamPtr = reinterpret_cast<char *>(modelStream);
-    g_spinAngle = kSpinAngle;
+    g_spinAngle = f15::math::legacy::angleFromWord(kSpinAngle);
     g_objTransform[kTransformIndex] = 0;
     storeObjTransformByOpcode();
     require(g_objTransform[kTransformIndex] == kSpinAngle,

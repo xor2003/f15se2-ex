@@ -300,7 +300,7 @@ int far advanceModelPointerLod(void) {
 void storeObjTransformByOpcode(void) {
     unsigned char far *p = (unsigned char far *)g_modelStreamPtr;
     int idx = (*p) & MODEL_TRANSFORM_SLOT_MASK;
-    g_objTransform[idx] = g_spinAngle;
+    g_objTransform[idx] = f15::math::legacy::signedAngle(g_spinAngle);
 }
 
 /* ===================================================================== */
@@ -2516,7 +2516,7 @@ static void projectSceneObjectImpl(char far *model, R3DReplacementMesh *replacem
     if ((opcode & MODEL_STORE_TRANSFORM_MASK) == MODEL_STORE_TRANSFORM_MASK) {
         int idx = (*p) & MODEL_TRANSFORM_SLOT_MASK;
         p++;
-        g_objTransform[idx] = g_spinAngle;
+        g_objTransform[idx] = f15::math::legacy::signedAngle(g_spinAngle);
     }
     g_modelStreamPtr = (char far *)p;
     if (cl & 0x40) {
@@ -2607,7 +2607,7 @@ int far r3d_objTransformFar(char far *model, int yaw, int pitch, int roll,
     p = (unsigned char far *)model + 1; /* past render-mode byte */
     skipDisplayListByLod(&p);
     if ((*p & MODEL_STORE_TRANSFORM_MASK) == MODEL_STORE_TRANSFORM_MASK) {
-        g_objTransform[(*p) & MODEL_TRANSFORM_SLOT_MASK] = g_spinAngle;
+        g_objTransform[(*p) & MODEL_TRANSFORM_SLOT_MASK] = f15::math::legacy::signedAngle(g_spinAngle);
         p++;
     }
 

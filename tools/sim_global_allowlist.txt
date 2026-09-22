@@ -331,7 +331,6 @@ g_sphereRadius
 g_sphereRingRadii
 g_sphereRoll
 g_sphereTiltZ
-g_spinAngle
 g_strTruncDot
 g_strTruncTerm
 g_tacmapIndicators

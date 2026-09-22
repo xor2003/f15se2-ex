@@ -367,7 +367,7 @@ int main() {
     {
         unsigned char opcodeStream[] = {static_cast<unsigned char>(kTransformOpcodeBase | kTransformOpcodeIndex)};
         g_modelStreamPtr = reinterpret_cast<char *>(opcodeStream);
-        g_spinAngle = kSpinAngle;
+        g_spinAngle = f15::math::legacy::angleFromWord(kSpinAngle);
         g_objTransform[kTransformOpcodeIndex] = 0;
         storeObjTransformByOpcode();
         require(g_objTransform[kTransformOpcodeIndex] == kSpinAngle,
@@ -1673,7 +1673,7 @@ int main() {
             0,
         };
         resetSceneState();
-        g_spinAngle = kSpinAngle;
+        g_spinAngle = f15::math::legacy::angleFromWord(kSpinAngle);
         projectSceneObject(reinterpret_cast<char *>(transformModel), 0, 0, 0, 0, kSceneRelY, 1);
         require(g_objTransform[kTransformOpcodeIndex] == kSpinAngle &&
                     g_sortedObjCount == 1,
@@ -1715,7 +1715,7 @@ int main() {
         model[1] = kTransformOpcodeBase | kTransformOpcodeIndex;
         model[2] = kPointOpcode;
         resetSceneState();
-        g_spinAngle = kSpinAngle;
+        g_spinAngle = f15::math::legacy::angleFromWord(kSpinAngle);
         require(r3d_objTransformFar(reinterpret_cast<char *>(model), 0, 0, 0,
                                     0, kSceneRelY, 0,
                                     combined, &camBase, &camX, &camY, &shade) == 0 &&

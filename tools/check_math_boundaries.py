@@ -24,7 +24,7 @@ ALLOWED = {
     "src/joystick.c",
     # Recorded diagnostics serialize quantities in the legacy recording units.
     "src/shared/blackbox_diag.c", "src/shared/blackbox_snapshot.c",
-    "src/eg3drast.c", "src/eg3dcam.c", "src/egflight.c",
+    "src/eg3drast.c", "src/eg3dcam.c", "src/eg3dmap.c", "src/egflight.c",
     # Snapshot interpolation writes the legacy render word through renderWord.
     "src/egsys.c",
     # Temporary Euler consumers; remove each entry as its scalar math is migrated.

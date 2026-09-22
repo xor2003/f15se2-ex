@@ -482,7 +482,7 @@ extern int16 g_modelWideVtxFlag;
 extern int16 g_vtxSignMaskLo;
 extern int16 g_vtxSignMaskHi;
 extern int16 g_sortedObjCount;
-extern int16 g_spinAngle;
+extern f15::math::Angle<f15::math::GameBackend> g_spinAngle;
 extern int g_simStepsThisFrame;
 extern int g_renderAlphaQ12;
 extern int16 g_posVisibleFlag;

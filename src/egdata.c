@@ -783,7 +783,7 @@ int16 g_modelEdgeCount = 0;
 /* g_modelWideVtxFlag: a flag, accessed only by byte (eg3dmap), in a 16-bit slot. */
 int16 g_modelWideVtxFlag = 0;
 vtxSignMask_t g_vtxSignMask{{0}};
-int16 g_spinAngle = 0;
+f15::math::Angle<f15::math::GameBackend> g_spinAngle;
 /* Sim steps executed in the render frame being composited (render/sim decouple):
  * the per-frame spin animation (g_spinAngle) is scaled by it so it advances at
  * the sim rate, not the higher render rate. */

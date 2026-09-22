@@ -1098,6 +1098,26 @@ Verification: fixed focused tests and sortie parity pass unchanged;
 modern smoke/sortie pass with the golden unchanged; the allowlist dropped
 the three migrated names.
 
+## Simulation-clock and free-running angle checkpoint
+
+`g_spinAngle` is now `Angle<GameBackend>` — a free-running display angle
+advanced by `steps * perTick(0x3000)` word deltas and narrowed to the
+`g_objTransform` render word at each use. The frame-pacer globals
+(`g_frameRateAccum`, `g_frameTimingAccum`, `g_jiffiesPerFrame`,
+`g_simStepsThisFrame`) stay plain counters: they are event counts and
+derived ratios, not quantities with units — the migration rule keeps
+counts and indices as ordinary integers. The deterministic-contract
+summary: `frameTick`/`g_missionTick` are `Ticks`/`TickDuration`, the sim
+RNG is the `g_rngSeed`-seeded `gameRand15` stream (blackbox-checked), the
+render-only stream is `renderRand15`/`renderRandomRange` (never recorded
+or replayed — see the render/sim RNG section), and the debrief module has
+its own `randSeed`/`randState` stream. `eg3dmap.c` joined the boundary
+allowlist for the spin-angle narrowing.
+
+Verification: fixed focused tests pass (eg3drast suites seed the typed
+spin angle through `angleFromWord`); sortie parity unchanged; modern
+smoke/sortie pass; the allowlist dropped the migrated name.
+
 ## Angle magnitude read adapters
 
 `legacy_rotation.hpp` gained two fraction-preserving magnitude reads for
