@@ -1419,7 +1419,7 @@ input widths or introduce new flight-model formulas.
 | Camera precision | Fine bearing/range and Q8 eye offsets typed; outputs stay word/Q8 at the render boundary | Remaining render-internal projection math (sinMulQ8 remnants in egtacmap, view-matrix LUT path) |
 | Terrain/world coordinates | Coarse `MapPosition` typed; sub-LOD precision flows through `g_camEyeFrac*` frac bytes into `lodEyeFracQ8` | scaleCoordToLod LOD quantization is render-internal; all nearest-tile callers pass packed word sources |
 | Flight integration | stepFlightModel forces, velocity/position integration, coefficients and clamps typed end to end | Modern refresh policy vs the original periodic rebuild (see acceptance boundary) |
-| Combat/AI | Projectile guidance/state, bullet tracks, SimObject decision reads, acquisition, lock cones, corridor gates, fine-position shadow and attitude shadow (heading/pitch/bank) typed | Hit-test broad phases are word-domain game rules (precise swept test already typed); packed attitude words remain synced render/serialization mirrors |
+| Combat/AI | Projectile guidance/state, bullet tracks, SimObject decision reads, acquisition, lock cones, corridor gates, fine-position shadow, attitude shadow (heading/pitch/bank), alt/speed shadows (SimObject + flag-aliased Projectile.alt) typed | Hit-test broad phases are word-domain game rules (precise swept test already typed); packed words remain synced render/serialization mirrors (Projectile.alt bit0 = radar flag) |
 | Randomness/time | Only a scaling helper | Separate deterministic RNG and simulation clock contracts from numeric representation |
 
 Not every integer operation is fixed-point math. Object indices, packed flags,
