@@ -239,7 +239,7 @@ extern f15::math::TickDuration g_missionTick;
 extern SDL_IOStream *fileHandle;
 extern int16 g_gunFiredFlag;
 extern int16 g_damageTakenFlag;
-extern int16 g_threatRefHead;
+extern f15::math::Angle<f15::math::GameBackend> g_threatRefHead;
 extern f15::math::WordRep<f15::math::GameBackend> g_nearestThreatRange;
 extern struct Game far *gameData;
 extern int16 g_finalThreatScore;
@@ -300,14 +300,14 @@ extern f15::math::WordRep<f15::math::GameBackend> g_simObjectAlt[];
 extern f15::math::WordRep<f15::math::GameBackend> g_simObjectSpeed[];
 extern int16 g_aamLockCooldown;
 extern int32 g_camEyeY;
-extern int16 g_threatRefX;
+extern f15::math::MapPosition<f15::math::GameBackend> g_threatRefPos;
 extern f15::math::Angle<f15::math::GameBackend> g_liftForce;
 extern f15::math::ClimbRate<f15::math::GameBackend> g_wreckFallVel;
 extern int16 g_camEyeZ;
-extern int16 g_threatRefY;
+
 extern int16 g_viewRoll;
 extern struct DynTileOverride g_dynTileEntries[]; // overlaps the following bytes with structs
-extern int16 g_threatRefZ;
+extern f15::math::RenderHeight<f15::math::GameBackend> g_threatRefZ;
 extern f15::math::ViewCoordinate<f15::math::GameBackend, f15::math::ViewXAxis> g_ViewX;
 extern f15::math::TickDuration g_savedSamTtl;
 extern struct TileObject nearestTile;

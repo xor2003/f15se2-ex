@@ -2083,7 +2083,7 @@ int16 g_autoCrashDive;
 f15::math::TickDuration g_missionTick;
 int16 g_gunFiredFlag;
 int16 g_damageTakenFlag;
-int16 g_threatRefHead;
+f15::math::Angle<f15::math::GameBackend> g_threatRefHead;
 f15::math::WordRep<f15::math::GameBackend> g_nearestThreatRange;
 
 /* gameData: far pointer to the shared Game struct, set at startup. */
@@ -2149,17 +2149,17 @@ uint16 g_wingmanX = 0;
 uint16 g_wingmanY = 0;
 int16 g_aamLockCooldown;
 int32 g_camEyeY;
-int16 g_threatRefX;
+f15::math::MapPosition<f15::math::GameBackend> g_threatRefPos;
 f15::math::Angle<f15::math::GameBackend> g_liftForce;
 f15::math::ClimbRate<f15::math::GameBackend> g_wreckFallVel;
 int16 g_camEyeZ;
-int16 g_threatRefY;
+
 int16 g_viewRoll;
 /* Model/shape LOD cache (754 reserved bytes = 94 8-byte records). eg3dmap
  * appends entries with memcpy (g_tileEntryCount is the live count) and scans
  * backwards for a key match. */
 struct DynTileOverride g_dynTileEntries[94];
-int16 g_threatRefZ;
+f15::math::RenderHeight<f15::math::GameBackend> g_threatRefZ;
 f15::math::ViewCoordinate<f15::math::GameBackend, f15::math::ViewXAxis> g_ViewX;
 f15::math::TickDuration g_savedSamTtl;
 /* nearestTile: scratch record filled by findNearestTileObject()/

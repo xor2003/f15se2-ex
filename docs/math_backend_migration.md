@@ -1062,6 +1062,24 @@ aerodynamics suites seed and compare through the adapters; sortie parity
 unchanged); modern smoke and sortie pass with the golden unchanged; the
 allowlist dropped the migrated name.
 
+## Threat reference checkpoint
+
+The threat-reference snapshot globals are typed: `g_threatRefX`/
+`g_threatRefY` merged into `MapPosition<GameBackend> g_threatRefPos`,
+`g_threatRefZ` became `RenderHeight<GameBackend>` (it stored
+`renderWord(flightSceneHeight())`; the typed store keeps the fractional
+scene height under modern and narrows only where the `WordRep` consumer
+reads it), and `g_threatRefHead` became an `Angle<GameBackend>` copy of
+`g_ourHead` — it is write-only state in production (never read), kept
+typed for the stored snapshot. Map-event seeds wrap through
+`legacy::mapPosition`; word consumers (`tgtX`/`tgtY`/`tgtZ` locals, the
+alert-range deltas, hit-position copies) narrow through `mapWordX/Y` and
+`Altitudes::render`.
+
+Verification: `gameplay_behavior_tests` still asserts the seeded words
+through the adapters; sortie parity unchanged; modern smoke/sortie pass;
+the allowlist dropped the four migrated names.
+
 ## Angle magnitude read adapters
 
 `legacy_rotation.hpp` gained two fraction-preserving magnitude reads for

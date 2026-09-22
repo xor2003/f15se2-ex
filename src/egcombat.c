@@ -514,9 +514,8 @@ void updateThreatTargeting(void) {
                         }
                         g_projectiles[slot].ttl = f15::math::TickDuration{};
                         g_threatActiveTimer = g_threatTimerInit;
-                        g_threatRefX = g_hitMapX;
-                        g_threatRefY = g_hitMapY;
-                        g_threatRefZ = 3000;
+                        g_threatRefPos = f15::math::legacy::mapPosition(g_hitMapX, g_hitMapY);
+                        g_threatRefZ = f15::math::legacy::renderHeightFromUnits(3000);
                     }
                     strcat(strBuf, " hit by ");
                     strcat(strBuf, sams[spec].name);

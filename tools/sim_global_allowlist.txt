@@ -372,10 +372,6 @@ g_targetLeadAngle
 g_targetViewParams
 g_threatLabelTarget
 g_threatRadarFlag
-g_threatRefHead
-g_threatRefX
-g_threatRefY
-g_threatRefZ
 g_threatScopeRange
 g_threatSpec
 g_threatToneLevel

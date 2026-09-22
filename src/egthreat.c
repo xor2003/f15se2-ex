@@ -222,14 +222,12 @@ void updateThreatAlert(void) {
     int16 planeIdx;
     g_threatActiveTimer = g_threatTimerInit;
     if (mapEvents[0].ttl != 0) {
-        g_threatRefX = mapEvents[0].mapX;
-        g_threatRefY = mapEvents[0].mapY;
+        g_threatRefPos = f15::math::legacy::mapPosition(mapEvents[0].mapX, mapEvents[0].mapY);
     } else {
-        g_threatRefX = f15::math::legacy::mapWordX(flightMapPosition());
-        g_threatRefY = f15::math::legacy::mapWordY(flightMapPosition());
+        g_threatRefPos = flightMapPosition();
     }
-    g_threatRefZ = f15::math::legacy::Altitudes::renderWord(flightSceneHeight());
-    g_threatRefHead = signedAngle(g_ourHead);
+    g_threatRefZ = flightSceneHeight();
+    g_threatRefHead = g_ourHead;
     g_unusedEventHist0 = 0xFF;
     for (planeIdx = 0; planeIdx < g_planeScanCount; planeIdx++) {
         if (g_planeTable.planes[planeIdx].active != 0) {
@@ -285,9 +283,9 @@ void updateObjects(void) {
                 if (!(g_simObjects[objIdx].flags.b[0] & 4)) {
                     const int friendlyAircraft = campaignFriendlyAircraft(objIdx, g_groundUnitCount, g_simObjects[objIdx].objType);
                     if (!friendlyAircraft && !g_threatActiveTimer.isZero() && (!((g_simObjects[objIdx].flags.w) & 0x140) || g_threatActiveTimer.exceeds(g_threatDisplayTtl))) {
-                        tgtX = g_threatRefX;
-                        tgtY = g_threatRefY;
-                        tgtZ = g_threatRefZ;
+                        tgtX = f15::math::legacy::mapWordX(g_threatRefPos);
+                        tgtY = f15::math::legacy::mapWordY(g_threatRefPos);
+                        tgtZ = f15::math::legacy::Altitudes::render(g_threatRefZ);
                         mode = 1;
                         if (mapEvents[0].ttl != 0) goto padlock_target;
                         goto got_target;
@@ -652,8 +650,8 @@ void updateObjects(void) {
                                     if ((g_planeTable.planes[tgtIdx].flags & 0x181) == 1) {
                                         if (g_simObjects[objIdx].spec == g_planeTable.planes[tgtIdx].alertLevel) {
                                             if (g_missionStatus * 2 >= g_enemyThreatCount) {
-                                                deltaX = g_threatRefX - g_planeTable.planes[tgtIdx].mapX;
-                                                deltaY = g_threatRefY - g_planeTable.planes[tgtIdx].mapY;
+                                                deltaX = f15::math::legacy::mapWordX(g_threatRefPos) - g_planeTable.planes[tgtIdx].mapX;
+                                                deltaY = f15::math::legacy::mapWordY(g_threatRefPos) - g_planeTable.planes[tgtIdx].mapY;
                                                 range = (int)f15::math::legacy::mapRangeDelta(deltaX, deltaY) >> 6;
                                                 acRange = aircraftTypes[g_threatSpec].range;
                                                 if (acRange / 2 > range) {

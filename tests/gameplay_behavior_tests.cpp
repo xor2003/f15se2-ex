@@ -1,5 +1,6 @@
 #include "math/legacy_rotation.hpp"
 #include "math/legacy_altitude.hpp"
+#include "math/legacy_map.hpp"
 using f15::math::legacy::signedAngle;
 using f15::math::legacy::angleFromWord;
 // EGAME combat/flight gameplay behavior tests (LINK_CORE + headless).
@@ -92,7 +93,7 @@ void resetGameplayState() {
     g_threatActiveTimer = f15::math::TickDuration{};
     g_threatTimerInit = f15::math::TickDuration{};
     g_threatDisplayTtl = f15::math::TickDuration{};
-    g_threatRefX = g_threatRefY = g_threatRefZ = g_threatRefHead = 0;
+    g_threatRefPos = {}; g_threatRefZ = {}; g_threatRefHead = {};
     g_wreckAlt = {};
     g_wreckFallVel = {};
     g_slowMotionMode = 0;
@@ -280,9 +281,11 @@ int main() {
     g_planeTable.planes[0].alertLevel = 300; // above the 255 cap
     updateThreatAlert();
     require(g_threatActiveTimer.equals(42), "updateThreatAlert arms the active timer");
-    require(g_threatRefX == 0x1234 && g_threatRefY == 0x2345,
+    require(f15::math::legacy::mapWordX(g_threatRefPos) == 0x1234 &&
+                f15::math::legacy::mapWordY(g_threatRefPos) == 0x2345,
             "updateThreatAlert takes the player position when no map event is live");
-    require(g_threatRefZ == 0x3456 && g_threatRefHead == 0x6789,
+    require(f15::math::legacy::Altitudes::renderWord(g_threatRefZ) == 0x3456 &&
+                f15::math::legacy::signedAngle(g_threatRefHead) == 0x6789,
             "updateThreatAlert copies player altitude and heading");
     require(g_planeTable.planes[0].alertLevel == 255,
             "updateThreatAlert clamps active alert levels to the max");
@@ -290,7 +293,8 @@ int main() {
     mapEvents[0].mapX = 0x1111;
     mapEvents[0].mapY = 0x2222;
     updateThreatAlert();
-    require(g_threatRefX == 0x1111 && g_threatRefY == 0x2222,
+    require(f15::math::legacy::mapWordX(g_threatRefPos) == 0x1111 &&
+                f15::math::legacy::mapWordY(g_threatRefPos) == 0x2222,
             "updateThreatAlert takes the map-event position when one is live");
 
     // --- samCanAcquireTarget (egcombat) -------------------------------------

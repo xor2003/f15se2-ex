@@ -105,7 +105,7 @@ void updateFrame(void) {
         g_fireCooldown = g_bombDamageMask = missileSpecIndex = waypointIndex = g_unusedWaypointTail = 0;
         g_autopilotAltitude = {};
         g_closestThreatIndex = g_unusedEventHist0 = g_unusedEventHist1 = g_unusedEventHist2 = (int8)(g_halfScaleRender = 0);
-        g_threatRefX = g_threatRefY = g_threatRefZ = 0;
+        g_threatRefPos = {}; g_threatRefZ = {};
         g_prevThreatIndex = g_smokeSourceIdx = -1;
         g_fuelRemaining = f15::math::legacy::fuelFromUnits(10000);
         g_gunHits = 0;
