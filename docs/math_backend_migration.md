@@ -1403,6 +1403,31 @@ it's a word-domain out-param by contract.
 Verification: fixed 60/60 incl. sortie parity, modern smoke, analyzer
 clean on egcombat/egframe/egdata.
 
+## Target/acquisition range chain checkpoint
+
+The whole range chain now carries `WordRep<GameBackend>` instead of
+narrowing `mapRange`/`mapRangeDelta` results at every hop:
+
+* `computeTargetBearing`/`computeMapTargetRange`/`computeSimObjectRange`
+  return the rep (identical to int16 under fixed; keeps the fraction and
+  drops the 16-bit range wrap under modern), as do `g_targetRange`,
+  `g_acqRange`, `g_nearestThreatRange` and the `range`/`lockedRange`/
+  `best`/`tgtZ`/`dist` locals in egtarget/egthreat/egcombat.
+* `abs((int16)v)` reads go through the new `wordAbs` compat helper;
+  `(uint16)mapRange(...) >> 6` bucket scales keep the shift but drop the
+  word wrap (`(int)X >> 6`); word-domain sinks (`g_projDepth`,
+  `buildRangeString`, the `& 0x200` flag test) take explicit `(int)`
+  narrows at the boundary.
+* `smokeSlot` stayed int16 — it is genuinely dual-domain (a particle
+  index at one site, a range at another); the range use got its own
+  `scanRange` local instead of retyping the shared slot.
+* Test extern decls updated to the real signatures — the int16 return
+  decls would have read the wrong register under modern.
+
+Verification: fixed 60/60 incl. sortie parity, modern smoke (its
+`g_targetRange` assert now truncates at the word boundary it means to
+check), analyzer clean on egthreat/egtarget/egtgt2.
+
 ### Next acceptance boundary
 
 The decision-math surface is migrated end to end: every gameplay compare

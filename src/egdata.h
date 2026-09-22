@@ -447,7 +447,7 @@ extern int16 g_activeThreatCount;
 extern f15::math::WordRep<f15::math::GameBackend> g_acqRange;
 extern int16 g_acqAimY;
 extern int16 g_lockToneFlag;
-extern int16 g_targetRange;
+extern f15::math::WordRep<f15::math::GameBackend> g_targetRange;
 extern int16 g_unusedHudFlag;
 extern int16 g_targetBearing;
 extern int16 g_prevKillMarker;

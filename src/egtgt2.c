@@ -42,15 +42,15 @@ void drawTargetLabel(const char *, int16, int16);
 void buildRangeString(int16 rangeRaw);
 void projectWorldToHud(int16 worldX, int16 worldY, int16 worldZ);
 int32 rotateVectorComponent(int16 axis, int16 vecX, int16 vecY, int16 vecZ);
-int16 computeMapTargetRange(int16 targetIdx);
-int16 computeSimObjectRange(int16 objIdx);
-int16 computeTargetBearing(int16 targetX, int16 targetY, int16 wantBearing);
+f15::math::WordRep<f15::math::GameBackend> computeMapTargetRange(int16 targetIdx);
+f15::math::WordRep<f15::math::GameBackend> computeSimObjectRange(int16 objIdx);
+f15::math::WordRep<f15::math::GameBackend> computeTargetBearing(int16 targetX, int16 targetY, int16 wantBearing);
 
 void projectWorldToHud(int16 worldX, int16 worldY, int16 worldZ);
 int32 rotateVectorComponent(int16 axis, int16 vecX, int16 vecY, int16 vecZ);
-int16 computeMapTargetRange(int16 targetIdx);
-int16 computeSimObjectRange(int16 objIdx);
-int16 computeTargetBearing(int16 targetX, int16 targetY, int16 wantBearing);
+f15::math::WordRep<f15::math::GameBackend> computeMapTargetRange(int16 targetIdx);
+f15::math::WordRep<f15::math::GameBackend> computeSimObjectRange(int16 objIdx);
+f15::math::WordRep<f15::math::GameBackend> computeTargetBearing(int16 targetX, int16 targetY, int16 wantBearing);
 
 // ==== seg000:0xc488 ====
 void projectWorldToHud(int16 worldX, int16 worldY, int16 worldZ) {
@@ -220,17 +220,17 @@ int16 findWaypointEntry(int16 mapX, int16 mapY) {
 }
 
 // ==== seg000:0xc7a2 ====
-int16 computeMapTargetRange(int16 targetIdx) {
+f15::math::WordRep<f15::math::GameBackend> computeMapTargetRange(int16 targetIdx) {
     return computeTargetBearing(g_planeTable.planes[targetIdx].mapX, g_planeTable.planes[targetIdx].mapY, 1);
 }
 
 // ==== seg000:0xc7c6 ====
-int16 computeSimObjectRange(int16 objIdx) {
+f15::math::WordRep<f15::math::GameBackend> computeSimObjectRange(int16 objIdx) {
     return computeTargetBearing(g_simObjects[objIdx].posX, g_simObjects[objIdx].posY, 0);
 }
 
 // ==== seg000:0xc7ea ====
-int16 computeTargetBearing(int16 targetX, int16 targetY, int16 wantBearing) {
+f15::math::WordRep<f15::math::GameBackend> computeTargetBearing(int16 targetX, int16 targetY, int16 wantBearing) {
     /* Player side comes from the typed map position; the delta runs on it so
      * modern doesn't round the position to a coarse word before comparing.
      * targetX/targetY are already coarse words. */
@@ -239,7 +239,7 @@ int16 computeTargetBearing(int16 targetX, int16 targetY, int16 wantBearing) {
         g_targetBearing = signedAngle(
             f15::math::GuidanceMath<f15::math::GameBackend>::aimBearing(-offset.dx, offset.dy));
     }
-    g_targetRange = (int16)mapRange(offset);
+    g_targetRange = mapRange(offset);
     return g_targetRange;
 }
 

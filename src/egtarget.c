@@ -79,19 +79,22 @@ void buildRangeString(int16 rangeRaw);
 void projectWorldToHud(int16 worldX, int16 worldY, int16 worldZ);
 void projectWorldToHudFine(int32 fineX, int32 fineY, int fineZ);
 int32 rotateVectorComponent(int16 axis, int16 vecX, int16 vecY, int16 vecZ);
-int16 computeMapTargetRange(int16 targetIdx);
-int16 computeSimObjectRange(int16 objIdx);
-int16 computeTargetBearing(int16 targetX, int16 targetY, int16 wantBearing);
+f15::math::WordRep<f15::math::GameBackend> computeMapTargetRange(int16 targetIdx);
+f15::math::WordRep<f15::math::GameBackend> computeSimObjectRange(int16 objIdx);
+f15::math::WordRep<f15::math::GameBackend> computeTargetBearing(int16 targetX, int16 targetY, int16 wantBearing);
 
 void projectWorldToHud(int16 worldX, int16 worldY, int16 worldZ);
 int32 rotateVectorComponent(int16 axis, int16 vecX, int16 vecY, int16 vecZ);
-int16 computeMapTargetRange(int16 targetIdx);
-int16 computeSimObjectRange(int16 objIdx);
-int16 computeTargetBearing(int16 targetX, int16 targetY, int16 wantBearing);
+f15::math::WordRep<f15::math::GameBackend> computeMapTargetRange(int16 targetIdx);
+f15::math::WordRep<f15::math::GameBackend> computeSimObjectRange(int16 objIdx);
+f15::math::WordRep<f15::math::GameBackend> computeTargetBearing(int16 targetX, int16 targetY, int16 wantBearing);
 
 void updateTargetLock(void) {
-    int16 p, a, b, range, d, e, marker, idx, depthShift, i, j, k, best, m, n;
-    int16 p0, a0, b0, c0, d0, e0, deadInit, lockedRange, h0;
+    int16 p, a, b, d, e, marker, idx, depthShift, i, j, k, best, m, n;
+    int16 p0, a0, b0, c0, d0, e0, deadInit, h0;
+    /* range/lockedRange carry computeTargetBearing results — fractional
+     * under modern; int16 locals re-narrowed the rep. */
+    f15::math::WordRep<f15::math::GameBackend> range, lockedRange;
     int16 dk;
     int16 lodM, planeModelDepth, planeFineDepth;
     int16 airSelect;
@@ -743,7 +746,7 @@ void drawHudWorldOverlay(void) {
                                (int32)g_planeTable.planes[wpIdx].mapY << 5,
                                0, 0, 0, 0, 1, -1);
                 drawMissileLock();
-                buildRangeString(computeMapTargetRange(wpIdx));
+                buildRangeString((int16)computeMapTargetRange(wpIdx));
                 drawStringActivePage(strBuf, 244, 170, 0x0f);
 
                 strcpy(strBuf, g_targetNameTable[g_planeTable.planes[wpIdx].nameIndex & 0x7f]);
@@ -895,7 +898,7 @@ void drawHudWorldOverlay(void) {
                             3,
                         0x0000, 0x0040);
                 } else {
-                    g_projDepth = clampRange(computeMapTargetRange(g_groundTargetLock) >> 3, 0x0000, 0x0040);
+                    g_projDepth = clampRange((int)computeMapTargetRange(g_groundTargetLock) >> 3, 0x0000, 0x0040);
                 }
                 setDrawColor(COLOR_LIGHTRED);
                 drawViewportLine(159 - g_projDepth, 33, 159 - g_projDepth, 30);

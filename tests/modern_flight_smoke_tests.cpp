@@ -24,7 +24,7 @@
 void stepFlightModel();
 void updateFrame();
 void rebuildOrientation();
-int16_t computeTargetBearing(int16_t targetX, int16_t targetY, int16_t wantBearing);
+f15::math::WordRep<f15::math::GameBackend> computeTargetBearing(int16_t targetX, int16_t targetY, int16_t wantBearing);
 int16_t computeLoftAngle();
 int rangeApprox(int dx, int dy);
 extern uint8_t joyAxes[];
@@ -174,8 +174,8 @@ int main() {
     // Target range must source the derived position (map words 32/32735),
     // not the stale stored words (999/-999).
     computeTargetBearing(10, 0, 0);
-    require(g_targetRange == rangeApprox(32 - 10, 32735) &&
-            g_targetRange != rangeApprox(999 - 10, -999),
+    require((int)g_targetRange == rangeApprox(32 - 10, 32735) &&
+            (int)g_targetRange != rangeApprox(999 - 10, -999),
             "target range used the stored map words");
 
     // Loft-angle divisor: altitude 229376 compresses to scene height 65536,

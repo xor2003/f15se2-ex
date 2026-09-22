@@ -209,7 +209,7 @@ int16 computeThreatRangeBearing(int16 threatX, int16 threatY, int16 threatAlt, i
     /* Player-to-threat delta on the typed map position — modern keeps the
      * fractional position instead of rounding to a coarse word first. */
     const auto offset = mapOffset(flightMapPosition(), threatX, threatY);
-    range = (uint16)mapRange(offset) >> 6;
+    range = (int)mapRange(offset) >> 6;
     bearing = signedAngle(TrackMath::aimBearing(offset.dx, -offset.dy));
     score = (score = (aNone[threatType].dangerTier + g_missionStatus * 2 + 3) * aNone[threatType].lethality / 16) * (((uint16)f15::math::legacy::Altitudes::renderWord(flightSceneHeight()) >> 6) + 0x40) >> 7;
     *outBearing = bearing;
@@ -255,7 +255,10 @@ int16 computeThreatScore(void) {
 
 // ==== seg000:0x67b4 ====
 void updateObjects(void) {
-    int16 candBearing, pitchCmd, viewBearing, aggrIdx, bearing, relBearing, tgtIdx, acRange, hdg, aspect, u0, e0, best, range, moveAmt, mode, fireOffset, objIdx, vel, scanIdx, trackSlot, tgtX, deltaX, deltaY, rollCmd, tgtY, smokeSlot, tgtZ;
+    int16 candBearing, pitchCmd, viewBearing, aggrIdx, bearing, relBearing, tgtIdx, acRange, hdg, aspect, u0, e0, moveAmt, mode, fireOffset, objIdx, vel, scanIdx, trackSlot, tgtX, deltaX, deltaY, rollCmd, tgtY, smokeSlot;
+    /* best/range/tgtZ carry mapRangeDelta results — fractional and uncapped
+     * under modern; the int16 locals re-narrowed the rep. */
+    f15::math::WordRep<f15::math::GameBackend> best, range, tgtZ;
     /* Raw control-signal difference (pitchCmd - pitch word rep): int16 under
      * fixed, fractional word units under modern. */
     WordScalar pitchDelta;
@@ -303,7 +306,7 @@ void updateObjects(void) {
                                    (int)TrackMath::cosineVelocity(pickAngle,
                                           g_simObjects[g_padlockAircraft].speed, g_angleLut));
 
-                            tgtZ = g_simObjects[g_padlockAircraft].alt + (objIdx & 7) * 0x40;
+                            tgtZ = g_simObjectAlt[g_padlockAircraft] + (objIdx & 7) * 0x40;
                             goto set_target_alt;
                         }
                     }
@@ -351,15 +354,15 @@ void updateObjects(void) {
                 if ((g_simObjects[objIdx].flags.w) & 0x200) {
                     tgtZ = g_simObjects[objIdx].posX - tgtX;
                     tgtY = g_planeTable.planes[g_simObjects[objIdx].objType].mapY;
-                    tgtX = tgtX - tgtZ * 2;
-                    tgtZ = ((g_planeTable.planes[g_simObjects[objIdx].objType].flags + abs(tgtZ)) & 0x200)
+                    tgtX = (int16)(tgtX - (int)tgtZ * 2);
+                    tgtZ = ((g_planeTable.planes[g_simObjects[objIdx].objType].flags + (int)f15::math::legacy::wordAbs(tgtZ)) & 0x200)
                                ? 140
                                : 12;
                 } else {
                     tgtY = g_planeTable.planes[g_simObjects[objIdx].objType].mapY + g_northSouthSign * 0x500;
-                    tgtZ = (int16)(f15::math::legacy::mapRangeDelta(g_simObjects[objIdx].posX - tgtX,
+                    tgtZ = f15::math::legacy::mapRangeDelta(g_simObjects[objIdx].posX - tgtX,
                                        g_simObjects[objIdx].posY - tgtY) +
-                           2000);
+                           2000;
                 }
                 mode = 2;
 
@@ -367,17 +370,17 @@ void updateObjects(void) {
                 if (mode == 3 && (g_simObjects[objIdx].flags.b[0] & 8)) {
                     tgtX = f15::math::legacy::mapWordX(flightMapPosition());
                     tgtY = f15::math::legacy::mapWordY(flightMapPosition());
-                    tgtZ = g_simObjects[objIdx].alt;
+                    tgtZ = g_simObjectAlt[objIdx];
                 }
                 deltaX = tgtX - g_simObjects[objIdx].posX;
                 deltaY = tgtY - g_simObjects[objIdx].posY;
                 bearing = signedAngle(TrackMath::aimBearing(deltaX, -deltaY));
-                range = (int16)f15::math::legacy::mapRangeDelta(deltaX, deltaY);
-                pitchCmd = signedAngle(TrackMath::aimBearing((tgtZ - g_simObjects[objIdx].alt) >> 5, range));
+                range = f15::math::legacy::mapRangeDelta(deltaX, deltaY);
+                pitchCmd = signedAngle(TrackMath::aimBearing((int)(tgtZ - g_simObjectAlt[objIdx]) >> 5, range));
                 pitchCmd = clampRange(pitchCmd, -0x2000, 0x1000);
-                if (mode == 1 && (uint16)range < 0x600) {
+                if (mode == 1 && range < 0x600) {
                     g_activeThreatCount++;
-                    if ((uint16)range >= 0x400) goto after_missile_table;
+                    if (range >= 0x400) goto after_missile_table;
                     if (frameTick.phase(4)) goto after_missile_table;
                     if (angleSeparation(g_simObjectHeading[objIdx],
                                         angleFromWord(bearing)) >= 0x800) goto after_missile_table;
@@ -581,7 +584,7 @@ void updateObjects(void) {
                     }
                 }
 
-                if ((uint16)range < 0x10 && mode == 2) {
+                if (range < 0x10 && mode == 2) {
                     if ((g_simObjects[objIdx].flags.w) & 0x200) {
                         (g_simObjects[objIdx].flags.w) |= 0x1000;
                     } else {
@@ -618,12 +621,12 @@ void updateObjects(void) {
                     best = 0x7fff;
                     for (scanIdx = 3; scanIdx < g_planeScanCount; scanIdx++) {
                         if ((g_planeTable.planes[scanIdx].flags & 0x101) == 1) {
-                            smokeSlot = (int16)f15::math::legacy::mapRangeDelta(
+                            const auto scanRange = f15::math::legacy::mapRangeDelta(
                                 g_simObjects[objIdx].posX - g_planeTable.planes[scanIdx].mapX,
                                 g_simObjects[objIdx].posY - g_planeTable.planes[scanIdx].mapY);
-                            if (smokeSlot < best) {
+                            if (scanRange < best) {
                                 g_simObjects[objIdx].objType = scanIdx;
-                                best = smokeSlot;
+                                best = scanRange;
                             }
                         }
                     }
@@ -651,9 +654,9 @@ void updateObjects(void) {
                                             if (g_missionStatus * 2 >= g_enemyThreatCount) {
                                                 deltaX = g_threatRefX - g_planeTable.planes[tgtIdx].mapX;
                                                 deltaY = g_threatRefY - g_planeTable.planes[tgtIdx].mapY;
-                                                range = (uint16)f15::math::legacy::mapRangeDelta(deltaX, deltaY) >> 6;
+                                                range = (int)f15::math::legacy::mapRangeDelta(deltaX, deltaY) >> 6;
                                                 acRange = aircraftTypes[g_threatSpec].range;
-                                                if ((uint16)(acRange / 2) > (uint16)range) {
+                                                if (acRange / 2 > range) {
                                                     g_lastSpawnTick = g_missionTick;
                                                     spawnEnemyAircraft(objIdx, tgtIdx);
                                                     scheduleEventCheck(objIdx + 0x20, 2);
