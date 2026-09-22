@@ -5,6 +5,7 @@
 #include "sassert.h"
 #include "math/rotation.hpp"
 #include "math/map_position.hpp"
+#include "math/ticks.hpp"
 
 struct JoyAxes {
     uint8 x, y;
@@ -171,7 +172,7 @@ struct Projectile {
     f15::math::Angle<f15::math::GameBackend> head;   // +0x08  was worldX
     f15::math::Angle<f15::math::GameBackend> pitch;  // +0x0A  was worldY
     f15::math::Angle<f15::math::GameBackend> bank;   // +0x0C  was worldZ
-    int16 ttl;        // +0x0E  flight-time countdown (0 = free slot)
+    f15::math::TickDuration ttl; // +0x0E  flight-time countdown (0 = free slot)
     int16 specIdx;    // +0x10  weapon/threat spec index into sams[]
     int16 weaponIdx;  // +0x12  index into missiles[] (player-fired)
     int16 targetLock; // +0x14  tracked target id (-1 = none)

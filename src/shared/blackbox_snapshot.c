@@ -135,7 +135,7 @@ static void writeProjectiles(FILE *f) {
                 (int)p->alt, (int)f15::math::legacy::signedAngle(p->head),
                 (int)f15::math::legacy::signedAngle(p->pitch),
                 (int)f15::math::legacy::signedAngle(p->bank),
-                (int)p->speed, (int)p->ttl, (int)p->specIdx,
+                (int)p->speed, (int)p->ttl.word(), (int)p->specIdx,
                 (int)p->weaponIdx, (int)p->targetLock, (int)p->targetRef,
                 i + 1 == SNAPSHOT_PROJECTILE_COUNT ? "" : ",");
     }

@@ -309,7 +309,7 @@ skip_aam:
 
     /* SAM/missile visual loop (12 entries, stride 0x18) */
     for (idx = 0; idx < 12; idx++) {
-        if (g_projectiles[idx].ttl != 0) {
+        if (!g_projectiles[idx].ttl.isZero()) {
             projectWorldToHud(g_projectiles[idx].mapX, g_projectiles[idx].mapY, g_projectiles[idx].alt);
 
             if (vtxScratch.vproj.x.lo == -1)
@@ -648,7 +648,7 @@ void drawHudWorldOverlay(void) {
     g_targetInHudFlag = 0;
 
     for (idx = 0; idx < 12; idx++) {
-        if (g_projectiles[idx].ttl != 0) {
+        if (!g_projectiles[idx].ttl.isZero()) {
             projectWorldToHudFine(g_projInterpX[idx], g_projInterpY[idx], g_projectiles[idx].alt);
             if (vtxScratch.vproj.x.lo != -1) {
                 setDrawColor(idx < 8 ? 0x0e : 0x0a);

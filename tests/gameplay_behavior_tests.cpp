@@ -310,11 +310,11 @@ int main() {
     g_projectiles[0].mapY = 1000;
     g_projectiles[0].speed = 10;
     g_projectiles[0].head = angleFromWord(0);
-    g_projectiles[0].ttl = 1000;
+    g_projectiles[0].ttl = f15::math::TickDuration::fromWord(1000);
     g_frameRateScaling = f15::math::SimRate::fromWord(20);
     require(samCanAcquireTarget(0, 1100, 3000, 0, 1) == 0,
             "samCanAcquireTarget rejects targets outside the turn cone");
-    require(g_projectiles[0].ttl == (g_frameRateScaling.shifted(4)),
+    require(g_projectiles[0].ttl.equals(g_frameRateScaling.shifted(4)),
             "samCanAcquireTarget clamps far off-boresight SAM ttl for active slots");
 
     resetGameplayState();

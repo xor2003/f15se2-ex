@@ -85,7 +85,7 @@ void fireAirThreat(int16 objIdx) {
             slot = objIdx % (g_missionStatus + 1);
 
             if (g_missionStatus * 2 >= g_enemyThreatCount &&
-                g_projectiles[slot].ttl == 0 &&
+                g_projectiles[slot].ttl.isZero() &&
                 acqRange > 8 &&
                 angleSeparation(angleFromWord(bearing),
                                 g_simObjectHeading[objIdx]) < 0x1800) {
@@ -111,7 +111,7 @@ void fireAirThreat(int16 objIdx) {
                                 g_projectiles[slot].pitch = g_simObjectPitch[objIdx] - angleFromWord(0x400);
                                 g_projectiles[slot].bank = g_simObjectBank[objIdx];
 
-                                g_projectiles[slot].ttl = (int16)((((int32)sams[idx].lockRange << 3) * (int32)g_frameRateScaling.word()) / (int32)g_projectiles[slot].speed);
+                                g_projectiles[slot].ttl = f15::math::TickDuration::fromWord((int16)((((int32)sams[idx].lockRange << 3) * (int32)g_frameRateScaling.word()) / (int32)g_projectiles[slot].speed));
 
                                 g_projectiles[slot].specIdx = idx;
                                 g_projectiles[slot].targetRef = -objIdx;
@@ -202,7 +202,7 @@ void updateThreatTargeting(void) {
     }
 
     for (slot = 0; slot < 12; slot++) {
-        if (g_projectiles[slot].ttl != 0) {
+        if (!g_projectiles[slot].ttl.isZero()) {
             spec = g_projectiles[slot].specIdx;
             locked = 0;
             aimY = 0;
@@ -401,7 +401,7 @@ void updateThreatTargeting(void) {
                 -ProjectileGuidance::cosineStep(g_projectiles[slot].head, step, g_angleLut));
             g_projectiles[slot].mapX = g_projectiles[slot].fineX.mapWord();
             g_projectiles[slot].mapY = g_projectiles[slot].fineY.mapWord();
-            (g_projectiles + slot)->ttl--;
+            g_projectiles[slot].ttl--;
             if (slot < 8)
                 f15::math::legacy::objectLinearFlag0(g_projectileAlt[slot],
                     g_projectiles[slot].alt, locked != 0);
@@ -416,8 +416,8 @@ void updateThreatTargeting(void) {
                 /* -3 (DOS wrote 0xfffd into a 16-bit int; as a 32-bit int that
                  * is +65533 and the impact burst lingers for ~65k frames). */
                 g_hitEffectTimer = f15::math::TickDuration::fromWord(-3);
-                g_savedSamTtl = f15::math::TickDuration::fromWord(g_projectiles[slot].ttl);
-                (g_projectiles + slot)->ttl = 0;
+                g_savedSamTtl = g_projectiles[slot].ttl;
+                g_projectiles[slot].ttl = f15::math::TickDuration{};
                 strcpy(strBuf,
                        missiles[g_projectiles[slot].weaponIdx].longName);
                 if (mode == 30 || mode == 29 || mode == 28) {
@@ -451,7 +451,7 @@ void updateThreatTargeting(void) {
                     }
                 msg_done:
                     hudMessage(strBuf);
-                } else if (slot >= 8 && g_projectiles[slot].ttl > g_frameRateScaling.scaled(2)) {
+                } else if (slot >= 8 && g_projectiles[slot].ttl.exceeds(g_frameRateScaling.scaled(2))) {
                     strcat(strBuf, " ground impact");
                     hudMessage(strBuf);
                 }
@@ -475,9 +475,9 @@ void updateThreatTargeting(void) {
                 g_hitMapY = g_projectiles[slot].mapY;
                 g_hitAlt = g_projectiles[slot].alt;
                 g_hitEffectTimer = f15::math::TickDuration::fromWord(8);
-                if (g_projectiles[slot].ttl != 0)
-                    g_savedSamTtl = f15::math::TickDuration::fromWord(g_projectiles[slot].ttl);
-                g_projectiles[slot].ttl = 0;
+                if (!g_projectiles[slot].ttl.isZero())
+                    g_savedSamTtl = g_projectiles[slot].ttl;
+                g_projectiles[slot].ttl = f15::math::TickDuration{};
                 if (slot < 8) {
                     if (mapEvents[0].ttl == 0) {
                         strcpy(strBuf, "Hit by ");
@@ -509,7 +509,7 @@ void updateThreatTargeting(void) {
                         } else {
                             strcpy(strBuf, "Ineffective");
                         }
-                        g_projectiles[slot].ttl = 0;
+                        g_projectiles[slot].ttl = f15::math::TickDuration{};
                         g_threatActiveTimer = g_threatTimerInit;
                         g_threatRefX = g_hitMapX;
                         g_threatRefY = g_hitMapY;
@@ -521,7 +521,7 @@ void updateThreatTargeting(void) {
                 }
             }
 
-            if (slot < 8 && g_projectiles[slot].ttl != 0) {
+            if (slot < 8 && !g_projectiles[slot].ttl.isZero()) {
                 g_projectiles[slot].targetLock =
                     readMapPixelColor(g_projectiles[slot].mapX, g_projectiles[slot].mapY);
                 if (frameTick.bit(0))
@@ -547,7 +547,7 @@ int samCanAcquireTarget(int slot, int targetX, int targetY, int targetAlt, int m
     if (bearDiff > 0x1000 && mode != 3) {
         if (bearDiff > 0x6000 && slot < 8) {
             if (g_frameRateScaling.perTick(g_projectiles[slot].speed << 4) < range) {
-                g_projectiles[slot].ttl = clampRange(g_projectiles[slot].ttl, 0, g_frameRateScaling.shifted(4));
+                g_projectiles[slot].ttl = g_projectiles[slot].ttl.clamped(0, g_frameRateScaling.shifted(4));
             }
         }
         return 0;
@@ -750,7 +750,7 @@ void fireMissile() {
     slot = -1;
     tmp = 8;
     do {
-        if (g_projectiles[tmp].ttl == 0) {
+        if (g_projectiles[tmp].ttl.isZero()) {
             slot = tmp;
         }
         tmp++;
@@ -773,10 +773,10 @@ void fireMissile() {
     g_projectiles[slot].pitch = g_ourPitch;
     g_projectiles[slot].bank = g_ourRoll;
 
-    g_projectiles[slot].ttl = (int16)(((int32)sams[spec].lockRange << (6 - (sams[spec].weaponClass == 6 ? 3 : 2))) * (int32)g_frameRateScaling.word() / (int32)((sams[spec].maxSpeed >> 6) + 1)) + 6;
+    g_projectiles[slot].ttl = f15::math::TickDuration::fromWord((int16)(((int32)sams[spec].lockRange << (6 - (sams[spec].weaponClass == 6 ? 3 : 2))) * (int32)g_frameRateScaling.word() / (int32)((sams[spec].maxSpeed >> 6) + 1)) + 6);
 
-    if (g_projectiles[slot].ttl <= 6) {
-        g_projectiles[slot].ttl = 999;
+    if (g_projectiles[slot].ttl.atMost(6)) {
+        g_projectiles[slot].ttl = f15::math::TickDuration::fromWord(999);
     }
 
     g_projectiles[slot].specIdx = spec;

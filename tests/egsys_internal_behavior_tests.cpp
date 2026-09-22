@@ -205,7 +205,7 @@ int main() {
                                        g_projectiles[kProjectileSlot].alt, 300);
     g_projectiles[kProjectileSlot].head = angleFromWord(0x0100);
     g_projectiles[kProjectileSlot].pitch = angleFromWord(0x0200);
-    g_projectiles[kProjectileSlot].ttl = kProjectilePrevTtl;
+    g_projectiles[kProjectileSlot].ttl = f15::math::TickDuration::fromWord(kProjectilePrevTtl);
     objCapture(simPrev, projPrev);
 
     f15::math::legacy::objectFineSet<f15::math::ViewXAxis>(
@@ -230,7 +230,7 @@ int main() {
                                        g_projectiles[kProjectileSlot].alt, 900);
     g_projectiles[kProjectileSlot].head = angleFromWord(0x0300);
     g_projectiles[kProjectileSlot].pitch = angleFromWord(0x0400);
-    g_projectiles[kProjectileSlot].ttl = kProjectileNextTtl;
+    g_projectiles[kProjectileSlot].ttl = f15::math::TickDuration::fromWord(kProjectileNextTtl);
     objCapture(simNext, projNext);
 
     objApplyInterp(simPrev, simNext, projPrev, projNext, kHalfNumerator, kHalfDenominator);
@@ -250,7 +250,7 @@ int main() {
     require(g_simObjects[0].worldX == 1200 &&
                 g_simObjects[0].posX == 37 &&
                 g_projectiles[kProjectileSlot].mapX == 300 &&
-                g_projectiles[kProjectileSlot].ttl == kProjectileNextTtl,
+                g_projectiles[kProjectileSlot].ttl == f15::math::TickDuration::fromWord(kProjectileNextTtl),
             "objRestore restores authoritative object and projectile snapshots");
 
     simPrev[0].alive = 0;
@@ -270,7 +270,7 @@ int main() {
     objApplyInterp(simPrev, simNext, projPrev, projNext, kHalfNumerator, kHalfDenominator);
     require(g_simObjects[0].worldX == 888,
             "objApplyInterp skips original teleport-sized object movement");
-    projNext[kProjectileSlot].ttl = kProjectilePrevTtl;
+    projNext[kProjectileSlot].ttl = f15::math::TickDuration::fromWord(kProjectilePrevTtl);
     g_projectiles[kProjectileSlot].mapX = 555;
     objApplyInterp(simNext, simNext, projPrev, projNext, kHalfNumerator, kHalfDenominator);
     require(g_projectiles[kProjectileSlot].mapX == 555,

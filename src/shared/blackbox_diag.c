@@ -163,7 +163,7 @@ static uint32 hashWeapons(void) {
         h = hashAdd(h, (uint16)f15::math::legacy::signedAngle(p->head));
         h = hashAdd(h, (uint16)f15::math::legacy::signedAngle(p->pitch));
         h = hashAdd(h, (uint16)f15::math::legacy::signedAngle(p->bank));
-        h = hashAdd(h, (uint16)p->ttl);
+        h = hashAdd(h, (uint16)p->ttl.word());
         h = hashAdd(h, (uint16)p->specIdx); h = hashAdd(h, (uint16)p->weaponIdx);
         h = hashAdd(h, (uint16)p->targetLock); h = hashAdd(h, (uint16)p->targetRef);
         h = hashAdd(h, (uint32)f15::math::legacy::fineWord(p->fineX));
@@ -243,7 +243,7 @@ static void captureBaseline(void) {
     s_prevAirLock = g_airTargetLock;
     s_prevGroundLock = g_groundTargetLock;
     s_prevMissionEnded = g_missionEndedFlag[0];
-    for (i = 0; i < DIAG_PROJECTILE_COUNT; i++) s_prevProjectileTtl[i] = g_projectiles[i].ttl;
+    for (i = 0; i < DIAG_PROJECTILE_COUNT; i++) s_prevProjectileTtl[i] = g_projectiles[i].ttl.word();
     s_stateBaseline = 1;
 }
 
@@ -261,10 +261,10 @@ void blackbox_diagCaptureSimStep(void) {
             s_prevGroundLock != g_groundTargetLock)
             blackbox_diagMarker("target_change", g_trackedEnemyIdx, g_airTargetLock, g_groundTargetLock);
         for (i = 0; i < DIAG_PROJECTILE_COUNT; i++) {
-            if (s_prevProjectileTtl[i] == 0 && g_projectiles[i].ttl != 0)
+            if (s_prevProjectileTtl[i] == 0 && !g_projectiles[i].ttl.isZero())
                 blackbox_diagMarker("projectile_launch", i, g_projectiles[i].weaponIdx,
                                     g_projectiles[i].targetLock);
-            else if (s_prevProjectileTtl[i] != 0 && g_projectiles[i].ttl == 0)
+            else if (s_prevProjectileTtl[i] != 0 && g_projectiles[i].ttl.isZero())
                 blackbox_diagMarker("projectile_remove", i, g_projectiles[i].weaponIdx,
                                     g_projectiles[i].targetLock);
         }
@@ -439,7 +439,7 @@ int blackbox_diagWriteDump(const char *path) {
     for (i = 0; i < DIAG_PROJECTILE_COUNT; i++) {
         const struct Projectile *p = &g_projectiles[i];
         fprintf(f, "projectile[%02d] ttl=%d weapon=%d spec=%d target=%d ref=%d pos=(%d,%d,%d) fine=(%d,%d)\n",
-                i, (int)p->ttl, (int)p->weaponIdx, (int)p->specIdx,
+                i, (int)p->ttl.word(), (int)p->weaponIdx, (int)p->specIdx,
                 (int)p->targetLock, (int)p->targetRef, (int)p->mapX,
                 (int)p->mapY, (int)p->alt, (int)f15::math::legacy::fineWord(p->fineX),
                 (int)f15::math::legacy::fineWord(p->fineY));

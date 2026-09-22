@@ -1040,7 +1040,7 @@ void renderFrame() {
         savedCamDist = camDist;
         if (!(g_viewTargetObj & 0x40)) {
             if (!(g_viewTargetObj & 0x20)) {
-                if (g_projectiles[g_viewTargetObj].ttl != 0) {
+                if (!g_projectiles[g_viewTargetObj].ttl.isZero()) {
                     /* Fine (sub-mapX-unit) interpolated position so the tracking
                      * camera doesn't lurch in 32-unit steps (the "earthquake"). */
                     g_viewTargetX = (uint32)g_projInterpX[g_viewTargetObj];

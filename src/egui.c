@@ -199,7 +199,7 @@ void drawTacticalMap(char page) {
     /* Missiles draw last so their heading ticks sit on top of every other blip —
      * an inbound weapon is the most important threat and must stay visible. */
     for (i = 0; i < 12; i++) {
-        if (g_projectiles[i].ttl != 0) {
+        if (!g_projectiles[i].ttl.isZero()) {
             projectMapPoint(g_projectiles[i].mapX, g_projectiles[i].mapY);
             if (g_projDepth != -1) {
                 if (sams[g_projectiles[i].specIdx].weaponClass <= 0) {

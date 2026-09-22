@@ -231,7 +231,7 @@ std::uint32_t hashWeapons() {
         h = hashAdd(h, w.mapX);
         h = hashAdd(h, w.mapY);
         h = hashAdd(h, (std::uint16_t)w.alt);
-        h = hashAdd(h, (std::uint16_t)w.ttl);
+        h = hashAdd(h, (std::uint16_t)w.ttl.word());
         h = hashAdd(h, (std::uint16_t)w.speed);
         h = hashAdd(h, (std::uint16_t)w.targetRef);
         h = hashAdd(h, (std::uint16_t)w.weaponIdx);

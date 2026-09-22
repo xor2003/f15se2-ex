@@ -216,7 +216,7 @@ typedef struct {
     f15::math::WordRep<f15::math::GameBackend> alt;
     uint8 altFlag;
     f15::math::Angle<f15::math::GameBackend> head, pitch;      /* missile yaw/pitch */
-    int16 ttl;
+    f15::math::TickDuration ttl;
 } ProjSnap;
 
 static int simObjCount(void) {
@@ -295,7 +295,7 @@ static void objApplyInterp(const SimObjSnap *sp, const SimObjSnap *sn,
          * non-interpolated slot still has a valid fine value. */
         g_projInterpX[i] = f15::math::legacy::fineWord(pn[i].fineX);
         g_projInterpY[i] = f15::math::legacy::fineWord(pn[i].fineY);
-        if (pp[i].ttl <= 0 || pn[i].ttl != pp[i].ttl - 1)
+        if (pp[i].ttl.atMost(0) || pn[i].ttl.word() != pp[i].ttl.word() - 1)
             continue;
         g_projectiles[i].fineX = Fine::interpolate(pp[i].fineX, pn[i].fineX, fraction);
         g_projectiles[i].fineY = Fine::interpolate(pp[i].fineY, pn[i].fineY, fraction);

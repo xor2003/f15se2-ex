@@ -156,7 +156,7 @@ void fireGroundThreat(int16 planeIdx) {
                             g_enemyAlertFlag++;
                             if (g_planeTable.planes[planeIdx].alertLevel >= 250) {
                                 slot = (g_missionStatus != 0) ? planeIdx % g_missionStatus : 0;
-                                if (g_projectiles[slot].ttl == 0) {
+                                if (g_projectiles[slot].ttl.isZero()) {
                                     if (sams[threatType].lockRange > (uint16)range[0]) {
                                         g_projectiles[slot].mapX = g_planeTable.planes[planeIdx].mapX + 8;
                                         g_projectiles[slot].mapY = g_planeTable.planes[planeIdx].mapY;
@@ -169,7 +169,7 @@ void fireGroundThreat(int16 planeIdx) {
                                         g_projectiles[slot].speed = 1;
                                         g_projectiles[slot].head = angleFromWord(bearing[0]);
                                         g_projectiles[slot].pitch = angleFromWord(0x4000);
-                                        g_projectiles[slot].ttl = (int16)((((int32)sams[threatType].lockRange << 3) * (int32)g_frameRateScaling.word()) / (int32)(sams[threatType].maxSpeed >> 6));
+                                        g_projectiles[slot].ttl = f15::math::TickDuration::fromWord((int16)((((int32)sams[threatType].lockRange << 3) * (int32)g_frameRateScaling.word()) / (int32)(sams[threatType].maxSpeed >> 6)));
                                         g_projectiles[slot].specIdx = threatType;
                                         g_projectiles[slot].targetRef = planeIdx;
 

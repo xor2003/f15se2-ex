@@ -328,12 +328,12 @@ void testDiagnosticTransitions(const std::filesystem::path &path) {
     g_trackedEnemyIdx = 3;
     g_airTargetLock = 4;
     g_groundTargetLock = 5;
-    g_projectiles[0].ttl = 10;
+    g_projectiles[0].ttl = f15::math::TickDuration::fromWord(10);
     g_projectiles[0].weaponIdx = 2;
     g_projectiles[0].targetLock = 3;
     blackbox_diagCaptureSimStep();
 
-    g_projectiles[0].ttl = 0;
+    g_projectiles[0].ttl = f15::math::TickDuration{};
     g_missionStatus = 9;
     g_missionEndedFlag[0] = 1;
     blackbox_diagCaptureSimStep();

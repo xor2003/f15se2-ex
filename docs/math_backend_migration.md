@@ -1354,6 +1354,19 @@ so there is no fraction to preserve.
 
 Verification: fixed 60/60, modern smoke, analyzer clean.
 
+## Projectile ttl TickDuration checkpoint
+
+`Projectile.ttl` — the per-tick flight-time countdown (`ttl--`, `== 0`
+free-slot checks, lockRange-derived loads, `clamped` ceilings) — is now a
+`TickDuration` field inside the runtime-only `Projectile` struct. `ttl--`,
+`isZero()`, `atMost`, `exceeds(scaled(2))`, `clamped(0, shifted(4))` and
+same-type copies into `g_savedSamTtl` replaced the raw int16 idioms;
+`ProjSnap.ttl` carries the type and the one-step interp gate compares
+`.word()` reps. `mapEvents[].ttl` stays packed — `MapEvent` is a 12-byte
+file-layout record. Diagnostics read `.word()` at their int16 boundary.
+
+Verification: fixed 60/60, modern smoke, analyzer clean.
+
 ### Next acceptance boundary
 
 The decision-math surface is migrated end to end: every gameplay compare

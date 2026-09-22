@@ -100,6 +100,12 @@ public:
     /* Elapsed-tick phases and shifts (missionTick cadences). */
     int phase(int period) const { return value_ & (period - 1); }
     int shifted(int n) const { return value_ >> n; }
+
+    /* Plain clamp (ttl ceilings) — clampRange's <= -0x4000 wrap quirk is
+     * unreachable for countdown domains. */
+    TickDuration clamped(std::int16_t lo, std::int16_t hi) const {
+        return TickDuration(value_ < lo ? lo : value_ > hi ? hi : value_);
+    }
     /* (value >> shift) & (count - 1): rotating selectors on elapsed ticks. */
     int ring(int shift, int count) const { return (value_ >> shift) & (count - 1); }
     /* Duration arithmetic: word deltas between two counts. */
