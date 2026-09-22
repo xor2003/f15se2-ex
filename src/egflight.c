@@ -932,7 +932,8 @@ void computeTrackingCameraAngles(double targetX, double targetY,
                                  f15::math::WordRep<f15::math::GameBackend> targetAlt,
                                  double viewX, double viewY,
                                  f15::math::WordRep<f15::math::GameBackend> viewAlt,
-                                 int16 *heading, int16 *pitch) {
+                                 f15::math::Angle<f15::math::GameBackend> *heading,
+                                 f15::math::Angle<f15::math::GameBackend> *pitch) {
     enum { WORLD_Y_EXTENT = 0x100000 };
     const double dx = targetX - viewX;
     /* Target Y is a world coordinate, while viewY is the renderer's inverted
@@ -943,8 +944,8 @@ void computeTrackingCameraAngles(double targetX, double targetY,
     /* Fine world deltas exceed int16 on normal maps. Fixed scales both
      * components equally (computeBearing32); modern atan2 keeps the full
      * width and fraction. */
-    *heading = signedAngle(CamMath::wideBearing(dx, -dy));
-    *pitch = -signedAngle(CamMath::wideBearing((double)targetAlt - (double)viewAlt, range));
+    *heading = CamMath::wideBearing(dx, -dy);
+    *pitch = -CamMath::wideBearing((double)targetAlt - (double)viewAlt, range);
 }
 
 // something to do with view switching?
@@ -966,24 +967,24 @@ void renderFrame() {
     switch (g_viewMode) {
     case VIEW_COCKPIT:
     case VIEW_FORWARD:
-        g_viewHeading = signedAngle(g_ourHead);
-        g_viewPitch = signedAngle(g_ourPitch);
-        g_viewRoll = signedAngle(g_ourRoll);
+        g_viewHeading = g_ourHead;
+        g_viewPitch = g_ourPitch;
+        g_viewRoll = g_ourRoll;
         break;
     case VIEW_REAR:
-        g_viewHeading = signedAngle(g_ourHead) + 0x8000;
-        g_viewPitch = -signedAngle(g_ourPitch);
-        g_viewRoll = -signedAngle(g_ourRoll);
+        g_viewHeading = g_ourHead + f15::math::legacy::angleFromWord(0x8000);
+        g_viewPitch = -g_ourPitch;
+        g_viewRoll = -g_ourRoll;
         break;
     case VIEW_RIGHT:
-        g_viewHeading = signedAngle(g_ourHead) + 0x4000;
-        g_viewPitch = -signedAngle(g_ourRoll);
-        g_viewRoll = signedAngle(g_ourPitch);
+        g_viewHeading = g_ourHead + f15::math::legacy::angleFromWord(0x4000);
+        g_viewPitch = -g_ourRoll;
+        g_viewRoll = g_ourPitch;
         break;
     case VIEW_LEFT:
-        g_viewHeading = signedAngle(g_ourHead) - 0x4000;
-        g_viewPitch = signedAngle(g_ourRoll);
-        g_viewRoll = -signedAngle(g_ourPitch);
+        g_viewHeading = g_ourHead - f15::math::legacy::angleFromWord(0x4000);
+        g_viewPitch = g_ourRoll;
+        g_viewRoll = -g_ourPitch;
         break;
     case VIEW_EXT_DYNAMIC: {
         /* The trailing replay camera reads a pose from the per-sim-step history
@@ -997,13 +998,13 @@ void renderFrame() {
         s0 = &g_viewSnapshotRing[tmp];
         s1 = &g_viewSnapshotRing[r1];
         if (poseSnapsQ12(s0, s1)) {
-            g_viewHeading = s1->heading;
-            g_viewPitch = s1->pitch;
-            g_viewRoll = s1->roll;
+            g_viewHeading = f15::math::legacy::angleFromWord(s1->heading);
+            g_viewPitch = f15::math::legacy::angleFromWord(s1->pitch);
+            g_viewRoll = f15::math::legacy::angleFromWord(s1->roll);
         } else {
-            g_viewHeading = lerpViewAngle(s0->heading, s1->heading, a);
-            g_viewPitch = lerpViewAngle(s0->pitch, s1->pitch, a);
-            g_viewRoll = lerpViewAngle(s0->roll, s1->roll, a);
+            g_viewHeading = f15::math::legacy::angleFromWord(lerpViewAngle(s0->heading, s1->heading, a));
+            g_viewPitch = f15::math::legacy::angleFromWord(lerpViewAngle(s0->pitch, s1->pitch, a));
+            g_viewRoll = f15::math::legacy::angleFromWord(lerpViewAngle(s0->roll, s1->roll, a));
         }
         /* The >>12 ring lerp drops up to a full unit of fraction — recover it
          * as the Q8 eye frac (floor semantics: the product's low 12 bits are
@@ -1021,24 +1022,24 @@ void renderFrame() {
         break;
     }
     case VIEW_EXT_SIDE:
-        g_viewHeading = signedAngle(g_ourHead) - 0x4000;
-        g_viewPitch = 0;
-        g_viewRoll = 0;
+        g_viewHeading = g_ourHead - f15::math::legacy::angleFromWord(0x4000);
+        g_viewPitch = {};
+        g_viewRoll = {};
         /* Q8 eye: a whole-fine-unit eye position lurches visibly at close cam
          * distance as the offset rotates with the (smoothly interpolated) heading. */
         g_camEyeX = eyeFromQ8(CamMath::sineOffsetQ8(g_ourHead + angleFromWord(0x4000), 0x18 << camDist, g_angleLut) + fineRep(g_ViewX) * 256.0, &g_camEyeFracX);
         g_camEyeY = eyeFromQ8(CamMath::cosineOffsetQ8(g_ourHead + angleFromWord(0x4000), 0x18 << camDist, g_angleLut) + fineRep(g_ViewY) * 256.0, &g_camEyeFracY);
         break;
     case VIEW_EXT_UNUSED:
-        g_viewHeading = 0x8000;
-        g_viewPitch = 0;
-        g_viewRoll = 0;
+        g_viewHeading = f15::math::legacy::angleFromWord(0x8000);
+        g_viewPitch = {};
+        g_viewRoll = {};
         g_camEyeY = (0x18 << camDist) + fineUnits(g_ViewY);
         break;
     case VIEW_EXT_FOLLOW:
-        g_viewHeading = signedAngle(g_ourHead);
-        g_viewPitch = 0;
-        g_viewRoll = 0;
+        g_viewHeading = g_ourHead;
+        g_viewPitch = {};
+        g_viewRoll = {};
         g_camEyeX = eyeFromQ8(CamMath::sineOffsetQ8(g_ourHead + angleFromWord((int16)0x8000), 0x18 << camDist, g_angleLut) + fineRep(g_ViewX) * 256.0, &g_camEyeFracX);
         g_camEyeY = eyeFromQ8(CamMath::cosineOffsetQ8(g_ourHead + angleFromWord((int16)0x8000), 0x18 << camDist, g_angleLut) + fineRep(g_ViewY) * 256.0, &g_camEyeFracY);
         g_camEyeZ = (int16)eyeFromQ8(
@@ -1092,36 +1093,36 @@ void renderFrame() {
                                     g_viewTargetAlt, fineRep(g_ViewX), fineRep(g_ViewY),
                                     f15::math::legacy::Altitudes::render(g_sceneHeightRender),
                                     &g_viewHeading, &g_viewPitch);
-        g_viewRoll = 0;
-        camOffset = (int16)CamMath::cosineVelocity(angleFromWord(g_viewPitch), 0x18 << camDist, g_angleLut);
+        g_viewRoll = {};
+        camOffset = (int16)CamMath::cosineVelocity(g_viewPitch, 0x18 << camDist, g_angleLut);
         if (g_viewTargetObj & 0x60 || g_directorMode != 0) {
             if (g_viewMode == VIEW_EXT_TARGET) {
-                g_camEyeX = eyeFromQ8(CamMath::sineOffsetQ8(angleFromWord((int16)(g_viewHeading + 0x8000)), camOffset, g_angleLut) + fineRep(g_ViewX) * 256.0, &g_camEyeFracX);
-                g_camEyeY = eyeFromQ8(CamMath::cosineOffsetQ8(angleFromWord((int16)(g_viewHeading + 0x8000)), camOffset, g_angleLut) + fineRep(g_ViewY) * 256.0, &g_camEyeFracY);
-                g_camEyeZ = (int16)eyeFromQ8(CamMath::sineOffsetQ8(angleFromWord(g_viewPitch), 0x18 << camDist, g_angleLut) + ((4 << camDist) + f15::math::legacy::Altitudes::render(g_sceneHeightRender)) * 256.0, &g_camEyeFracZ);
+                g_camEyeX = eyeFromQ8(CamMath::sineOffsetQ8(g_viewHeading + f15::math::legacy::angleFromWord(0x8000), camOffset, g_angleLut) + fineRep(g_ViewX) * 256.0, &g_camEyeFracX);
+                g_camEyeY = eyeFromQ8(CamMath::cosineOffsetQ8(g_viewHeading + f15::math::legacy::angleFromWord(0x8000), camOffset, g_angleLut) + fineRep(g_ViewY) * 256.0, &g_camEyeFracY);
+                g_camEyeZ = (int16)eyeFromQ8(CamMath::sineOffsetQ8(g_viewPitch, 0x18 << camDist, g_angleLut) + ((4 << camDist) + f15::math::legacy::Altitudes::render(g_sceneHeightRender)) * 256.0, &g_camEyeFracZ);
                 g_viewPitch = -g_viewPitch;
             } else {
-                g_camEyeX = eyeFromQ8(CamMath::sineOffsetQ8(angleFromWord(g_viewHeading), camOffset, g_angleLut) + g_viewTargetX * 256.0, &g_camEyeFracX);
-                g_camEyeY = eyeFromQ8(CamMath::cosineOffsetQ8(angleFromWord(g_viewHeading), camOffset, g_angleLut) + (0x100000 - (double)g_viewTargetY) * 256.0, &g_camEyeFracY);
-                g_camEyeZ = (int16)eyeFromQ8(((4 << camDist) + g_viewTargetAlt) * 256.0 - CamMath::sineOffsetQ8(angleFromWord(g_viewPitch), 0x18 << camDist, g_angleLut), &g_camEyeFracZ);
+                g_camEyeX = eyeFromQ8(CamMath::sineOffsetQ8(g_viewHeading, camOffset, g_angleLut) + g_viewTargetX * 256.0, &g_camEyeFracX);
+                g_camEyeY = eyeFromQ8(CamMath::cosineOffsetQ8(g_viewHeading, camOffset, g_angleLut) + (0x100000 - (double)g_viewTargetY) * 256.0, &g_camEyeFracY);
+                g_camEyeZ = (int16)eyeFromQ8(((4 << camDist) + g_viewTargetAlt) * 256.0 - CamMath::sineOffsetQ8(g_viewPitch, 0x18 << camDist, g_angleLut), &g_camEyeFracZ);
                 if (g_viewTargetObj & 0x40 && g_planeTable.planes[g_viewTargetObj & 0x3f].flags & 0x200 && g_camEyeZ < 132) {
                     g_camEyeZ = 132;
                     g_camEyeFracZ = 0;
                 }
-                g_viewHeading += 0x8000;
+                g_viewHeading += f15::math::legacy::angleFromWord(0x8000);
             }
         } else {
-            g_viewHeading = signedAngle(g_projectiles[g_viewTargetObj].head);
-            g_viewPitch = (int16)(signedAngle(g_projectiles[g_viewTargetObj].pitch) - 0x400);
-            camOffset = (int16)CamMath::cosineVelocity(angleFromWord(g_viewPitch), 0x10 << camDist, g_angleLut);
-            g_camEyeX = eyeFromQ8((double)g_viewTargetX * 256.0 - CamMath::sineOffsetQ8(angleFromWord(g_viewHeading), camOffset, g_angleLut), &g_camEyeFracX);
-            g_camEyeY = eyeFromQ8(0x100000 * 256.0 - (CamMath::cosineOffsetQ8(angleFromWord(g_viewHeading), camOffset, g_angleLut) + (double)g_viewTargetY * 256.0), &g_camEyeFracY);
-            g_camEyeZ = (int16)eyeFromQ8((double)g_viewTargetAlt * 256.0 - CamMath::sineOffsetQ8(angleFromWord(g_viewPitch), 0x10 << camDist, g_angleLut), &g_camEyeFracZ);
+            g_viewHeading = g_projectiles[g_viewTargetObj].head;
+            g_viewPitch = g_projectiles[g_viewTargetObj].pitch - f15::math::legacy::angleFromWord(0x400);
+            camOffset = (int16)CamMath::cosineVelocity(g_viewPitch, 0x10 << camDist, g_angleLut);
+            g_camEyeX = eyeFromQ8((double)g_viewTargetX * 256.0 - CamMath::sineOffsetQ8(g_viewHeading, camOffset, g_angleLut), &g_camEyeFracX);
+            g_camEyeY = eyeFromQ8(0x100000 * 256.0 - (CamMath::cosineOffsetQ8(g_viewHeading, camOffset, g_angleLut) + (double)g_viewTargetY * 256.0), &g_camEyeFracY);
+            g_camEyeZ = (int16)eyeFromQ8((double)g_viewTargetAlt * 256.0 - CamMath::sineOffsetQ8(g_viewPitch, 0x10 << camDist, g_angleLut), &g_camEyeFracZ);
         }
         break;
     case VIEW_EJECT:
-        g_viewPitch = 0xf400;
-        g_viewRoll = 0;
+        g_viewPitch = f15::math::legacy::angleFromWord((std::int16_t)0xf400);
+        g_viewRoll = {};
         g_camEyeX = (int32)g_crashCamX << 5;
         g_camEyeY = (0x8000 - (int32)g_crashCamY) << 5;
         g_camEyeZ = g_crashCamZ;
@@ -1130,10 +1131,10 @@ void renderFrame() {
         break;
     }
     /* barrel roll */
-    if (abs(g_viewPitch) > 0x4000 || g_viewPitch == INT16_MIN) {
-        g_viewPitch = INT16_MIN - g_viewPitch;
-        g_viewHeading += INT16_MIN;
-        g_viewRoll = INT16_MIN - g_viewRoll;
+    if (f15::math::legacy::angleMagnitude(g_viewPitch) > 0x4000 || f15::math::legacy::signedAngle(g_viewPitch) == INT16_MIN) {
+        g_viewPitch = f15::math::legacy::angleFromWord(INT16_MIN) - g_viewPitch;
+        g_viewHeading += f15::math::legacy::angleFromWord(INT16_MIN);
+        g_viewRoll = f15::math::legacy::angleFromWord(INT16_MIN) - g_viewRoll;
     }
     /* Build the reticle/box rotation from the (interpolated) view angles every
      * render frame — the very g_viewHeading/Pitch/Roll render3DView projects the
@@ -1143,7 +1144,7 @@ void renderFrame() {
      * player angles (rebuildOrientation), so this is the same matrix when static,
      * but under the render/sim decouple the copy only updated the boxes at the sim
      * rate while the world turned every render frame. */
-    buildRotationMatrixFar(g_camRotMatrix, g_viewHeading, g_viewPitch, g_viewRoll);
+    buildRotationMatrixFar(g_camRotMatrix, f15::math::legacy::signedAngle(g_viewHeading), f15::math::legacy::signedAngle(g_viewPitch), f15::math::legacy::signedAngle(g_viewRoll));
     if (g_camEyeZ < 0x10) {
         g_camEyeZ = 0x10;
         g_camEyeFracZ = 0;
@@ -1195,7 +1196,7 @@ void renderFrame() {
     }
     loadColorPalette(g_nightMode);
     *(uint8 *)(&g_posVisibleFlag) = 0;
-    render3DView(-g_viewHeading, g_viewPitch, g_viewRoll, g_camEyeX, g_camEyeY, (int32)g_camEyeZ, 0, 0, 320, g_pageFront[8] + 1);
+    render3DView(-f15::math::legacy::signedAngle(g_viewHeading), f15::math::legacy::signedAngle(g_viewPitch), f15::math::legacy::signedAngle(g_viewRoll), g_camEyeX, g_camEyeY, (int32)g_camEyeZ, 0, 0, 320, g_pageFront[8] + 1);
     g_extraScaleShift = 0;
     g_savedPosVisible = g_posVisibleFlag;
     if (g_viewMode == VIEW_REAR && !gfx_hasPageReplacement()) {

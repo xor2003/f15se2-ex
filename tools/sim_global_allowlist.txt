@@ -406,17 +406,14 @@ g_unusedViewYSnap
 g_unusedWaypointTail
 g_viewCenterX
 g_viewCenterY
-g_viewHeading
 g_viewHeadingOffset
 g_viewParams
-g_viewPitch
 g_viewPosFracX
 g_viewPosFracY
 g_viewPosFracZ
 g_viewPosX
 g_viewPosY
 g_viewPosZ
-g_viewRoll
 g_viewRotMatrix
 g_viewTargetObj
 g_viewX_

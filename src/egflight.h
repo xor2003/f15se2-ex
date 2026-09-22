@@ -36,7 +36,8 @@ void computeTrackingCameraAngles(double targetX, double targetY,
                                  f15::math::WordRep<f15::math::GameBackend> targetAlt,
                                  double viewX, double viewY,
                                  f15::math::WordRep<f15::math::GameBackend> viewAlt,
-                                 int16 *heading, int16 *pitch);
+                                 f15::math::Angle<f15::math::GameBackend> *heading,
+                                 f15::math::Angle<f15::math::GameBackend> *pitch);
 void UpdateThrottleState(void);
 void drawFuelGauge(void);
 

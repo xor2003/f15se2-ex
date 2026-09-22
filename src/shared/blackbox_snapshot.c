@@ -217,7 +217,7 @@ int blackbox_snapshotWriteJson(const char *path) {
             "\"target\":{\"x\":%d,\"y\":%d,\"altitude\":%d,\"object\":%d},"
             "\"external_distance\":%d},\n",
             (int)g_viewMode, (int)g_camEyeX, (int)g_camEyeY, (int)g_camEyeZ,
-            (int)g_viewHeading, (int)g_viewPitch, (int)g_viewRoll,
+            (int)f15::math::legacy::signedAngle(g_viewHeading), (int)f15::math::legacy::signedAngle(g_viewPitch), (int)f15::math::legacy::signedAngle(g_viewRoll),
             (int)g_viewTargetX, (int)g_viewTargetY, (int)g_viewTargetAlt,
             (int)g_viewTargetObj, (int)g_externalCamDist);
     fprintf(f,

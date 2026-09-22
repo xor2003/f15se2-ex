@@ -128,8 +128,8 @@ static uint32 hashFlight(void) {
 
 static uint32 hashCamera(void) {
     uint32 h = 2166136261u;
-    h = hashAdd(h, (uint16)g_viewMode); h = hashAdd(h, (uint16)g_viewHeading);
-    h = hashAdd(h, (uint16)g_viewPitch); h = hashAdd(h, (uint16)g_viewRoll);
+    h = hashAdd(h, (uint16)g_viewMode); h = hashAdd(h, (uint16)f15::math::legacy::signedAngle(g_viewHeading));
+    h = hashAdd(h, (uint16)f15::math::legacy::signedAngle(g_viewPitch)); h = hashAdd(h, (uint16)f15::math::legacy::signedAngle(g_viewRoll));
     h = hashAdd(h, (uint32)g_camEyeX); h = hashAdd(h, (uint32)g_camEyeY);
     h = hashAdd(h, (uint16)g_camEyeZ); h = hashAdd(h, (uint32)g_viewTargetX);
     h = hashAdd(h, (uint32)g_viewTargetY); h = hashAdd(h, (uint16)g_viewTargetAlt);
@@ -423,7 +423,7 @@ int blackbox_diagWriteDump(const char *path) {
             (unsigned)f15::math::legacy::altitudeUnits(g_altitude), (int)f15::math::legacy::fuelUnits(g_fuelRemaining));
     fprintf(f, "camera mode=%d eye=(%d,%d,%d) view=(%d,%d,%d) target=(%d,%d,%d,obj=%d)\n",
             (int)g_viewMode, (int)g_camEyeX, (int)g_camEyeY, (int)g_camEyeZ,
-            (int)g_viewHeading, (int)g_viewPitch, (int)g_viewRoll,
+            (int)f15::math::legacy::signedAngle(g_viewHeading), (int)f15::math::legacy::signedAngle(g_viewPitch), (int)f15::math::legacy::signedAngle(g_viewRoll),
             (int)g_viewTargetX, (int)g_viewTargetY, (int)g_viewTargetAlt,
             (int)g_viewTargetObj);
     fprintf(f, "target tracked=%d air_lock=%d ground_lock=%d aam=%d mission_status=%d ended=%u\n",

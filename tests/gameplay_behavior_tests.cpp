@@ -144,16 +144,17 @@ int main() {
     // These values are from a blackbox frame that formerly flipped vertically:
     // target Y is world-space, while g_ViewY is renderer-inverted. Mixing them
     // also overflowed computeBearing's int16 input and produced a near-180 pitch.
-    int16 cameraHeading = 0;
-    int16 cameraPitch = 0;
+    f15::math::Angle<f15::math::GameBackend> cameraHeading;
+    f15::math::Angle<f15::math::GameBackend> cameraPitch;
     computeTrackingCameraAngles(612536, 311380, 2111,
                                 614019, 737929, 1513,
                                 &cameraHeading, &cameraPitch);
-    require(cameraHeading == computeBearing(-1483, -733),
+    require(f15::math::legacy::signedAngle(cameraHeading) == computeBearing(-1483, -733),
             "tracking camera converts inverted view Y before computing heading");
-    require(cameraPitch == -computeBearing(598, 1849),
+    require(f15::math::legacy::signedAngle(cameraPitch) == -computeBearing(598, 1849),
             "tracking camera preserves the fine altitude/range ratio");
-    require(cameraPitch > -0x4000 && cameraPitch < 0x4000,
+    require(cameraPitch > f15::math::legacy::angleFromWord(-0x4000) &&
+                cameraPitch < f15::math::legacy::angleFromWord(0x4000),
             "tracking camera pitch does not trigger a false 180-degree flip");
     require(computeBearing32(0x20000, 0x10000) ==
                 computeBearing(0x2000, 0x1000),

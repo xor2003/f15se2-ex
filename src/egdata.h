@@ -305,7 +305,7 @@ extern f15::math::Angle<f15::math::GameBackend> g_liftForce;
 extern f15::math::ClimbRate<f15::math::GameBackend> g_wreckFallVel;
 extern int16 g_camEyeZ;
 
-extern int16 g_viewRoll;
+extern f15::math::Angle<f15::math::GameBackend> g_viewRoll;
 extern struct DynTileOverride g_dynTileEntries[]; // overlaps the following bytes with structs
 extern f15::math::RenderHeight<f15::math::GameBackend> g_threatRefZ;
 extern f15::math::ViewCoordinate<f15::math::GameBackend, f15::math::ViewXAxis> g_ViewX;
@@ -323,7 +323,7 @@ extern f15::math::Angle<f15::math::GameBackend> g_waypointBearing;
 // 16-bit on purpose: view-angle math relies on 16-bit wraparound (the gimbal
 // flip in renderFrame, where side views feed roll into pitch). Native int=4
 // would make abs()/0x8000 compares misfire and invert the scene.
-extern int16 g_viewPitch;
+extern f15::math::Angle<f15::math::GameBackend> g_viewPitch;
 extern int16 g_threatLabelTarget;
 extern int16 g_skyColorIndex;
 extern int16 g_sphereRingRadii[];
@@ -397,7 +397,7 @@ extern int16 g_scopeClipBottom;
 extern f15::math::PitchCommand<f15::math::GameBackend> g_pitchInput;
 extern f15::math::CornerSpeed<f15::math::GameBackend> g_cornerSpeed;
 extern struct TileSceneObject *g_curTileEntry;
-extern int16 g_viewHeading;
+extern f15::math::Angle<f15::math::GameBackend> g_viewHeading;
 extern int16 *g_overlayCenterX;
 extern int16 g_planeScanCount;
 extern uint8 g_highGeeFlag[];

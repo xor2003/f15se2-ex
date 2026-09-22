@@ -1160,6 +1160,27 @@ coarse quantization. Blackbox hash and snapshot reads narrow through
 Verification: fixed focused tests pass; sortie parity unchanged; modern
 smoke/sortie pass; the allowlist dropped the name.
 
+## View-orientation storage checkpoint
+
+`g_viewHeading`/`g_viewPitch`/`g_viewRoll` are now `Angle<GameBackend>` —
+the selected camera orientation feeding the external-view eye solve and
+the render matrix. `computeTrackingCameraAngles` out-params became typed
+`Angle*`, so the internal `wideBearing` solution keeps its fraction under
+modern instead of narrowing at the store; the direct-attitude copies take
+`g_ourHead`/`g_ourPitch`/`g_ourRoll` as typed angles; the packed
+`ViewSnapshot` ring and `lerpViewAngle` Q12 tween stay word-domain
+(reviewed packed/interpolation boundaries) and wrap via `angleFromWord`.
+The camera-eye trig calls (`sineOffsetQ8`/`cosineVelocity`) now receive
+the typed angle — a real modern precision gain on the sub-pixel camera
+path, same class as the view-fraction shake fixes. The gimbal-wrap
+normalization and `buildRotationMatrixFar`/`render3DView` calls narrow
+through `signedAngle` at the render word interface.
+
+Verification: fixed suite passes bit-identical (sortie golden unchanged —
+every write was already word-derived under fixed); modern smoke/sortie
+pass with the golden unchanged (the new fraction only shifts sub-pixel
+camera frac, invisible to sim state). The allowlist dropped three names.
+
 ## Angle magnitude read adapters
 
 `legacy_rotation.hpp` gained two fraction-preserving magnitude reads for

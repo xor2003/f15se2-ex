@@ -2154,7 +2154,7 @@ f15::math::Angle<f15::math::GameBackend> g_liftForce;
 f15::math::ClimbRate<f15::math::GameBackend> g_wreckFallVel;
 int16 g_camEyeZ;
 
-int16 g_viewRoll;
+f15::math::Angle<f15::math::GameBackend> g_viewRoll;
 /* Model/shape LOD cache (754 reserved bytes = 94 8-byte records). eg3dmap
  * appends entries with memcpy (g_tileEntryCount is the live count) and scans
  * backwards for a key match. */
@@ -2208,7 +2208,7 @@ int16 g_scopeArcRange;
 uint8 g_modelVertZ[0x10];
 ViewMode g_viewMode;
 f15::math::Angle<f15::math::GameBackend> g_waypointBearing;
-int16 g_viewPitch;
+f15::math::Angle<f15::math::GameBackend> g_viewPitch;
 int16 g_threatLabelTarget;
 
 int16 g_skyColorIndex;
@@ -2296,7 +2296,7 @@ int16 g_scopeClipBottom;
 f15::math::PitchCommand<f15::math::GameBackend> g_pitchInput;
 f15::math::CornerSpeed<f15::math::GameBackend> g_cornerSpeed;
 struct TileSceneObject *g_curTileEntry;
-int16 g_viewHeading;
+f15::math::Angle<f15::math::GameBackend> g_viewHeading;
 int16 *g_overlayCenterX;
 int16 g_planeScanCount;
 uint8 g_highGeeFlag[1];
