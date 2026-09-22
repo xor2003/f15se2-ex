@@ -1133,6 +1133,36 @@ during the golden run) and modern smoke pass; `typed_guidance_tests` checks
 oracles and the Q8 helpers against `sinMulQ8`/`cosMulQ8` plus modern
 fractional cases.
 
+## SimObject fine-position shadow checkpoint
+
+The packed `SimObject.worldX/worldY` int32 fields are the frozen FlightUnit
+file layout — they cannot widen in place. They now carry a typed shadow:
+`g_simObjectFineX/Y` are `ViewCoordinate<B>` arrays whose rep is int32 under
+fixed and double under modern. Every position write flows through
+`legacy::objectFineSet`/`objectFineAdvance`, which updates the shadow AND the
+packed cache; every fraction-capable consumer reads `objectFineRep`:
+
+* spawn/load paths (worldxfer memcpy, egcombat/egframe spawn sites) seed the
+  shadow from the same rep the packed field gets;
+* the AI move update (egthreat) advances the shadow by the StepRep velocity,
+  so modern sub-fine-unit motion accumulates instead of truncating at the
+  int32 store each tick;
+* projectile/threat-gun launches seed `FineCoord` from `objectFineRep` —
+  the fractional launcher position flows into the new projectile under modern;
+* the render-snapshot system (`SimObjSnap`, egsys.c) stores the rep itself,
+  so interpolation keeps sub-fine precision under modern while fixed reduces
+  to the original `lerpLinear` int32 math.
+
+The packed `worldX/Y` stay correct int32 caches: serialization, the teleport
+guard, `posX = worldX >> 5` derives, camera targets and HUD projection read
+them unchanged. `planes[]` stays word-only — its entries are word-authoritative
+targets, not integrated positions.
+
+Verification: fixed 59/59 (sortie parity exercises the object AI loop),
+modern smoke, `typed_horizontal_tests` covers fixed equivalence (seed,
+advance, negative step, int32 wrap) and modern fraction accumulation plus
+packed-field truncation.
+
 ### Next acceptance boundary
 
 The decision-math surface is migrated end to end: every gameplay compare
@@ -1197,7 +1227,7 @@ input widths or introduce new flight-model formulas.
 | Camera precision | Fine bearing/range and Q8 eye offsets typed; outputs stay word/Q8 at the render boundary | Remaining render-internal projection math (sinMulQ8 remnants in egtacmap, view-matrix LUT path) |
 | Terrain/world coordinates | Coarse `MapPosition` typed; sub-LOD precision flows through `g_camEyeFrac*` frac bytes into `lodEyeFracQ8` | scaleCoordToLod LOD quantization is render-internal; all nearest-tile callers pass packed word sources |
 | Flight integration | stepFlightModel forces, velocity/position integration, coefficients and clamps typed end to end | Modern refresh policy vs the original periodic rebuild (see acceptance boundary) |
-| Combat/AI | Projectile guidance/state, bullet tracks, SimObject decision reads, acquisition, lock cones and landing/corridor gates typed | Hit-test broad phases are word-domain game rules (precise swept test already typed); packed-field AI internals have no fraction to preserve |
+| Combat/AI | Projectile guidance/state, bullet tracks, SimObject decision reads, acquisition, lock cones, corridor gates and fine-position shadow typed | Hit-test broad phases are word-domain game rules (precise swept test already typed); heading/bank/pitch packed words are the AI's authoritative attitude state |
 | Randomness/time | Only a scaling helper | Separate deterministic RNG and simulation clock contracts from numeric representation |
 
 Not every integer operation is fixed-point math. Object indices, packed flags,

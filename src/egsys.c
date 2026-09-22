@@ -9,6 +9,7 @@
 #include "math/interpolation.hpp"
 #include "math/legacy_altitude.hpp"
 #include "math/legacy_map.hpp"
+#include "math/legacy_horizontal.hpp"
 #include "egflight.h"
 #include "inttype.h"
 #include "gfx.h"
@@ -226,7 +227,9 @@ static uint64 simStepNsNow(void) {
  * which reads posX/posY) and the 3D model (drawWorldObject, worldX/worldY) stay
  * consistent. */
 typedef struct {
-    int32 worldX, worldY;
+    /* Fine-position rep captured from the object shadow — int32 under fixed,
+     * fractional under modern so interpolation keeps sub-fine precision. */
+    f15::math::HorizontalBoundary<f15::math::GameBackend>::Rep worldX, worldY;
     uint16 posX, posY;
     int16 alt, head, pitch, bank;
     uint8 alive;
@@ -249,8 +252,8 @@ static int simObjCount(void) {
 static void objCapture(SimObjSnap *sim, ProjSnap *proj) {
     int i, n = simObjCount();
     for (i = 0; i < n; i++) {
-        sim[i].worldX = g_simObjects[i].worldX;
-        sim[i].worldY = g_simObjects[i].worldY;
+        sim[i].worldX = f15::math::legacy::objectFineRep(g_simObjectFineX[i]);
+        sim[i].worldY = f15::math::legacy::objectFineRep(g_simObjectFineY[i]);
         sim[i].posX = g_simObjects[i].posX;
         sim[i].posY = g_simObjects[i].posY;
         sim[i].alt = g_simObjects[i].alt;
@@ -273,19 +276,28 @@ static void objApplyInterp(const SimObjSnap *sp, const SimObjSnap *sn,
                            const ProjSnap *pp, const ProjSnap *pn,
                            int64 num, int64 den) {
     int i, n = simObjCount();
+    using Horizontal = f15::math::HorizontalMath<f15::math::GameBackend>;
+    using HBoundary = f15::math::HorizontalBoundary<f15::math::GameBackend>;
+    const auto fraction = f15::math::FrameFraction::fromTicks(num, den);
     for (i = 0; i < n; i++) {
-        int32 wx, wy, poseH, poseP, poseR;
+        int32 poseH, poseP, poseR;
         if (!sp[i].alive || !sn[i].alive)
             continue;
-        if (iabs32(sn[i].worldX - sp[i].worldX) >= OBJ_TELEPORT_GUARD ||
-            iabs32(sn[i].worldY - sp[i].worldY) >= OBJ_TELEPORT_GUARD)
+        if (std::abs(sn[i].worldX - sp[i].worldX) >= OBJ_TELEPORT_GUARD ||
+            std::abs(sn[i].worldY - sp[i].worldY) >= OBJ_TELEPORT_GUARD)
             continue;
-        wx = lerpLinear(sp[i].worldX, sn[i].worldX, num, den);
-        wy = lerpLinear(sp[i].worldY, sn[i].worldY, num, den);
-        g_simObjects[i].worldX = wx;
-        g_simObjects[i].worldY = wy;
-        g_simObjects[i].posX = (uint16)(wx >> 5);
-        g_simObjects[i].posY = (uint16)(wy >> 5);
+        f15::math::legacy::objectFineSet<f15::math::ViewXAxis>(
+            g_simObjectFineX[i], g_simObjects[i].worldX,
+            HBoundary::coordinate(Horizontal::interpolate(
+                HBoundary::coordinate<f15::math::ViewXAxis>(sp[i].worldX),
+                HBoundary::coordinate<f15::math::ViewXAxis>(sn[i].worldX), fraction)));
+        f15::math::legacy::objectFineSet<f15::math::ViewYAxis>(
+            g_simObjectFineY[i], g_simObjects[i].worldY,
+            HBoundary::coordinate(Horizontal::interpolate(
+                HBoundary::coordinate<f15::math::ViewYAxis>(sp[i].worldY),
+                HBoundary::coordinate<f15::math::ViewYAxis>(sn[i].worldY), fraction)));
+        g_simObjects[i].posX = (uint16)(g_simObjects[i].worldX >> 5);
+        g_simObjects[i].posY = (uint16)(g_simObjects[i].worldY >> 5);
         g_simObjects[i].alt = (int16)lerpLinear(sp[i].alt, sn[i].alt, num, den);
         /* enemy AI flips its pose representation the same way as the player
          * (egthreat pitch>0x4000: head+=0x8000, bank+=0x8000, pitch reflected) */
@@ -323,8 +335,10 @@ static void objApplyInterp(const SimObjSnap *sp, const SimObjSnap *sn,
 static void objRestore(const SimObjSnap *sn, const ProjSnap *pn) {
     int i, n = simObjCount();
     for (i = 0; i < n; i++) {
-        g_simObjects[i].worldX = sn[i].worldX;
-        g_simObjects[i].worldY = sn[i].worldY;
+        f15::math::legacy::objectFineSet<f15::math::ViewXAxis>(
+            g_simObjectFineX[i], g_simObjects[i].worldX, sn[i].worldX);
+        f15::math::legacy::objectFineSet<f15::math::ViewYAxis>(
+            g_simObjectFineY[i], g_simObjects[i].worldY, sn[i].worldY);
         g_simObjects[i].posX = sn[i].posX;
         g_simObjects[i].posY = sn[i].posY;
         g_simObjects[i].alt = sn[i].alt;

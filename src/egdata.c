@@ -2129,6 +2129,8 @@ uint8 buf3d3_2[MODEL_VERTEX_REFERENCE_CAPACITY];
 uint8 buf3d3_3[MODEL_VERTEX_REFERENCE_CAPACITY];
 int32 g_camEyeX;
 struct SimObject g_simObjects[20];
+f15::math::ViewCoordinate<f15::math::GameBackend, f15::math::ViewXAxis> g_simObjectFineX[20];
+f15::math::ViewCoordinate<f15::math::GameBackend, f15::math::ViewYAxis> g_simObjectFineY[20];
 
 /* g_wingmanX/811: viewX/viewY scratch for the player tile-object world pos. */
 uint16 g_wingmanX = 0;

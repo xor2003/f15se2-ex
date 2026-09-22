@@ -215,7 +215,37 @@ void modernMath() {
             "modern map range kept the legacy cap or quirk");
 }
 }
+void objectFineShadow() {
+    // Fixed: the helpers reduce to the raw int32 stores/advances they replaced.
+    {
+        ViewCoordinate<F, ViewXAxis> sx; std::int32_t packed = 777;
+        legacy::objectFineSet<ViewXAxis, F>(sx, packed, 12345);
+        require(packed == 12345 && legacy::objectFineRep<ViewXAxis, F>(sx) == 12345,
+                "fixed object fine seed changed");
+        legacy::objectFineAdvance<ViewXAxis, F>(sx, packed, 100);
+        require(packed == 12445 && legacy::objectFineRep<ViewXAxis, F>(sx) == 12445,
+                "fixed object fine advance changed");
+        legacy::objectFineAdvance<ViewXAxis, F>(sx, packed, -20000);
+        require(packed == 12445 - 20000, "fixed object fine negative advance changed");
+        legacy::objectFineSet<ViewXAxis, F>(sx, packed, INT32_MAX - 10);
+        legacy::objectFineAdvance<ViewXAxis, F>(sx, packed, 20);
+        require(packed == dword(std::int64_t(INT32_MAX) - 10 + 20), "fixed object fine wrap changed");
+    }
+    // Modern: sub-fine-unit motion accumulates in the shadow; the packed field
+    // is the truncating cache for file-layout/word-domain consumers.
+    {
+        ViewCoordinate<M, ViewXAxis> sx; std::int32_t packed = 0;
+        legacy::objectFineSet<ViewXAxis, M>(sx, packed, 1000.25);
+        require(packed == 1000 && std::abs(legacy::objectFineRep<ViewXAxis, M>(sx) - 1000.25) < 1e-12,
+                "modern object fine seed lost the fraction");
+        legacy::objectFineAdvance<ViewXAxis, M>(sx, packed, 0.4);
+        legacy::objectFineAdvance<ViewXAxis, M>(sx, packed, 0.4);
+        require(std::abs(legacy::objectFineRep<ViewXAxis, M>(sx) - 1001.05) < 1e-12,
+                "modern object fine advance lost the fraction");
+        require(packed == 1001, "modern packed cache did not truncate");
+    }
+}
 int main() {
-    fixedMath(); productionCaller(); modernMath();
+    fixedMath(); productionCaller(); modernMath(); objectFineShadow();
     std::puts("typed horizontal tests passed");
 }

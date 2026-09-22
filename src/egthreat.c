@@ -2,6 +2,7 @@
 // Functions whose block scheduling only matches when compiled without /Zi.
 #include "egcombat.h"
 #include "egdata.h"
+#include "math/legacy_horizontal.hpp"
 #include "math/legacy_rotation.hpp"
 #include "math/legacy_altitude.hpp"
 #include "math/legacy_map.hpp"
@@ -12,6 +13,10 @@ using f15::math::legacy::angleSeparation;
 using f15::math::legacy::angleFromWord;
 using f15::math::legacy::mapOffset;
 using f15::math::legacy::mapRange;
+using f15::math::legacy::objectFineAdvance;
+using f15::math::legacy::objectFineRep;
+using f15::math::ViewXAxis;
+using f15::math::ViewYAxis;
 using FineCoord = f15::math::FineCoord<f15::math::GameBackend>;
 using TrackMath = f15::math::GuidanceMath<f15::math::GameBackend>;
 #include "egflight.h"
@@ -238,7 +243,7 @@ int16 computeThreatScore(void) {
 
 // ==== seg000:0x67b4 ====
 void updateObjects(void) {
-    int16 candBearing, pitchCmd, viewBearing, aggrIdx, bearing, relBearing, tgtIdx, acRange, hdg, aspect, u0, e0, best, range, moveAmt, mode, fireOffset, objIdx, vel, scanIdx, pitchDelta, trackSlot, tgtX, deltaX, deltaY, rollCmd, horizMove, tgtY, smokeSlot, tgtZ;
+    int16 candBearing, pitchCmd, viewBearing, aggrIdx, bearing, relBearing, tgtIdx, acRange, hdg, aspect, u0, e0, best, range, moveAmt, mode, fireOffset, objIdx, vel, scanIdx, pitchDelta, trackSlot, tgtX, deltaX, deltaY, rollCmd, tgtY, smokeSlot, tgtZ;
     /* horizontal magnitude after the pitch decompose — the original stored it
      * back into the int16 vel; StepRep keeps the fraction under modern.
      * Declared here so the after_missile_table goto doesn't cross its init. */
@@ -373,8 +378,8 @@ void updateObjects(void) {
                     hdg = g_simObjects[objIdx].heading.w + gunSpreadAngle();
                     bulletTracks[trackSlot].velX = TrackMath::sineVelocity(angleFromWord(hdg), horizVel, g_angleLut);
                     bulletTracks[trackSlot].velY = -TrackMath::cosineVelocity(angleFromWord(hdg), horizVel, g_angleLut);
-                    bulletTracks[trackSlot].posX = FineCoord::fromRep(g_simObjects[objIdx].worldX);
-                    bulletTracks[trackSlot].posY = FineCoord::fromRep(g_simObjects[objIdx].worldY);
+                    bulletTracks[trackSlot].posX = FineCoord::fromRep(objectFineRep(g_simObjectFineX[objIdx]));
+                    bulletTracks[trackSlot].posY = FineCoord::fromRep(objectFineRep(g_simObjectFineY[objIdx]));
                     bulletTracks[trackSlot].alt = g_simObjects[objIdx].alt;
 
                 after_missile_table:
@@ -516,13 +521,15 @@ void updateObjects(void) {
                 moveAmt = moveAmt * 4 / g_frameRateScaling;
                 moveAmt >>= 2;
 
-                horizMove = (int16)TrackMath::cosineVelocity(
+                const auto horizStep = TrackMath::cosineVelocity(
                     angleFromWord(g_simObjects[objIdx].pitch), moveAmt, g_angleLut);
 
-                g_simObjects[objIdx].worldX += (int32)TrackMath::sineVelocity(
-                    angleFromWord(g_simObjects[objIdx].heading.w), horizMove, g_angleLut);
-                g_simObjects[objIdx].worldY -= (int32)TrackMath::cosineVelocity(
-                    angleFromWord(g_simObjects[objIdx].heading.w), horizMove, g_angleLut);
+                objectFineAdvance<ViewXAxis>(g_simObjectFineX[objIdx], g_simObjects[objIdx].worldX,
+                    TrackMath::sineVelocity(
+                        angleFromWord(g_simObjects[objIdx].heading.w), horizStep, g_angleLut));
+                objectFineAdvance<ViewYAxis>(g_simObjectFineY[objIdx], g_simObjects[objIdx].worldY,
+                    -TrackMath::cosineVelocity(
+                        angleFromWord(g_simObjects[objIdx].heading.w), horizStep, g_angleLut));
 
                 g_simObjects[objIdx].alt += (int16)TrackMath::sineVelocity(
                     angleFromWord(g_simObjects[objIdx].pitch), moveAmt, g_angleLut);

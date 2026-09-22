@@ -29,6 +29,8 @@ ALLOWED = {
     "src/egtarget.c", "src/egkeys.c", "src/egmath.c", "src/eghudr.c", "src/eghudm.c",
     "src/egtgt2.c", "src/egcombat.c", "src/egframe.c", "src/egtacmap.c", "src/egthreat.c",
     "src/egui.c",
+    # The world load/save seam seeds the SimObject fine shadow from packed fields.
+    "src/worldxfer.c",
 }
 ACCESS = re.compile(r"F15_MATH_BOUNDARY_ACCESS|\b(?:Control|Altitude|Horizontal|Airspeed|Propulsion|Map)?Boundary\s*<|math::legacy|\bfixed\s*::|"
                     r'#\s*include\s*[<"](?:math/)?(?:boundary|control_boundary|altitude_boundary|horizontal_boundary|airspeed_boundary|propulsion_boundary|legacy_rotation|legacy_flight_control|legacy_altitude|legacy_horizontal|legacy_airspeed|legacy_propulsion)\.hpp[>"]|'

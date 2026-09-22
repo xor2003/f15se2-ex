@@ -21,6 +21,10 @@ using f15::math::legacy::angleFromWord;
 using f15::math::legacy::angleMagnitude;
 using f15::math::legacy::mapOffset;
 using f15::math::legacy::mapRange;
+using f15::math::legacy::objectFineAdvance;
+using f15::math::legacy::objectFineSet;
+using f15::math::ViewXAxis;
+using f15::math::ViewYAxis;
 using SpeedMath = f15::math::AirspeedMath<f15::math::GameBackend>;
 using FineCoord = f15::math::FineCoord<f15::math::GameBackend>;
 using TrackMath = f15::math::GuidanceMath<f15::math::GameBackend>;
@@ -151,8 +155,10 @@ void updateFrame(void) {
                         g_simObjects[i].speed = 300;
                         g_simObjects[i].posX = i * 12 + f15::math::legacy::mapWordX(flightMapPosition()) - 36;
                         g_simObjects[i].posY = f15::math::legacy::mapWordY(flightMapPosition()) - (i * 0x20 + 150) * g_northSouthSign;
-                        g_simObjects[i].worldX = (int32)g_simObjects[i].posX * 32;
-                        g_simObjects[i].worldY = (int32)g_simObjects[i].posY * 32;
+                        objectFineSet<ViewXAxis>(g_simObjectFineX[i], g_simObjects[i].worldX,
+                                                 (int32)g_simObjects[i].posX * 32);
+                        objectFineSet<ViewYAxis>(g_simObjectFineY[i], g_simObjects[i].worldY,
+                                                 (int32)g_simObjects[i].posY * 32);
                         g_simObjects[i].heading.w = signedAngle(g_ourHead) + 0x8000;
                     }
                 }
@@ -164,8 +170,10 @@ void updateFrame(void) {
             g_simObjects[1].speed = 700;
             g_wingmanX = f15::math::legacy::mapWordX(flightMapPosition());
             g_wingmanY = 80 * g_northSouthSign + f15::math::legacy::mapWordY(flightMapPosition());
-            g_simObjects[1].worldX = (int32)g_wingmanX * 32;
-            g_simObjects[1].worldY = (int32)g_wingmanY * 32;
+            objectFineSet<ViewXAxis>(g_simObjectFineX[1], g_simObjects[1].worldX,
+                                     (int32)g_wingmanX * 32);
+            objectFineSet<ViewYAxis>(g_simObjectFineY[1], g_simObjects[1].worldY,
+                                     (int32)g_wingmanY * 32);
             g_simObjects[1].heading.w = signedAngle(g_ourHead);
         }
         g_northSouthSign = tmp;
@@ -303,8 +311,10 @@ void updateFrame(void) {
                 g_simObjects[objIdx].posY += ((i + g_closestThreatIndex) & 3) * 0x10;
                 g_simObjects[objIdx].alt = 4;
             }
-            g_simObjects[objIdx].worldX = (int32)g_simObjects[objIdx].posX << 5;
-            g_simObjects[objIdx].worldY = (int32)g_simObjects[objIdx].posY << 5;
+            objectFineSet<ViewXAxis>(g_simObjectFineX[objIdx], g_simObjects[objIdx].worldX,
+                                     (int32)g_simObjects[objIdx].posX << 5);
+            objectFineSet<ViewYAxis>(g_simObjectFineY[objIdx], g_simObjects[objIdx].worldY,
+                                     (int32)g_simObjects[objIdx].posY << 5);
             g_simObjects[objIdx].heading.w = -randomRange(0x4000);
             g_simObjects[objIdx].spec = g_planeTable.planes[g_closestThreatIndex].flags & 0x400 ? 8 : 11;
             if (customWorldScenarioIs("SVN")) {
@@ -325,7 +335,8 @@ void updateFrame(void) {
                 g_simObjects[objIdx].flags.w = 0x207;
                 g_simObjects[objIdx].alt = 1000;
                 g_simObjects[objIdx].speed = 250;
-                g_simObjects[objIdx].worldY += g_northSouthSign * 0x3000;
+                objectFineAdvance<ViewYAxis>(g_simObjectFineY[objIdx], g_simObjects[objIdx].worldY,
+                                             g_northSouthSign * 0x3000);
             }
         }
         g_unusedEventHist2 = g_unusedEventHist1;

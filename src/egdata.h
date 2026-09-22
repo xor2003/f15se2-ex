@@ -278,6 +278,11 @@ extern struct TargetSlot g_targetSlots[];
 extern uint8 buf3d3_3[];
 extern int32 g_camEyeX;
 extern struct SimObject g_simObjects[];
+/* Typed shadow of SimObject.worldX/worldY: the packed int32 fields stay the
+ * file-layout cache; the shadow carries the modern sub-fine fraction.
+ * Written only through legacy::objectFineSet/objectFineAdvance. */
+extern f15::math::ViewCoordinate<f15::math::GameBackend, f15::math::ViewXAxis> g_simObjectFineX[];
+extern f15::math::ViewCoordinate<f15::math::GameBackend, f15::math::ViewYAxis> g_simObjectFineY[];
 extern int16 g_aamLockCooldown;
 extern int32 g_camEyeY;
 extern int16 g_threatRefX;

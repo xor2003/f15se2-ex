@@ -16,6 +16,10 @@ using f15::math::legacy::angleMagnitude;
 using f15::math::legacy::angleMagnitudeCompat;
 using f15::math::legacy::angleSeparation;
 using f15::math::legacy::fineRep;
+using f15::math::legacy::objectFineRep;
+using f15::math::legacy::objectFineSet;
+using f15::math::ViewXAxis;
+using f15::math::ViewYAxis;
 using FineCoord = f15::math::FineCoord<f15::math::GameBackend>;
 using ProjectileGuidance = f15::math::GuidanceMath<f15::math::GameBackend>;
 #include "egflight.h"
@@ -95,8 +99,8 @@ void fireAirThreat(int16 objIdx) {
                                 g_projectiles[slot].mapY = g_simObjects[objIdx].posY;
                                 /* seed the fine position from the launcher's fine
                                  * coords (posX/Y are worldX/Y>>5, so fine>>5 == map) */
-                                g_projectiles[slot].fineX = FineCoord::fromRep(g_simObjects[objIdx].worldX);
-                                g_projectiles[slot].fineY = FineCoord::fromRep(g_simObjects[objIdx].worldY);
+                                g_projectiles[slot].fineX = FineCoord::fromRep(objectFineRep(g_simObjectFineX[objIdx]));
+                                g_projectiles[slot].fineY = FineCoord::fromRep(objectFineRep(g_simObjectFineY[objIdx]));
                                 g_projectiles[slot].alt = g_simObjects[objIdx].alt - 25;
                                 g_projectiles[slot].speed = sams[idx].maxSpeed >> 6;
                                 g_projectiles[slot].head = angleFromWord(g_simObjects[objIdx].heading.w);
@@ -153,8 +157,10 @@ void spawnEnemyAircraft(int16 slot, int16 objType) {
         g_simObjects[slot].alt = 12;
         g_simObjects[slot].speed = 10;
     }
-    g_simObjects[slot].worldX = (int32)(uint16)g_simObjects[slot].posX << 5;
-    g_simObjects[slot].worldY = (int32)(uint16)g_simObjects[slot].posY << 5;
+    objectFineSet<ViewXAxis>(g_simObjectFineX[slot], g_simObjects[slot].worldX,
+                             (int32)(uint16)g_simObjects[slot].posX << 5);
+    objectFineSet<ViewYAxis>(g_simObjectFineY[slot], g_simObjects[slot].worldY,
+                             (int32)(uint16)g_simObjects[slot].posY << 5);
     g_simObjects[slot].pitch = 0;
     g_simObjects[slot].bank.w = 0;
     g_simObjects[slot].flags.w |= 0x403;

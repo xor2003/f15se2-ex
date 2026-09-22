@@ -19,6 +19,7 @@
 #include "inttype.h"
 #include "struct.h"
 #include "endtypes.h"
+#include "math/legacy_horizontal.hpp"
 
 /* ---- START / shared source globals (defined in stdata.c) ---- */
 extern struct WorldObject worldObjects[]; /* shared START/END plane block */
@@ -53,6 +54,8 @@ extern int16 g_planeScanCount;
 extern struct GroundTargetTable g_planeTable;
 extern int16 g_groundUnitCount;
 extern struct SimObject g_simObjects[];
+extern f15::math::ViewCoordinate<f15::math::GameBackend, f15::math::ViewXAxis> g_simObjectFineX[];
+extern f15::math::ViewCoordinate<f15::math::GameBackend, f15::math::ViewYAxis> g_simObjectFineY[];
 extern uint8 g_shapeTargetCategory[];
 extern uint8 g_tileKillTally[];
 extern char g_stringPool[];
@@ -121,6 +124,14 @@ void worldImportToEgame(void) {
 
     g_groundUnitCount = (int16)flightUnitCount;
     memcpy(g_simObjects, flightUnits, (size_t)flightCnt * sizeof(struct SimObject));
+    for (i = 0; i < flightCnt; i++) {
+        /* The on-disk worldX/worldY are the authoritative fine seeds; the typed
+         * shadow starts from the same rep (int32 fixed, fractional modern). */
+        f15::math::legacy::objectFineSet<f15::math::ViewXAxis>(
+            g_simObjectFineX[i], g_simObjects[i].worldX, g_simObjects[i].worldX);
+        f15::math::legacy::objectFineSet<f15::math::ViewYAxis>(
+            g_simObjectFineY[i], g_simObjects[i].worldY, g_simObjects[i].worldY);
+    }
 
     memcpy(g_shapeTargetCategory, wldReadBuf7, CATEGORY_BYTES);
     memcpy(g_tileKillTally, wldReadBuf8, KILLTALLY_BYTES);
