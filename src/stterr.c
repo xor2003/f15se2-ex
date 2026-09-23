@@ -13,6 +13,21 @@
 #include <string.h>
 #include <stdio.h>
 
+/* Terrain-search cell geometry: the quadtree cells are 0x1000 fine units on
+ * a side at the search level; & 0xfff extracts the in-cell offset. */
+enum {
+    kTerrainCellShift = 12,
+    kTerrainCellPitch = 0x1000,
+    kTerrainCellHalf = 0x800,
+    kTerrainCellMask = 0xfff,
+    /* Level-1 coords are 4x finer than level-2: dist >>= 2 normalizes a
+     * level-1 candidate for comparison, <<= 2 lifts the winning level-2
+     * result back to level-1 units for worldX/worldY. */
+    kTerrainLevelZoom = 2,
+    /* Tile record model index is the low 7 bits; bit 7 is a render flag. */
+    kTerrainModelMask = 0x7f,
+};
+
 /* Private helpers for this translation unit. */
 int16 lookupGridCell(int16, int16, int16);
 
@@ -25,11 +40,11 @@ struct NearestTerrain *findNearestTerrain(int32 worldX, int32 worldY) {
     for (level = 1; level <= 2; level++) {
         for (i = 0; i < 9; i++) {
             fx = scaleCoordByLevel(level, worldX);
-            gridX = fx >> 0xc;
-            x1 = (int16)fx & 0xfff;
+            gridX = fx >> kTerrainCellShift;
+            x1 = (int16)fx & kTerrainCellMask;
             fx = scaleCoordByLevel(level, worldY);
-            y1 = fx >> 0xc;
-            dy = (int16)fx & 0xfff;
+            y1 = fx >> kTerrainCellShift;
+            dy = (int16)fx & kTerrainCellMask;
             dx = dirDeltaX[i];
             rowOff = dirDeltaY[i];
             /* Neighbour cell pixel offset. The original indexed a table about its
@@ -37,8 +52,8 @@ struct NearestTerrain *findNearestTerrain(int32 worldX, int32 worldY) {
                negative indices aliased the tail of dirDeltaY to form the symmetric
                table {-0x2000,-0x1000,0,+0x1000,+0x2000}. The native equivalent of
                that for a one-cell delta is simply delta * 0x1000. */
-            sy = dx * 0x1000 - x1 + 0x800;
-            tmp = rowOff * 0x1000 - dy + 0x800;
+            sy = dx * kTerrainCellPitch - x1 + kTerrainCellHalf;
+            tmp = rowOff * kTerrainCellPitch - dy + kTerrainCellHalf;
             y1 += rowOff;
             cell = lookupGridCell(level, gridX += dx, y1);
             if (cell != -1) {
@@ -46,16 +61,16 @@ struct NearestTerrain *findNearestTerrain(int32 worldX, int32 worldY) {
                 for (cellIdx = 0; terrainTileCounts[level].entries[cell] > cellIdx; cellIdx++) {
                     /* Bit 7 enables a per-placement render override; the lower
                        bits identify the base model used for classification. */
-                    const uint8 modelIndex = tileDataPtr->idx & 0x7f;
+                    const uint8 modelIndex = tileDataPtr->idx & kTerrainModelMask;
                     if (modelIndex < sizeof(objectTypeTable) && objectTypeTable[modelIndex] != 0) {
                         ty = tileDataPtr->buf3 + sy;
                         offsetY = tileDataPtr->buf4 + tmp;
                         dist = abs(ty) + abs(offsetY);
                         if (level == 1) {
-                            dist >>= 2;
+                            dist >>= kTerrainLevelZoom;
                         } else {
-                            ty <<= 2;
-                            offsetY <<= 2;
+                            ty <<= kTerrainLevelZoom;
+                            offsetY <<= kTerrainLevelZoom;
                         }
                         if (dist < nearestTerrain.dist) {
                             nearestTerrain.level = (int8)level;
