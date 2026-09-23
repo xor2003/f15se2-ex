@@ -51,6 +51,7 @@ struct ServerPlayer {
     uint8_t role;
     char name[F15_NAME_LEN + 1];
     uint32_t lastSeq;
+    int32_t spawnOff; /* pending lateral spawn offset (map units), 0 = none */
     struct PlayerSim ctx;
     struct RemoteInput input;
 };
@@ -188,9 +189,6 @@ static void spawnFromTemplate(struct PlayerSim *dst, int idx) {
     dst->missionEndedFlag[0] = dst->missionEndedFlag[1] = 0;
     dst->ended = 0;
     dst->viewMode = VIEW_COCKPIT;
-    /* lateral offset by slot index (map units -> world <<5) */
-    dst->ViewX += (int32_t)(idx * 96) << 5;
-    dst->viewX_ += (int16_t)(idx * 96);
     memset(&dst->comm, 0, sizeof(dst->comm));
     dst->comm.landingType = 1;
 }
@@ -230,6 +228,13 @@ static void onHello(NetPeer peer, struct NetReader *r) {
         spawnFromTemplate(&p->ctx, slot);
         p->ctx.active = 1;
     }
+    /* Spawn separation: alternating lateral offset in map units, applied once
+     * the ctx finishes mission init (initPhase>=2) - for the playerInitCtx
+     * path the position is only assigned during the first sim ticks, so the
+     * offset must wait or it gets clobbered. Slot1 +0x180, slot2 -0x180,
+     * slot3 +0x300... a formation spread, not a single point. */
+    p->spawnOff = slot > 0 ? ((slot & 1) ? 1 : -1) * ((slot + 1) / 2) * 0x180
+                         : 0;
     memset(&ack, 0, sizeof(ack));
     ack.playerId = (uint8_t)slot;
     ack.tickRate = F15_NET_TICKRATE;
@@ -331,6 +336,11 @@ static void serverTick(void) {
         g_curPeer = p->peer;
         simInputSet(remoteInputOps(), &p->input);
         simulatePlayer(&p->ctx);
+        if (p->spawnOff != 0 && p->ctx.initPhase >= 2) {
+            p->ctx.viewX_ += (int16_t)p->spawnOff;
+            p->ctx.ViewX += p->spawnOff << 5;
+            p->spawnOff = 0;
+        }
         if (p->ctx.missionEndedFlag[0] && !p->ctx.ended) {
             p->ctx.ended = 1;
             sendEvent(NE_MISSION_END, p->peer, p->ctx.comm.landingType, 0);

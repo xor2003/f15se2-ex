@@ -29,8 +29,12 @@ void decApplyOwnPlayer(struct NetReader *r); /* fwd: defined below */
 /* Where remote players are parked inside g_simObjects for rendering/radar:
  * contiguously above the world's own objects (g_groundUnitCount as received in
  * MISSION_SETUP). Every renderer/radar loop bounded by g_groundUnitCount then
- * sees them; the client-side count is extended to cover the parked slots. */
+ * sees them; the client-side count is extended to cover the parked slots.
+ * g_planeTable.planes[] gets the same treatment above s_worldPlaneCount: the
+ * tactical map iterates planeTable, not simObjects, so remote pilots need an
+ * entry there too (flags 0x401 = airborne aircraft marker). */
 static int s_worldObjCount = -1;      /* authoritative object count from setup */
+static int s_worldPlaneCount = -1;    /* authoritative planeTable count */
 static unsigned s_parkedMask;         /* player ids currently published */
 static unsigned s_seenMask;           /* player ids seen in this snapshot */
 
@@ -122,6 +126,7 @@ int netSetupApply(struct NetReader *r) {
     g_planeScanCount = nrI16(r);
     g_groundUnitCount = nrI16(r);
     s_worldObjCount = g_groundUnitCount; /* remote players park above this */
+    s_worldPlaneCount = g_planeCount;
     s_parkedMask = s_seenMask = 0;
     g_missionStatus = nrI16(r);
     g_unusedSavedWord = nrI16(r);
@@ -342,27 +347,51 @@ int netPlayerObjectSlot(int idx) {
     return slot < F15_MAX_SIM_OBJECTS ? slot : -1;
 }
 
+/* planeTable slot for a remote pilot (tacmap + scope target blips). */
+static int netPlayerPlaneSlot(int idx) {
+    int slot;
+    if (idx < 0 || idx >= F15_MAX_PLAYERS || s_worldPlaneCount < 0)
+        return -1;
+    slot = s_worldPlaneCount + idx;
+    return slot < F15_MAX_MAP_TARGETS ? slot : -1;
+}
+
 void netPlayerPublishObject(int idx, const struct NetPlayerState *s) {
     int slot = netPlayerObjectSlot(idx);
+    int pslot = netPlayerPlaneSlot(idx);
     struct SimObject *o;
-    if (slot < 0)
-        return;
+    struct MapTarget *t;
     s_seenMask |= 1u << idx;
     s_parkedMask |= 1u << idx;
-    o = &g_simObjects[slot];
-    o->worldX = s->worldX;
-    o->worldY = s->worldY;
-    o->posX = (uint16_t)(s->worldX >> 5);
-    o->posY = (uint16_t)(s->worldY >> 5);
-    o->alt = s->alt;
-    o->heading.w = s->head;
-    o->pitch = s->pitch;
-    o->bank.w = s->roll;
-    o->spec = 0;             /* F-15 model */
-    o->speed = s->knots;
-    o->objType = 0;
-    o->flags.b[0] = s->alive ? 2 : 0; /* alive bit (world objects) */
-    o->flags.b[1] = 0;
+    if (slot >= 0) {
+        o = &g_simObjects[slot];
+        o->worldX = s->worldX;
+        o->worldY = s->worldY;
+        o->posX = (uint16_t)(s->worldX >> 5);
+        o->posY = (uint16_t)(s->worldY >> 5);
+        o->alt = s->alt;
+        o->heading.w = s->head;
+        o->pitch = s->pitch;
+        o->bank.w = s->roll;
+        o->spec = 0;             /* F-15 model */
+        o->speed = s->knots;
+        o->objType = 0;
+        o->flags.b[0] = s->alive ? 2 : 0; /* alive bit (world objects) */
+        o->flags.b[1] = 0;
+    }
+    if (pslot >= 0) {
+        t = &g_planeTable.planes[pslot];
+        t->mapX = (uint16_t)(s->worldX >> 5);
+        t->mapY = (uint16_t)(s->worldY >> 5);
+        t->active = 1;
+        /* 0x400 = aircraft class, 0x01 = air unit: renders as the airborne
+         * blip on the tacmap and a target marker on the scope. */
+        t->flags = s->alive ? 0x401 : 0x80;
+        t->alertLevel = 0;
+        t->threatTimer = 0;
+        t->nameIndex = 0;
+        t->secondaryNameIndex = 0;
+    }
 }
 
 int netSnapApply(struct NetReader *r, int playerId) {
@@ -381,20 +410,24 @@ int netSnapApply(struct NetReader *r, int playerId) {
             netPlayerPublishObject(pid, &s);
         }
     }
-    /* Departed players: unpark their object slot so the husk doesn't linger. */
+    /* Departed players: unpark their object/plane slots so husks don't linger. */
     {
         unsigned gone = s_parkedMask & ~s_seenMask;
         while (gone) {
             int pid = __builtin_ctz(gone);
             int slot = netPlayerObjectSlot(pid);
+            int pslot = netPlayerPlaneSlot(pid);
             gone &= gone - 1;
             s_parkedMask &= ~(1u << pid);
             if (slot >= 0)
                 memset(&g_simObjects[slot], 0, sizeof(g_simObjects[slot]));
+            if (pslot >= 0)
+                memset(&g_planeTable.planes[pslot], 0,
+                       sizeof(g_planeTable.planes[pslot]));
         }
-        /* Extend the client-side iteration bound to cover parked player slots
-         * (3D render, radar scope, target scan and the interp sweep all loop
-         * 0..g_groundUnitCount-1). */
+        /* Extend the client-side iteration bounds to cover parked player slots
+         * (3D render, radar scope, target scan and the interp sweep loop
+         * 0..g_groundUnitCount-1; the tacmap loops 0..g_planeCount-1). */
         if (s_worldObjCount >= 0) {
             int hi = s_worldObjCount;
             unsigned m = s_parkedMask;
@@ -405,6 +438,17 @@ int netSnapApply(struct NetReader *r, int playerId) {
                 m &= m - 1;
             }
             g_groundUnitCount = (int16)hi;
+        }
+        if (s_worldPlaneCount >= 0) {
+            int hi = s_worldPlaneCount;
+            unsigned m = s_parkedMask;
+            while (m) {
+                int pid = 31 - __builtin_clz(m);
+                int slot = s_worldPlaneCount + pid + 1;
+                if (slot > hi) hi = slot;
+                m &= m - 1;
+            }
+            g_planeCount = (int16)hi;
         }
     }
 
