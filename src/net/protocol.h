@@ -41,6 +41,7 @@ enum NetMsgType {
     NETMSG_SNAPSHOT = 19,      /* unreliable: full world snapshot at tick */
     NETMSG_EVENT = 20,         /* reliable: semantic gameplay event */
     NETMSG_MISSION_END = 21,   /* reliable: mission over for this client */
+    NETMSG_OBS = 22,           /* unreliable: AI observation (plan §20) */
 };
 
 enum NetRole {
@@ -223,6 +224,54 @@ struct NetMapEvent {
     uint16_t mapX, mapY;
     int16_t type;
     int16_t ttl;
+};
+
+/* --- AI observation (plan §20) --- */
+/* One contact the pilot is entitled to know about: the radar scope shows
+ * air objects, the tacmap shows ground sites, RWR shows inbound missiles.
+ * Positions arrive as bearing+range (what the instruments give the pilot);
+ * ownship mapX/mapY plus these reconstruct absolute positions if needed. */
+#define F15_OBS_MAX_CONTACTS 100
+#define NET_ID_PROJECTILE_BASE 0x100u /* +projectile slot */
+#define NET_ID_PLAYER_BASE 0x200u     /* +player index (parked remote) */
+#define NET_ID_MAPTARGET_BASE 0x300u  /* +planeTable index */
+
+enum NetObsKind {
+    OBSK_AIRCRAFT = 1, /* moving g_simObjects entry (world air unit) */
+    OBSK_PLAYER,       /* parked remote-player aircraft */
+    OBSK_SITE,         /* g_planeTable ground/naval site (tacmap contact) */
+    OBSK_MISSILE,      /* in-flight projectile */
+};
+
+enum NetObsFlags {
+    OBSF_LOCKED_AIR = 1,   /* this contact == ownship airTargetLock */
+    OBSF_LOCKED_GND = 2,   /* this contact == ownship groundTargetLock */
+    OBSF_THREAT = 4,       /* closestThreatIndex (RWR spike source) */
+    OBSF_ACTIVE = 8,       /* site is alerted/active */
+    OBSF_INBOUND = 16,     /* missile is targeting this observer */
+};
+
+struct NetObsContact {
+    NetEntityId id;  /* base + index, see NET_ID_*_BASE */
+    int16_t relBear; /* bearing - ownship heading (same units as ourHead) */
+    uint16_t range;  /* map units (rangeApprox, capped 0x7fff) */
+    int16_t altDelta; /* contact alt - ownship alt */
+    int16_t heading; /* absolute heading (air/missile; 0 for sites) */
+    int16_t speed;   /* knots (0 for sites) */
+    uint8_t kind;    /* NetObsKind */
+    uint8_t flags;   /* NetObsFlags bits */
+};
+
+/* Decoded NETMSG_OBS tail (ownship block rides NetPlayerState). */
+struct NetObs {
+    int16_t threatId;     /* entity id of RWR spike source, -1 none */
+    int16_t threatRange;  /* map units */
+    int16_t threatBearing; /* relative bearing to threat */
+    int16_t missionTick;
+    int16_t missionStatus;
+    uint8_t nContacts;
+    struct NetObsContact contacts[F15_OBS_MAX_CONTACTS];
+    uint32_t stateHash;   /* same canonical hash as the snapshot trailer */
 };
 
 /* Mission bootstrap tables (reliable, once). Mirrors worldImportToEgame's

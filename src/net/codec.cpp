@@ -294,3 +294,44 @@ int decEvent(struct NetReader *r, struct NetEvent *v) {
     v->text[sizeof(v->text) - 1] = 0;
     return !r->underrun;
 }
+
+void encObsContact(struct NetWriter *w, const struct NetObsContact *v) {
+    nwU32(w, v->id);
+    nwI16(w, v->relBear);
+    nwU16(w, v->range);
+    nwI16(w, v->altDelta);
+    nwI16(w, v->heading);
+    nwI16(w, v->speed);
+    nwU8(w, v->kind);
+    nwU8(w, v->flags);
+}
+
+void decObsContact(struct NetReader *r, struct NetObsContact *v) {
+    v->id = nrU32(r);
+    v->relBear = nrI16(r);
+    v->range = nrU16(r);
+    v->altDelta = nrI16(r);
+    v->heading = nrI16(r);
+    v->speed = nrI16(r);
+    v->kind = nrU8(r);
+    v->flags = nrU8(r);
+}
+
+int decObs(struct NetReader *r, struct NetPlayerState *own,
+           struct NetObs *obs) {
+    int i, n;
+    decPlayerState(r, own);
+    obs->threatId = nrI16(r);
+    obs->threatRange = nrI16(r);
+    obs->threatBearing = nrI16(r);
+    obs->missionTick = nrI16(r);
+    obs->missionStatus = nrI16(r);
+    n = nrU8(r);
+    obs->nContacts = (uint8_t)(n > F15_OBS_MAX_CONTACTS ? F15_OBS_MAX_CONTACTS : n);
+    for (i = 0; i < n; i++) { /* drain all wire entries, keep what fits */
+        struct NetObsContact tmp;
+        decObsContact(r, i < obs->nContacts ? &obs->contacts[i] : &tmp);
+    }
+    obs->stateHash = nrU32(r);
+    return !r->underrun;
+}

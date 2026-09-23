@@ -587,11 +587,13 @@ if(F15_NET)
 
     target_compile_definitions(f15se2_core PUBLIC F15_NET=1)
     target_sources(f15se2 PRIVATE ${SRC_DIR}/net/netclient.cpp)
-    target_link_libraries(f15se2 PRIVATE f15net)
+    # f15net->core back-refs (snapshot.cpp calls egui/egtgt2): repeat core
+    # after f15net so the static linker resolves them.
+    target_link_libraries(f15se2 PRIVATE f15net f15se2_core)
 
     add_executable(f15server ${SRC_DIR}/server/f15server.cpp)
     target_include_directories(f15server PRIVATE ${SRC_DIR} ${SRC_DIR}/shared)
-    target_link_libraries(f15server PRIVATE f15se2_core f15net)
+    target_link_libraries(f15server PRIVATE f15net f15se2_core)
 
     # scripted headless client for the review acceptance gates (not a ctest;
     # driven by hand/scripts against a live f15server)
@@ -603,4 +605,5 @@ if(F15_NET)
         ${SRC_DIR}/net/codec.cpp ${SRC_DIR}/net/commands.cpp)
     add_behavior_test(player_ctx_tests LINK_CORE)
     add_behavior_test(net_sim_tests LINK_CORE)
+    target_link_libraries(net_sim_tests PRIVATE f15net f15se2_core)
 endif()

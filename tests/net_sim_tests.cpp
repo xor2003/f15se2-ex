@@ -24,7 +24,9 @@
 #include "egplayer.h"
 #include "egtarget.h"
 #include "inttype.h"
+#include "net/codec.h"
 #include "net/protocol.h"
+#include "net/snapshot.h"
 #include "struct.h"
 
 static int fails;
@@ -80,6 +82,10 @@ static void setupWorld(void) {
     g_activePanelMode = 0;
     g_nearestThreatRange = 0x7fff;
     g_closestThreatIndex = 0;
+    g_radarScopeRange = 2; /* obs tests: mid zoom, scope covers +-0x400-ish */
+    g_planeCount = 0;
+    memset(&g_planeTable.planes, 0, sizeof(g_planeTable.planes));
+    memset(g_projectiles, 0, sizeof(g_projectiles[0]) * F15_MAX_PROJECTILES);
     g_missionStatus = 1;
     frameTick = 100;
 }
@@ -216,6 +222,149 @@ static void test_projectile_owner_filter(void) {
     CHECK(g_projectiles[8].ttl == 100);
 }
 
+/* ---- netObsBuild ------------------------------------------------------- */
+
+static int findContact(const struct NetObs *obs, uint32_t id) {
+    int i;
+    for (i = 0; i < obs->nContacts; i++)
+        if (obs->contacts[i].id == id)
+            return i;
+    return -1;
+}
+
+/* Encode one observation for player `playerIdx` under the globals setupWorld
+ * established, then decode it back. parkedObjBase == WORLD_OBJS (same layout
+ * as parkPlayer). */
+static void buildAndDecode(int playerIdx, int obsFull,
+                           struct NetPlayerState *own, struct NetObs *obs) {
+    static uint8_t buf[4096];
+    static struct PlayerSim ctx;
+    struct NetWriter w;
+    struct NetReader r;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.viewX_ = g_viewX_;
+    ctx.viewY_ = g_viewY_;
+    ctx.viewZ = (int16)g_viewZ;
+    ctx.ourHead = g_ourHead;
+    ctx.radarScopeRange = g_radarScopeRange;
+    ctx.airTargetLock = g_airTargetLock;
+    ctx.groundTargetLock = g_groundTargetLock;
+    ctx.closestThreatIndex = g_closestThreatIndex;
+    ctx.nearestThreatRange = g_nearestThreatRange;
+    nwInit(&w, buf, sizeof(buf));
+    netObsBuild(&w, &ctx, playerIdx, WORLD_OBJS, obsFull, 0xDEADBEEF);
+    CHECK(!w.overflow);
+    nrInit(&r, buf, w.len);
+    CHECK(decObs(&r, own, obs));
+}
+
+/* Pilot entitlement: a moving remote player on the scope is a contact; the
+ * one behind the scope's region is not; the observer's own parked object
+ * never is. */
+static void test_obs_scope_filter(void) {
+    struct NetPlayerState own;
+    struct NetObs obs;
+    int i;
+    setupWorld();
+    parkPlayer(1, 0x4000, 0x4000 - 0x300, 0x90, 100); /* ahead: on scope */
+    parkPlayer(2, 0x4000, 0x4000 + 0x600, 0x90, 100); /* behind: off scope */
+    parkPlayer(0, 0x4000, 0x3F00, 0x90, 100);         /* own parked slot */
+    buildAndDecode(0, 0, &own, &obs);
+    CHECK(own.mapX == 0x4000 && own.mapY == 0x4000);
+    i = findContact(&obs, NET_ID_PLAYER_BASE + 1);
+    CHECK(i >= 0);
+    if (i >= 0) {
+        CHECK(obs.contacts[i].kind == OBSK_PLAYER);
+        CHECK(obs.contacts[i].range >= 0x2f0 && obs.contacts[i].range <= 0x310);
+    }
+    CHECK(findContact(&obs, NET_ID_PLAYER_BASE + 2) < 0);
+    CHECK(findContact(&obs, NET_ID_PLAYER_BASE + 0) < 0);
+}
+
+/* Radar rule parity: a parked aircraft with speed 0 is invisible. */
+static void test_obs_skips_stationary(void) {
+    struct NetPlayerState own;
+    struct NetObs obs;
+    setupWorld();
+    parkPlayer(1, 0x4000, 0x4000 - 0x300, 0x90, 0);
+    buildAndDecode(0, 0, &own, &obs);
+    CHECK(findContact(&obs, NET_ID_PLAYER_BASE + 1) < 0);
+}
+
+/* --obs-full bypasses the scope test (privileged/omniscient). */
+static void test_obs_full_mode(void) {
+    struct NetPlayerState own;
+    struct NetObs obs;
+    setupWorld();
+    parkPlayer(2, 0x4000, 0x4000 + 0x600, 0x90, 100); /* off scope */
+    buildAndDecode(0, 1, &own, &obs);
+    CHECK(findContact(&obs, NET_ID_PLAYER_BASE + 2) >= 0);
+}
+
+/* RWR entitlement: a missile targeting the observer shows up even outside
+ * the scope; someone else's off-scope missile doesn't. */
+static void test_obs_inbound_missile(void) {
+    struct NetPlayerState own;
+    struct NetObs obs;
+    setupWorld();
+    g_projectiles[3].ttl = 100;
+    g_projectiles[3].fineX = 0x4000 << 5;
+    g_projectiles[3].fineY = (0x4000 + 0x600) << 5; /* behind ownship */
+    g_projectiles[3].alt = 0x90;
+    g_projectiles[3].targetPlayer = 0;
+    g_projectiles[4].ttl = 100;
+    g_projectiles[4].fineX = 0x4000 << 5;
+    g_projectiles[4].fineY = (0x4000 + 0x700) << 5;
+    g_projectiles[4].alt = 0x90;
+    g_projectiles[4].targetPlayer = 1; /* inbound at someone else */
+    buildAndDecode(0, 0, &own, &obs);
+    {
+        int i = findContact(&obs, NET_ID_PROJECTILE_BASE + 3);
+        CHECK(i >= 0);
+        if (i >= 0) {
+            CHECK(obs.contacts[i].kind == OBSK_MISSILE);
+            CHECK(obs.contacts[i].flags & OBSF_INBOUND);
+        }
+    }
+    CHECK(findContact(&obs, NET_ID_PROJECTILE_BASE + 4) < 0);
+}
+
+/* Tacmap entitlement + RWR block: live site on scope is a contact carrying
+ * ACTIVE/THREAT flags and becomes threatId; destroyed sites are omitted. */
+static void test_obs_sites_and_threat(void) {
+    struct NetPlayerState own;
+    struct NetObs obs;
+    int i;
+    setupWorld();
+    g_planeCount = 3;
+    g_planeTable.planes[0].mapX = 0x4000;
+    g_planeTable.planes[0].mapY = 0x4000 - 0x300;
+    g_planeTable.planes[0].flags = 0x201;
+    g_planeTable.planes[0].active = 1;
+    g_planeTable.planes[1].mapX = 0x4000;
+    g_planeTable.planes[1].mapY = 0x4000 + 0x600; /* off scope */
+    g_planeTable.planes[1].flags = 0x201;
+    g_planeTable.planes[2].mapX = 0x4000;
+    g_planeTable.planes[2].mapY = 0x4000 - 0x380;
+    g_planeTable.planes[2].flags = 0x80 | 0x201; /* destroyed */
+    g_closestThreatIndex = 0;
+    g_nearestThreatRange = 0x300;
+    buildAndDecode(0, 0, &own, &obs);
+    CHECK(obs.threatId == (int16)(NET_ID_MAPTARGET_BASE + 0));
+    CHECK(obs.threatRange == 0x300);
+    i = findContact(&obs, NET_ID_MAPTARGET_BASE + 0);
+    CHECK(i >= 0);
+    if (i >= 0) {
+        CHECK(obs.contacts[i].kind == OBSK_SITE);
+        CHECK(obs.contacts[i].flags & OBSF_ACTIVE);
+        CHECK(obs.contacts[i].flags & OBSF_THREAT);
+    }
+    CHECK(findContact(&obs, NET_ID_MAPTARGET_BASE + 1) < 0);
+    CHECK(findContact(&obs, NET_ID_MAPTARGET_BASE + 2) < 0);
+    CHECK(obs.missionStatus == 1);
+    CHECK(obs.stateHash == 0xDEADBEEF);
+}
+
 /* ---- runner ------------------------------------------------------------ */
 
 int main(void) {
@@ -226,6 +375,11 @@ int main(void) {
     test_bullet_owner_filter();
     test_bullet_miss();
     test_projectile_owner_filter();
+    test_obs_scope_filter();
+    test_obs_skips_stationary();
+    test_obs_full_mode();
+    test_obs_inbound_missile();
+    test_obs_sites_and_threat();
     if (fails == 0) {
         printf("net_sim_tests: all pass\n");
         return 0;

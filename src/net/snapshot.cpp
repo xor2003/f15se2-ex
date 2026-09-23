@@ -21,8 +21,16 @@ extern "C" {
 void decApplyOwnPlayer(struct NetReader *r); /* fwd: defined below */
 
 /* entity id layout (v1): 0..19 simObjects, 0x100+ projectiles,
- * 0x200+i remote players (published into reserved simObject slots). */
-#define NET_ID_PLAYER_BASE 0x200u
+ * 0x200+i remote players, 0x300+i planeTable sites (see protocol.h). */
+
+} /* extern "C" - the helpers below ride the project's plain C++ linkage
+   * (the .c TUs are compiled as C++, so their symbols are C++-mangled) */
+
+void projectMapPoint(int mapX, int mapY); /* egui.c: scope entitlement test */
+int16 computeTargetBearing(int16 targetX, int16 targetY,
+                           int16 wantBearing); /* egtgt2.c */
+
+extern "C" {
 
 /* ---------------------------------------------------------------- setup */
 
@@ -334,6 +342,139 @@ void netSnapBuild(struct NetWriter *w, const struct PlayerSim *players,
         nwI16(w, g_targetSlots[i].viewIndex);
         nwI16(w, g_targetSlots[i].flags);
     }
+    nwU32(w, stateHash);
+}
+
+/* ------------------------------------------------------ AI observation */
+/* Plan §20: the observing pilot's entitled view. Air/ground contacts pass
+ * the exact test the radar scope and tacmap use (alive/moving +
+ * projectMapPoint on-scope); missiles appear when inbound (RWR) or visible
+ * on the scope. obsFull bypasses the scope test for privileged debugging.
+ * Must run with the observer's ctx swapped in (the projection and bearing
+ * math reads g_viewX_/g_viewY_/g_ourHead/g_radarScopeRange). */
+void netObsBuild(struct NetWriter *w, const struct PlayerSim *ctx,
+                 int playerIdx, int parkedObjBase, int obsFull,
+                 uint32 stateHash) {
+    int i, bound, n = 0;
+    int ownSlot = (parkedObjBase >= 0 && playerIdx >= 0)
+                      ? parkedObjBase + playerIdx
+                      : -1;
+    size_t countPos;
+
+    encPlayerBlock(w, ctx); /* ownship: identical block to the snapshot's */
+
+    /* RWR: the per-player threat scan ran under this ctx this tick. */
+    if (ctx->closestThreatIndex >= 0 && ctx->closestThreatIndex < g_planeCount) {
+        nwI16(w, (int16_t)(NET_ID_MAPTARGET_BASE + ctx->closestThreatIndex));
+        nwI16(w, ctx->nearestThreatRange);
+        computeTargetBearing(g_planeTable.planes[ctx->closestThreatIndex].mapX,
+                             g_planeTable.planes[ctx->closestThreatIndex].mapY,
+                             1);
+        nwI16(w, (int16_t)(g_targetBearing - ctx->ourHead));
+    } else {
+        nwI16(w, -1);
+        nwI16(w, 0);
+        nwI16(w, 0);
+    }
+    nwI16(w, g_missionTick);
+    nwI16(w, g_missionStatus);
+
+    countPos = w->len;
+    nwU8(w, 0); /* contact count, patched after the loops */
+
+    bound = g_simObjScanBound > 0 ? g_simObjScanBound : g_groundUnitCount;
+    for (i = 0; i < bound && i < F15_MAX_SIM_OBJECTS; i++) {
+        const struct SimObject *o = &g_simObjects[i];
+        struct NetObsContact c;
+        int isPlayer;
+        if (i == ownSlot || !(o->flags.b[0] & 2))
+            continue;
+        if (!obsFull) {
+            if (o->speed == 0)
+                continue;
+            projectMapPoint(o->posX, o->posY);
+            if (g_projDepth == -1)
+                continue;
+        }
+        isPlayer = (o->flags.b[1] & SIMFLAG_B1_REMOTE_PLAYER) != 0;
+        memset(&c, 0, sizeof(c));
+        c.id = isPlayer ? NET_ID_PLAYER_BASE + (uint16_t)o->objType
+                        : (NetEntityId)i;
+        computeTargetBearing(o->posX, o->posY, 1);
+        c.relBear = (int16_t)(g_targetBearing - ctx->ourHead);
+        c.range = (uint16_t)g_targetRange;
+        c.altDelta = (int16_t)(o->alt - (int16_t)g_viewZ);
+        c.heading = o->heading.w;
+        c.speed = o->speed;
+        c.kind = isPlayer ? OBSK_PLAYER : OBSK_AIRCRAFT;
+        if (i == ctx->airTargetLock)
+            c.flags |= OBSF_LOCKED_AIR;
+        encObsContact(w, &c);
+        if (++n >= F15_OBS_MAX_CONTACTS)
+            goto done;
+    }
+    /* Missiles: RWR-entitled when inbound at this observer, visible-trail
+     * entitled when on the scope. */
+    for (i = 0; i < F15_MAX_PROJECTILES; i++) {
+        const struct Projectile *p = &g_projectiles[i];
+        struct NetObsContact c;
+        int16_t mx, my;
+        int inbound;
+        if (p->ttl == 0)
+            continue;
+        mx = (int16_t)(p->fineX >> 5);
+        my = (int16_t)(p->fineY >> 5);
+        inbound = p->targetPlayer == playerIdx;
+        if (!inbound && !obsFull) {
+            projectMapPoint(mx, my);
+            if (g_projDepth == -1)
+                continue;
+        }
+        memset(&c, 0, sizeof(c));
+        c.id = NET_ID_PROJECTILE_BASE + (uint32_t)i;
+        computeTargetBearing(mx, my, 1);
+        c.relBear = (int16_t)(g_targetBearing - ctx->ourHead);
+        c.range = (uint16_t)g_targetRange;
+        c.altDelta = (int16_t)(p->alt - (int16_t)g_viewZ);
+        c.kind = OBSK_MISSILE;
+        if (inbound)
+            c.flags |= OBSF_INBOUND;
+        encObsContact(w, &c);
+        if (++n >= F15_OBS_MAX_CONTACTS)
+            goto done;
+    }
+    /* Ground/naval sites: the tacmap entitlement - every live site inside
+     * the scope region (destroyed sites report 0x80 and are omitted). */
+    for (i = 0; i < g_planeCount && i < F15_MAX_MAP_TARGETS; i++) {
+        const struct MapTarget *t = &g_planeTable.planes[i];
+        struct NetObsContact c;
+        if (t->flags & 0x80)
+            continue;
+        if (!obsFull) {
+            projectMapPoint(t->mapX, t->mapY);
+            if (g_projDepth == -1)
+                continue;
+        }
+        memset(&c, 0, sizeof(c));
+        c.id = NET_ID_MAPTARGET_BASE + (uint32_t)i;
+        computeTargetBearing(t->mapX, t->mapY, 1);
+        c.relBear = (int16_t)(g_targetBearing - ctx->ourHead);
+        c.range = (uint16_t)g_targetRange;
+        c.altDelta = (int16_t)(-(int16_t)g_viewZ); /* sites sit at ground */
+        c.kind = OBSK_SITE;
+        if (t->active)
+            c.flags |= OBSF_ACTIVE;
+        if (i == ctx->groundTargetLock)
+            c.flags |= OBSF_LOCKED_GND;
+        if (i == ctx->closestThreatIndex)
+            c.flags |= OBSF_THREAT;
+        encObsContact(w, &c);
+        if (++n >= F15_OBS_MAX_CONTACTS)
+            break;
+    }
+done:
+    if (!w->overflow)
+        w->buf[countPos] = (uint8_t)n;
     nwU32(w, stateHash);
 }
 

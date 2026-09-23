@@ -59,7 +59,7 @@ scenario duration 600 ticks; ASan/UBSan enabled build for gates 2-4.
 | Remote pause | PASS - NC_PAUSE sent mid-session; subsequent ticks/snapshots continued normally |
 | Headless combat sim | PASS - tests/net_sim_tests (7 checks): authoritative air-target lock on parked remote object, own-object exclusion, stationary exclusion, gun round destroys remote object -> g_playerObjectHitHook -> owner damage, owner-filtered rounds skipped, miss = no damage, projectile targetPlayer filter |
 | Full capacity | PASS - 8 concurrent slots assigned 0..7; parked remote objects verified live in gdb (slots above g_groundUnitCount, g_simObjScanBound covers them); ASan/UBSan soak: 8 clients + dup HELLOs + commands + leaves clean in our code (found+fixed latent strcpy(x,x) UB in findWaypointFeatures; residual reports are GNS-internal misaligned wire reads, upstream-intentional) |
-| AI role path | PASS (plumbing) - NET_ROLE_AI client joins, gets a player slot, inputs and snapshots flow; role-filtered observations remain future work |
+| AI role path | PASS - NET_ROLE_AI client joins, gets a player slot, inputs flow, and receives NETMSG_OBS each tick (pilot-entitled observation: ownship block + scope-filtered air/site contacts + RWR threat; verified live: radar contacts, OBSF_LOCKED_AIR on the server-side lock, OBSF_ACTIVE sites, threat=site@range). --obs-full gives privileged omniscient obs. 5 filter cases covered in net_sim_tests |
 
 New defects found and fixed during gate testing:
 - NETMSG_BYE freed no slot (a locally initiated closePeer produces no

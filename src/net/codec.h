@@ -44,6 +44,11 @@ void encMapTarget(struct NetWriter *w, const struct NetMapTarget *v);
 void decMapTarget(struct NetReader *r, struct NetMapTarget *v);
 void encEvent(struct NetWriter *w, const struct NetEvent *v);
 int decEvent(struct NetReader *r, struct NetEvent *v);
+void encObsContact(struct NetWriter *w, const struct NetObsContact *v);
+void decObsContact(struct NetReader *r, struct NetObsContact *v);
+/* NETMSG_OBS payload: ownship block (decPlayerState) + NetObs tail. */
+int decObs(struct NetReader *r, struct NetPlayerState *own,
+           struct NetObs *obs);
 
 #ifdef __cplusplus
 }

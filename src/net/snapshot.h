@@ -22,6 +22,13 @@ extern "C" {
 void netSetupBuild(struct NetWriter *w);   /* MISSION_SETUP payload */
 void netSnapBuild(struct NetWriter *w, const struct PlayerSim *players,
                   const int *playerIds, int nPlayers, uint32 stateHash);
+/* NETMSG_OBS payload for one AI-role player (plan §20): ownship block +
+ * pilot-entitled contacts + RWR threat. Call with the player's ctx swapped
+ * in; parkedObjBase is the first remote-player simObject slot (-1 if the
+ * caller doesn't park remotes); obsFull skips the scope-visibility filter. */
+void netObsBuild(struct NetWriter *w, const struct PlayerSim *ctx,
+                 int playerIdx, int parkedObjBase, int obsFull,
+                 uint32 stateHash);
 
 /* --- client side (wire -> globals) --- */
 /* Applies the mission bootstrap to egdata globals. Call BEFORE

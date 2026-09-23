@@ -111,6 +111,28 @@ static void printMsg(const uint8_t *msg, size_t len) {
     case NETMSG_SNAPSHOT:
         printf("PROBE snap tick=%u\n", (unsigned)tick);
         break;
+    case NETMSG_OBS: {
+        static struct NetPlayerState own;
+        static struct NetObs obs;
+        int i;
+        if (!decObs(&r, &own, &obs)) {
+            printf("PROBE obs-bad tick=%u\n", (unsigned)tick);
+            break;
+        }
+        printf("PROBE obs tick=%u map=(%d,%d) knots=%d alt=%u locks=%d/%d "
+               "threat=%d@%d bear=%d contacts=%u hash=%08x\n",
+               (unsigned)tick, own.mapX, own.mapY, own.knots,
+               (unsigned)own.altitude, own.airLock, own.groundLock,
+               obs.threatId, obs.threatRange, obs.threatBearing,
+               obs.nContacts, (unsigned)obs.stateHash);
+        for (i = 0; i < obs.nContacts; i++) {
+            const struct NetObsContact *c = &obs.contacts[i];
+            printf("PROBE obs-c id=%u k=%u f=%u r=%u b=%d dalt=%d h=%d s=%d\n",
+                   (unsigned)c->id, c->kind, c->flags, c->range, c->relBear,
+                   c->altDelta, c->heading, c->speed);
+        }
+        break;
+    }
     case NETMSG_EVENT: {
         struct NetEvent ev;
         if (decEvent(&r, &ev))

@@ -64,6 +64,7 @@ static NetTransport *g_net;
 static ServerPlayer g_players[F15_MAX_PLAYERS];
 static int g_readyCount;
 static int g_syncStep;
+static int g_obsFull; /* --obs-full: privileged omniscient AI observations */
 static uint32_t g_stateHash;
 static struct PlayerSim g_spawnTemplate;
 static int g_haveTemplate;
@@ -500,7 +501,32 @@ static void sendSnapshots(void) {
     if (w.overflow)
         return;
     for (i = 0; i < n; i++)
-        g_net->send(g_players[ids[i]].peer, buf, w.len, NET_SEND_UNRELIABLE);
+        /* AI-role clients consume NETMSG_OBS instead (plan §20) */
+        if (g_players[ids[i]].role != NET_ROLE_AI)
+            g_net->send(g_players[ids[i]].peer, buf, w.len,
+                        NET_SEND_UNRELIABLE);
+}
+
+/* Plan §20: structured observation for AI-role players, built under each
+ * observer's own ctx so the contact list carries exactly what that pilot's
+ * radar scope/tacmap/RWR would show. One extra swap pair per AI player. */
+static void sendObservations(void) {
+    static uint8_t buf[4096];
+    int i;
+    for (i = 0; i < F15_MAX_PLAYERS; i++) {
+        ServerPlayer *p = &g_players[i];
+        struct NetWriter w;
+        if (!p->used || !p->ready || p->role != NET_ROLE_AI)
+            continue;
+        playerSwapIn(&p->ctx);
+        nwInit(&w, buf, sizeof(buf));
+        netMsgWriteHeader(&w, NETMSG_OBS, srvTick(), 0);
+        netObsBuild(&w, &p->ctx, i, s_parkedObjBase, g_obsFull, g_stateHash);
+        playerSwapOut(&p->ctx);
+        if (w.overflow)
+            continue;
+        g_net->send(p->peer, buf, w.len, NET_SEND_UNRELIABLE);
+    }
 }
 
 /* The world pass still has residual ctx-relative reads (last-hit refs,
@@ -595,7 +621,7 @@ static int allInputsArrived(void) {
 static void usage(void) {
     fprintf(stderr,
             "f15server --game <dir> [--port N] [--seed N] [--theater N]\n"
-            "          [--difficulty N] [--sync-step]\n");
+            "          [--difficulty N] [--sync-step] [--obs-full]\n");
     exit(1);
 }
 
@@ -618,6 +644,8 @@ int main(int argc, char **argv) {
             difficulty = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--sync-step"))
             g_syncStep = 1;
+        else if (!strcmp(argv[i], "--obs-full"))
+            g_obsFull = 1;
         else
             usage();
     }
@@ -708,6 +736,7 @@ int main(int argc, char **argv) {
                 (g_syncStep ? allInputsArrived() : now >= nextNs)) {
                 serverTick();
                 sendSnapshots();
+                sendObservations();
                 if (!g_syncStep)
                     nextNs = now + stepNs;
             }
