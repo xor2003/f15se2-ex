@@ -45,7 +45,7 @@ int16 setCommWorldbufPtr();
  * Single-player calls them interleaved exactly as before; the net server runs
  * the W pass once and the P pass per PlayerSim context. */
 static void framePlayerPre(void);
-static void frameTacmapBlip(void);
+void frameTacmapBlip(void);
 static void framePlayerTimers(void);
 static void frameThreatScan(void);
 static void framePlayerMission(void);
@@ -214,7 +214,7 @@ static void framePlayerPre(void) {
     (void)unused;
 }
 
-static void frameTacmapBlip(void) {
+void frameTacmapBlip(void) {
     uint16 val;
     uint16 screenY;
 

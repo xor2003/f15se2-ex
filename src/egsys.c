@@ -4,13 +4,19 @@
  */
 
 #include "egtypes.h"
+#include <SDL3/SDL.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include "egcode.h"
 #include "egdata.h"
 #include "inttype.h"
 #include "gfx.h"
+#include "gfx_impl.h"
 
 /* per-frame work reconstructed in their own TUs (egflight/egtacmap/egframe),
  * not surfaced in a header; declared here for the game loop below. */
+void debugDumpFrame(void);
 void renderFrame(void);
 void renderHudFrame(int unused);
 void stepFlightModel(void);
@@ -390,11 +396,78 @@ void gameMainLoop(void) {
         gfx_dacAnimate();
         camRestore(&camNext); /* restore authoritative sim state for the next step */
         objRestore(simNext, projNext);
+        debugDumpFrame();
     } while (g_missionEndedFlag[0] == 0);
 }
 
 void runGameLoop(void) {
     gameMainLoop();
+}
+
+/* ---- Net client render interpolation ----
+ * A network client never steps the sim locally: authoritative snapshots land in
+ * the live globals via netSnapApply(), so snapshot ARRIVAL replaces the sim step
+ * as the capture boundary. The render frame then tweens prev->cur exactly like
+ * gameMainLoop does between sim steps, and restores the authoritative "cur" so
+ * the next capture diffs clean snapshot data (never an interpolated leftover). */
+static CamSnapshot netCamPrev, netCamCur;
+static SimObjSnap netObjPrev[SIM_OBJ_MAX], netObjCur[SIM_OBJ_MAX];
+static ProjSnap netProjPrev[PROJ_MAX], netProjCur[PROJ_MAX];
+
+/* Call right after a snapshot has been applied to the live globals. */
+void netRenderSnapCapture(void) {
+    netCamPrev = netCamCur;
+    memcpy(netObjPrev, netObjCur, sizeof(netObjPrev));
+    memcpy(netProjPrev, netProjCur, sizeof(netProjPrev));
+    camCapture(&netCamCur);
+    objCapture(netObjCur, netProjCur);
+}
+
+/* Write the interpolated pose into the live globals for one renderFrame(). */
+void netRenderApplyInterp(int64 num, int64 den) {
+    if (den <= 0) den = 1;
+    camApplyInterp(&netCamPrev, &netCamCur, num, den);
+    objApplyInterp(netObjPrev, netObjCur, netProjPrev, netProjCur, num, den);
+}
+
+/* Put the authoritative latest snapshot back after rendering. */
+void netRenderRestore(void) {
+    camRestore(&netCamCur);
+    objRestore(netObjCur, netProjCur);
+}
+
+/* Debug frame dump: F15_DUMP_FRAME=<ppm> writes the front page once frameTick
+ * passes F15_DUMP_AT (default ~120). Software-render only (GL composites
+ * natively). */
+void debugDumpFrame(void) {
+    static int done = 0;
+    const char *path;
+    const char *at;
+    struct SDL_Surface *surf;
+    int x, y;
+    FILE *f;
+    if (done || !(path = getenv("F15_DUMP_FRAME")) || !*path)
+        return;
+    at = getenv("F15_DUMP_AT");
+    if (frameTick < (at ? atoi(at) : 120))
+        return;
+    done = 1;
+    surf = gfx_getPageSurface(g_pageFront[0]);
+    f = surf ? fopen(path, "wb") : 0;
+    if (!f)
+        return;
+    fprintf(f, "P6\n%d %d\n255\n", surf->w, surf->h);
+    for (y = 0; y < surf->h; y++)
+        for (x = 0; x < surf->w; x++) {
+            uint8_t r, g, b;
+            gfx_paletteRGB(((uint8_t *)surf->pixels)[y * surf->pitch + x],
+                           &r, &g, &b);
+            fputc(r, f);
+            fputc(g, f);
+            fputc(b, f);
+        }
+    fclose(f);
+    fprintf(stderr, "f15: dumped %dx%d frame to %s\n", surf->w, surf->h, path);
 }
 
 /* setupDac (egcode.asm _setupDac) - load the 256-colour palette: dacValues1 →

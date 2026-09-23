@@ -26,3 +26,4 @@ coverage.txt
 *.actual.bmp
 build-net/
 build-base/
+build-auto/

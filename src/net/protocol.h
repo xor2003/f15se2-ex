@@ -13,7 +13,7 @@
 #include <stdint.h>
 
 #define F15_NET_MAGIC 0x4631354d /* 'F15M' */
-#define F15_NET_VERSION 1
+#define F15_NET_VERSION 2
 #define F15_NET_TICKRATE 15 /* legacy sim rate: g_frameRateScaling */
 #define F15_MAX_PLAYERS 8
 #define F15_MAX_COMMANDS 4  /* discrete commands a client can queue per tick */
@@ -169,6 +169,25 @@ struct NetPlayerState {
     uint8_t missionEnded;     /* this player's mission is over */
     int16_t landingType;      /* commData->landingType equivalent */
     uint16_t score;           /* g_finalThreatScore-ish */
+    /* Display state lives in the player ctx (view commands run server-side, and
+     * director/autopilot code can force the view), so it must come back on the
+     * wire for the owning client to render correctly. */
+    uint8_t viewMode;         /* g_viewMode */
+    uint8_t mapMode;          /* g_mapMode (radar/tacmap display) */
+    uint8_t activePanelMode;  /* g_activePanelMode */
+    uint8_t directorMode;     /* g_directorMode */
+    uint8_t hudVisible;       /* g_hudVisible */
+    uint8_t detailLevel;      /* g_detailLevel */
+    uint8_t nightMode;        /* g_nightMode */
+    uint8_t autopilotEngaged; /* g_autopilotEngaged (view camDist, HUD tag) */
+    int16_t viewTargetObj;    /* g_viewTargetObj (VIEW_TARGET/MISSILE subject) */
+    int16_t lastMissileSlot;  /* g_lastMissileSlot (VIEW_MISSILE subject) */
+    int16_t mapZoomLevel;     /* g_mapZoomLevel */
+    int16_t mapCenterX, mapCenterY;
+    /* Crash-cam eye + wreck/parachute position: the camera interp snapshots
+     * (egsys.c) tween these, so they must be authoritative too. */
+    int16_t crashX, crashY, crashZ;
+    int16_t wreckX, wreckY, wreckAlt;
 };
 
 struct NetSimObject {

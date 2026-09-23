@@ -16,6 +16,9 @@ void placeString(int16 waypointIdx);
 void initMissionStrings();
 void updateWorldFrame(void);  /* server: world-only pass of updateFrame() */
 void updatePlayerFrame(void); /* server: per-player pass of updateFrame() */
+/* Net client: the tacmap backing/blip maintenance the player pass does locally
+ * (skipped server-side under g_headlessSim). Called per render frame. */
+void frameTacmapBlip(void);
 int objectToScreen(int mapX, int mapY, int16 *outScreenX, int16 *outScreenY);
 int randomRange(int);
 int16 gunSpreadAngle(void);

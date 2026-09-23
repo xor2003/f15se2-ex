@@ -25,6 +25,14 @@ void decApplyOwnPlayer(struct NetReader *r); /* fwd: defined below */
 
 /* ---------------------------------------------------------------- setup */
 
+/* Where remote players are parked inside g_simObjects for rendering/radar:
+ * contiguously above the world's own objects (g_groundUnitCount as received in
+ * MISSION_SETUP). Every renderer/radar loop bounded by g_groundUnitCount then
+ * sees them; the client-side count is extended to cover the parked slots. */
+static int s_worldObjCount = -1;      /* authoritative object count from setup */
+static unsigned s_parkedMask;         /* player ids currently published */
+static unsigned s_seenMask;           /* player ids seen in this snapshot */
+
 void netSetupBuild(struct NetWriter *w) {
     int i, n;
     nwI16(w, gameData->theater);
@@ -112,6 +120,8 @@ int netSetupApply(struct NetReader *r) {
     g_targetEntityCount = nrI16(r);
     g_planeScanCount = nrI16(r);
     g_groundUnitCount = nrI16(r);
+    s_worldObjCount = g_groundUnitCount; /* remote players park above this */
+    s_parkedMask = s_seenMask = 0;
     g_missionStatus = nrI16(r);
     g_unusedSavedWord = nrI16(r);
     g_padlockAircraft = nrI16(r);
@@ -223,6 +233,25 @@ static void encPlayerBlock(struct NetWriter *w, const struct PlayerSim *c) {
     s.missionEnded = (uint8_t)c->missionEndedFlag[0];
     s.landingType = c->comm.landingType;
     s.score = (uint16_t)c->finalThreatScore;
+    s.viewMode = (uint8_t)c->viewMode;
+    s.mapMode = (uint8_t)c->mapMode;
+    s.activePanelMode = (uint8_t)c->activePanelMode;
+    s.directorMode = (uint8_t)c->directorMode;
+    s.hudVisible = (uint8_t)c->hudVisible;
+    s.detailLevel = (uint8_t)c->detailLevel;
+    s.nightMode = (uint8_t)c->nightMode;
+    s.autopilotEngaged = (uint8_t)c->autopilotEngaged;
+    s.viewTargetObj = c->viewTargetObj;
+    s.lastMissileSlot = c->lastMissileSlot;
+    s.mapZoomLevel = c->mapZoomLevel;
+    s.mapCenterX = c->mapCenterX;
+    s.mapCenterY = c->mapCenterY;
+    s.crashX = c->crashCamX;
+    s.crashY = c->crashCamY;
+    s.crashZ = c->crashCamZ;
+    s.wreckX = c->wreckX;
+    s.wreckY = c->wreckY;
+    s.wreckAlt = c->wreckAlt;
     encPlayerState(w, &s);
 }
 
@@ -304,11 +333,12 @@ void netSnapBuild(struct NetWriter *w, const struct PlayerSim *players,
 
 /* ------------------------------------------------------------ apply side */
 
-/* Where remote players are parked inside g_simObjects for rendering/radar:
- * the tail slots past g_groundUnitCount. */
 int netPlayerObjectSlot(int idx) {
-    int slot = F15_MAX_SIM_OBJECTS - 1 - idx;
-    return (slot >= g_groundUnitCount && idx >= 0) ? slot : -1;
+    int slot;
+    if (idx < 0 || idx >= F15_MAX_PLAYERS || s_worldObjCount < 0)
+        return -1;
+    slot = s_worldObjCount + idx;
+    return slot < F15_MAX_SIM_OBJECTS ? slot : -1;
 }
 
 void netPlayerPublishObject(int idx, const struct NetPlayerState *s) {
@@ -316,6 +346,8 @@ void netPlayerPublishObject(int idx, const struct NetPlayerState *s) {
     struct SimObject *o;
     if (slot < 0)
         return;
+    s_seenMask |= 1u << idx;
+    s_parkedMask |= 1u << idx;
     o = &g_simObjects[slot];
     o->worldX = s->worldX;
     o->worldY = s->worldY;
@@ -335,6 +367,7 @@ void netPlayerPublishObject(int idx, const struct NetPlayerState *s) {
 int netSnapApply(struct NetReader *r, int playerId) {
     int i, n;
     uint8_t nPlayers = nrU8(r);
+    s_seenMask = 0;
     for (i = 0; i < nPlayers; i++) {
         uint8_t pid = nrU8(r);
         if (pid == playerId) {
@@ -345,6 +378,32 @@ int netSnapApply(struct NetReader *r, int playerId) {
             struct NetPlayerState s;
             decPlayerState(r, &s);
             netPlayerPublishObject(pid, &s);
+        }
+    }
+    /* Departed players: unpark their object slot so the husk doesn't linger. */
+    {
+        unsigned gone = s_parkedMask & ~s_seenMask;
+        while (gone) {
+            int pid = __builtin_ctz(gone);
+            int slot = netPlayerObjectSlot(pid);
+            gone &= gone - 1;
+            s_parkedMask &= ~(1u << pid);
+            if (slot >= 0)
+                memset(&g_simObjects[slot], 0, sizeof(g_simObjects[slot]));
+        }
+        /* Extend the client-side iteration bound to cover parked player slots
+         * (3D render, radar scope, target scan and the interp sweep all loop
+         * 0..g_groundUnitCount-1). */
+        if (s_worldObjCount >= 0) {
+            int hi = s_worldObjCount;
+            unsigned m = s_parkedMask;
+            while (m) {
+                int pid = 31 - __builtin_clz(m);
+                int slot = s_worldObjCount + pid + 1;
+                if (slot > hi) hi = slot;
+                m &= m - 1;
+            }
+            g_groundUnitCount = (int16)hi;
         }
     }
 
@@ -408,7 +467,7 @@ int netSnapApply(struct NetReader *r, int playerId) {
 
     g_missionTick = nrI16(r);
     g_missionStatus = nrI16(r);
-    (void)nrI16(r); /* server frameTick - diagnostic only */
+    frameTick = nrI16(r); /* authoritative sim tick - drives the view ring etc. */
     for (i = 0; i < F15_WAYPOINTS; i++) {
         waypoints[i].mapX = nrU16(r);
         waypoints[i].mapY = nrU16(r);
@@ -466,6 +525,25 @@ void decApplyOwnPlayer(struct NetReader *r) {
     g_damageTakenFlag = s.damageFlag;
     commData->landingType = s.landingType;
     g_finalThreatScore = s.score;
+    /* Sim-driven display state comes back over the wire (view/panel commands
+     * execute in the server ctx, and director/autopilot code can force them).
+     * Deliberately NOT applied: mapZoomLevel/mapCenterX/mapCenterY (the local
+     * tacmap blip pass owns zoom/centering) and detailLevel/nightMode (purely
+     * local presentation toggles). */
+    g_viewMode = (ViewMode)s.viewMode;
+    g_mapMode = s.mapMode;
+    g_activePanelMode = s.activePanelMode;
+    g_directorMode = s.directorMode;
+    g_viewTargetObj = s.viewTargetObj;
+    g_lastMissileSlot = s.lastMissileSlot;
+    g_autopilotEngaged = s.autopilotEngaged;
+    /* Camera-interp inputs: crash-cam eye and wreck/parachute pose. */
+    g_crashCamX = s.crashX;
+    g_crashCamY = s.crashY;
+    g_crashCamZ = s.crashZ;
+    g_wreckX = s.wreckX;
+    g_wreckY = s.wreckY;
+    g_wreckAlt = s.wreckAlt;
 }
 
 } /* extern "C" */

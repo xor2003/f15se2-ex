@@ -49,6 +49,8 @@ static int g_missionOver;
 static int16 g_landingType = 3;
 static uint32_t g_clientSeq;
 
+void debugDumpFrame(void);                /* egsys.c: F15_DUMP_FRAME=<ppm> */
+
 static void sendMsg(uint8_t type, NetTick tick, const void *payload,
                     size_t len, int reliable) {
     uint8_t buf[NET_MSG_HEADER_SIZE + 4096];
@@ -201,11 +203,19 @@ int netClientMain(const char *hostPort, const char *name) {
     g_netClientMode = 1; /* initMissionStrings skips worldImportToEgame */
     drawCockpit();
     initWeaponLoadout(); /* missiles[]/HUD ammo labels from the setup loadout */
+    initTacMapView();    /* bakes the terrain map into the MFD backing image */
     audio_setup(0, f15DgtlResult);
     g_headlessSim = 0;
+    /* Same timer plumbing as runGameSession: frameTick + the 60 Hz counters
+     * drive HUD message fade, DAC colour cycling, view-ring indexing. */
+    setTimerTickHook(egAdvanceFrameTick);
+    setTimerIrqHandler();
 
     {
-        uint64_t lastSend = 0;
+        /* Snapshot-arrival pacing for render interpolation (replaces the local
+         * sim step as the tween boundary). */
+        uint64_t snapNs = 0, snapIntervalNs = 1000000000ULL / 15;
+        int snapsSeen = 0;
         while (!g_missionOver) {
             NetRecv ev;
             struct NetInput in;
@@ -219,7 +229,6 @@ int netClientMain(const char *hostPort, const char *name) {
                 encInput(&w, &in);
                 g_net->send(NET_PEER_SERVER, buf, w.len, NET_SEND_UNRELIABLE);
             }
-            (void)lastSend;
 
             g_net->poll();
             while (g_net->recv(&ev)) {
@@ -236,23 +245,70 @@ int netClientMain(const char *hostPort, const char *name) {
                 nrInit(&r, ev.msg, ev.len);
                 if (!netMsgReadHeader(&r, &type, &tick, &plen))
                     continue;
-                if (type == NETMSG_SNAPSHOT)
-                    netSnapApply(&r, g_myPlayerId);
-                else if (type == NETMSG_EVENT) {
+                if (type == NETMSG_SNAPSHOT) {
+                    uint64_t now = SDL_GetTicksNS();
+                    if (netSnapApply(&r, g_myPlayerId)) {
+                        /* authoritative state landed: shift interp endpoints
+                         * and measure the real arrival interval. */
+                        netRenderSnapCapture();
+                        snapsSeen++;
+                        if (snapNs) {
+                            uint64_t d = now - snapNs;
+                            if (d >= 20000000ULL && d <= 500000000ULL)
+                                snapIntervalNs = d;
+                        }
+                        snapNs = now;
+                        /* trailing-replay view ring (server writes one entry
+                         * per sim tick; here, one per snapshot). */
+                        {
+                            int idx = frameTick & 0xF;
+                            g_viewSnapshotRing[idx].heading = g_ourHead;
+                            g_viewSnapshotRing[idx].pitch = (int16)g_ourPitch;
+                            g_viewSnapshotRing[idx].roll = g_ourRoll;
+                            g_viewSnapshotRing[idx].worldX = g_ViewX;
+                            g_viewSnapshotRing[idx].worldY = g_ViewY;
+                            g_viewSnapshotRing[idx].alt = g_viewZ;
+                        }
+                    }
+                } else if (type == NETMSG_EVENT) {
                     struct NetEvent e;
                     if (decEvent(&r, &e))
                         applyEvent(&e);
                 }
             }
 
-            timerPump();
-            renderFrame();
-            renderHudFrame(0);
-            if (g_viewMode == VIEW_COCKPIT)
-                drawInstrumentGaugesFar();
-            gfx_dacAnimate();
+            /* Render an interpolated pose between the two latest snapshots,
+             * then restore the authoritative one (same shape as gameMainLoop's
+             * sim-step interpolation). */
+            {
+                int64_t num = (int64_t)snapIntervalNs;
+                int interp = snapsSeen >= 2 && snapNs != 0;
+                if (interp) {
+                    num = (int64_t)(SDL_GetTicksNS() - snapNs);
+                    if (num > (int64_t)snapIntervalNs)
+                        num = (int64_t)snapIntervalNs;
+                    if (num < 0)
+                        num = 0;
+                    netRenderApplyInterp(num, (int64_t)snapIntervalNs);
+                }
+                g_simStepsThisFrame = 1;
+                g_renderAlphaQ12 = (int)((num << 12) / (int64_t)snapIntervalNs);
+                timerPump();
+                /* Player-pass presentation maintenance the client still owns:
+                 * tacmap backing redraw / player blip / auto-zoom. */
+                frameTacmapBlip();
+                renderFrame();
+                renderHudFrame(0);
+                if (g_viewMode == VIEW_COCKPIT)
+                    drawInstrumentGaugesFar();
+                gfx_dacAnimate();
+                if (interp)
+                    netRenderRestore();
+                debugDumpFrame();
+            }
         }
     }
+    restoreTimerIrqHandler();
     audio_shutdown();
     commData->landingType = g_landingType;
     sendMsg(NETMSG_BYE, (NetTick)frameTick, 0, 0, 1);

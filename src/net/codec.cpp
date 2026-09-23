@@ -124,6 +124,25 @@ void encPlayerState(struct NetWriter *w, const struct NetPlayerState *v) {
     nwU8(w, v->missionEnded);
     nwI16(w, v->landingType);
     nwU16(w, v->score);
+    nwU8(w, v->viewMode);
+    nwU8(w, v->mapMode);
+    nwU8(w, v->activePanelMode);
+    nwU8(w, v->directorMode);
+    nwU8(w, v->hudVisible);
+    nwU8(w, v->detailLevel);
+    nwU8(w, v->nightMode);
+    nwU8(w, v->autopilotEngaged);
+    nwI16(w, v->viewTargetObj);
+    nwI16(w, v->lastMissileSlot);
+    nwI16(w, v->mapZoomLevel);
+    nwI16(w, v->mapCenterX);
+    nwI16(w, v->mapCenterY);
+    nwI16(w, v->crashX);
+    nwI16(w, v->crashY);
+    nwI16(w, v->crashZ);
+    nwI16(w, v->wreckX);
+    nwI16(w, v->wreckY);
+    nwI16(w, v->wreckAlt);
 }
 
 void decPlayerState(struct NetReader *r, struct NetPlayerState *v) {
@@ -167,6 +186,25 @@ void decPlayerState(struct NetReader *r, struct NetPlayerState *v) {
     v->missionEnded = nrU8(r);
     v->landingType = nrI16(r);
     v->score = nrU16(r);
+    v->viewMode = nrU8(r);
+    v->mapMode = nrU8(r);
+    v->activePanelMode = nrU8(r);
+    v->directorMode = nrU8(r);
+    v->hudVisible = nrU8(r);
+    v->detailLevel = nrU8(r);
+    v->nightMode = nrU8(r);
+    v->autopilotEngaged = nrU8(r);
+    v->viewTargetObj = nrI16(r);
+    v->lastMissileSlot = nrI16(r);
+    v->mapZoomLevel = nrI16(r);
+    v->mapCenterX = nrI16(r);
+    v->mapCenterY = nrI16(r);
+    v->crashX = nrI16(r);
+    v->crashY = nrI16(r);
+    v->crashZ = nrI16(r);
+    v->wreckX = nrI16(r);
+    v->wreckY = nrI16(r);
+    v->wreckAlt = nrI16(r);
 }
 
 void encSimObject(struct NetWriter *w, const struct NetSimObject *v) {

@@ -86,6 +86,11 @@ void far egAdvanceFrameTick(void);
 void timerPump(void);
 void timerYield(void);
 uint64 timerNowNs(void);
+/* Net-client render interpolation (egsys.c): capture on snapshot arrival,
+ * tween into the live globals per render frame, restore authoritative after. */
+void netRenderSnapCapture(void);
+void netRenderApplyInterp(int64 num, int64 den);
+void netRenderRestore(void);
 int getTimeOfDay();
 SDL_IOStream *openFile(const char *path, int mode);
 void fileClose(SDL_IOStream *handle);

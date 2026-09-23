@@ -154,6 +154,23 @@ static void test_cmd_scan_mapping(void) {
     CHECK(!netCmdIsLocalOnly(NC_WEAPON_AMRAAM));
 }
 
+static void test_player_state_roundtrip(void) {
+    uint8_t buf[256];
+    NetWriter w;
+    NetReader r;
+    NetPlayerState a, b;
+    memset(&a, 0x5A, sizeof(a)); /* any garbage: encode must write every field */
+    memset(&b, 0x5A, sizeof(b)); /* same fill so struct padding can't false-fail */
+    nwInit(&w, buf, sizeof(buf));
+    encPlayerState(&w, &a);
+    CHECK(!w.overflow);
+    nrInit(&r, buf, w.len);
+    decPlayerState(&r, &b);
+    CHECK(!r.underrun);
+    CHECK(r.pos == w.len); /* decoder consumed exactly the encoded bytes */
+    CHECK(!memcmp(&a, &b, sizeof(a)));
+}
+
 static void test_endianness(void) {
     /* wire must be LE regardless of host */
     uint8_t buf[8];
@@ -173,6 +190,7 @@ int main(void) {
     test_input_cmd_clamp();
     test_event_roundtrip();
     test_cmd_scan_mapping();
+    test_player_state_roundtrip();
     test_endianness();
     if (fails == 0)
         printf("net_codec_tests: OK\n");
