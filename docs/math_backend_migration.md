@@ -2207,6 +2207,44 @@ altitude never 0). `sortie_stall_parity_tests` pins
 `sortie_stall_fields_modern.trace` — modern's pinned run bottoms at
 alt ~300 before recovering.
 
+## Long-flight sortie checkpoint (sustained-navigation coverage)
+
+The `--long` profile closes the last scripted acceptance item: a
+sustained ~3.4 sim-minute flight (3000 ticks) under real waypoint
+navigation. Two fixture findings matter:
+
+* `g_waypointBearing` — the autopilot's steering input — is only
+  refreshed inside `renderHudFrame` (egtacmap.c). A navigation profile
+  therefore has to run `renderFrame()` per tick, which also runs
+  `updateTargetLock`'s air scan organically through the whole run
+  (previously only kCombat rendered per tick).
+* At ~2.6 map words per tick nothing beyond a few thousand words is
+  reachable in 3000 ticks, so the route is seeded on that scale at
+  tick 1 (post mission-init): leg 1 to waypoints[1] (0x0800,0x7000),
+  W at tick 900 re-tasks to waypoints[2] (0x4000,0x6800), W at tick
+  2000 re-tasks to index 3 — which hands the live altitude hold to
+  `recoveryApproach`, the downwind-to-final pattern transit that
+  kLand deliberately skips by seeding the plane on final.
+
+Two usable fields (flags 0x601) create real retarget churn in the
+per-frame nearest-base scan: base 5 (0x0600,0x7800) wins the early
+cruise, base 4 (0x1400,0x6400) overtakes it as leg 2 runs east and
+becomes the approach target. `longRequire` asserts: the altitude hold
+engaged through cruise, waypointIndex observed at 2 then 3, the
+approach branch sustained >= 60 ticks (index 3 + hold live = the
+egflight.c recoveryApproach gate), >= 2 scan retargets, > 300 fuel
+units burned, and no airframe loss. The conditional MINUS train
+(kLand's post-landing throttle lesson) only fires if the approach
+actually lands inside the window — it did not within 1000 approach
+ticks, which is expected for a midfield entry.
+
+`sortie_long_parity_tests` pins `sortie_long_parity.trace`;
+`modern_sortie_long_tests` pins `sortie_long_fields_modern.trace`.
+Modern's pinned run ends within ~60 map words of fixed (fuel identical
+at 8755) — the autopilot keeps both backends converged on the same
+route over the whole horizon, with the fractional trajectory visible
+in the fine-coordinate fields.
+
 ## Provenance and import corrections
 
 The classes came from `f15se2-re/main`, commit `6cbbec1`, originally introduced
@@ -2454,12 +2492,14 @@ the player pinned against both bounds under power while the per-frame
 scan ranges band bases through the 16-bit ring wrap on both backends.
 Stall entry/recovery is covered: the `--stall` profile enters the
 stall regime through the real `belowStall` gate and recovers through
-the `correctFlightStall` nose-drop on both backends. Still missing:
-real mission-file loads, interactive `.bbx` recordings (the port has
-no recording/replay machinery), real-time pacing, long-duration
-flights, and multi-platform runs — so modern coverage remains a
-scripted-profile acceptance gate, not a certification of the whole
-game.
+the `correctFlightStall` nose-drop on both backends. Sustained flight
+is covered: the `--long` profile holds the autopilot on for 3000
+ticks through a two-leg waypoint route, a `recoveryApproach` pattern
+transit, scan retargets and real fuel burn on both backends. Still
+missing: real mission-file loads, interactive `.bbx` recordings (the
+port has no recording/replay machinery), real-time pacing, and
+multi-platform runs — so modern coverage remains a scripted-profile
+acceptance gate, not a certification of the whole game.
 
 Reproduce standalone Clang checks from the repository root:
 

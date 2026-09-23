@@ -26,7 +26,9 @@
  *    --land for the recovery/landing profile: sortie_land_parity.trace,
  *    --stick for the real-stick sortie: sortie_stick_parity.trace — the only
  *    profile whose golden is a true pre-migration oracle for live stick
- *    input, recorded on e28b9a4 via a virtual joystick)
+ *    input, recorded on e28b9a4 via a virtual joystick,
+ *    --long for the 3000-tick autopilot navigation flight:
+ *    sortie_long_parity.trace)
  *
  * The shared schedule/init/field readers live in sortie_harness.hpp;
  * modern_sortie_tests reuses them for the tolerance compare.
@@ -78,6 +80,7 @@ int runSortie(const char *path, bool record, bool dump, Profile profile) {
     LandingCheck land;
     BoundaryCheck boundary;
     StallCheck stall;
+    LongCheck lng;
     for (int tick = 0; tick < ticks; ++tick) {
         runTick(tick, profile);
         if (profile == Profile::kLoop) loopObserve(loop, tick);
@@ -86,6 +89,7 @@ int runSortie(const char *path, bool record, bool dump, Profile profile) {
         if (profile == Profile::kLand) landingObserve(land, tick);
         if (profile == Profile::kWrap) boundaryObserve(boundary, tick);
         if (profile == Profile::kStall) stallObserve(stall, tick);
+        if (profile == Profile::kLong) longObserve(lng, tick);
 
         const std::uint32_t flight = hashFlight();
         const std::uint32_t camera = hashCamera();
@@ -136,6 +140,7 @@ int runSortie(const char *path, bool record, bool dump, Profile profile) {
     }
     if (profile == Profile::kWrap) boundaryRequire(boundary);
     if (profile == Profile::kStall) stallRequire(stall);
+    if (profile == Profile::kLong) longRequire(lng);
     if (record) {
         require(trace.good(), "trace write failed");
         std::fprintf(stderr, "recorded %d ticks to %s\n", ticks, path);
@@ -161,17 +166,20 @@ int main(int argc, char **argv) {
     if (wrap) --argc;
     const bool stall = argc >= 2 && std::string(argv[argc - 1]) == "--stall";
     if (stall) --argc;
+    const bool lng = argc >= 2 && std::string(argv[argc - 1]) == "--long";
+    if (lng) --argc;
     const bool record = argc == 3 && std::string(argv[1]) == "record";
     const bool fields = argc == 3 && std::string(argv[1]) == "fields";
     const bool dump = argc >= 2 && std::string(argv[1]) == "dump";
     require(record || fields || dump || argc == 1,
-            "usage: sortie_parity_tests [record <out.trace> | fields <out.trace> | dump] [--loop | --combat | --stick | --land | --wrap | --stall]");
+            "usage: sortie_parity_tests [record <out.trace> | fields <out.trace> | dump] [--loop | --combat | --stick | --land | --wrap | --stall | --long]");
     const Profile profile = loop ? Profile::kLoop
                                : combat ? Profile::kCombat
                                         : stick ? Profile::kStick
                                                 : land ? Profile::kLand
                                                        : wrap ? Profile::kWrap
-                                                              : stall ? Profile::kStall : Profile::kSortie;
+                                                              : stall ? Profile::kStall
+                                                                      : lng ? Profile::kLong : Profile::kSortie;
     initSortie(profile);
     int result = 0;
     if (fields) {
@@ -184,7 +192,8 @@ int main(int argc, char **argv) {
                                      : land ? F15_GOLDEN_DIR "/sortie_land_parity.trace"
                                             : wrap ? F15_GOLDEN_DIR "/sortie_wrap_parity.trace"
                                                    : stall ? F15_GOLDEN_DIR "/sortie_stall_parity.trace"
-                                                           : F15_GOLDEN_DIR "/sortie_parity.trace");
+                                                           : lng ? F15_GOLDEN_DIR "/sortie_long_parity.trace"
+                                                                 : F15_GOLDEN_DIR "/sortie_parity.trace");
         result = runSortie(path, record, dump, profile);
     }
     teardown();
@@ -197,6 +206,9 @@ int main(int argc, char **argv) {
                         ticksForProfile(profile));
         } else if (stall) {
             std::printf("stall parity: %d ticks match the sortie_stall golden\n",
+                        ticksForProfile(profile));
+        } else if (lng) {
+            std::printf("long parity: %d ticks match the sortie_long golden\n",
                         ticksForProfile(profile));
         } else {
             std::puts(loop ? "loop parity: 660 ticks match the sortie_loop golden"

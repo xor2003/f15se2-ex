@@ -537,11 +537,13 @@ if(F15SE2_MODERN_MATH)
         add_test(NAME modern_sortie_land_tests COMMAND modern_sortie_tests --land)
         add_test(NAME modern_sortie_wrap_tests COMMAND modern_sortie_tests --wrap)
         add_test(NAME modern_sortie_stall_tests COMMAND modern_sortie_tests --stall)
+        add_test(NAME modern_sortie_long_tests COMMAND modern_sortie_tests --long)
 
         set_tests_properties(modern_flight_smoke_tests modern_sortie_tests
             modern_sortie_loop_tests modern_sortie_combat_tests
             modern_sortie_stick_tests modern_sortie_land_tests
-            modern_sortie_wrap_tests modern_sortie_stall_tests PROPERTIES
+            modern_sortie_wrap_tests modern_sortie_stall_tests
+            modern_sortie_long_tests PROPERTIES
             ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
     endif()
     return() # Fixed-reference fixtures require the default fixed build.
@@ -661,6 +663,7 @@ add_test(NAME sortie_stick_parity_tests COMMAND sortie_parity_tests --stick)
 add_test(NAME sortie_land_parity_tests COMMAND sortie_parity_tests --land)
 add_test(NAME sortie_wrap_parity_tests COMMAND sortie_parity_tests --wrap)
 add_test(NAME sortie_stall_parity_tests COMMAND sortie_parity_tests --stall)
+add_test(NAME sortie_long_parity_tests COMMAND sortie_parity_tests --long)
 add_behavior_test(input_behavior_tests LINK_CORE)
 add_behavior_test(joystick_behavior_tests LINK_CORE)
 add_behavior_test(controls_behavior_tests LINK_CORE)

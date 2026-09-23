@@ -46,6 +46,10 @@
  * --stall runs the stall-entry/recovery profile: layer-1 pin against
  * sortie_stall_fields_modern.trace plus the stall assertions (belowStall
  * entry, correctFlightStall nose-drop, aerodynamic recovery).
+ *
+ * --long runs the 3000-tick long-flight profile: layer-1 pin against
+ * sortie_long_fields_modern.trace plus the long assertions (autopilot
+ * hold, waypoint re-tasks, recoveryApproach transit, retargets, fuel).
  */
 #include "sortie_harness.hpp"
 
@@ -121,13 +125,14 @@ int run(bool record, const char *recordPath, Profile profile) {
     const bool land = profile == Profile::kLand;
     const bool wrap = profile == Profile::kWrap;
     const bool stall = profile == Profile::kStall;
+    const bool lng = profile == Profile::kLong;
     /* The fixed envelope/discrete layers are sortie-only: the loop decorrelates
      * trajectories through the pole band, combat through AI retargeting,
      * the stick sortie through sustained deflection, the recovery leg
      * through approach-geometry drift, and the boundary run through
      * pre-clamp fine-position drift — all pin against their own modern
      * golden only. */
-    const bool pinnedOnly = loop || combat || stick || land || wrap || stall;
+    const bool pinnedOnly = loop || combat || stick || land || wrap || stall || lng;
     const int ticks = ticksForProfile(profile);
     std::ofstream modernGolden;
     std::ifstream modernIn, fixedIn;
@@ -137,6 +142,7 @@ int run(bool record, const char *recordPath, Profile profile) {
                            : land ? "sortie_land_fields_modern.trace"
                            : wrap ? "sortie_wrap_fields_modern.trace"
                            : stall ? "sortie_stall_fields_modern.trace"
+                           : lng ? "sortie_long_fields_modern.trace"
                                     : "sortie_fields_modern.trace";
     if (record) {
         modernGolden.open(recordPath, std::ios::binary | std::ios::trunc);
@@ -171,6 +177,7 @@ int run(bool record, const char *recordPath, Profile profile) {
     LandingCheck landCheck;
     BoundaryCheck boundaryCheck;
     StallCheck stallCheck;
+    LongCheck longCheck;
 
     for (int tick = 0; tick < ticks; ++tick) {
         runTick(tick, profile);
@@ -181,6 +188,7 @@ int run(bool record, const char *recordPath, Profile profile) {
         if (land) landingObserve(landCheck, tick);
         if (wrap) boundaryObserve(boundaryCheck, tick);
         if (stall) stallObserve(stallCheck, tick);
+        if (lng) longObserve(longCheck, tick);
 
         if (record) {
             modernGolden << tick;
@@ -262,6 +270,7 @@ int run(bool record, const char *recordPath, Profile profile) {
     }
     if (wrap) boundaryRequire(boundaryCheck);
     if (stall) stallRequire(stallCheck);
+    if (lng) longRequire(longCheck);
     if (record) {
         require(modernGolden.good(), "modern golden write failed");
         std::fprintf(stderr, "recorded %d modern field ticks to %s\n", ticks, recordPath);
@@ -332,6 +341,11 @@ int run(bool record, const char *recordPath, Profile profile) {
                     "and recovery verified\n", ticks);
         return 0;
     }
+    if (lng) {
+        std::printf("modern long: %d ticks pinned; waypoint navigation, "
+                    "approach transit and fuel burn verified\n", ticks);
+        return 0;
+    }
     std::printf("modern sortie: %d ticks pinned, envelope ok; worst vs fixed:\n", ticks);
     for (const char *k : {"f.fineX", "f.fineY", "f.alt", "f.head", "f.roll", "f.knots"})
         std::printf("  %-8s max %llu (tick %d)\n", k,
@@ -353,15 +367,18 @@ int main(int argc, char **argv) {
     if (wrap) --argc;
     const bool stall = argc >= 2 && std::string(argv[argc - 1]) == "--stall";
     if (stall) --argc;
+    const bool lng = argc >= 2 && std::string(argv[argc - 1]) == "--long";
+    if (lng) --argc;
     const bool record = argc == 3 && std::string(argv[1]) == "record";
     require(record || argc == 1,
-            "usage: modern_sortie_tests [record <out.trace>] [--loop | --combat | --stick | --land | --wrap | --stall]");
+            "usage: modern_sortie_tests [record <out.trace>] [--loop | --combat | --stick | --land | --wrap | --stall | --long]");
     const Profile profile = loop ? Profile::kLoop
                                : combat ? Profile::kCombat
                                         : stick ? Profile::kStick
                                                 : land ? Profile::kLand
                                                        : wrap ? Profile::kWrap
-                                                              : stall ? Profile::kStall : Profile::kSortie;
+                                                              : stall ? Profile::kStall
+                                                                      : lng ? Profile::kLong : Profile::kSortie;
     initSortie(profile);
     const int result = run(record, record ? argv[2] : nullptr, profile);
     teardown();

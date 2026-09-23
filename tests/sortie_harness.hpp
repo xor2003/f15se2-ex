@@ -112,6 +112,13 @@ constexpr int kLandTicks = 1600;
  * Y snap are the two distinct confine-block code paths — the min ends
  * share the same clamp bodies, so one bound per axis covers them. */
 constexpr int kWrapTicks = 1000;
+/* The long-flight profile runs the autopilot through a multi-leg route
+ * for ~3.4 sim-minutes: cruise to waypoint 1, re-task to waypoint 2,
+ * then waypoint 3 hands off to recoveryApproach — the downwind-to-final
+ * pattern transit kLand deliberately skips. Long enough for fuel burn,
+ * missionTick phase(32) events, the autopilot phase(16) weave and
+ * several nearest-base retargets to all fire organically. */
+constexpr int kLongTicks = 3000;
 constexpr std::uint32_t kSeed = 0x51e7u;
 
 
@@ -140,12 +147,17 @@ inline void pushKey(SDL_Scancode scancode, SDL_Keycode key) {
  * player into the east theater bound so the per-tick position clamp
  * (egframe.c confine block) engages for hundreds of ticks; kStall idles
  * the throttle and pulls up until belowStall, then lets
- * correctFlightStall's nose-drop and the dive recover it. */
-enum class Profile { kSortie, kLoop, kCombat, kStick, kLand, kWrap, kStall };
+ * correctFlightStall's nose-drop and the dive recover it; kLong holds
+ * the autopilot on for 3000 ticks — a long multi-leg navigation flight
+ * that cycles waypoints, ends on the waypoint-3 recovery approach, and
+ * exercises fuel burn / missionTick phases / nearest-base retargets /
+ * renderFrame lock scans over a long horizon. */
+enum class Profile { kSortie, kLoop, kCombat, kStick, kLand, kWrap, kStall, kLong };
 
 constexpr int ticksForProfile(Profile profile) {
     return profile == Profile::kLand ? kLandTicks
          : profile == Profile::kWrap ? kWrapTicks
+         : profile == Profile::kLong ? kLongTicks
          : profile == Profile::kCombat ? kCombatTicks : kSortieTicks;
 }
 
@@ -190,6 +202,25 @@ inline void pushScheduleKeys(int tick, Profile profile) {
         if (tick == 480 || tick == 485) pushKey(SDL_SCANCODE_RETURN, SDLK_RETURN);
         if (tick == 540) pushKey(SDL_SCANCODE_W, SDLK_W);           // waypoint -> 3
         if (tick == 600) pushKey(SDL_SCANCODE_B, SDLK_B);           // airbrake
+        return;
+    }
+    if (profile == Profile::kLong) {
+        /* Long flight: autopilot on early, then real waypoint navigation —
+         * renderFrame refreshes g_waypointBearing each tick so the hold
+         * steers toward waypoints[waypointIndex]. W re-tasks the route:
+         * 1 -> 2 mid-flight, then 3 hands the hold to recoveryApproach —
+         * the downwind-to-final pattern transit that kLand's seeded final
+         * skips. */
+        if (tick == 70) pushKey(SDL_SCANCODE_L, SDLK_L);            // gear up
+        if (tick == 90) pushKey(SDL_SCANCODE_P, SDLK_P);            // autopilot on
+        if (tick == 900) pushKey(SDL_SCANCODE_W, SDLK_W);           // waypoint -> 2
+        if (tick == 2000) pushKey(SDL_SCANCODE_W, SDLK_W);          // waypoint -> 3
+        /* Same post-landing lesson as kLand: once Safe Landing clears the
+         * altitude hold the last recoveryThrust command keeps pushing.
+         * Gated on the landing flag so these only fire after touchdown —
+         * while the hold is live recoveryThrust overrides them anyway. */
+        if (tick >= 2200 && (tick & 7) == 0 && g_landingDoneFlag != 0)
+            pushKey(SDL_SCANCODE_MINUS, SDLK_MINUS);
         return;
     }
     if (profile == Profile::kLand) {
@@ -910,6 +941,59 @@ inline void stallRequire(const StallCheck &s) {
                             "recovery");
 }
 
+/* Non-degenerate proof for the long-flight profile: the autopilot must
+ * actually hold (apAlt live through the cruise), both waypoint re-tasks
+ * must execute (index observed at 2 then 3), recoveryApproach must run
+ * its transit (index 3 + hold live = the egflight.c approach branch),
+ * the per-frame nearest-base scan must retarget as the route crosses
+ * the map, fuel must burn, and the airframe must survive the horizon. */
+struct LongCheck {
+    bool apHeld = false;        /* altitude hold live during cruise */
+    bool leg2Seen = false;      /* waypointIndex reached 2 */
+    bool approachSeen = false;  /* waypointIndex 3 + hold: recoveryApproach */
+    bool fuelBurned = false;
+    bool lostAirframe = false;
+    int retargets = 0;
+    int approachTicks = 0;
+    int16 prevThreat = -1;
+    std::uint32_t fuelStart = 0;
+};
+inline void longObserve(LongCheck &l, int tick) {
+    if (tick == 2) l.fuelStart = (std::uint32_t)legacy::fuelUnits(g_fuelRemaining);
+    if (tick > 120 && tick < 900 && !g_autopilotAltitude.isZero())
+        l.apHeld = true;
+    if (waypointIndex == 2) l.leg2Seen = true;
+    if (waypointIndex == 3 && !g_autopilotAltitude.isZero()) {
+        l.approachSeen = true;
+        ++l.approachTicks;
+    }
+    if (g_closestThreatIndex != l.prevThreat) {
+        ++l.retargets;
+        l.prevThreat = g_closestThreatIndex;
+    }
+    if (legacy::fuelUnits(g_fuelRemaining) + 300 < (int)l.fuelStart)
+        l.fuelBurned = true;
+    if (g_ejectState != 0) l.lostAirframe = true;
+    /* Altitude 0 mid-run means terrain contact without ejection; the
+     * landing path zeroes altitude legitimately, so only count it as a
+     * loss while the landing flag is cold. */
+    if (legacy::altitudeUnits(g_altitude) == 0 && g_landingDoneFlag == 0 &&
+        g_missionEndedFlag[0] == 0)
+        l.lostAirframe = true;
+}
+inline void longRequire(const LongCheck &l) {
+    require(l.apHeld, "long: autopilot altitude hold never engaged");
+    require(l.leg2Seen, "long: waypoint re-task to index 2 never ran");
+    require(l.approachSeen, "long: waypoint-3 hand-off never entered "
+                            "recoveryApproach (index 3 + hold live)");
+    require(l.approachTicks >= 60, "long: recoveryApproach transit not "
+                                   "sustained (approach aborted early)");
+    require(l.retargets >= 2, "long: nearest-base scan never retargeted "
+                              "across the route");
+    require(l.fuelBurned, "long: fuel burn over 3000 ticks under 300 units");
+    require(!l.lostAirframe, "long: airframe lost (eject/terrain) mid-run");
+}
+
 /* worldExportToEnd round-trip: run the real EGAME -> END debrief export after
  * the sortie and check every block against the live tables — including the
  * reversed +2-byte unitRef shift (plane i re-exports the lead / previous
@@ -1038,6 +1122,13 @@ inline void initSortie(Profile profile = Profile::kSortie) {
         g_ViewY = legacy::viewY(-5000);
         g_viewX_ = 5000;
         g_viewY_ = 60000;
+        if (profile == Profile::kLong) {
+            /* kLong runs renderFrame() per tick: g_waypointBearing — the
+             * autopilot's steering input — is only refreshed inside
+             * renderHudFrame (egtacmap.c), and updateTargetLock's air
+             * scan lives in the render path too. */
+            r3d_init();
+        }
     }
     g_ourHead = legacy::angleFromWord(4000);
     g_ourPitch = g_ourRoll = {};
@@ -1161,6 +1252,28 @@ inline void runTick(int tick, Profile profile = Profile::kSortie) {
         g_ourHead = legacy::angleFromWord((int16)0x4000);
         rebuildOrientation();
     }
+    if (profile == Profile::kLong && tick == 1) {
+        /* Route + recovery base seeds, applied after tick 0's mission-init
+         * block (it rewrites waypoints/plane flags). At ~2.6 map words per
+         * tick nothing beyond a few thousand words is reachable inside the
+         * run, so every leg target sits on the route scale: leg 1 north,
+         * leg 2 east. Two qualifying fields (flags 0x601) make the
+         * per-frame nearest-base scan retarget mid-route: base 5 wins the
+         * early cruise, base 4 overtakes it as leg 2 runs east and becomes
+         * the waypoint-3 recoveryApproach target at tick 2000. */
+        waypoints[1].mapX = 0x0800;
+        waypoints[1].mapY = 0x7000;
+        waypoints[2].mapX = 0x4000;
+        waypoints[2].mapY = 0x6800;
+        g_planeTable.planes[4].mapX = 0x1400;
+        g_planeTable.planes[4].mapY = 0x6400;
+        g_planeTable.planes[4].active = 1;
+        g_planeTable.planes[4].flags = 0x601;
+        g_planeTable.planes[5].mapX = 0x0600;
+        g_planeTable.planes[5].mapY = 0x7800;
+        g_planeTable.planes[5].active = 1;
+        g_planeTable.planes[5].flags = 0x601;
+    }
     if (profile == Profile::kLand && tick == 0) {
         /* Pretend both targets were destroyed — the recovery leg is the path
          * under test, not the kill chain that sets these flags. Applied after
@@ -1190,7 +1303,7 @@ inline void runTick(int tick, Profile profile = Profile::kSortie) {
      * updateTargetLock() — the air-target scan that acquires locks —
      * lives inside it. Without this the lock path never runs in the
      * harness (g_targetRange stays 0 the whole sortie). */
-    if (profile == Profile::kCombat) renderFrame();
+    if (profile == Profile::kCombat || profile == Profile::kLong) renderFrame();
     /* Mission init ran on tick 0 (deterministic seed via g_inputDisabled);
      * enable the scripted inputs from here on. */
     if (tick == 0) g_inputDisabled = 0;
