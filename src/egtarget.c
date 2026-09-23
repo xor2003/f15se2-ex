@@ -596,7 +596,7 @@ void drawWorldEffects(void) {
             wpEntry = findWaypointEntry(f15::math::legacy::mapWordX(g_hitMapPos), f15::math::legacy::mapWordY(g_hitMapPos));
             if (wpEntry != -1 && !(g_planeTable.planes[wpEntry].flags & 0x80)) {
                 pointX = (int16)(g_nearestTileObj->x >> 5);
-                pointY = 0x8000 - (int16)(g_nearestTileObj->y >> 5);
+                pointY = MAP_Y_MIRROR - (int16)(g_nearestTileObj->y >> 5);
 
                 if (f15::math::legacy::mapRangeDelta(f15::math::legacy::mapWordX(g_hitMapPos) - pointX, f15::math::legacy::mapWordY(g_hitMapPos) - pointY) <
                         groundHitRadiusMap(g_planeTable.planes[wpEntry].nameIndex) &&

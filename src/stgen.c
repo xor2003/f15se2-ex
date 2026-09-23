@@ -20,6 +20,31 @@
 #include <string.h>
 #include <stdio.h>
 
+/* World-generation geometry constants. */
+enum {
+    /* Fine-Y correction applied to a base's map anchor when the record lacks
+     * the large (0x200) flag — small bases sit 0x708 fine units off anchor. */
+    kSmallBaseFineYOfs = 0x708,
+    /* approxDistance words per mission-length unit: the range scale the
+     * spacing checks convert through. */
+    kMissionRangeShift = 6,
+    /* missionDistAccum carries leg lengths at 16x the stored distance. */
+    kDistAccumShift = 4,
+    /* missionCode&0x10 targets snap to 1024-word cell centers. */
+    kTargetCellShift = 10,
+    kTargetCellHalf = 0x200,
+    /* positionUnit's spawn placement offset from the site anchor. */
+    kUnitSpawnOfsX = 9,
+    kUnitSpawnOfsY = -12,
+    /* Spawn altitude by base-size flag (worldObjects targetFlags & 0x200). */
+    kLargeBaseSpawnAlt = 140,
+    kBaseSpawnAlt = 12,
+    /* Spawned units always face the same heading. */
+    kUnitSpawnHeading = 0xfc00,
+    /* fuel = spec range << 13 / maxSpeed — the range->fuel scale. */
+    kFuelRangeShift = 13,
+};
+
 /* Private helpers for this translation unit. */
 void runGenerator();
 int16 isUsableCampaignTargetSlot(int16 targetIdx);
@@ -56,7 +81,7 @@ void runGenerator() {
     if (isUsableCampaignTargetSlot(customPrimaryTarget) &&
         isUsableCampaignTargetSlot(customSecondaryTarget)) {
         const int sameTarget = customPrimaryTarget == customSecondaryTarget;
-        const int tooFar = (itemDistance(customPrimaryTarget, customSecondaryTarget) >> 6) > 200;
+        const int tooFar = (itemDistance(customPrimaryTarget, customSecondaryTarget) >> kMissionRangeShift) > 200;
         const int sameModel = gameData->theater != THEATER_DS &&
             worldObjects[customPrimaryTarget].objectIdx == worldObjects[customSecondaryTarget].objectIdx;
         if (sameTarget || tooFar || sameModel) customSecondaryTarget = -1;
@@ -105,7 +130,7 @@ restart_40a8:
                     targets[1].targetIdx = findOrPlaceItem(randIdx, randY, 2);
                 } while ((targets[1].targetIdx == -1) || ((missionPick == 0 && (worldObjects[targets[1].targetIdx].unitType == 0))));
             }
-        } while ((targets[0].targetIdx == targets[1].targetIdx) || (itemDistance(targets[0].targetIdx, targets[1].targetIdx) >> 6) > 200);
+        } while ((targets[0].targetIdx == targets[1].targetIdx) || (itemDistance(targets[0].targetIdx, targets[1].targetIdx) >> kMissionRangeShift) > 200);
     } while ((gameData->theater != THEATER_DS) && (worldObjects[targets[0].targetIdx].objectIdx == worldObjects[targets[1].targetIdx].objectIdx));
     for (slot = 0; slot < 2; slot++) {
         baseDist[slot] = 0x7fff;
@@ -121,7 +146,7 @@ restart_40a8:
         }
     }
     if (gameData->theater != THEATER_DS) {
-        totalDist = (itemDistance(targets[0].targetIdx, targets[1].targetIdx) >> 6) + (baseDist[0] >> 6) + (baseDist[1] >> 6);
+        totalDist = (itemDistance(targets[0].targetIdx, targets[1].targetIdx) >> kMissionRangeShift) + (baseDist[0] >> kMissionRangeShift) + (baseDist[1] >> kMissionRangeShift);
         if (((attempt + 740 < totalDist) || (totalDist < minDist)) && ((worldObjects[targets[0].baseIdx].targetFlags & 0x200) == 0)) {
             minDist -= 5 - difficultySaved;
             goto restart_40a8;
@@ -200,7 +225,7 @@ restart_40a8:
             }
         }
     }
-    targets[0].distance = missionDistAccum >> 4;
+    targets[0].distance = missionDistAccum >> kDistAccumShift;
 counterMore1k:
     baseXPrecise = (uint32)(worldObjects[targets[0].baseIdx].x_coord) << WORLD_COORD_SHIFT;
     /*
@@ -214,7 +239,7 @@ counterMore1k:
     6) DX:AX = 7:a800 (501760 = 15680 << 5)
     7) DX:AX = 7:a0f8 (499960 = 501760 - 1800)
     */
-    baseYPrecise = ((0x8000 - (int32)(worldObjects[targets[0].baseIdx].y_coord)) << WORLD_COORD_SHIFT) - (int32)((worldObjects[targets[0].baseIdx].targetFlags & 0x200) ? 0 : 0x708);
+    baseYPrecise = ((MAP_Y_MIRROR - (int32)(worldObjects[targets[0].baseIdx].y_coord)) << WORLD_COORD_SHIFT) - (int32)((worldObjects[targets[0].baseIdx].targetFlags & 0x200) ? 0 : kSmallBaseFineYOfs);
     missionTargetX = worldObjects[targets[0].targetIdx].x_coord;
     missionTargetY = worldObjects[targets[0].targetIdx].y_coord;
     missionMidX = (worldObjects[targets[0].baseIdx].x_coord / 2) + (missionTargetX / 2);
@@ -228,8 +253,8 @@ counterMore1k:
         missionTarget2Y += (gameRand15() & 0x1000) - 0x800;
     }
     if (targets[0].missionCode & 0x10) {
-        missionTargetX = ((missionTargetX >> 0xa) << 0xa) + 0x200;
-        missionTargetY = ((missionTargetY >> 0xa) << 0xa) + 0x200;
+        missionTargetX = ((missionTargetX >> kTargetCellShift) << kTargetCellShift) + kTargetCellHalf;
+        missionTargetY = ((missionTargetY >> kTargetCellShift) << kTargetCellShift) + kTargetCellHalf;
     }
     for (idx = 0; idx < flightUnitCount - 4; idx++) {
         if ((flightUnits[idx].flags & SIMOBJ_WAYPOINTED) != 0) {
@@ -359,7 +384,7 @@ static int16 findCampaignFallbackTargetSlot(int16 primaryTargetIdx) {
     for (targetIdx = FIRST_REAL_ITEM; targetIdx < readItemSize; targetIdx++) {
         if (targetIdx != primaryTargetIdx &&
             worldObjects[targetIdx].objectIdx != worldObjects[primaryTargetIdx].objectIdx &&
-            (itemDistance(primaryTargetIdx, targetIdx) >> 6) <= 200 &&
+            (itemDistance(primaryTargetIdx, targetIdx) >> kMissionRangeShift) <= 200 &&
             isUsableCampaignTargetSlot(targetIdx)) {
             return targetIdx;
         }
@@ -369,9 +394,9 @@ static int16 findCampaignFallbackTargetSlot(int16 primaryTargetIdx) {
 
 int16 findOrPlaceItem(int16 wx, int16 wy, int16 slot) {
     int16 objIdx;
-    if ((nearestTerrainResult = findNearestTerrain((int32)wx << WORLD_COORD_SHIFT, (0x8000 - (int32)wy) << WORLD_COORD_SHIFT)) != NULL) {
+    if ((nearestTerrainResult = findNearestTerrain((int32)wx << WORLD_COORD_SHIFT, (MAP_Y_MIRROR - (int32)wy) << WORLD_COORD_SHIFT)) != NULL) {
         wx = nearestTerrainResult->worldX >> WORLD_COORD_SHIFT;
-        wy = -((nearestTerrainResult->worldY >> WORLD_COORD_SHIFT) - 0x8000);
+        wy = -((nearestTerrainResult->worldY >> WORLD_COORD_SHIFT) - MAP_Y_MIRROR);
         if (isCampaignRecoveryLocation(wx, wy)) return -1;
         for (objIdx = FIRST_REAL_ITEM; objIdx < readItemSize; objIdx++) {
             if (wx == worldObjects[objIdx].x_coord && wy == worldObjects[objIdx].y_coord) return objIdx;
@@ -393,18 +418,18 @@ int16 itemDistance(int16 idx1, int16 idx2) {
 void positionUnit(int16 unit, int16 loc) {
     int16 planeType;
     planeType = flightUnits[unit].planeType;
-    flightUnits[unit].x = worldObjects[loc].x_coord + 9;
-    flightUnits[unit].y = worldObjects[loc].y_coord - 12;
+    flightUnits[unit].x = worldObjects[loc].x_coord + kUnitSpawnOfsX;
+    flightUnits[unit].y = worldObjects[loc].y_coord + kUnitSpawnOfsY;
     flightUnits[unit].xPrecise = (int32)flightUnits[unit].x << WORLD_COORD_SHIFT;
     flightUnits[unit].yPrecise = (int32)flightUnits[unit].y << WORLD_COORD_SHIFT;
-    flightUnits[unit].altitude = worldObjects[loc].targetFlags & 0x200 ? 140 : 12;
+    flightUnits[unit].altitude = worldObjects[loc].targetFlags & 0x200 ? kLargeBaseSpawnAlt : kBaseSpawnAlt;
     flightUnits[unit].maxSpeed = planes[planeType].maxSpeed;
-    flightUnits[unit].heading = 0xfc00;
+    flightUnits[unit].heading = kUnitSpawnHeading;
     flightUnits[unit].pitch = 0;
     flightUnits[unit].roll = 0;
     flightUnits[unit].flags |= SIMOBJ_ACTIVE | SIMOBJ_ALIVE | SIMOBJ_CLIMBOUT;
     flightUnits[unit].waypointIdx = loc;
-    flightUnits[unit].fuel = ((int32)planes[planeType].range << 0xd) / flightUnits[unit].maxSpeed;
+    flightUnits[unit].fuel = ((int32)planes[planeType].range << kFuelRangeShift) / flightUnits[unit].maxSpeed;
 }
 
 void parseWorld(const char *filename) {

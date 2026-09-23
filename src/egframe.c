@@ -202,7 +202,7 @@ void updateFrame(void) {
         const int cy = clampRange(f15::math::legacy::mapWordY(pos), 0x200, 0x7d00);
         if (cy != f15::math::legacy::mapWordY(pos)) {
             g_viewY_ = (int16)cy;
-            g_ViewY = viewY((int32)(0x8000 - cy) << 5);
+            g_ViewY = viewY((int32)(MAP_Y_MIRROR - cy) << 5);
         }
     }
 
@@ -437,7 +437,7 @@ skip_target_section:
                 g_velocity = {};
                 g_setThrust = {};
                 g_ViewX = viewX((int32)g_planeTable.planes[g_closestThreatIndex].mapX << 5);
-                g_ViewY = viewY((int32)(0x8000 - g_planeTable.planes[g_closestThreatIndex].mapY) << 5);
+                g_ViewY = viewY((int32)(MAP_Y_MIRROR - g_planeTable.planes[g_closestThreatIndex].mapY) << 5);
             } else {
                 hudMessage("Automatic Landing Engaged");
                 g_autoLandingActive = 1;
@@ -450,7 +450,7 @@ skip_target_section:
                     g_altitude, g_groundAltitude, i);
                 using HorizontalMath = f15::math::HorizontalMath<f15::math::GameBackend>;
                 g_ViewX = HorizontalMath::approach(g_ViewX, viewX((int32)g_planeTable.planes[g_closestThreatIndex].mapX << 5), i);
-                g_ViewY = HorizontalMath::approach(g_ViewY, viewY((int32)(0x8000 - g_planeTable.planes[g_closestThreatIndex].mapY) << 5), i);
+                g_ViewY = HorizontalMath::approach(g_ViewY, viewY((int32)(MAP_Y_MIRROR - g_planeTable.planes[g_closestThreatIndex].mapY) << 5), i);
             }
         }
     } else {
@@ -859,10 +859,10 @@ void initMissionStrings() {
     }
     if (gameData->difficulty != 0) { // 1e6c
         g_ViewX = viewX(((int32)(g_planeTable.planes[g_targetSlots[0].viewIndex].mapX) << 5) + 2);
-        g_ViewY = viewY((0x8000 - (int32)(g_planeTable.planes[g_targetSlots[0].viewIndex].mapY)) << 5);
+        g_ViewY = viewY((MAP_Y_MIRROR - (int32)(g_planeTable.planes[g_targetSlots[0].viewIndex].mapY)) << 5);
     } else {
         g_ViewX = viewX(((int32)waypoints[0].mapX << 5) + 2);
-        g_ViewY = viewY((0x8000 - (int32)waypoints[0].mapY) << 5);
+        g_ViewY = viewY((MAP_Y_MIRROR - (int32)waypoints[0].mapY) << 5);
     }
     const auto pos = f15::math::legacy::mapPosition(g_ViewX, g_ViewY);
     g_viewX_ = f15::math::legacy::mapWordX(pos);
@@ -878,7 +878,7 @@ void findWaypointFeatures() {
         if (g_targetSlots[slot].flags >> 8 != 0) {
             g_nearestTileObj = findNearestTileObject(
                 (uint32)(uint16)g_planeTable.planes[g_targetSlots[slot].planeIndex].mapX << 5,
-                (0x8000L - (uint32)(uint16)g_planeTable.planes[g_targetSlots[slot].planeIndex].mapY) << 5);
+                (MAP_Y_MIRROR - (uint32)(uint16)g_planeTable.planes[g_targetSlots[slot].planeIndex].mapY) << 5);
             if (g_nearestTileObj != 0) {
                 g_shapeTargetCategory[nameIdx] = g_shapeTargetCategory[g_nearestTileObj->id];
                 strcpy(g_targetNameTable[nameIdx], g_targetNameTable[g_nearestTileObj->id]);

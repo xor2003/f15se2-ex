@@ -1,62 +1,29 @@
 #include "stmath.h"
 #include "const.h"
+#include "egmath.h"
+#include "fixed_math.hpp"
 
 #include <stdlib.h>
 
 // debugcom: custom_manhattan_distance
+/* Delegates to f15::fixed::rangeApprox — the same max+min/2 formula with the
+ * 0x7fff cap and the abs(-32768) quirk. The int16 result cast keeps the DOS
+ * word-store wrap on the negative double--32768 edge (stmath_kernel_tests
+ * pins the equivalence over the full domain). */
 int16 approxDistance(int16 dx, int16 dy) {
-    int32 dist;
-    dx = abs16Compat(dx);
-    dy = abs16Compat(dy);
-    dist = (dx > dy) ? (int32)(dy >> 1) + (int32)dx : (int32)(dx >> 1) + (int32)dy;
-    if (dist > 0x7fff) {
-        dist = 0x7fff;
-    }
-    return dist;
+    return (int16)f15::fixed::rangeApprox(dx, dy);
 }
 
+/* Delegates to f15::fixed::computeBearing — the same octant fold, 2^14 ratio
+ * and 0x1333/0xb00 polynomial approximation as the egame bearing helper. */
 int16 calcBearing(int16 dx, int16 dy) {
-    int16 angle, result;
-    int32 ratio;
-    int16 divisor, swapped, quotient;
-    if (dx == 0) {
-        return (dy > 0) ? 0 : BEARING_SOUTH;
-    }
-    if (dy == 0) {
-        return (dx > 0) ? BEARING_EAST : BEARING_WEST;
-    }
-    if (abs16Compat(dx) > abs16Compat(dy)) {
-        ratio = (int32)abs16Compat(dy) << 0xe;
-        divisor = abs16Compat(dx);
-        swapped = 1;
-    } else {
-        ratio = (int32)abs16Compat(dx) << 0xe;
-        divisor = abs16Compat(dy);
-        swapped = 0;
-    }
-    quotient = ratio / (int32)divisor;
-    angle = ((0x2800 - (((int32)abs((0x1333 - quotient)) * (int32)0xb00) >> 0xe)) * (int32)quotient) >> 0xe;
-    if (dx > 0) {
-        if (dy > 0) {
-            result = swapped != 0 ? BEARING_EAST - angle : angle;
-        } else {
-            result = (swapped != 0) ? angle + BEARING_EAST : BEARING_SOUTH - angle;
-        }
-    } else {
-        if (dy > 0) {
-            result = (swapped != 0) ? angle + BEARING_WEST : -angle;
-        } else {
-            result = (swapped != 0) ? BEARING_WEST - angle : angle + BEARING_SOUTH;
-        }
-    }
-    return result;
+    return f15::fixed::computeBearing(dx, dy).signedRaw();
 }
 
+/* Delegates to clampRange — same clamp including the <= -0x4000 wrap-to-max
+ * quirk. */
 int16 clampValue(int16 val, int16 lo, int16 hi) {
-    if (val > hi) return hi;
-    if (val >= lo) return val;
-    if (val > -16384) return lo;
-    return hi;
+    return clampRange(val, lo, hi);
 }
 
 uint32 scaleCoordByLevel(int16 level, uint32 coord) {

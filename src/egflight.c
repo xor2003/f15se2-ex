@@ -1128,7 +1128,7 @@ void renderFrame() {
         g_viewPitch = f15::math::legacy::angleFromWord((std::int16_t)0xf400);
         g_viewRoll = {};
         g_camEyeX = (int32)g_crashCamX << 5;
-        g_camEyeY = (0x8000 - (int32)g_crashCamY) << 5;
+        g_camEyeY = (MAP_Y_MIRROR - (int32)g_crashCamY) << 5;
         g_camEyeZ = g_crashCamZ;
         break;
     default:

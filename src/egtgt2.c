@@ -199,9 +199,9 @@ int32 rotateVectorComponent(int16 axis, int16 vecX, int16 vecY, int16 vecZ) {
 int16 findWaypointEntry(int16 mapX, int16 mapY) {
     int16 idx;
 
-    if ((g_nearestTileObj = findNearestTileObject((int32)mapX << 5, (0x8000L - (int32)mapY) << 5))) {
+    if ((g_nearestTileObj = findNearestTileObject((int32)mapX << 5, (MAP_Y_MIRROR - (int32)mapY) << 5))) {
         mapX = g_nearestTileObj->x >> 5;
-        mapY = -((int16)(g_nearestTileObj->y >> 5) - 0x8000);
+        mapY = -((int16)(g_nearestTileObj->y >> 5) - MAP_Y_MIRROR);
         for (idx = 1; idx < g_planeCount; idx++) {
             if (g_planeTable.planes[idx].mapX == mapX && g_planeTable.planes[idx].mapY == mapY) {
                 return idx;

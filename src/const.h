@@ -64,6 +64,9 @@
 #define FIRST_REAL_ITEM 3
 #define WORLD_COORD_SHIFT 5
 #define DEFAULT_FUEL 19999
+/* World-file Y grows opposite the internal map Y axis; world coords convert
+ * as MAP_Y_MIRROR - y (egame: the map-Y bound snap uses the same mirror). */
+#define MAP_Y_MIRROR 0x8000
 
 /* bearing constants (binary angle measurement) */
 #define BEARING_NORTH 0x0000

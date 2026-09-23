@@ -33,6 +33,9 @@ ALLOWED = {
     "src/egui.c",
     # The world load/save seam seeds the SimObject fine shadow from packed fields.
     "src/worldxfer.c",
+    # START-program word-domain kernels delegate to the shared f15::fixed
+    # formulas; generation output is packed words, not typed sim state.
+    "src/stmath.c",
 }
 ACCESS = re.compile(r"F15_MATH_BOUNDARY_ACCESS|\b(?:Control|Altitude|Horizontal|Airspeed|Propulsion|Map)?Boundary\s*<|math::legacy|\bfixed\s*::|"
                     r'#\s*include\s*[<"](?:math/)?(?:boundary|control_boundary|altitude_boundary|horizontal_boundary|airspeed_boundary|propulsion_boundary|legacy_rotation|legacy_flight_control|legacy_altitude|legacy_horizontal|legacy_airspeed|legacy_propulsion)\.hpp[>"]|'

@@ -615,7 +615,7 @@ void destroyGroundTarget(int16 planeIdx) {
 
         g_nearestTileObj = findNearestTileObject(
             (int32)g_planeTable.planes[planeIdx].mapX << 5,
-            (0x8000L - (int32)g_planeTable.planes[planeIdx].mapY) << 5);
+            (MAP_Y_MIRROR - (int32)g_planeTable.planes[planeIdx].mapY) << 5);
 
         if (planeIdx != 0) {
             if (g_planeTable.planes[planeIdx].active == 0) {
