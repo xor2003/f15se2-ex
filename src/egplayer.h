@@ -25,6 +25,12 @@
 extern "C" {
 #endif
 
+/* Authoritative per-pilot threat lamp state, before the blink phase. */
+enum PlayerThreatWarning {
+    PLAYER_WARN_RADAR = 1,
+    PLAYER_WARN_IR = 2
+};
+
 /* commData tail fields that finalizeMission() writes per pilot; swapped as a
  * unit so each remote pilot's outcome lands in their own context. */
 struct PlayerCommTail {
@@ -114,6 +120,7 @@ struct PlayerSim {
      * client can fire the HUD effect exactly once per damage event (the flag
      * itself is a transient the headless server must release each tick). */
     int16 damageSeq;
+    int16 threatWarningBits;
     int16 wreckX, wreckY, wreckAlt, wreckFallVel;
     int16 crashCamX, crashCamY, crashCamZ;
     int16 hitMapX, hitMapY, hitAlt;

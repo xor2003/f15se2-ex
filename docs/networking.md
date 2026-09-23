@@ -1,5 +1,8 @@
 # F-15 Multiplayer + AI Integration Plan
 
+This is a design plan, including unimplemented future work. For current build
+instructions, review order and limitations, see [the review guide](netcode-review.md).
+
 ## 1. Goals
 
 Add multiplayer and external AI/agent support while preserving the original simulation behavior and minimizing invasive changes to the decompiled code.

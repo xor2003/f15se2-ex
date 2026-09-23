@@ -10,6 +10,10 @@
 
 #include "comm.h"
 #include "egdata.h"
+#include "egcode.h"
+#include "eginput.h"
+#include "input.h"
+#include "slot.h"
 #include "egplayer.h"
 #include "egtypes.h"
 #include "inttype.h"
@@ -139,6 +143,7 @@
     X(ejectState, g_ejectState)                       \
     X(ejectPending, g_ejectPending)                   \
     X(damageTakenFlag, g_damageTakenFlag)             \
+    X(threatWarningBits, g_threatWarningBits)         \
     X(damageSeq, g_damageSeq)                         \
     X(wreckX, g_wreckX)                               \
     X(wreckY, g_wreckY)                               \
@@ -303,11 +308,7 @@ void playerInitCtx(struct PlayerSim *p) { memset(p, 0, sizeof(*p)); }
 
 /* ---- input seam ---- */
 
-extern int kbhit(void);      /* eginput.c */
-extern uint16 egReadKey(void);
-extern int input_preferGamepad(void);
-extern void readCalibratedJoystick(void);
-extern int misc_readJoystick(int16 axis); /* joystick.c - matches slot.h */
+/* Use public declarations: return types are part of MSVC mangling. */
 
 static int localKeyWaiting(void *ctx) {
     (void)ctx;

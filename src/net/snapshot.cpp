@@ -273,6 +273,7 @@ static void encPlayerBlock(struct NetWriter *w, const struct PlayerSim *c) {
     s.wreckX = c->wreckX;
     s.wreckY = c->wreckY;
     s.wreckAlt = c->wreckAlt;
+    s.threatWarningBits = (uint8_t)c->threatWarningBits;
     encPlayerState(w, &s);
 }
 
@@ -397,7 +398,7 @@ void netObsBuild(struct NetWriter *w, const struct PlayerSim *ctx,
         if (i == ownSlot || !(o->flags.b[0] & 2))
             continue;
         if (!obsFull) {
-            if (o->speed == 0)
+            if (o->speed == 0 && !(o->flags.b[1] & SIMFLAG_B1_REMOTE_PLAYER))
                 continue;
             projectMapPoint(o->posX, o->posY);
             if (g_projDepth == -1)
@@ -853,6 +854,7 @@ static void applyPlayerGlobals(const struct NetPlayerState *s) {
     g_wreckX = s->wreckX;
     g_wreckY = s->wreckY;
     g_wreckAlt = s->wreckAlt;
+    g_threatWarningBits = s->threatWarningBits;
 }
 
 /* Public wrappers (snapshot.h): single player-block encode/apply, used by

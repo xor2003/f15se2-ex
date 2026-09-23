@@ -13,10 +13,9 @@
 #include <stdint.h>
 
 #define F15_NET_MAGIC 0x4631354d /* 'F15M' */
-/* v4: F15_MAX_MAP_EVENTS grew (shared decoy pool sized for multiplayer) -
- * any layout change MUST bump this or mixed builds pass the handshake then
- * decode incompatible player blocks. */
-#define F15_NET_VERSION 4
+/* v5: player blocks append per-pilot radar/IR warning bits.
+ * Any layout change MUST bump this to reject incompatible peers. */
+#define F15_NET_VERSION 5
 #define F15_NET_DEFAULT_PORT 27015 /* --connect with no :port lands here */
 #define F15_NET_TICKRATE 15 /* legacy sim rate: g_frameRateScaling */
 #define F15_MAX_PLAYERS 8
@@ -194,6 +193,7 @@ struct NetPlayerState {
      * (egsys.c) tween these, so they must be authoritative too. */
     int16_t crashX, crashY, crashZ;
     int16_t wreckX, wreckY, wreckAlt;
+    uint8_t threatWarningBits; /* PlayerThreatWarning bits; server lock result */
 };
 
 struct NetSimObject {

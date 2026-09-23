@@ -8,6 +8,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <atomic>
+#include <mutex>
 #include <deque>
 #include <unordered_map>
 #include <vector>
@@ -19,9 +21,47 @@
 
 namespace {
 
+/* GNS can invoke its debug callback under an internal lock on its service
+ * thread. Never do terminal/file IO or wait for our own mutex there. Keep a
+ * bounded queue and drain a small batch from poll(), outside GNS calls. */
+struct DebugMessage {
+    int type;
+    char text[1024];
+};
+static std::mutex debugMutex;
+static DebugMessage debugMessages[32];
+static unsigned debugHead, debugCount;
+static std::atomic<unsigned> debugDropped{0};
+
 static void gnsDebugSpew(ESteamNetworkingSocketsDebugOutputType type,
                          const char *msg) {
-    fprintf(stderr, "GNS[%d] %s", (int)type, msg);
+    std::unique_lock<std::mutex> lock(debugMutex, std::try_to_lock);
+    if (!lock.owns_lock() || debugCount == 32) {
+        debugDropped.fetch_add(1, std::memory_order_relaxed);
+        return;
+    }
+    DebugMessage &entry = debugMessages[(debugHead + debugCount) % 32];
+    entry.type = (int)type;
+    snprintf(entry.text, sizeof(entry.text), "%.*s", (int)sizeof(entry.text) - 1, msg);
+    ++debugCount;
+}
+
+static void drainDebugMessages(void) {
+    for (int i = 0; i < 8; ++i) {
+        DebugMessage entry;
+        {
+            std::unique_lock<std::mutex> lock(debugMutex, std::try_to_lock);
+            if (!lock.owns_lock() || !debugCount)
+                break;
+            entry = debugMessages[debugHead];
+            debugHead = (debugHead + 1) % 32;
+            --debugCount;
+        }
+        fprintf(stderr, "GNS[%d] %s\n", entry.type, entry.text);
+    }
+    const unsigned dropped = debugDropped.exchange(0, std::memory_order_relaxed);
+    if (dropped)
+        fprintf(stderr, "GNS: dropped %u debug messages (log queue busy/full)\n", dropped);
 }
 
 struct QueuedMsg {
@@ -117,6 +157,7 @@ class GnsTransport final : public NetTransport {
     void poll() override {
         if (iface_)
             iface_->RunCallbacks();
+        drainDebugMessages();
     }
 
     bool recv(NetRecv *out) override {

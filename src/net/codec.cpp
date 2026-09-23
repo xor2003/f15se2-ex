@@ -144,6 +144,7 @@ void encPlayerState(struct NetWriter *w, const struct NetPlayerState *v) {
     nwI16(w, v->wreckX);
     nwI16(w, v->wreckY);
     nwI16(w, v->wreckAlt);
+    nwU8(w, v->threatWarningBits);
 }
 
 void decPlayerState(struct NetReader *r, struct NetPlayerState *v) {
@@ -207,6 +208,7 @@ void decPlayerState(struct NetReader *r, struct NetPlayerState *v) {
     v->wreckX = nrI16(r);
     v->wreckY = nrI16(r);
     v->wreckAlt = nrI16(r);
+    v->threatWarningBits = nrU8(r);
 }
 
 void encSimObject(struct NetWriter *w, const struct NetSimObject *v) {

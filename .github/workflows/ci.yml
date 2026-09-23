@@ -21,6 +21,12 @@ jobs:
             build: cmake --build build -j$(nproc)
             test: ctest --test-dir build --output-on-failure
 
+          - name: Linux GCC multiplayer
+            os: ubuntu-latest
+            configure: cmake -S . -B build -DF15_NET=ON
+            build: cmake --build build -j$(nproc)
+            test: ctest --test-dir build --output-on-failure
+
           - name: Windows MSVC x64
             os: windows-latest
             configure: cmake -S . -B build -G "Visual Studio 18 2026" -A x64
@@ -41,7 +47,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            cmake \
+            cmake libprotobuf-dev protobuf-compiler libssl-dev \
             libx11-dev libxext-dev libxcursor-dev libxi-dev libxfixes-dev \
             libxrandr-dev libxss-dev libxtst-dev \
             libwayland-dev wayland-protocols \

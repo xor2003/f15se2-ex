@@ -63,7 +63,7 @@ static void netPanelReconcile(void) {
     static int primed;
     static int16 prevSel, prevAmmo[3], prevGun;
     static int prevFuel, prevThrust, prevPanel;
-    int i, chg, inboundRdr = 0, inboundIr = 0;
+    int i, chg;
 
     if (g_hudVisible == 0) {
         primed = 0; /* every bake early-outs; force a full redo once visible */
@@ -83,27 +83,16 @@ static void netPanelReconcile(void) {
     if (!primed || prevPanel != g_activePanelMode)
         refreshActivePanel(g_activePanelMode);
 
-    /* indicator lamps: gear + brakes mirror keyDispatch's epilogue; the R/I
-     * threat pair flashes in updateThreatTargeting when a locked shot is
-     * inbound - derive from replicated threat projectiles (slots 0-7) the
-     * same way (weaponClass>0 = radar-guided, else IR). */
+    /* Gear/brakes mirror keyDispatch. R/I comes from this pilot's server
+     * targeting pass, not from the existence of missiles anywhere in the world. */
     switchIndicatorColor(3, (*(char *)&g_playerPlaneFlags & 1) ? 4
                            : (g_knots < 250 || (frameTick & 1)) ? 2 : 10);
     switchIndicatorColor(2, (*(char *)&g_playerPlaneFlags & 8) ? 14 : 2);
     switchIndicatorColor(0, 8);
     switchIndicatorColor(1, 8);
-    for (i = 0; i < 8; i++) {
-        const struct Projectile *p = &g_projectiles[i];
-        if (p->ttl == 0)
-            continue;
-        if (p->specIdx >= 0 && sams[p->specIdx].weaponClass > 0)
-            inboundRdr = 1;
-        else
-            inboundIr = 1;
-    }
-    if (inboundRdr && !(frameTick & 2))
+    if ((g_threatWarningBits & PLAYER_WARN_RADAR) && !(frameTick & 2))
         switchIndicatorColor(0, 0xe);
-    if (inboundIr && (frameTick & 2))
+    if ((g_threatWarningBits & PLAYER_WARN_IR) && (frameTick & 2))
         switchIndicatorColor(1, 0xc);
 
     prevSel = missileSpecIndex;
@@ -119,8 +108,12 @@ static void netPanelReconcile(void) {
 /* Largest payload a client->server message carries (inputs are tiny; this is
  * generous headroom so the stack buffer never truncates a writer). */
 #define NETCLIENT_MAX_PAYLOAD 4096
-/* Snapshot-arrival pacing sanity bounds: 20ms (2x tick) to 500ms. Gaps
- * outside this window are bursts/stalls, not the steady interval. */
+/* Rendering and network input have independent clocks. Commands bypass the
+ * axes-only deadline, as do fire-button edges; idle axes traffic is bounded
+ * even without vsync. */
+#define INPUT_INTERVAL_NS (1000000000ULL / 30)
+#define RENDER_INTERVAL_NS (1000000000ULL / 120)
+/* Snapshot-arrival pacing bounds; bursts/stalls do not train the estimate. */
 #define SNAP_INTERVAL_MIN_NS 20000000ULL
 #define SNAP_INTERVAL_MAX_NS 500000000ULL
 
@@ -230,7 +223,7 @@ static int doHandshake(const char *name) {
 static void gatherInput(struct NetInput *in) {
     uint8_t jx = 0x80, jy = 0x80;
     memset(in, 0, sizeof(*in));
-    in->clientSeq = ++g_clientSeq;
+    /* Assign the sequence only when this input is transmitted. */
 
     input_setMode(INPUT_MODE_FLIGHT);
     input_pumpEvents();
@@ -316,13 +309,20 @@ int netClientMain(const char *hostPort, const char *name) {
         /* Snapshot-arrival pacing for render interpolation (replaces the local
          * sim step as the tween boundary). */
         uint64_t snapNs = 0, snapIntervalNs = 1000000000ULL / F15_NET_TICKRATE;
+        uint64_t nextInputNs = 0;
+        uint8_t lastSentButtons = 0;
         int snapsSeen = 0;
         while (!g_missionOver) {
             NetRecv ev;
             struct NetInput in;
+            const uint64_t frameStartNs = SDL_GetTicksNS();
 
             gatherInput(&in);
-            {
+            const uint64_t inputNs = SDL_GetTicksNS();
+            if (in.nCmds > 0 || in.buttons != lastSentButtons || inputNs >= nextInputNs) {
+                in.clientSeq = ++g_clientSeq;
+                nextInputNs = inputNs + INPUT_INTERVAL_NS;
+                lastSentButtons = in.buttons;
                 uint8_t buf[NET_MSG_HEADER_SIZE + 64];
                 struct NetWriter w;
                 nwInit(&w, buf, sizeof(buf));
@@ -407,6 +407,11 @@ int netClientMain(const char *hostPort, const char *name) {
                     netRenderRestore();
                 debugDumpFrame();
             }
+            /* Vsync may already have paced the frame. Otherwise yield instead
+             * of competing with GNS service threads in an unrestricted loop. */
+            const uint64_t elapsedNs = SDL_GetTicksNS() - frameStartNs;
+            if (elapsedNs < RENDER_INTERVAL_NS)
+                SDL_DelayNS(RENDER_INTERVAL_NS - elapsedNs);
         }
     }
     restoreTimerIrqHandler();

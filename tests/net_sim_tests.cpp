@@ -282,14 +282,17 @@ static void test_obs_scope_filter(void) {
     CHECK(findContact(&obs, NET_ID_PLAYER_BASE + 0) < 0);
 }
 
-/* Radar rule parity: a parked aircraft with speed 0 is invisible. */
+/* Human radar shows stationary remote pilots, but not stationary world aircraft. */
 static void test_obs_skips_stationary(void) {
     struct NetPlayerState own;
     struct NetObs obs;
     setupWorld();
     parkPlayer(1, 0x4000, 0x4000 - 0x300, 0x90, 0);
+    g_simObjects[0] = g_simObjects[WORLD_OBJS + 1];
+    g_simObjects[0].flags.b[1] = 0; /* stationary world aircraft */
     buildAndDecode(0, 0, &own, &obs);
-    CHECK(findContact(&obs, NET_ID_PLAYER_BASE + 1) < 0);
+    CHECK(findContact(&obs, NET_ID_PLAYER_BASE + 1) >= 0);
+    CHECK(findContact(&obs, 0) < 0);
 }
 
 /* --obs-full bypasses the scope test (privileged/omniscient). */

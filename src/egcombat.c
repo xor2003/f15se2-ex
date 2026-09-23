@@ -6,6 +6,7 @@
 #include "egframe.h"
 #include "egkeys.h"
 #include "egmath.h"
+#include "egplayer.h"
 #include "egtacmap.h"
 #include "egtarget.h"
 #include "egthreat.h"
@@ -167,6 +168,7 @@ void updateThreatTargeting(void) {
     int16 viewX, viewY, alt0, bear, wpX, wpY, ring, acq, wp;
     uint16 best, dist;
 
+    g_threatWarningBits = 0;
     switchIndicatorColor(0, 8);
     switchIndicatorColor(1, 8);
     if (mapEvents[0].ttl != 0) {
@@ -297,6 +299,12 @@ void updateThreatTargeting(void) {
 
             if (locked != 0 && slot < 8 &&
                 abs(g_acqAimY - g_projectiles[slot].worldX) < 0x1000 && mapEvents[0].ttl == 0) {
+                /* Ownership was checked above. Replicate the same lock,
+                 * bearing and decoy conditions to this pilot's cockpit. */
+                if (mode <= 0)
+                    g_threatWarningBits |= PLAYER_WARN_IR;
+                if (mode != 0)
+                    g_threatWarningBits |= PLAYER_WARN_RADAR;
                 if (mode <= 0 && (frameTick & 2))
                     switchIndicatorColor(1, 0xc);
                 if (mode != 0 && !(frameTick & 2))

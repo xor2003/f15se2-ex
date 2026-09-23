@@ -1,330 +1,105 @@
-# Netcode review findings
-
-Found 9 issues, including server hangs, unsafe bounds, and broken combat
-behavior. Reviewed through e74d6ac against live-verified upstream 1a4061e,
-including the changes committed during review. Build succeeds; 33/33 tests
-pass. Those tests do not establish multiplayer combat or packet-loss
-correctness. Bounds, coordinate conversion, and the pause path were
-additionally checked with debugger probes.
-
-## Definition of Done / Definition of Failure
-
-| # | Issue | Definition of Done | Definition of Failure |
-|---|-------|--------------------|-----------------------|
-| 1 | Remote pause freezes the server | Pause and screenshot commands cannot enter a blocking server-side UI path. Send both during a two-client session; simulation and network polling continue normally. | Either command blocks ticks, stops snapshots, or requires keyboard input on the server. |
-| 2 | Remote-player registration exceeds array bounds | Maximum supported world counts plus eight players remain within allocated storage. Snapshot application and subsequent rendering pass ASan/UBSan; insufficient capacity is handled explicitly. | Counts exceed capacity, rejected slots still extend iteration bounds, entities are overwritten, or sanitizers report out-of-bounds access. |
-| 3 | Authoritative gun-hit detection never runs | A deterministic headless scenario registers expected aircraft and ground hits, applies damage/destruction, and replicates the result. A corresponding miss causes no damage. | Ammunition is consumed without expected hit processing, misses cause damage, or results depend on client rendering. |
-| 4 | Server-side target acquisition is missing | Headless simulation acquires and cycles eligible air/ground targets. Fired weapons use the authoritative selected target, and clients display that selection. | Locks remain unresolved despite eligible targets, designation does nothing, or the displayed target differs from the weapon's authoritative target. |
-| 5 | Threat processing affects only the first player | Each player receives position-appropriate threat, landing, and damage calculations while world entities advance once per tick. Swapping player slots preserves equivalent outcomes. | Later players miss updates, threats use another player's position, slot order changes results, or world updates multiply with player count. |
-| 6 | Incorrect remote-player map Y | Explicit coordinate conversions match authoritative map positions across representative coordinates and boundaries. The reproduced 0x4000 case publishes as 0x4000; radar and 3D placement agree. | The case still becomes 0xC000, contacts are mirrored/displaced, or map and rendered positions disagree beyond defined rounding tolerance. |
-| 7 | Sync-step waits only for initial input | Each tick consumes fresh input from every participating player. Withholding the next input stops advancement; completing the input set permits exactly one tick. | Previously consumed input permits another tick, the server advances at polling speed, or duplicate packets satisfy a new tick. |
-| 8 | Packet loss permanently loses commands | Discrete commands remain pending until acknowledged or explicitly failed. Under loss, duplication, and reordering, commands execute exactly once in the defined order. | A command silently disappears, executes twice, executes out of order, or is acknowledged without execution. |
-| 9 | Repeated HELLO allocates multiple players | One connection owns at most one player slot. Repeated HELLO is idempotent or rejected without allocation; disconnect releases the slot and reconnect starts cleanly. | Repeated HELLO increases occupied slots, exhausts server capacity, creates ambiguous input ownership, or leaves orphaned players. |
-
-## Architectural changes
-
-| Change | Definition of Done | Definition of Failure |
-|--------|--------------------|-----------------------|
-| Complete simulation tick | Single-player and server use the same simulation pipeline. Identical seed and tick-indexed inputs produce identical gameplay state with rendering enabled, disabled, or running at different rates. | Rendering changes targeting, damage, movement, timers, or gameplay RNG; headless mode skips gameplay work. |
-| World/player separation | World entities advance exactly once per tick. Player-relative calculations run for each applicable player. Projectiles carry explicit owner/target IDs; damage and scoring reach the correct player. | Adding a player accelerates world updates; slot order changes outcomes; threats or damage use another player's context. |
-| Presentation commands stay local | Server accepts an explicit gameplay-command allowlist. Presentation actions execute locally; simulation never waits for UI input. | Pause, screenshot, calibration, or another client command blocks server progress or changes another client's presentation. |
-| Dedicated remote-player rendering | Remote players use separate storage with stable IDs and explicit coordinate conversions. Maximum supported occupancy fits all storage and renders at authoritative positions. | Player publication exceeds legacy array bounds, overwrites world objects, misplaces contacts, or leaves departed players visible. |
-| Explicit input/tick contract | Stale axis updates are rejected. Discrete commands execute once, in defined order, using acknowledgement/retry or reliable delivery. Sync-step consumes one input frame per participating player per tick. | Commands disappear or repeat; stale packets overwrite newer controls; sync-step advances using already-consumed input or stalls outside its documented timeout policy. |
-| Atomic snapshot application | Decode and validate the entire snapshot before applying it. Reject stale/incomplete/invalid snapshots without changing live state. Interpolation modifies only render state. | Rejected packets partially mutate state; invalid indices reach consumers; old snapshots roll state backward; rendering alters authoritative state. |
-
-## Verification gates
-
-| Test | Definition of Done | Definition of Failure |
-|------|--------------------|-----------------------|
-| Headless combat | A deterministic scenario acquires a target, fires guns and missiles, applies expected damage, and records destruction. Gameplay hashes match the rendered run at each tick. | Combat requires rendering, expected damage is absent, or hashes diverge. |
-| Two-player damage attribution | Test both players as shooter and victim, then swap slot assignments. Equivalent outcomes, ownership, damage, and scores follow player identity. | Damage or credit goes to the wrong player; one player is unintentionally immune; slot assignment changes results. |
-| Full-capacity worlds | Run maximum world entities and eight players, including joins/departures, under ASan/UBSan. Counts stay within capacity; every supported entity remains correctly represented. | Any sanitizer error, overwritten entity, invalid count, or silently missing supported player. |
-| Join/leave handling | Repeated join/leave cycles reclaim slots. Duplicate HELLO is idempotent or rejected. Disconnecting the first player preserves simulation; reconnect creates clean state. | Slots leak, one peer owns multiple players, stale controls survive reconnect, or remaining players stop progressing. |
-| Packet loss | A seeded fault-injection run exercises loss, duplication, reordering, and bursts. Every acknowledged discrete command executes exactly once; controls converge to the newest delivered state. | An acknowledged command is lost/repeated, stale controls persist, or recovery fails after delivery resumes. |
-| Exact sync-step consumption | Withhold one player's next input: no tick advances. Supply the complete next input set: exactly one tick advances. Repeat and exercise the documented timeout/disconnect policy. | Any tick runs early, an input frame drives multiple ticks, or timeout/disconnect handling violates the contract. |
-
-Concrete test parameters (set before implementation, not weakened after):
-fault injection 20% loss / 5% duplication / reorder window 4 / bursts of 3
-dropped packets; sync-step input timeout 500ms then mark player stale;
-scenario duration 600 ticks; ASan/UBSan enabled build for gates 2-4.
-
-## Verification results (tools/netprobe + tests/net_sim_tests)
-
-| Gate | Result |
-|------|--------|
-| Sync-step consumption | PASS - one input -> exactly one snapshot; withheld input produced zero snapshots over 1.2s; input resumes -> exactly one tick each |
-| Duplicate HELLO | PASS - 3x HELLO on one connection -> 3x HELLO_ACK all id=1, single slot (server log: "joined as player 1" x3, no extra slots) |
-| Join/leave/reconnect | PASS - BYE frees the slot immediately ("player N left"), reconnect gets the lowest free slot with clean state; abrupt disconnect frees via GNS timeout; 9th concurrent client gets HELLO_NAK "server full" |
-| Packet loss | PASS - under 40% send loss + 15% dup + 30ms reorder a reliable command ("Autopilot on") executed exactly once; unreliable axes-only packets may drop without stalling |
-| Remote pause | PASS - NC_PAUSE sent mid-session; subsequent ticks/snapshots continued normally |
-| Headless combat sim | PASS - tests/net_sim_tests (7 checks): authoritative air-target lock on parked remote object, own-object exclusion, stationary exclusion, gun round destroys remote object -> g_playerObjectHitHook -> owner damage, owner-filtered rounds skipped, miss = no damage, projectile targetPlayer filter |
-| Full capacity | PASS - 8 concurrent slots assigned 0..7; parked remote objects verified live in gdb (slots above g_groundUnitCount, g_simObjScanBound covers them); ASan/UBSan soak: 8 clients + dup HELLOs + commands + leaves clean in our code (found+fixed latent strcpy(x,x) UB in findWaypointFeatures; residual reports are GNS-internal misaligned wire reads, upstream-intentional) |
-| AI role path | PASS - NET_ROLE_AI client joins, gets a player slot, inputs flow, and receives NETMSG_OBS each tick (pilot-entitled observation: ownship block + scope-filtered air/site contacts + RWR threat; verified live: radar contacts, OBSF_LOCKED_AIR on the server-side lock, OBSF_ACTIVE sites, threat=site@range). --obs-full gives privileged omniscient obs. 5 filter cases covered in net_sim_tests |
-
-New defects found and fixed during gate testing:
-- NETMSG_BYE freed no slot (a locally initiated closePeer produces no
-  NET_EV_DISCONNECTED) - BYE now drops the player directly; closePeer
-  also lingers so a trailing reliable message (HELLO_NAK) is flushed
-  before the socket dies.
-- findWaypointFeatures did strcpy(x,x) into g_stringPool when the tile id
-  aliased the slot's own name entry (latent UB, ASan abort under
-  multi-player state) - self-copy now skipped.
-
-## Round 2 findings (post e0f51a0 + d49a07f)
-
-Second-pass review found 7 further issues plus 3 carry-overs. All fixed
-and verified; build green, 34/34 + 31/31 tests pass.
-
-| # | Issue | Status |
-|---|-------|--------|
-| 1 | [P1] Players overwrite each other's gunfire (shared frame-derived bullet slot) | FIXED - server players own `bulletTracks[g_residentPlayer]`; `g_bulletTrackCount` raised to >=8 at boot so slots 0-7 are per-player and enemy tracers shift to 8-11. `net_sim_tests`: firing player 0's round survives player 1's idle pass and vice versa |
-| 2 | [P1] Victim ctx swap changes the attacker's aircraft profile | FIXED - `fireAirThreat` + its HUD message now read `aircraftTypes[g_simObjects[objIdx].spec]`, not ambient `g_threatSpec` (verified remaining `g_threatSpec` readers at egthreat.c:407/:588 sit inside `updateObjects`' own loop where spec is assigned per-iteration and correctly restored by the swap). Residual wart noted: `threatSpec` is world-loop scratch that happens to live in the ctx; no reader consumes a stale value today |
-| 3 | [P1] Rejected snapshots corrupt live state | FIXED - `netSnapApply` now decodes into a static `SnapTmp`, validates (underrun, count bounds, player-id range/dup, entity-id ranges, frameTick staleness vs last committed tick), then commits. Tests: truncated snap leaves `g_ViewX`/`g_missionTick`/`frameTick`/objects untouched; resend and older ticks rejected; newer accepted; dup player id and out-of-range object id rejected |
-| 4 | [P2] Reliable commands can still disappear + stale input counts as fresh | FIXED - `remoteInputPushKey` returns 0 on full queue; server counts/logs drops (explicit rejection). `onInput` applies axes + readiness only when `clientSeq > lastSeq`; command blocks still execute (reliable stream can legitimately arrive behind newer unreliable axes). Live: sync-step seq 5 -> 1 snap, seq 4 -> none, dup seq 5 -> none, seq 6 -> 1 snap |
-| 5 | [P2] Repeated HELLO resets an existing player | FIXED - duplicate HELLO on a live association re-sends ACK + MISSION_SETUP and returns without touching the ctx. Live: "Autopilot on" -> apAlt=2000 in the own block; re-HELLO -> same slot re-ACKed, apAlt still 2000, knots continue uninterrupted |
-| 6 | [P2] Rendering still changes simulation state | FIXED - HUD draw's `g_groundTargetLock = -1` removed (simTargetLock already performs the identical look-away drop each tick under every ctx); explosion spark flicker uses a private `fxRandomRange` LCG so draw-side consumption can't perturb the sim's `rand()` sequence |
-| 7 | [P2] Outgoing missiles reported as inbound in NETMSG_OBS | FIXED - slots 0-7 keep `targetPlayer`=victim semantics; player-fired slots (>=8, `targetPlayer`=shooter) are inbound only when `targetLock` resolves to the observer's parked REMOTE_PLAYER object. Test covers own shot excluded, foreign threat excluded, enemy shot locked-on-me flagged INBOUND |
-| 8 | [#2 carryover] Capacity admission | FIXED - `slotFree` bounded by `playerCapacity()` = `min(8, F15_MAX_SIM_OBJECTS - g_groundUnitCount)`; a mission without parked-slot storage NAKs instead of accepting un-simulatable players |
-| 9 | [Verification carryover] worldHash must include player ctxs | FIXED - `worldHash` now folds each used+ready player's full PlayerSim (memset-at-init keeps padding deterministic) plus the slot index, alongside the shared tables |
-
-Notes:
-- `onHello` keeps the existing-association check before `slotFree`, so the
-  capacity gate cannot kick a live player out on a re-handshake.
-- The staleness gate resets on each MISSION_SETUP apply, so a reconnecting
-  client accepts its first snapshot regardless of prior tick values.
-
-## Round 8 findings (post b91759d + ee014c5)
-
-Eighth-pass review confirmed the round-7 fixes and reported two carry-over
-P2s; the host-side request added interface binding to the new --server/
---host path. All fixed and verified; build green, 34/34 net + 31/31 base
-test binaries pass (new cases added inside net_sim_tests and
-gameplay_behavior_tests), ASan/UBSan clean, `git diff --check` clean.
-
-| # | Issue | Status |
-|---|-------|--------|
-| 1 | [P2] Countermeasures consumed inventory without deploying: `(g_eventTimers[t])--` ran before the shared mapEvents slot scan - a full 3-slot pool still burned a store and played the release sound; debugger: inventory 12 -> 11, no decoy | FIXED - slot search first; a full pool rejects via hudMessage ("Decoy slots full") with no decrement and no sound; inventory decrement moved inside the successful-deploy branch. Pool also grew: F15_MAX_MAP_EVENTS 4 -> 16 (slot 0 = shared marker, 1..15 = decoys, ~2/player); wire layout change bumped F15_NET_VERSION 3 -> 4. gameplay_behavior_tests: full pool keeps stores, freed slot deploys, empty stores reject |
-| 2 | [P2] F6 backfill lerped heading/pitch/roll independently: across a vertical-flight representation change (h/r +0x8000, pitch reflects) the gap fill invented -90deg in-between poses; debugger: 0deg -> -180deg produced -90deg samples | FIXED - backfill now calls the existing lerpPose policy (egsys.c): any component delta >= 0x4000 snaps the whole triple to cur; non-flip gaps still lerp per component. net_sim_tests::test_view_ring_gimbal_backfill covers normal->flip, flip->normal, and the same flip straddling the int16 wrap |
-| 3 | Server could not bind a chosen interface: listen() always wildcarded | FIXED - NetTransport::listen(bindAddr, port); GNS parses an IP literal (NULL/empty = wildcard). `--bind IP` on f15server/--server; `--host --bind IP` passes it to the child and the parent joins that IP (wildcard/0.0.0.0/:: still joins 127.0.0.1). Readiness line prints the bound address. Verified: bound socket answers on 192.168.8.9 but not on 127.0.0.1; --host --bind end-to-end |
-
-## Round 7 findings (post df2b367)
-
-Seventh-pass review re-confirmed the round-6 fixes and reported four
-definite bugs (one debugger-reproduced each for BRG and the bullet
-transition) plus a missing client asset found during countermeasure
-verification. All fixed and verified; build green, 34/34 + 31/31 tests
-pass, ASan/UBSan clean, `git diff --check` clean.
-
-| # | Issue | Status |
-|---|-------|--------|
-| 1 | [P2] BRG 180: drawTargetView subtracted `g_ViewY` (player-space) from a worldY arg in a different convention - every nearby target bore ~south; debugger: due-east target read angle 32766/180 deg instead of 16384/90 | FIXED - callee now treats inputs as map-fine: `dyFine = worldY - (0x100000 - g_ViewY)`, bearing via `computeBearing32(dxFine, -dyFine)` (also corrects preview orientation/scale deltas); the remote call site feeds `simObjectFineY(wpIdx)` (render-space -> map-fine). Ground callers already passed map-fine and were equally wrong before |
-| 2 | [P1] Wire layout changed without a version bump: `damageSeq` added 2 bytes per player block but old/new builds both advertised v2 - mixed builds handshake then decode incompatible layouts | FIXED - `F15_NET_VERSION` 3; enforcement already exists at the message header (`netMsgReadHeader` u16 check) and the HELLO `protoVer` check - old clients are NAKed at handshake now |
-| 3 | [P1] Bullet collision at the free->full transition: one free slot + cursor pointing there -> player A claims it via free-scan, player B's saturated fallback overwrites it same tick (owner 0 -> 1 in one slot, one tick) | FIXED - `g_bulletFreshMask`/`g_bulletFreshTick` record slots claimed this frameTick; the saturated fallback skips fresh slots (bounded loop, degrades to plain round-robin if all fresh - unreachable with <=8 shooters in 16 slots). Both folded into worldHash (they determine future evictions). `net_sim_tests`: player 5 claims the last free slot under the cursor, player 6's same-tick pass falls through to slot 5, cursor consumes both steps, owner 5 survives |
-| 4 | [P2] F6 history backfill fails across signed tick wrap: modular gap of 4 (32766 -> -32766) but the `t < frameTick` loop ran zero iterations | FIXED - `netViewRingPush` (moved to egsys.c for testability, exported via egcode.h) iterates by elapsed-step count and wraps each destination index; the lerp fraction uses the same modular distance. `net_sim_tests::test_view_ring_wrap_backfill`: missed ticks 32767/-32768/-32767 land the 1/4, 2/4, 3/4 lerp poses |
-| 5 | [P2] Network client never loaded `f15.spr`: game_init allocates the sheet buffer but START (which the net path skips) populated it - every legacy gauge sprite (chaff/flare markers, ownship chevron, runway/target blips, gun reticle, AAM diamond, hit flash, tape sprites) blitted out of an empty sheet. GL uses the same sheet via r2d_submitImageF for codes the HD set doesn't cover (flare=2, chaff=3) | FIXED - `loadPic("f15.spr", commData->gfxInitResult)` after game_init, before setupInstrumentLayoutFar/drawCockpit - same order as the server and START |
-
-Live render verification (Xvfb + llvmpipe, headless): server + probe
-(`cmd:14` flare, `cmd:15` chaff) + client. Software path (F15_RENDER=software,
-F15_DUMP_FRAME): scope frames show the marker cluster at the deploy point
-appear after the commands and thin out at ttl expiry; ownship chevron and
-aircraft blips (same sheet) draw throughout. GL path: `debugDumpFrameGL`
-(readback hook added in r3dgl_present pre-swap, same env contract) captured
-640x400 composites - full cockpit incl. scope grid/markers; the post-deploy
-frame shows the new marker sprites vs the pre-deploy baseline. The SW
-page-dump is now skipped under GL (the page holds only chrome there).
-
-Note: markers deploy at the deployer's position which sits near the
-observing ownship's projected point - marker-vs-contact pixels were not
-individually isolated in the busy scope, but the appear/expire cycle is
-visible in the stacked crops and the blit path is the same one the
-provably-rendered ownship/blip sprites use.
-
-## Round 6 findings (post 1ffa9dd)
-
-Sixth-pass review confirmed the round-5 fixes and reported five live
-symptoms plus two re-review items. All fixed and verified; build green,
-34/34 + 31/31 tests pass, ASan/UBSan clean, live probe flow healthy.
-
-| # | Issue | Status |
-|---|-------|--------|
-| 1 | [P2] HUD compass tape jumps by 45 deg: within-sector offset computed into p6 then `p6 >> 8` (always 0) used as the scroll | FIXED - within-sector displacement computed directly: `(head & 0x1fff) * pixPerDeg >> 13`; marker phase shares the same displacement |
-| 2 | [P2] Remote player shown as MiG-23 in target panel/labels (spec=0 -> aircraftTypes[0]) | FIXED - one resolver for every depiction: `simObjectViewModel` (remote -> F-15 model 6/7 incl. gear) + `simObjectTypeName` (remote -> "F-15"); used by the world loop, target panel preview, threat labels and the director's "on patrol" message |
-| 3 | [P2] projectWorldToHudFine fed render-space worldY for remotes (0x01000000 - ViewY) but expects map-fine (posY<<5): target box/label displaced by 0xF00000 | FIXED - `simObjectFineY` converts explicitly at both sim-object call sites (AAM target box, threat label); the 3D model path was already consistent after the round-5 interp fix |
-| 4 | [P1] Cabin shake restarts every snapshot: server latches damageTakenFlag forever (HUD owns the clear) | FIXED - damage events numbered: `damageSeq` ctx counter bumped per tick the flag latches (server releases it each tick - hits AND in-ctx sets like bombTarget), wire-carried; client edge-triggers the shake once per new seq. Persistent damage stays in gunHits/bombDamageMask. Test: seq 1 fires once, same seq on next snap silent, seq 2 fires again |
-| 5 | [P2] F6 (VIEW_EXT_DYNAMIC) empty: camera reads ring slots never written (join) or stale (packet gaps); stationary aircraft seats camera inside it | FIXED - netclient pushes via viewRingPush: seeds all 16 slots on first snapshot, backfills skipped ticks lerping prev->current pose; camera falls back to the follow eye when the delayed pose lands within a quarter of chase distance |
-| 6 | [P2] Saturated-pool cursor advanced by idle/out-of-ammo passes (slot selection preceded eligibility) | FIXED - allocation moved after the trigger/ammo/eject checks; the SP release-sweep computes its rotating slot locally. Test: idle and ammo-empty passes leave g_bulletPoolCursor untouched |
-| 7 | [P2] Hash omitted activePanelMode/viewMode/nightMode although simTargetLock reads them (acquisition gate + range scaling) | FIXED - explicit folds added; classification comment updated to follow actual sim readers. Test: each mutation moves the hash; hudMsgTimer/strBuf/tacmapIndicators still excluded |
-
-## Round 5 findings (post 02e67b2)
-
-Fifth-pass review (debugger-driven) confirmed the snapshot wire coordinates
-are correct but found the render-side interpolation corrupting map Y inside
-the draw window, plus two visibility gaps. All three fixed and verified;
-build green, 34/34 + 31/31 tests pass, two-client live probe shows both
-players at the intended 128-map-unit spacing across every snapshot.
-
-| # | Issue | Status |
-|---|-------|--------|
-| 1 | [P1] objApplyInterp derived posY from render worldY (`(uint16)(wy>>5)`), corrupting remote mapY 0x4000 -> 0xc000 mid-render; 3D range check and radar projection then rejected the contact | FIXED - posX/posY interpolate their own captured map fields via wrap-aware `lerpMap16` (int16 shortest-path delta); worldX/worldY keep separate render-space lerp. `net_sim_tests::test_interp_preserves_map_coords`: identical snapshots keep posY=0x4000 through interp+restore, and 0xffe0->0x0020 wraps the short way |
-| 2 | [P2] Spawn separation 0x180 (=12 map units) co-located radar contacts under the ownship icon | FIXED - 0x1000 (=128 map units) per formation step; live two-probe check: id=1 parked at mapX 30752 vs id=0 at 30624, stable across 211+ snapshots |
-| 3 | [P2] Radar aircraft filter required speed != 0, hiding stationary remote players | FIXED - `egui.c` tacmap loop also accepts `SIMFLAG_B1_REMOTE_PLAYER`; parked remotes already set flags.b[0]=2 when alive |
-
-Note: the parked-remote object writes posY in the 0x8000-(ViewY>>5) map
-convention carried on the wire as mapY; the render convention (worldY,
-inverted) is intentionally NOT unified - the fix separates the two
-interpolation paths rather than changing snapshot encoding.
-
-## Round 4 findings (post f97b54d)
-
-Fourth-pass review confirmed four round-3 fixes but showed the projectile
-allocation and hash entries were still premature: saturated-pool writes
-could go out of bounds and collided between same-tick players, and the
-ctx hash skipped gameplay fields outside its contiguous region. All three
-fixed and verified; build green, 34/34 + 31/31 tests pass, ASan/UBSan
-clean of project-code reports (the negative-tick saturated-pool path runs
-in the ASan test build).
-
-| # | Issue | Status |
-|---|-------|--------|
-| 1 | [P1] Saturated-pool fallback indexes with signed frameTick: negative ticks wrote bulletTracks[-2] | FIXED - fallback now uses `g_bulletPoolCursor` (uint32, monotonic) instead of a frame-derived remainder; the SP rotating index is sign-normalized (`if (slot < 0) slot += count`). Cursor value is hashed in worldHash since it determines future allocations |
-| 2 | [P1] Same-tick shooters collide on one saturated fallback slot | FIXED - the cursor advances per allocation, so every firing player gets a distinct slot even when the pool is full; each round survives >= count launches globally. Test: two players firing at tick 9 occupy different slots, both stamped and live |
-| 3 | [P2] playerCtxHash excludes ended/viewHeadingOffset (and other gameplay fields outside the contiguous region) | FIXED - hash still covers ViewX..missionEndedFlag, plus explicit folds for the gameplay fields that live outside it: `active`, `ended` (before ViewX), `viewHeadingOffset` (simTargetLock look-away), `padlockAircraft` (threat targeting/escort spawn). Presentation-only fields verified excluded by test mutation |
-
-Round-3 entry amendments: findings 1 (bullet allocation) and 6 (canonical
-hash) were marked FIXED prematurely - both required the round-4 follow-ups
-above. Findings 2 (negative-tick ordering), 3 (command acks/dedup), 4
-(map capacity) and 5 (per-victim scope debounce) stand as verified.
-
-## Round 3 findings (post 451bf51)
-
-Third-pass review reopened four round-2 entries (gunfire, command
-delivery, capacity, canonical hash) and found two new defects. All six
-fixed and verified; build green, 34/34 + 31/31 tests pass, ASan/UBSan
-clean of project-code reports.
-
-| # | Issue | Status |
-|---|-------|--------|
-| 1 | [P1] Per-player gun slots shortened projectile lifetime (release cleared airborne rounds, second shot overwrote the first) | FIXED - server firing now claims any FREE slot in the shared 16-entry player pool (bulletTracks[0..15], enemy tracers stay at 16-19); saturated pool falls back to rotating overwrite. The no_fire release-sweep runs in SP only. `net_sim_tests::test_bullet_pool_lifetime`: release keeps the round airborne, a second shot claims a different slot, idle players clear nothing, SP rotating slot + sweep unchanged |
-| 2 | [P2] Snapshot staleness gate dead for negative ticks (`s_lastFrameTick >= 0` as "unset") | FIXED - explicit `s_haveLastTick` flag replaces the sentinel; the int16 modular diff already handled wrap. Test `test_snap_negative_ticks` reproduces the reported -32760 -> -32761 rejection plus resend, older, newer, and the 32767 -> -32768 wrap (walked via modular-reachable hops) |
-| 3 | [P2] Command rejection invisible to clients; no command-level dedup | FIXED - `NE_CMD_ACK` event: subject=clientSeq, object=cmd index, arg=0 executed / 1 rejected. Executed acks fire from a served-hook inside `remoteReadKey` (the sim actually consumed the key); reject acks fire at queue-full push time. Per-key (seq,idx) tags ride parallel queue arrays in `RemoteInput`. Server dedups command-bearing packets via `lastCmdSeq` (independent of axes freshness). Client surfaces rejections on the HUD. Live: cmd ack arg=0 per served key; resent cmd packet executed once (one "Autopilot off"); 52-cmd flood -> arg=1 rejections once the 32-entry queue saturated |
-| 4 | [P2] Admission checked only sim-object capacity | FIXED - `playerCapacity()` = `min(8, F15_MAX_SIM_OBJECTS - g_groundUnitCount, F15_MAX_MAP_TARGETS - g_planeCount)`: a mission without map-target storage NAKs instead of accepting players that can't get tactical-map entries |
-| 5 | [P2] One player's scope timer gated world threats | FIXED - `g_scopeSweepTimer` is a per-pilot RWR debounce (fireGroundThreat sets it on contact). Its decrement moved from `updateThreatSites` (one resident ctx) into `frameThreatScan` (every player's own pass), and the world-side gate now fires unconditionally on the server - `serverFireGroundThreat` swaps in the chosen victim's ctx and applies `g_scopeSweepTimer < 0` THERE, so pilot A's active sweep can no longer suppress a site engaging pilot B. SP semantics unchanged |
-| 6 | [P2] worldHash not canonical (raw PlayerSim bytes included presentation/string state; bullets/map-targets/RNG omitted) | FIXED - hash now covers simObjects + projectiles + bulletTracks (player pool + enemy slots) + planeTable (up to g_planeCount) + mapEvents + waypoints + targetSlots + entity counts + mission tick/status + `g_randCallCount` (new: counts in-sim rand() draws - all sim RNG funnels through randomRange since the fxRandomRange split) + `frameTick`; players fold in via `playerCtxHash()` (sim region only: ViewX..missionEndedFlag) + slot index. Cosmetic state can't change the hash; gameplay divergence can't hide |
-
-## 1. [P1] Remote pause freezes the entire server
-
-NC_PAUSE and NC_SCREENSHOT reach waitForKeyPress(), which waits on the
-server's local SDL keyboard instead of network input. The simulation and
-network polling stop for everyone. Confirmed the call chain in GDB.
-
-src/server/f15server.cpp:265, src/egflight.c:163.
-
-Status: FIXED — server keyDispatch swallows pause/screenshot commands
-before they reach the blocking path.
-
-## 2. [P1] Remote-player registration can extend iteration beyond allocated arrays
-
-Failed slot allocation still sets the parked-player mask; snapshot
-application then increases the object/table counts without enforcing
-capacity. A debugger probe with a valid maximum-size setup produced 22
-objects for a 20-element array and 76 targets for a 74-element array,
-exposing subsequent rendering loops to out-of-bounds access.
-
-src/net/snapshot.cpp:437.
-
-Status: FIXED — parked mask set only when a slot was actually allocated;
-count extension clamped to array capacity.
-
-## 3. [P1] Authoritative gun-hit detection never runs
-
-The server moves bullets but skips drawWorldEffects(), which contains
-aircraft/ground hit detection and damage application. Firing can consume
-ammunition without causing authoritative gun damage.
-
-src/egframe.c:79, src/egtarget.c:444.
-
-Status: FIXED — hit/damage detection extracted to simBulletHits()
-(egtarget.c), called from the sim step (updateFrame for SP,
-updatePlayerFrame per ready ctx on the server); drawWorldEffects() is
-now draw-only. BulletTrack carries targetPlayer; player rounds resolve
-under the shooter's ctx, enemy tracers stay unowned (first hit consumes).
-Parked remote-player objects are lockable/hittable simObjects on the
-server; a destroyed parked object applies bombTarget-style damage to the
-owning ctx via g_playerObjectHitHook.
-
-## 4. [P1] Server-side target acquisition is missing
-
-updateTargetLock() runs only through rendering. Server player contexts
-start with locks at -1, and pressing designate does not resolve them into
-targets. Clients can display locally acquired locks that the server never
-uses when firing missiles.
-
-src/egplayer.c:355, src/egtarget.c:48.
-
-Status: FIXED — acquisition extracted to simTargetLock() (egtarget.c),
-called from the sim step per ready ctx; updateTargetLock() is now
-draw-only so locks no longer depend on render rate. Remote players are
-published as parked simObjects server-side (g_simObjScanBound extends
-the scans over them; own object excluded), so they are lockable; locks
-are PlayerSim fields and already ride the snapshot to clients.
-
-## 5. [P1] Threat processing applies only to the first active player
-
-The world pass runs under one player's context and then breaks. Its
-functions include player-relative SAM guidance/damage and nearest-airfield
-calculations. Other players consequently miss those updates; hostile
-missiles use the first player's position.
-
-src/server/f15server.cpp:352.
-
-Status: FIXED — world pass (updateWorldFrame, f15world.c) runs once per
-tick under the most-threatened ctx; the player pass (updatePlayerFrame)
-runs per ready ctx and now includes the player-relative threat scan
-(frameThreatScan), SAM/threat guidance (Projectile.targetPlayer filters
-each shot to its owner ctx), gun hits and target acquisition. Threat
-fire routines delegate victim selection to the server via
-g_threatFireHook/g_airThreatFireHook (fires under the chosen victim's
-ctx). Orphaned shots re-home to the first ready player.
-
-## 6. [P1] Remote players receive incorrect map Y coordinates
-
-The conversion uses the rendering-space constant 0x01000000 to derive map
-coordinates. Confirmed in GDB: authoritative map Y 0x4000 becomes 0xC000
-in both the remote object and radar entry. This misplaces contacts and
-affects visibility/range checks.
-
-src/net/snapshot.cpp:374.
-
-Status: FIXED — posX/posY and mapX/mapY use the wire map coords
-(s->mapX/s->mapY); only the render-space worldY keeps the flip.
-
-## 7. [P2] Sync-step only waits for the first input packet
-
-allInputsArrived() checks whether lastSeq is nonzero, but completed ticks
-never consume/reset that readiness. After every player sends once, the
-simulation advances at polling speed even without fresh input.
-
-src/server/f15server.cpp:369.
-
-Status: FIXED — per-player arrived flag consumed by each completed tick.
-
-## 8. [P2] Packet loss permanently loses discrete commands
-
-Keyboard commands are removed from the input queue and sent once using
-unreliable delivery, without acknowledgement/retransmission. Losing that
-packet loses the gear toggle, missile launch, throttle change, etc.
-
-src/net/netclient.cpp:227, src/net/netclient.cpp:303.
-
-Status: FIXED — discrete command packets sent reliable.
-
-## 9. [P2] Repeated HELLO messages allocate multiple players to one connection
-
-onHello() allocates a new slot without checking whether the peer already
-owns one. One connection can exhaust all eight slots, while input dispatch
-updates only its first matching slot.
-
-src/server/f15server.cpp:207.
-
-Status: FIXED — HELLO from a peer that already owns a slot re-initializes
-that slot instead of allocating a new one.
+# Multiplayer review guide
+
+This PR adds an opt-in authoritative multiplayer path (`F15_NET=ON`).
+The default build remains single-player. The networking implementation is
+intended for Linux; the host launcher uses POSIX process APIs.
+The latest edits have not been built or tested at the author's request.
+
+## Build and try it
+
+Install the normal build dependencies plus protobuf development headers,
+`protoc`, and OpenSSL development headers. On Debian/Ubuntu the additional
+packages are `libprotobuf-dev protobuf-compiler libssl-dev`.
+
+```sh
+cmake -S . -B build-net -DF15_NET=ON
+cmake --build build-net -j2
+ctest --test-dir build-net --output-on-failure
+./build-net/f15se2-ex --game /path/to/game --host
+# A second client, using the same protocol version and game assets:
+./build-net/f15se2-ex --game /path/to/game --connect 127.0.0.1
+# Dedicated server (also available as build-net/f15server):
+./build-net/f15se2-ex --server --game /path/to/game --bind 127.0.0.1 --port 27015
+```
+
+`--connect` currently accepts an IP literal, optionally with a port; it does
+not resolve DNS names. The default UDP port is 27015. Original game assets
+are required to run the game/server, but not the CTest suite.
+`F15_PROTOBUF_ROOT` is an optional unpacked-package root with `usr/include`,
+`usr/lib` (or `usr/lib/x86_64-linux-gnu`), and `usr/bin/protoc`.
+
+## Suggested review order
+
+| Area | Files | Main question |
+| --- | --- | --- |
+| Input and pilot state | `src/egplayer.*`, `src/net/commands.*` | Does each pilot retain their own controls, flight, combat and mission state? |
+| Simulation orchestration | `src/egframe.c`, `src/egframeseg.c`, `src/f15world.c`, `src/egtarget_net.c` | Do world updates run once and player-relative updates under the correct context? |
+| Server lifecycle | `src/server/f15server.cpp` | Are join/leave, command consumption, threat ownership and event recipients correct? |
+| Wire protocol | `src/net/protocol.h`, `serialize.h`, `codec.cpp`, `snapshot.cpp` | Are versioning, bounds and snapshot commit rules consistent? |
+| Client presentation | `src/net/netclient.cpp`, `netrender.c`, `src/egsnap.h`, `src/egsys.c` | Does interpolation restore authoritative state, and do cameras/HUD follow snapshots? |
+| Build and entry points | `CMakeLists.txt`, `src/f15.c`, `src/f15host.*`, `.github/workflows/ci.yml` | Does default single-player still work, and is networking actually built in CI? |
+
+The extraction commit `563c5eb` moves substantial bodies out of
+`egframe.c` and `egtarget.c`; those files are not simply untouched upstream
+glue. Compare moved code with `git diff --color-moved`, then inspect semantic
+changes separately. Existing-code changes also include simulation-side hit
+testing/target acquisition, RNG separation, projectile ownership and decoy
+allocation. They affect single-player too.
+
+## Automated evidence
+
+- `net_codec_tests`: serialization and command mapping.
+- `player_ctx_tests`: context swaps and remote input queue behavior.
+- `net_sim_tests`: fabricated combat, capacity, snapshot rejection, camera
+  interpolation, damage events, decoy allocation and observation entitlement.
+- `net_server_tests`: actual server handlers with a recording transport;
+  rejected re-HELLO releases its slot, observation generation preserves
+  pilot state/hash, victim context swaps route private events correctly,
+  and per-pilot warning bits survive context swaps and wire encoding.
+- CI includes a Linux `F15_NET=ON` build/test job alongside the default jobs.
+
+The earlier lifecycle/observation/event-routing regressions were reproduced
+before their fixes. Subsequent radar, warning-light, protocol-v5 and pacing
+edits have not been built or tested. Previous green results do not validate
+this revision. Historical manual/sanitizer results are in
+[the review history](netcode-review-history.md); they are not a fresh
+certification of the current tree.
+
+## Latest review fixes awaiting validation
+
+- Remote aircraft remain in the tactical map but skip the radar ground-site
+  pass, which previously painted a SAM icon over the aircraft symbol.
+- Per-pilot R/I warning bits come from the authoritative targeting pass,
+  including its lock, bearing and decoy gates. Protocol v5 appends these bits
+  to the player block; rebuild both server and clients together.
+- Axes-only traffic is paced at 30 Hz; discrete commands and fire-button edges
+  send promptly. Rendering has a 120 FPS fallback cap when vsync does not pace it.
+- GNS debug callbacks enqueue bounded messages without waiting or writing to
+  stderr under GNS locks. The application drains them outside GNS callbacks;
+  queue overflow is reported. Scheduling/latency effects still need profiling.
+
+## Remaining limits and acceptance work
+
+- Extended two-human dogfight/coop play and latency feel still need manual
+  acceptance. Unit tests do not establish full multiplayer gameplay parity.
+- The server world pass retains player-relative reads and chooses a resident
+  pilot. Slot-order invariance and rendered/headless equivalence have not
+  been established by a complete replay test.
+- `--sync-step` waits indefinitely for input from every participating pilot;
+  the planned 500 ms stale-input policy is not implemented.
+- The state hash is a diagnostic over selected in-memory state, not a
+  portable deterministic replay contract. The client currently ignores it;
+  no automatic divergence detection is implemented.
+- Snapshots replicate aircraft, missiles, map state and decoys, but do not
+  replicate the `bulletTracks` gun-tracer table. Full rendering parity is
+  not claimed.
+- This is a trusted-peer prototype: no account authentication, input timeout
+  policy, or complete validation of all received setup/render indices.
+  The wire version rejects incompatible protocol versions, not arbitrary
+  different builds that advertise the same version.
+- Browser transport, reconnect/resume, DNS resolution and Windows network
+  hosting remain outside the implemented scope.
+
+[networking.md](networking.md) is the design plan, including future work.
+[netcode-review-history.md](netcode-review-history.md) preserves earlier
+review rounds; later entries supersede older FIXED/PASS claims.

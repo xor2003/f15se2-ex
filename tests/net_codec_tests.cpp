@@ -161,6 +161,8 @@ static void test_player_state_roundtrip(void) {
     NetPlayerState a, b;
     memset(&a, 0x5A, sizeof(a)); /* any garbage: encode must write every field */
     memset(&b, 0x5A, sizeof(b)); /* same fill so struct padding can't false-fail */
+    a.threatWarningBits = 3;
+    b.threatWarningBits = 0;
     nwInit(&w, buf, sizeof(buf));
     encPlayerState(&w, &a);
     CHECK(!w.overflow);

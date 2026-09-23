@@ -2079,6 +2079,7 @@ int16 g_missionTick;
 int16 g_gunFiredFlag;
 int16 g_damageTakenFlag;
 int16 g_damageSeq;
+int16 g_threatWarningBits;
 int16 g_threatRefHead;
 int16 g_nearestThreatRange;
 

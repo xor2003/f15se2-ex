@@ -56,6 +56,17 @@ static void scopeLine(float x1, float y1, float x2, float y2, float widthScale) 
     r2d_submitScopeLine(x1, y1, x2, y2, g_pageFront[2], 120, 104, 200, 176, widthScale);
 }
 
+/* A remote pilot has a map entry for the tactical map as well as a
+ * SimObject. The radar aircraft pass already draws it: do not overpaint it
+ * with the map-entry SAM/runway symbol in the later ground-site pass. */
+static int isRemotePlayerMapEntry(int mapIdx) {
+    for (int obj = 0; obj < g_groundUnitCount; ++obj)
+        if ((g_simObjects[obj].flags.b[1] & SIMFLAG_B1_REMOTE_PLAYER) &&
+            g_simObjects[obj].objType == mapIdx)
+            return 1;
+    return 0;
+}
+
 void drawTacticalMap(char page) {
     float startX;
     int code;
@@ -145,6 +156,8 @@ void drawTacticalMap(char page) {
         }
     }
     for (i = 0; i < g_planeCount; i++) {
+        if (isRemotePlayerMapEntry(i))
+            continue;
         if (!(g_planeTable.planes[i].flags & 0x80)) {
             projectMapPoint(g_planeTable.planes[i].mapX, g_planeTable.planes[i].mapY);
             if (g_projDepth != -1) {

@@ -229,6 +229,7 @@ static void spawnFromTemplate(struct PlayerSim *dst, int idx) {
     dst->ejectState = dst->ejectPending = 0;
     dst->damageTakenFlag = dst->gunFiredFlag = 0;
     dst->damageSeq = 0;
+    dst->threatWarningBits = 0;
     dst->wreckX = dst->wreckY = dst->wreckAlt = dst->wreckFallVel = 0;
     dst->crashCamX = dst->crashCamY = dst->crashCamZ = 0;
     dst->hitMapX = dst->hitMapY = dst->hitAlt = 0;
@@ -266,12 +267,19 @@ static void sendHelloAck(NetPeer peer, int slot) {
     g_net->send(peer, buf, w.len, NET_SEND_RELIABLE);
 }
 
+static void dropPlayer(int i);
+
 static void onHello(NetPeer peer, struct NetReader *r) {
     struct NetHello h;
     int slot;
     if (!decHello(r, &h))
         return;
     if (h.protoVer != F15_NET_VERSION) {
+        /* Local close does not produce a disconnect callback. A rejected
+         * re-HELLO must release any slot already owned by this connection. */
+        for (slot = 0; slot < F15_MAX_PLAYERS; slot++)
+            if (g_players[slot].used && g_players[slot].peer == peer)
+                dropPlayer(slot);
         sendSimple(peer, NETMSG_HELLO_NAK, 0, "bad version", 11);
         g_net->closePeer(peer, 0);
         return;
@@ -423,6 +431,7 @@ static void swapInVictim(int victim) {
     playerSwapOut(&g_players[g_worldCtxIdx].ctx);
     playerSwapIn(&g_players[victim].ctx);
     g_residentPlayer = (int16)victim;
+    g_curPeer = g_players[victim].peer;
 }
 
 static void swapBackFromVictim(void) {
@@ -430,6 +439,7 @@ static void swapBackFromVictim(void) {
     playerSwapOut(&g_players[victim].ctx);
     playerSwapIn(&g_players[g_worldCtxIdx].ctx);
     g_residentPlayer = (int16)g_worldCtxIdx;
+    g_curPeer = g_players[g_worldCtxIdx].peer;
 }
 
 static void serverFireGroundThreat(int16 planeIdx) {
@@ -657,7 +667,10 @@ static void sendObservations(void) {
         nwInit(&w, buf, sizeof(buf));
         netMsgWriteHeader(&w, NETMSG_OBS, srvTick(), 0);
         netObsBuild(&w, &p->ctx, i, s_parkedObjBase, g_obsFull, g_stateHash);
-        playerSwapOut(&p->ctx);
+        /* Observation helpers write range/bearing scratch globals. Discard
+         * those writes: querying a pilot must not change their next step or
+         * the state whose hash was already sent with the snapshot. */
+        playerSwapIn(&p->ctx);
         if (w.overflow)
             continue;
         g_net->send(p->peer, buf, w.len, NET_SEND_UNRELIABLE);
@@ -716,6 +729,7 @@ static void serverTick(void) {
     if (i >= 0) {
         int16 threatIdx, threatChanged;
         g_worldCtxIdx = i;
+        g_curPeer = g_players[i].peer;
         g_residentPlayer = (int16)i;
         playerSwapIn(&g_players[i].ctx);
         updateWorldFrame();
@@ -728,6 +742,7 @@ static void serverTick(void) {
             frameThreatEscort(threatIdx, threatChanged);
         playerSwapOut(&g_players[i].ctx);
         g_worldCtxIdx = -1;
+        g_curPeer = NET_PEER_INVALID;
         g_residentPlayer = -1;
         if (!g_haveTemplate && g_players[i].ctx.initPhase >= 2) {
             g_spawnTemplate = g_players[i].ctx;

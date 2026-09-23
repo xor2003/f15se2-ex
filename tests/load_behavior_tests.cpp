@@ -2,6 +2,7 @@
 #include "const.h"
 #include "eg3dload.h"
 #include "egdata.h"
+#include "egplayer.h"
 #include "egtypes.h"
 
 #include <cstdint>
@@ -15,6 +16,9 @@ extern void load3DG(void);
 extern void load3D3(char *fileName);
 extern void load3DT(char *fileName);
 extern void load15Flt3d3(void);
+
+// Unused egmath input path needs a definition when MSVC links the TU.
+int simInputFireButton(int) { return 0; }
 
 char aRegn_xxx[] = "regn.xxx";
 struct Game *gameData = nullptr;

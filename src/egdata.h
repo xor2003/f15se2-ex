@@ -237,6 +237,7 @@ extern SDL_IOStream *fileHandle;
 extern int16 g_gunFiredFlag;
 extern int16 g_damageTakenFlag;
 extern int16 g_damageSeq;
+extern int16 g_threatWarningBits;
 extern int16 g_threatRefHead;
 extern int16 g_nearestThreatRange;
 extern struct Game far *gameData;
