@@ -16,6 +16,7 @@
 #include "comm.h"
 #include "egcode.h"
 #include "egdata.h"
+#include "egflight.h"
 #include "egframe.h"
 #include "egkeys.h"
 #include "egplayer.h"
@@ -50,6 +51,69 @@ static int16 g_landingType = 3;
 static uint32_t g_clientSeq;
 
 void debugDumpFrame(void);                /* egsys.c: F15_DUMP_FRAME=<ppm> */
+
+/* ---- baked cockpit-panel elements -------------------------------------
+ * drawWeaponAmmo/drawWeaponSelectMarker/UpdateThrottleState/drawFuelGauge/
+ * switchIndicatorColor are invoked sim-side (egflight/egcombat/keyDispatch)
+ * when their source state changes; they bake pixels into the panel pages.
+ * A net client never runs that code, so it re-triggers the same bakes off
+ * the replicated state. */
+static void netPanelReconcile(void) {
+    static int primed;
+    static int16 prevSel, prevAmmo[3], prevGun;
+    static int prevFuel, prevThrust, prevPanel;
+    int i, chg, inboundRdr = 0, inboundIr = 0;
+
+    if (g_hudVisible == 0) {
+        primed = 0; /* every bake early-outs; force a full redo once visible */
+        return;
+    }
+    chg = !primed || missileSpecIndex != prevSel;
+    if (chg)
+        drawWeaponSelectMarker(missileSpecIndex);
+    for (i = 0; i < 3; i++)
+        chg |= missleSpec[i].ammo != prevAmmo[i];
+    if (chg || g_gunAmmo != prevGun)
+        drawWeaponAmmo();
+    if (!primed || prevFuel != g_fuelRemaining / 250)
+        drawFuelGauge();
+    if (!primed || prevThrust != g_setThrust)
+        UpdateThrottleState();
+    if (!primed || prevPanel != g_activePanelMode)
+        refreshActivePanel(g_activePanelMode);
+
+    /* indicator lamps: gear + brakes mirror keyDispatch's epilogue; the R/I
+     * threat pair flashes in updateThreatTargeting when a locked shot is
+     * inbound - derive from replicated threat projectiles (slots 0-7) the
+     * same way (weaponClass>0 = radar-guided, else IR). */
+    switchIndicatorColor(3, (*(char *)&g_playerPlaneFlags & 1) ? 4
+                           : (g_knots < 250 || (frameTick & 1)) ? 2 : 10);
+    switchIndicatorColor(2, (*(char *)&g_playerPlaneFlags & 8) ? 14 : 2);
+    switchIndicatorColor(0, 8);
+    switchIndicatorColor(1, 8);
+    for (i = 0; i < 8; i++) {
+        const struct Projectile *p = &g_projectiles[i];
+        if (p->ttl == 0)
+            continue;
+        if (p->specIdx >= 0 && sams[p->specIdx].weaponClass > 0)
+            inboundRdr = 1;
+        else
+            inboundIr = 1;
+    }
+    if (inboundRdr && !(frameTick & 2))
+        switchIndicatorColor(0, 0xe);
+    if (inboundIr && (frameTick & 2))
+        switchIndicatorColor(1, 0xc);
+
+    prevSel = missileSpecIndex;
+    prevGun = g_gunAmmo;
+    prevFuel = g_fuelRemaining / 250;
+    prevThrust = g_setThrust;
+    prevPanel = g_activePanelMode;
+    for (i = 0; i < 3; i++)
+        prevAmmo[i] = missleSpec[i].ammo;
+    primed = 1;
+}
 
 static void sendMsg(uint8_t type, NetTick tick, const void *payload,
                     size_t len, int reliable) {
@@ -260,6 +324,7 @@ int netClientMain(const char *hostPort, const char *name) {
                         /* authoritative state landed: shift interp endpoints
                          * and measure the real arrival interval. */
                         netRenderSnapCapture();
+                        netPanelReconcile(); /* re-run sim-side panel bakes */
                         snapsSeen++;
                         if (snapNs) {
                             uint64_t d = now - snapNs;
