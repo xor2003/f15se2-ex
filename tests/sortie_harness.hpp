@@ -104,10 +104,13 @@ constexpr int kCombatTicks = 900;
  * auto-land -> Safe Landing chain still runs end to end; ~900 ticks reach
  * landingType 3 on fixed, 1600 leaves modern drift margin. */
 constexpr int kLandTicks = 1600;
-/* The boundary profile starts at mapX 0x7c00 heading east: ~300 ticks to
- * the 0x7e00 theater bound at cruise, the rest pinned against it — long
- * enough to prove the clamp holds and the plane stays powered. */
-constexpr int kWrapTicks = 660;
+/* The boundary profile has two phases: ticks 0-500 start at mapX 0x7c00
+ * heading east into the 0x7e00 bound (~250 ticks to contact), then a
+ * re-seed at tick 500 starts at mapY 0x7b00 heading +mapY into the
+ * mirrored 0x7d00 bound (~150 to contact). The X snap and the mirrored
+ * Y snap are the two distinct confine-block code paths — the min ends
+ * share the same clamp bodies, so one bound per axis covers them. */
+constexpr int kWrapTicks = 1000;
 constexpr std::uint32_t kSeed = 0x51e7u;
 
 
@@ -139,6 +142,7 @@ enum class Profile { kSortie, kLoop, kCombat, kStick, kLand, kWrap };
 
 constexpr int ticksForProfile(Profile profile) {
     return profile == Profile::kLand ? kLandTicks
+         : profile == Profile::kWrap ? kWrapTicks
          : profile == Profile::kCombat ? kCombatTicks : kSortieTicks;
 }
 
@@ -751,57 +755,101 @@ inline void landingRequire(const LandingCheck &l) {
     require(l.landed, "land: no Safe Landing / finalizeMission(0)");
 }
 
-/* Non-degenerate proof for the theater-boundary profile: the plane must
- * actually fly to the east bound, the clamp must pin it there (never past
- * 0x7e00 post-updateFrame), and it must hold under sustained power — the
- * snap-per-tick behavior only shows when the plane keeps pushing. */
+/* Non-degenerate proof for the theater-boundary profile. Phase 1 (ticks
+ * 0-500) flies east into the 0x7e00 X bound; phase 2 (ticks 500+) flies
+ * +mapY into the mirrored 0x7d00 Y bound. Each arm proves: the plane
+ * reached its bound, the clamp pinned it (never past the bound word
+ * post-updateFrame), it held under sustained power, the per-frame
+ * nearest-base scan ranged a deep-band base through the 16-bit ring
+ * wrap, and the retarget consumed the band coordinates. The Y arm also
+ * pins the mirrored snap: at mapY 0x7d00 the fine coord must sit LOW
+ * ((0x8000-0x7d00)<<5 = 0x6000) — a missing mirror would leave ~0xFA000. */
 struct BoundaryCheck {
-    bool approached = false;
-    bool edgeSeen = false;
-    bool speedKept = false;
-    bool seamSeen = false;
-    bool seamRangeKept = false;
-    bool waypointMoved = false;
-    int clampedTicks = 0;
-    int16 maxX = 0;
+    bool approachedX = false, approachedY = false;
+    bool edgeSeenX = false, edgeSeenY = false;
+    bool speedKeptX = false, speedKeptY = false;
+    bool seamSeenX = false, seamSeenY = false;
+    bool wrapSeenX = false, wrapSeenY = false;
+    bool waypointMovedX = false, waypointMovedY = false;
+    bool snapSeenX = false, snapMirrorSeen = false;
+    int clampedTicksX = 0, clampedTicksY = 0;
+    int16 maxX = 0, maxY = 0;
 };
 inline void boundaryObserve(BoundaryCheck &b, int) {
-    /* g_viewX_ is refreshed from flightMapPosition() at the top of
-     * updateFrame and overwritten by the clamp when a bound is hit — so it
-     * is the post-clamp map word at observe time. */
+    /* g_viewX_/g_viewY_ are refreshed from flightMapPosition() at the top
+     * of updateFrame and overwritten by the clamp when a bound is hit —
+     * so they are the post-clamp map words at observe time. */
     const int16 mx = g_viewX_;
+    const int16 my = g_viewY_;
     if (mx > b.maxX) b.maxX = mx;
-    if (mx > 0x7c40) b.approached = true;
+    if (my > b.maxY) b.maxY = my;
+    if (mx > 0x7c40) b.approachedX = true;
+    if (my > 0x7b40) b.approachedY = true;
     if (mx >= 0x7e00) {
-        b.edgeSeen = true;
-        ++b.clampedTicks;
-        if (legacy::speedUnits(g_velocity) > 0x100) b.speedKept = true;
+        b.edgeSeenX = true;
+        ++b.clampedTicksX;
+        if (legacy::speedUnits(g_velocity) > 0x100) b.speedKeptX = true;
+        /* The X snap pins fineX to 0x7e00<<5 exactly. */
+        const std::uint32_t fx = (std::uint32_t)legacy::fineUnits(g_ViewX);
+        if (fx >= 0x7e00u * 32 - 0x800 && fx <= 0x7e00u * 32)
+            b.snapSeenX = true;
         /* While pinned at the east bound, the seeded base at mapX 0xff00
          * is 0x8100 words ahead — past int16 range — so the scan's
          * ~0x7f00 answer can only come through the 16-bit ring wrap. */
-        if (g_closestThreatIndex == 4) b.seamSeen = true;
+        if (g_closestThreatIndex == 4) b.seamSeenX = true;
         if (g_closestThreatIndex == 4 &&
             (int)g_nearestThreatRange >= 0x7e80 &&
             (int)g_nearestThreatRange <= 0x7fe0)
-            b.seamRangeKept = true;
+            b.wrapSeenX = true;
         if (waypoints[3].mapX == 0xff00 && waypoints[3].mapY == 0x4000)
-            b.waypointMoved = true;
+            b.waypointMovedX = true;
+    }
+    if (my >= 0x7d00) {
+        b.edgeSeenY = true;
+        ++b.clampedTicksY;
+        if (legacy::speedUnits(g_velocity) > 0x100) b.speedKeptY = true;
+        /* The mirrored snap pins fineY LOW: (0x8000-0x7d00)<<5 = 0x6000. */
+        const std::uint32_t fy = (std::uint32_t)legacy::fineUnits(g_ViewY);
+        if (fy >= 0x5000 && fy <= 0x6000) b.snapMirrorSeen = true;
+        /* Base 5 at mapY 0xff00: raw delta 0x8200, wrapped ~0x7e00. */
+        if (g_closestThreatIndex == 5) b.seamSeenY = true;
+        if (g_closestThreatIndex == 5 &&
+            (int)g_nearestThreatRange >= 0x7d80 &&
+            (int)g_nearestThreatRange <= 0x7f80)
+            b.wrapSeenY = true;
+        if (waypoints[3].mapX == 0x4000 && waypoints[3].mapY == 0xff00)
+            b.waypointMovedY = true;
     }
 }
 inline void boundaryRequire(const BoundaryCheck &b) {
-    require(b.approached, "wrap: never advanced east from the 0x7c00 seed");
-    require(b.edgeSeen, "wrap: never reached the 0x7e00 theater bound");
-    require(b.clampedTicks >= 60, "wrap: boundary contact not sustained");
-    require(b.speedKept, "wrap: velocity died at the bound (clamp killed "
-                           "the plane instead of pinning position)");
-    require(b.maxX <= 0x7e00, "wrap: position leaked past the clamp bound");
-    require(b.seamSeen, "wrap: nearest-base scan never picked the "
-                        "band base (index 4) at the bound");
-    require(b.seamRangeKept, "wrap: band base range not the wrapped "
-                             "ring distance (expected ~0x7f00, not the "
-                             "0x7fff cap an unwrapped scan would hit)");
-    require(b.waypointMoved, "wrap: waypoints[3] never retargeted to the "
-                             "band base");
+    require(b.approachedX, "wrap: never advanced east from the 0x7c00 seed");
+    require(b.approachedY, "wrap: never advanced +mapY from the 0x7b00 seed");
+    require(b.edgeSeenX, "wrap: never reached the 0x7e00 theater bound");
+    require(b.edgeSeenY, "wrap: never reached the 0x7d00 theater bound");
+    require(b.clampedTicksX >= 60, "wrap: X-boundary contact not sustained");
+    require(b.clampedTicksY >= 60, "wrap: Y-boundary contact not sustained");
+    require(b.speedKeptX && b.speedKeptY,
+            "wrap: velocity died at a bound (clamp killed the plane "
+            "instead of pinning position)");
+    require(b.maxX <= 0x7e00, "wrap: position leaked past the X bound");
+    require(b.maxY <= 0x7d00, "wrap: position leaked past the Y bound");
+    require(b.snapSeenX, "wrap: fineX never pinned at the 0x7e00 snap value");
+    require(b.snapMirrorSeen, "wrap: fineY never pinned at the mirrored "
+                              "snap value (0x6000) — mirror transform lost?");
+    require(b.seamSeenX, "wrap: nearest-base scan never picked the "
+                         "X-band base (index 4) at the bound");
+    require(b.wrapSeenX, "wrap: X-band base range not the wrapped "
+                         "ring distance (expected ~0x7f00, not the "
+                         "0x7fff cap an unwrapped scan would hit)");
+    require(b.waypointMovedX, "wrap: waypoints[3] never retargeted to the "
+                              "X-band base");
+    require(b.seamSeenY, "wrap: nearest-base scan never picked the "
+                         "Y-band base (index 5) at the bound");
+    require(b.wrapSeenY, "wrap: Y-band base range not the wrapped "
+                         "ring distance (expected ~0x7e00, not the "
+                         "0x7fff cap an unwrapped scan would hit)");
+    require(b.waypointMovedY, "wrap: waypoints[3] never retargeted to the "
+                              "Y-band base");
 }
 
 /* worldExportToEnd round-trip: run the real EGAME -> END debrief export after
@@ -1020,6 +1068,26 @@ inline void runTick(int tick, Profile profile = Profile::kSortie) {
         g_planeTable.planes[4].mapY = 0x4000;
         g_planeTable.planes[4].active = 1;
         g_planeTable.planes[4].flags = 0x601;
+    }
+    if (profile == Profile::kWrap && tick == 500) {
+        /* Phase 2: midfield at mapY 0x7b00 heading 0x8000 = +mapY (the
+         * same word the land final uses — the mirrored axis makes the
+         * compass read backwards). The south bound snap is the mirrored
+         * transform g_ViewY = viewY((0x8000-cy)<<5). */
+        g_ViewX = legacy::viewX(0x4000 * 32);
+        g_ViewY = legacy::viewY((0x8000 - 0x7b00) * 32);
+        g_ourHead = legacy::angleFromWord((int16)0x8000);
+        rebuildOrientation();
+        /* The nearest-base retarget only fires when the winning INDEX
+         * changes — a second band base (index 5) must outbid base 4, so
+         * base 4 retires and base 5 sits at mapY 0xff00: raw delta 0x8200,
+         * again only expressible through the ring wrap (~0x7e00). */
+        g_planeTable.planes[4].flags = 0;
+        g_planeTable.planes[4].active = 0;
+        g_planeTable.planes[5].mapX = 0x4000;
+        g_planeTable.planes[5].mapY = 0xff00;
+        g_planeTable.planes[5].active = 1;
+        g_planeTable.planes[5].flags = 0x601;
     }
     if (profile == Profile::kLand && tick == 0) {
         /* Pretend both targets were destroyed — the recovery leg is the path

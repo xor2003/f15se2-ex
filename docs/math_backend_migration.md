@@ -2127,48 +2127,55 @@ mission that actually finalized.
 
 No prior profile held the player against a theater edge — the
 `updateFrame` confine block (`egframe.c`) only fired at spawn. The
-`--wrap` profile starts the player airborne at mapX 0x7c00, mapY 0x4000,
-altitude 2000, speed 8100, heading 0x4000 (+mapX, with
-`rebuildOrientation()` — the matrix, not the Euler word, is
-authoritative), then flies hands-off at full throttle into the east
-bound. The seed runs inside `runTick` after tick 0's `updateFrame`
-because the `g_initPhase` mission-init block rewrites the flight state.
+`--wrap` profile runs two phases over 1000 ticks (`kWrapTicks`). Phase
+1 starts the player airborne at mapX 0x7c00, mapY 0x4000, altitude
+2000, speed 8100, heading 0x4000 (+mapX, with `rebuildOrientation()` —
+the matrix, not the Euler word, is authoritative) and flies hands-off
+at full throttle into the east bound. At tick 500 a second seed puts
+the plane at mapX 0x4000, mapY 0x7b00 heading 0 (+mapY) into the
+0x7d00 bound. The seeds run inside `runTick` because the `g_initPhase`
+mission-init block rewrites the flight state on tick 0.
 
 The theater is a clamp, not a torus: `clampRange` pins mapX to
 `[0x100,0x7e00]` and mapY to `[0x200,0x7d00]`, and on a bound hit the
 coarse `g_viewX_`/`g_viewY_` word and the fine `g_ViewX`/`g_ViewY`
 coordinate are both snapped to the cell edge — so the fine coordinate
-loses its sub-word fraction exactly there on both backends. The plane
-reaches 0x7e00 around tick 250 on fixed and stays pinned for the
-remaining ~410 ticks of the 660-tick run (`kWrapTicks`), sliding ~200
-map words south along the bound — sustained clamp contact under power,
-not a single crossing.
+loses its sub-word fraction exactly there on both backends. The X snap
+is `viewX(cx << 5)`; the Y snap is the *mirrored* transform
+`viewY((0x8000 - cy) << 5)` — at mapY 0x7d00 the fine coord pins LOW
+(0x6000), so a lost mirror would leave ~0xFA000 and is caught by
+assertion. The min ends share the same clamp bodies, so one bound per
+axis covers both code paths. The plane reaches 0x7e00 around tick 250
+on fixed and stays pinned ~250 ticks per phase, sliding along each
+bound — sustained clamp contact under power, not a single crossing.
 
 The profile also covers the object side of the seam. The playable
-bounds sit inside a contiguous 16-bit map ring: the unreachable band
-`[0x7e01,0x00ff]` spans the ring's `0x0000` point. Band objects are
-ranged by their shortest ring delta — the band's near half resolves
-east of the player, its far half (past the ring midpoint) resolves
-west. The seed places a usable base
-(`flags 0x601`, the bits the scan requires) at mapX 0xff00 — deep in
-the band, where the raw delta 0x8100 does not fit `int16`. The
-per-frame nearest-base scan (`egframe.c`) therefore can only answer
-~0x7f00 through the 16-bit ring wrap; a hypothetical unwrapped scan
-would hit the 0x7fff cap instead. Both backends produce the wrapped
-value (fixed 32606, modern 32597 — the fractional trajectory delta),
-the base wins the scan (`g_closestThreatIndex == 4`), the retarget
-block moves `waypoints[3]` to 0xff00,0x4000, and the base's ground
-contacts respawn at seam-adjacent coordinates.
+bounds sit inside a contiguous 16-bit map ring: the unreachable bands
+span the ring's `0x0000` point. Band objects are ranged by their
+shortest ring delta — the band's near half resolves toward the player,
+its far half resolves to the far side. Each phase seeds a usable base
+(`flags 0x601`, the bits the scan requires) deep in that phase's band:
+planes[4] at (0xff00, 0x4000) for phase 1 — raw delta 0x8100, past
+int16, answerable only through the ring wrap (~0x7f00) — then planes[5]
+at (0x4000, 0xff00) for phase 2 (raw delta 0x8200, wrapped ~0x7e00).
+A second base is needed because the nearest-base retarget only fires
+when the winning index changes; base 4 is retired at the phase change.
+Both backends produce the wrapped values through the per-frame scan
+(`egframe.c`), each base wins its phase (`g_closestThreatIndex` 4 then
+5), and the retarget block moves `waypoints[3]` to the band
+coordinates each time — also respawning that base's ground contacts at
+seam-adjacent positions.
 
-`boundaryRequire` asserts: eastward advance from the seed (post-clamp
-map word `g_viewX_` past 0x7c40), bound contact (`>= 0x7e00`),
-sustained pinning (`>= 60` clamped ticks), the airframe keeps flying
-(`speedUnits(g_velocity) > 0x100` while pinned — the clamp pins
-position, it does not kill the plane), no leak past the bound
-(`max g_viewX_ <= 0x7e00` across all 660 ticks), the band base won
-the scan (index 4), its reported range is the wrapped ring distance
-(`0x7e80..0x7fe0`, not the 0x7fff cap), and `waypoints[3]` retargeted
-to the band coordinates.
+`boundaryRequire` asserts per arm: advance from the seed, bound
+contact, sustained pinning (`>= 60` clamped ticks), the airframe keeps
+flying (`speedUnits(g_velocity) > 0x100` while pinned — the clamp pins
+position, it does not kill the plane), no leak past the bound on any
+tick (`max g_viewX_ <= 0x7e00`, `max g_viewY_ <= 0x7d00`), the fine
+snap value (fineX at `0x7e00<<5`; fineY at the mirrored `0x6000`),
+the band base won the scan, its range is the wrapped ring distance
+(`0x7e80..0x7fe0` / `0x7d80..0x7f80`, both excluding the 0x7fff cap an
+unwrapped scan would hit), and `waypoints[3]` retargeted to the band
+coordinates.
 `sortie_wrap_parity_tests` pins `sortie_wrap_parity.trace`;
 `modern_sortie_wrap_tests` pins `sortie_wrap_fields_modern.trace` —
 modern's pinned trace shows the same bound contact with its fractional
