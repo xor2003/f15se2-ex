@@ -47,3 +47,41 @@ unit7 x=0 y=0 alt=0 hdg=0 fuel=0 spd=0 wp=0 flags=0x0
 obj1 x=10048 y=8640 obj=0x109 flags=0x0 unitType=1 occ=0 patrol=0 unitRef=1
 obj2 x=12480 y=11840 obj=0x105 flags=0x0 unitType=1 occ=0 patrol=0 unitRef=1
 occupants=3
+scenario 3 missionPick=0 seed=7926
+target0 missionType=1 targetIdx=1 baseIdx=31 missionCode=0 missionNum=40 coord="XU99" distance=0
+target1 missionType=1 targetIdx=11 baseIdx=31 missionCode=0 missionNum=4 coord="XU96" distance=0
+baseXPrecise=681792 baseYPrecise=461016 missionMidX=18493 missionMidY=17760 missionTargetX=15680 missionTargetY=17216 missionTarget2X=15040 missionTarget2Y=21312 missionBase2X=21306 missionBase2Y=18305 missionDistAccum=-72 nightMissionFlag=0
+comm weaponType=0,1,5 weaponCount=4,4,6
+unit0 x=0 y=0 alt=0 hdg=0 fuel=0 spd=0 wp=0 flags=0x1
+unit1 x=16713 y=19124 alt=12 hdg=-1024 fuel=8192 spd=800 wp=4 flags=0x483
+unit2 x=0 y=0 alt=0 hdg=0 fuel=0 spd=0 wp=0 flags=0x101
+unit3 x=16713 y=19124 alt=12 hdg=-1024 fuel=8192 spd=800 wp=3 flags=0x483
+unit4 x=0 y=0 alt=0 hdg=0 fuel=0 spd=0 wp=0 flags=0x1
+unit5 x=0 y=0 alt=0 hdg=0 fuel=0 spd=0 wp=0 flags=0x1
+unit6 x=0 y=0 alt=0 hdg=0 fuel=0 spd=0 wp=0 flags=0x101
+unit7 x=0 y=0 alt=0 hdg=0 fuel=0 spd=0 wp=0 flags=0x1
+unit8 x=0 y=0 alt=0 hdg=0 fuel=0 spd=0 wp=0 flags=0x1
+unit9 x=0 y=0 alt=0 hdg=0 fuel=0 spd=0 wp=0 flags=0x1
+unit10 x=0 y=0 alt=0 hdg=0 fuel=0 spd=0 wp=0 flags=0x1
+obj1 x=15680 y=17216 obj=0x15d flags=0x0 unitType=0 occ=0 patrol=0 unitRef=19
+obj2 x=8512 y=20160 obj=0x126 flags=0x0 unitType=0 occ=0 patrol=0 unitRef=0
+occupants=6
+scenario 4 missionPick=-1 seed=8903
+target0 missionType=1 targetIdx=2 baseIdx=27 missionCode=0 missionNum=4 coord="YV37" distance=0
+target1 missionType=1 targetIdx=1 baseIdx=29 missionCode=0 missionNum=40 coord="YV73" distance=0
+baseXPrecise=875648 baseYPrecise=893560 missionMidX=25106 missionMidY=4090 missionTargetX=22848 missionTargetY=3392 missionTarget2X=28352 missionTarget2Y=10688 missionBase2X=28468 missionBase2Y=7052 missionDistAccum=-72 nightMissionFlag=0
+comm weaponType=0,1,5 weaponCount=4,4,6
+unit0 x=0 y=0 alt=0 hdg=0 fuel=0 spd=0 wp=0 flags=0x1
+unit1 x=26953 y=4276 alt=12 hdg=-1024 fuel=8192 spd=800 wp=4 flags=0x483
+unit2 x=0 y=0 alt=0 hdg=0 fuel=0 spd=0 wp=0 flags=0x101
+unit3 x=27278 y=4738 alt=12 hdg=-1024 fuel=8192 spd=800 wp=1 flags=0x483
+unit4 x=0 y=0 alt=0 hdg=0 fuel=0 spd=0 wp=0 flags=0x1
+unit5 x=0 y=0 alt=0 hdg=0 fuel=0 spd=0 wp=0 flags=0x1
+unit6 x=0 y=0 alt=0 hdg=0 fuel=0 spd=0 wp=0 flags=0x101
+unit7 x=0 y=0 alt=0 hdg=0 fuel=0 spd=0 wp=0 flags=0x1
+unit8 x=0 y=0 alt=0 hdg=0 fuel=0 spd=0 wp=0 flags=0x1
+unit9 x=0 y=0 alt=0 hdg=0 fuel=0 spd=0 wp=0 flags=0x1
+unit10 x=0 y=0 alt=0 hdg=0 fuel=0 spd=0 wp=0 flags=0x1
+obj1 x=28352 y=10688 obj=0x15d flags=0x0 unitType=0 occ=0 patrol=0 unitRef=4
+obj2 x=22848 y=3392 obj=0x126 flags=0x0 unitType=0 occ=0 patrol=0 unitRef=5
+occupants=6

@@ -22,6 +22,12 @@
  * selection, snapping, distance/bearing accumulation or unit placement is
  * caught byte-for-byte.
  *
+ * Scenarios 0-2 run the synthetic world across missionPick 0/-1/1. Scenarios
+ * 3-4 re-seed every world table from campaigns/SVN/SVN.WLD.json — the real
+ * Vietnam theater objects, flight units, terrain grid, object-type table and
+ * names — so the generator also runs on real mission data (impassable
+ * terrain retries, real base selection, real object-type dead zones).
+ *
  *   mission_gen_tests                 compare against the committed golden
  *   mission_gen_tests record <file>   write a fresh trace
  *   mission_gen_tests dump            print the trace to stdout
@@ -32,6 +38,7 @@
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <vector>
 #include "inttype.h"
 #include "struct.h"
 #include "comm.h"
@@ -43,6 +50,9 @@ extern void runGenerator();
 
 #ifndef F15_GOLDEN_DIR
 #define F15_GOLDEN_DIR "goldens"
+#endif
+#ifndef F15_CAMPAIGN_DIR
+#define F15_CAMPAIGN_DIR "../campaigns"
 #endif
 
 namespace {
@@ -176,6 +186,207 @@ void seedWorld() {
         flightUnits[i].planeType = (int16)(i % 19);
 }
 
+/* ---- campaigns/SVN/SVN.WLD.json loading ----
+ * The generated schema is flat: arrays of objects with int/string fields.
+ * These helpers scan it directly — objects are extracted brace-balanced so
+ * nested annotation blocks (e.g. scenario_real_world_anchor) can't confuse
+ * the field lookup. */
+
+std::string readTextFile(const char *path) {
+    std::ifstream f(path, std::ios::binary);
+    require(f.good(), "cannot open SVN.WLD.json — check F15_CAMPAIGN_DIR");
+    return std::string((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+}
+
+/* Byte offset just past `"key"`'s colon, or npos. */
+size_t jsonFieldPos(const std::string &s, const char *key, size_t from = 0) {
+    const std::string pat = std::string("\"") + key + "\"";
+    size_t p = s.find(pat, from);
+    if (p == std::string::npos) return p;
+    p = s.find(':', p + pat.size());
+    if (p == std::string::npos) return p;
+    ++p;
+    while (p < s.size() && (s[p] == ' ' || s[p] == '\t' || s[p] == '\n' || s[p] == '\r')) ++p;
+    return p;
+}
+
+long jsonInt(const std::string &s, const char *key, long dflt = 0) {
+    size_t p = jsonFieldPos(s, key);
+    if (p == std::string::npos) return dflt;
+    return std::strtol(s.c_str() + p, nullptr, 10);
+}
+
+std::string jsonString(const std::string &s, const char *key) {
+    size_t p = jsonFieldPos(s, key);
+    if (p == std::string::npos || s[p] != '"') return "";
+    ++p;
+    std::string out;
+    while (p < s.size() && s[p] != '"') {
+        if (s[p] == '\\' && p + 1 < s.size()) ++p;
+        out += s[p++];
+    }
+    return out;
+}
+
+/* Every `{...}` block inside the named top-level array, brace-balanced and
+ * string-aware. */
+std::vector<std::string> jsonObjectArray(const std::string &json, const char *key) {
+    std::vector<std::string> out;
+    size_t p = jsonFieldPos(json, key);
+    require(p != std::string::npos && json[p] == '[', "missing json array");
+    ++p;
+    while (p < json.size()) {
+        while (p < json.size() && json[p] != '{' && json[p] != ']') ++p;
+        if (p >= json.size() || json[p] == ']') break;
+        size_t start = p, depth = 0;
+        bool inStr = false;
+        for (; p < json.size(); ++p) {
+            char c = json[p];
+            if (inStr) {
+                if (c == '\\') ++p;
+                else if (c == '"') inStr = false;
+                continue;
+            }
+            if (c == '"') inStr = true;
+            else if (c == '{') ++depth;
+            else if (c == '}' && --depth == 0) { ++p; break; }
+        }
+        out.push_back(json.substr(start, p - start));
+    }
+    return out;
+}
+
+void decodeBase64(const std::string &in, unsigned char *out, size_t outSize) {
+    static signed char tab[256];
+    static bool init = false;
+    if (!init) {
+        memset(tab, -1, sizeof(tab));
+        const char *A = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        for (int i = 0; i < 64; ++i) tab[(unsigned char)A[i]] = (signed char)i;
+        init = true;
+    }
+    int acc = 0, bits = 0;
+    size_t n = 0;
+    for (char ch : in) {
+        signed char v = tab[(unsigned char)ch];
+        if (v < 0) continue;
+        acc = (acc << 6) | v;
+        bits += 6;
+        if (bits >= 8) {
+            bits -= 8;
+            if (n < outSize) out[n++] = (unsigned char)((acc >> bits) & 0xff);
+        }
+    }
+    require(n == outSize, "base64 field size mismatch");
+}
+
+std::string g_svnLabel[0x4B];
+
+/* Seed every world table from the real SVN theater data. The terrain
+ * quadtree stays synthetic (SVN.WLD.json carries no .3dG/.3dT data) but its
+ * two tile models are real SVN classes: 38 (SAM Radar) and 93 (Supply
+ * Dump) — both visible in the real object-type table. */
+void seedWorldFromSvn() {
+    const std::string path = std::string(F15_CAMPAIGN_DIR) + "/SVN/SVN.WLD.json";
+    const std::string json = readTextFile(path.c_str());
+
+    memset(&g_game, 0, sizeof(g_game));
+    memset(&g_comm, 0, sizeof(g_comm));
+    g_game.theater = 2; /* vn.wld */
+    g_game.difficulty = 2;
+    g_game.isCampaignMission = 0;
+    gameData = &g_game;
+    commData = &g_comm;
+
+    difficultySaved = 2;
+    theaterSaved = 2;
+    flag4Saved = 0;
+    nightMissionFlag = 0;
+    escortMissionFlag = 0;
+    playerStartLoc = 27; /* first real airbase object */
+    missionDistAccum = 0;
+    missionMidX = missionMidY = 0;
+    missionTargetX = missionTargetY = 0;
+    missionTarget2X = missionTarget2Y = 0;
+    missionBase2X = missionBase2Y = 0;
+    baseXPrecise = baseYPrecise = 0;
+
+    decodeBase64(jsonString(json, "terrain_grid"), (unsigned char *)terrainGrid, sizeof(terrainGrid));
+    decodeBase64(jsonString(json, "mission_object_type_table"), (unsigned char *)objectTypeTable, BUF7SIZE);
+
+    /* Same uniform two-tile quadtree as the synthetic fixture, but the tile
+     * models are real SVN target classes. */
+    memset(gridBuf1, 0, 17);
+    memset(gridBuf2, 0, 0x100);
+    memset(gridBuf3, 0, TERRAIN_CHILD_GRID_BYTES);
+    memset(gridBuf4, 0, TERRAIN_CHILD_GRID_BYTES);
+    memset(gridBuf5, 0, TERRAIN_CHILD_GRID_BYTES);
+    for (int i = 0; i < 16; ++i)
+        gridBuf3[i] = i < 8 ? 0 : 1;
+    for (int i = 0; i < 16; ++i) {
+        gridBuf4[i] = 0;
+        gridBuf4[16 + i] = 1;
+    }
+    memset(terrainTilePtrs, 0, 5 * sizeof(struct TerrainPtrTable));
+    memset(terrainTileCounts, 0, 5 * sizeof(struct TerrainCountTable));
+    memset(terrainTileBlock, 0, 64 * sizeof(struct TerrainTile));
+    terrainTilePtrs[1].entries[0] = &terrainTileBlock[0];
+    terrainTilePtrs[1].entries[1] = &terrainTileBlock[1];
+    terrainTileCounts[1].entries[0] = 1;
+    terrainTileCounts[1].entries[1] = 1;
+    terrainTilePtrs[2].entries[0] = &terrainTileBlock[0];
+    terrainTilePtrs[2].entries[1] = &terrainTileBlock[1];
+    terrainTileCounts[2].entries[0] = 1;
+    terrainTileCounts[2].entries[1] = 1;
+    terrainTileBlock[0].idx = 38; /* SAM Radar class: type table -> tensionMask 2 */
+    terrainTileBlock[1].idx = 93; /* Supply Dump class: -> tensionMask 0x13 */
+
+    memset(targets, 0, 2 * sizeof(struct Target));
+    targets[0].targetIdx = targets[1].targetIdx = -1;
+
+    memset(worldObjects, 0, 0x4B * sizeof(struct WorldObject));
+    readItemSize = (int)jsonInt(json, "read_item_size");
+    worldObjectCount = (uint16)jsonInt(json, "world_object_count");
+    groundUnitCount = (int)jsonInt(json, "ground_unit_count");
+    require(readItemSize <= 0x4B, "SVN read_item_size exceeds table");
+    const auto objs = jsonObjectArray(json, "world_objects");
+    require((int)objs.size() == readItemSize, "SVN world_objects count mismatch");
+    for (int i = 0; i < readItemSize; ++i) {
+        worldObjects[i].unitRef = (uint16)jsonInt(objs[i], "unitRef");
+        worldObjects[i].unitType = (int16)jsonInt(objs[i], "unitType");
+        worldObjects[i].objectIdx = (int16)jsonInt(objs[i], "objectIdx");
+        worldObjects[i].x_coord = (uint16)jsonInt(objs[i], "x_coord");
+        worldObjects[i].y_coord = (uint16)jsonInt(objs[i], "y_coord");
+        worldObjects[i].targetFlags = (int16)jsonInt(objs[i], "targetFlags");
+        worldObjects[i].occupantType = (int16)jsonInt(objs[i], "occupantType");
+        worldObjects[i].patrolCount = (int16)jsonInt(objs[i], "patrolCount");
+        g_svnLabel[i] = jsonString(objs[i], "legacy_label");
+        if (g_svnLabel[i].empty()) g_svnLabel[i] = "unnamed";
+        wldOffsets[i] = g_svnLabel[i].data();
+    }
+    for (int i = readItemSize; i < 0x64; ++i)
+        wldOffsets[i] = (char *)"unused";
+
+    memset(flightUnits, 0, 0x13 * sizeof(struct FlightUnit));
+    flightUnitCount = (int)jsonInt(json, "flight_unit_count");
+    require(flightUnitCount <= 0x13, "SVN flight_unit_count exceeds table");
+    const auto fus = jsonObjectArray(json, "flight_units");
+    require((int)fus.size() == flightUnitCount, "SVN flight_units count mismatch");
+    for (int i = 0; i < flightUnitCount; ++i) {
+        flightUnits[i].waypointIdx = (int16)jsonInt(fus[i], "waypointIdx");
+        flightUnits[i].x = (uint16)jsonInt(fus[i], "x");
+        flightUnits[i].y = (uint16)jsonInt(fus[i], "y");
+        flightUnits[i].altitude = (uint16)jsonInt(fus[i], "altitude");
+        flightUnits[i].heading = (int16)jsonInt(fus[i], "heading");
+        flightUnits[i].pitch = (int16)jsonInt(fus[i], "pitch");
+        flightUnits[i].roll = (int16)jsonInt(fus[i], "roll");
+        flightUnits[i].planeType = (int16)jsonInt(fus[i], "planeType");
+        flightUnits[i].flags = (int16)jsonInt(fus[i], "flags");
+        flightUnits[i].maxSpeed = (int16)jsonInt(fus[i], "maxSpeed");
+        flightUnits[i].fuel = (uint16)jsonInt(fus[i], "fuel");
+    }
+}
+
 void dumpWorld(std::ostream &out, int scenario, int pick, uint32 seed) {
     out << "scenario " << scenario << " missionPick=" << pick << " seed=" << seed << "\n";
     for (int t = 0; t < 2; ++t) {
@@ -236,6 +447,17 @@ std::string buildTrace(uint32 seed) {
         gameSrand(s);
         runGenerator();
         dumpWorld(out, scenario, pick, s);
+    }
+    /* Same two paths on the real SVN theater tables. */
+    static const int svnPicks[] = {0, -1};
+    for (int scenario = 0; scenario < 2; ++scenario) {
+        int pick = svnPicks[scenario];
+        uint32 s = seed + 7919 + (uint32)scenario * 977;
+        seedWorldFromSvn();
+        missionPick = pick;
+        gameSrand(s);
+        runGenerator();
+        dumpWorld(out, 3 + scenario, pick, s);
     }
     return out.str();
 }
