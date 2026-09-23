@@ -532,9 +532,10 @@ if(F15SE2_MODERN_MATH)
         target_link_libraries(modern_sortie_tests PRIVATE f15se2_core Threads::Threads)
         add_test(NAME modern_sortie_tests COMMAND modern_sortie_tests)
         add_test(NAME modern_sortie_loop_tests COMMAND modern_sortie_tests --loop)
+        add_test(NAME modern_sortie_combat_tests COMMAND modern_sortie_tests --combat)
 
         set_tests_properties(modern_flight_smoke_tests modern_sortie_tests
-            modern_sortie_loop_tests PROPERTIES
+            modern_sortie_loop_tests modern_sortie_combat_tests PROPERTIES
             ENVIRONMENT "SDL_VIDEODRIVER=dummy;SDL_AUDIODRIVER=dummy")
     endif()
     return() # Fixed-reference fixtures require the default fixed build.
@@ -649,6 +650,7 @@ add_behavior_test(typed_ticks_tests LINK_CORE)
 add_behavior_test(flight_model_characterization_tests LINK_CORE)
 add_behavior_test(sortie_parity_tests LINK_CORE)
 add_test(NAME sortie_loop_parity_tests COMMAND sortie_parity_tests --loop)
+add_test(NAME sortie_combat_parity_tests COMMAND sortie_parity_tests --combat)
 add_behavior_test(input_behavior_tests LINK_CORE)
 add_behavior_test(joystick_behavior_tests LINK_CORE)
 add_behavior_test(controls_behavior_tests LINK_CORE)

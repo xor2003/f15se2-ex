@@ -948,11 +948,12 @@ differ by ~1000 altitude units and ~3 deg of pitch, so a missile launched on
 the same key follows a different attitude into the ground). They are pinned
 only by layer 1.
 
-Honest limits: same scripted profile, same empty world — this does not
-cover loaded missions, combat AI decisions, rendering, or interactive
-recordings, and it does not make modern behavior identical to fixed; it
-certifies that the same scripted sortie stays bounded-equivalent and
-structurally intact under modern math.
+Honest limits: same scripted profile, same empty world — rendering and
+interactive recordings remain uncovered here, and it does not make modern
+behavior identical to fixed; it certifies that the same scripted sortie
+stays bounded-equivalent and structurally intact under modern math.
+Loaded-mission and combat/AI coverage arrived later via the `--combat`
+profile (see the combat sortie checkpoint).
 
 Verification: modern `modern_sortie_tests` passes (660 ticks pinned,
 envelope worst case position 2838/heading 612 at tick 659), fixed 60/60
@@ -1962,6 +1963,43 @@ analog input path.
 Follow-up option: a stick-active variant of the sortie schedule would change
 its trajectory, so its golden would need re-recording at e28b9a4 with a
 compat-shimmed harness (the tag predates several typed globals).
+
+## Combat sortie checkpoint (loaded-mission coverage)
+
+The sortie/loop profiles hand-seed `g_planeTable`/`g_simObjects` directly —
+the real mission-start path (`initMissionStrings` -> `worldImportToEgame`)
+and the combat/AI tick against imported objects had no coverage. The new
+`--combat` profile fills the START-side world arrays a mission generator
+produces (`worldObjects[]`, `flightUnits[]`, `targets[]`, waypoint globals,
+`wldReadBuf*`, `terrainGrid`, counts) with a small strike mission — home
+base, primary/secondary targets, four interceptors, a bomb-run striker and a
+tracked site — then runs the real import: the +2-byte field-shifted
+MapTarget copy, the FlightUnit -> SimObject memcpy plus typed-shadow seeding,
+the string-pool parse into `g_targetNameTable`, and the target-anchored
+start view. Mission init then runs `findWaypointFeatures`, the wingman seed,
+threat scoring and weapon loadout on the imported world.
+
+The schedule flies hands-off: P engages altitude-hold guidance toward
+waypoints[1] (the primary target, inside the interceptors' patrol volume),
+then S/M/G select weapon slots (AIM-9M/AIM-120/AGM-65 — A2A class 7 and
+ground class 6), T designates, RETURN fires, BACKSPACE runs guns, W cycles
+waypoints through to the recovery leg. Weapon key presses clear only
+`g_autopilotEngaged`; altitude-hold guidance keeps steering throughout.
+
+`combatRequire` asserts non-degeneracy so an empty run cannot pin a golden:
+import populated the tables (plane/unit counts, waypoint target, non-empty
+name table), autopilot altitude-hold engaged, at least one AI object moved,
+the threat alert engaged, and a weapon left the rail (ammo spend, gun spend,
+or a live projectile). In practice the run shows locks, launches, gun hits
+and incoming damage. `sortie_combat_parity_tests` pins per-tick hashes
+(`sortie_combat_parity.trace`, HEAD-recorded — the fixture post-dates
+e28b9a4); `modern_sortie_combat_tests` pins `sortie_combat_fields_modern`
+exactly plus the same assertions, with the fixed-envelope/discrete layers
+skipped because combat trajectories decorrelate through AI retargeting.
+
+Correction recorded here: the sortie schedule's "gear" presses use the G key,
+which is actually the Maverick weapon-slot select (L is gear). The labels
+were wrong but harmless — the goldens pinned the real behaviour either way.
 
 ## Provenance and import corrections
 

@@ -100,18 +100,24 @@ std::uint32_t wrapDistance(std::uint32_t a, std::uint32_t b) {
 
 int run(bool record, const char *recordPath, Profile profile) {
     const bool loop = profile == Profile::kLoop;
+    const bool combat = profile == Profile::kCombat;
+    /* The fixed envelope/discrete layers are sortie-only: the loop decorrelates
+     * trajectories through the pole band, and combat decorrelates through AI
+     * retargeting — both pin against their own modern golden only. */
+    const bool pinnedOnly = loop || combat;
     std::ofstream modernGolden;
     std::ifstream modernIn, fixedIn;
     const char *goldenName = loop ? "sortie_loop_fields_modern.trace"
-                                  : "sortie_fields_modern.trace";
+                           : combat ? "sortie_combat_fields_modern.trace"
+                                    : "sortie_fields_modern.trace";
     if (record) {
         modernGolden.open(recordPath, std::ios::binary | std::ios::trunc);
         require(modernGolden.good(), "cannot open modern golden output");
         modernGolden << "sortie_fields_modern 1 seed " << kSeed << " ticks " << kSortieTicks << "\n";
     } else {
         modernIn.open((std::string(F15_GOLDEN_DIR) + "/" + goldenName).c_str(), std::ios::binary);
-        require(modernIn.good(), "cannot open modern field golden (record with 'record <file> --loop')");
-        if (!loop) {
+        require(modernIn.good(), "cannot open modern field golden (record with 'record <file> --loop|--combat')");
+        if (!pinnedOnly) {
             fixedIn.open(F15_GOLDEN_DIR "/sortie_fields.trace", std::ios::binary);
             require(fixedIn.good(), "cannot open sortie_fields.trace");
         }
@@ -119,7 +125,7 @@ int run(bool record, const char *recordPath, Profile profile) {
         require(std::getline(modernIn, header).good() &&
                 header.rfind("sortie_fields_modern 1", 0) == 0,
                 "modern field golden header mismatch");
-        if (!loop)
+        if (!pinnedOnly)
             require(std::getline(fixedIn, header).good() &&
                     header.rfind("sortie_fields_trace 1", 0) == 0,
                     "fixed field golden header mismatch");
@@ -132,11 +138,13 @@ int run(bool record, const char *recordPath, Profile profile) {
     std::unordered_map<std::string, Transitions> fixedTrans, modernTrans;
     std::unordered_map<std::string, std::uint32_t> lastFixed, lastModern;
     LoopCheck loopCheck;
+    CombatCheck combatCheck;
 
     for (int tick = 0; tick < kSortieTicks; ++tick) {
         runTick(tick, profile);
         const auto snap = snapFields();
         if (loop) loopObserve(loopCheck, tick);
+        if (combat) combatObserve(combatCheck, tick);
 
         if (record) {
             modernGolden << tick;
@@ -152,7 +160,7 @@ int run(bool record, const char *recordPath, Profile profile) {
         require(modernTick == tick, "modern field golden tick order mismatch");
         std::map<std::string, std::uint32_t> expected;
         int fixedTick = tick;
-        if (!loop) {
+        if (!pinnedOnly) {
             require(std::getline(fixedIn, fixedLine).good(), "fixed field golden ended early");
             expected = parseLine(fixedLine, fixedTick);
             require(fixedTick == tick, "fixed field golden tick order mismatch");
@@ -170,8 +178,9 @@ int run(bool record, const char *recordPath, Profile profile) {
 
             /* The fixed envelope/discrete layers are sortie-only: the loop
              * decorrelates trajectories through the pole band by design, and
-             * the stick arrives via the analog path under modern anyway. */
-            if (loop) continue;
+             * combat through AI retargeting — both pin against their own
+             * modern golden only. */
+            if (pinnedOnly) continue;
             const auto fi = expected.find(fv.first);
             require(fi != expected.end(), "field missing from fixed golden");
 
@@ -204,6 +213,7 @@ int run(bool record, const char *recordPath, Profile profile) {
         }
     }
     if (loop) loopRequire(loopCheck);
+    if (combat) combatRequire(combatCheck);
     if (record) {
         require(modernGolden.good(), "modern golden write failed");
         std::fprintf(stderr, "recorded %d modern field ticks to %s\n", kSortieTicks, recordPath);
@@ -212,7 +222,7 @@ int run(bool record, const char *recordPath, Profile profile) {
     {
         std::string extra;
         require(!std::getline(modernIn, extra).good() &&
-                (loop || !std::getline(fixedIn, extra).good()), "field golden has extra ticks");
+                (pinnedOnly || !std::getline(fixedIn, extra).good()), "field golden has extra ticks");
     }
 
     int discreteFails = 0;
@@ -248,6 +258,12 @@ int run(bool record, const char *recordPath, Profile profile) {
                     loopCheck.altMax - loopCheck.altMin);
         return 0;
     }
+    if (combat) {
+        std::printf("modern combat: %d ticks pinned; mission import, AI "
+                    "maneuver, alert and weapon paths all engaged\n",
+                    kSortieTicks);
+        return 0;
+    }
     std::printf("modern sortie: %d ticks pinned, envelope ok; worst vs fixed:\n", kSortieTicks);
     for (const char *k : {"f.fineX", "f.fineY", "f.alt", "f.head", "f.roll", "f.knots"})
         std::printf("  %-8s max %llu (tick %d)\n", k,
@@ -259,12 +275,15 @@ int run(bool record, const char *recordPath, Profile profile) {
 int main(int argc, char **argv) {
     const bool loop = argc >= 2 && std::string(argv[argc - 1]) == "--loop";
     if (loop) --argc;
+    const bool combat = argc >= 2 && std::string(argv[argc - 1]) == "--combat";
+    if (combat) --argc;
     const bool record = argc == 3 && std::string(argv[1]) == "record";
     require(record || argc == 1,
-            "usage: modern_sortie_tests [record <out.trace>] [--loop]");
-    initSortie();
-    const int result = run(record, record ? argv[2] : nullptr,
-                           loop ? Profile::kLoop : Profile::kSortie);
+            "usage: modern_sortie_tests [record <out.trace>] [--loop | --combat]");
+    const Profile profile = loop ? Profile::kLoop
+                               : combat ? Profile::kCombat : Profile::kSortie;
+    initSortie(profile);
+    const int result = run(record, record ? argv[2] : nullptr, profile);
     teardown();
     return result;
 }

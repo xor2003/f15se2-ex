@@ -66,9 +66,11 @@ int runSortie(const char *path, bool record, bool dump, Profile profile) {
     std::uint32_t flightFold = 0, objectsFold = 0;
     int divergedTick = -1;
     LoopCheck loop;
+    CombatCheck combat;
     for (int tick = 0; tick < kSortieTicks; ++tick) {
         runTick(tick, profile);
         if (profile == Profile::kLoop) loopObserve(loop, tick);
+        if (profile == Profile::kCombat) combatObserve(combat, tick);
 
         const std::uint32_t flight = hashFlight();
         const std::uint32_t camera = hashCamera();
@@ -108,6 +110,7 @@ int runSortie(const char *path, bool record, bool dump, Profile profile) {
     /* Guard against a degenerate run (e.g. the sim never advanced). */
     require(flightFold != 0 || objectsFold != 0, "sortie produced an empty state stream");
     if (profile == Profile::kLoop) loopRequire(loop);
+    if (profile == Profile::kCombat) combatRequire(combat);
     if (record) {
         require(trace.good(), "trace write failed");
         std::fprintf(stderr, "recorded %d ticks to %s\n", kSortieTicks, path);
@@ -123,25 +126,30 @@ int runSortie(const char *path, bool record, bool dump, Profile profile) {
 int main(int argc, char **argv) {
     const bool loop = argc >= 2 && std::string(argv[argc - 1]) == "--loop";
     if (loop) --argc;
+    const bool combat = argc >= 2 && std::string(argv[argc - 1]) == "--combat";
+    if (combat) --argc;
     const bool record = argc == 3 && std::string(argv[1]) == "record";
     const bool fields = argc == 3 && std::string(argv[1]) == "fields";
     const bool dump = argc >= 2 && std::string(argv[1]) == "dump";
     require(record || fields || dump || argc == 1,
-            "usage: sortie_parity_tests [record <out.trace> | fields <out.trace> | dump] [--loop]");
-    const Profile profile = loop ? Profile::kLoop : Profile::kSortie;
-    initSortie();
+            "usage: sortie_parity_tests [record <out.trace> | fields <out.trace> | dump] [--loop | --combat]");
+    const Profile profile = loop ? Profile::kLoop
+                               : combat ? Profile::kCombat : Profile::kSortie;
+    initSortie(profile);
     int result = 0;
     if (fields) {
         result = recordFields(argv[2], profile);
     } else {
         const char *path = record ? argv[2]
             : (loop ? F15_GOLDEN_DIR "/sortie_loop_parity.trace"
-                    : F15_GOLDEN_DIR "/sortie_parity.trace");
+                    : combat ? F15_GOLDEN_DIR "/sortie_combat_parity.trace"
+                             : F15_GOLDEN_DIR "/sortie_parity.trace");
         result = runSortie(path, record, dump, profile);
     }
     teardown();
     if (!record && !fields && !dump)
         std::puts(loop ? "loop parity: 660 ticks match the sortie_loop golden"
-                       : "sortie parity: 660 ticks match the e28b9a4 golden");
+                       : combat ? "combat parity: 660 ticks match the sortie_combat golden"
+                                : "sortie parity: 660 ticks match the e28b9a4 golden");
     return result;
 }
