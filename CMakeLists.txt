@@ -634,6 +634,7 @@ add_behavior_test(start_parse_behavior_tests SOURCES
     ${SRC_DIR}/stparse.c ${SRC_DIR}/stdata.c)
 add_behavior_test(stmath_kernel_tests SOURCES
     ${SRC_DIR}/stmath.c ${SRC_DIR}/egmath.c ${SRC_DIR}/egdata.c)
+add_behavior_test(mission_gen_tests LINK_CORE)
 add_behavior_test(original_behavior_tests LINK_CORE)
 add_behavior_test(utility_behavior_tests LINK_CORE)
 add_behavior_test(end_runtime_behavior_tests LINK_CORE)

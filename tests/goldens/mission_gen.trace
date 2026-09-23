@@ -1,0 +1,49 @@
+mission_gen_trace 1
+scenario 0 missionPick=0 seed=7
+target0 missionType=3 targetIdx=1 baseIdx=29 missionCode=58 missionNum=2 coord="KZ00" distance=0
+target1 missionType=1 targetIdx=2 baseIdx=15 missionCode=0 missionNum=4 coord="JY68" distance=0
+baseXPrecise=499712 baseYPrecise=589824 missionMidX=16736 missionMidY=14944 missionTargetX=17920 missionTargetY=15872 missionTarget2X=10560 missionTarget2Y=18496 missionBase2X=14080 missionBase2Y=19456 missionDistAccum=-36 nightMissionFlag=0
+comm weaponType=0,1,5 weaponCount=4,4,6
+unit0 x=14432 y=16427 alt=12 hdg=-1024 fuel=6199 spd=740 wp=1 flags=0x483
+unit1 x=15761 y=17532 alt=12 hdg=-1024 fuel=10060 spd=570 wp=5 flags=0x4c3
+unit2 x=0 y=0 alt=0 hdg=0 fuel=0 spd=0 wp=0 flags=0x100
+unit3 x=0 y=0 alt=0 hdg=0 fuel=0 spd=0 wp=0 flags=0x0
+unit4 x=0 y=0 alt=0 hdg=0 fuel=0 spd=0 wp=0 flags=0x0
+unit5 x=0 y=0 alt=0 hdg=0 fuel=0 spd=0 wp=0 flags=0x0
+unit6 x=0 y=0 alt=0 hdg=0 fuel=0 spd=0 wp=0 flags=0x0
+unit7 x=0 y=0 alt=0 hdg=0 fuel=0 spd=0 wp=0 flags=0x0
+obj1 x=17856 y=15552 obj=0x105 flags=0x0 unitType=1 occ=0 patrol=0 unitRef=1
+obj2 x=10560 y=18496 obj=0x109 flags=0x0 unitType=1 occ=0 patrol=0 unitRef=1
+occupants=3
+scenario 1 missionPick=-1 seed=984
+target0 missionType=1 targetIdx=2 baseIdx=16 missionCode=0 missionNum=4 coord="KZ14" distance=0
+target1 missionType=3 targetIdx=1 baseIdx=37 missionCode=58 missionNum=2 coord="KZ20" distance=0
+baseXPrecise=589824 baseYPrecise=876544 missionMidX=18784 missionMidY=6816 missionTargetX=19136 missionTargetY=8256 missionTarget2X=20416 missionTarget2Y=15808 missionBase2X=20736 missionBase2Y=16896 missionDistAccum=-36 nightMissionFlag=0
+comm weaponType=0,1,5 weaponCount=4,4,6
+unit0 x=11774 y=14217 alt=12 hdg=-1024 fuel=6199 spd=740 wp=1 flags=0x483
+unit1 x=11774 y=14217 alt=12 hdg=-1024 fuel=10060 spd=570 wp=2 flags=0x4c3
+unit2 x=0 y=0 alt=0 hdg=0 fuel=0 spd=0 wp=0 flags=0x100
+unit3 x=0 y=0 alt=0 hdg=0 fuel=0 spd=0 wp=0 flags=0x0
+unit4 x=0 y=0 alt=0 hdg=0 fuel=0 spd=0 wp=0 flags=0x0
+unit5 x=0 y=0 alt=0 hdg=0 fuel=0 spd=0 wp=0 flags=0x0
+unit6 x=0 y=0 alt=0 hdg=0 fuel=0 spd=0 wp=0 flags=0x0
+unit7 x=0 y=0 alt=0 hdg=0 fuel=0 spd=0 wp=0 flags=0x0
+obj1 x=20416 y=15808 obj=0x105 flags=0x0 unitType=1 occ=0 patrol=0 unitRef=1
+obj2 x=19136 y=8256 obj=0x109 flags=0x0 unitType=2 occ=0 patrol=0 unitRef=1
+occupants=3
+scenario 2 missionPick=1 seed=1961
+target0 missionType=1 targetIdx=1 baseIdx=28 missionCode=0 missionNum=4 coord="JZ64" distance=0
+target1 missionType=3 targetIdx=2 baseIdx=21 missionCode=58 missionNum=2 coord="JZ72" distance=0
+baseXPrecise=360448 baseYPrecise=753664 missionMidX=10656 missionMidY=8928 missionTargetX=10048 missionTargetY=8640 missionTarget2X=12480 missionTarget2Y=11840 missionBase2X=10496 missionBase2Y=11776 missionDistAccum=-36 nightMissionFlag=0
+comm weaponType=0,1,5 weaponCount=4,4,6
+unit0 x=9116 y=12007 alt=12 hdg=-1024 fuel=6199 spd=740 wp=3 flags=0x483
+unit1 x=9116 y=12007 alt=12 hdg=-1024 fuel=10060 spd=570 wp=3 flags=0x4c3
+unit2 x=0 y=0 alt=0 hdg=0 fuel=0 spd=0 wp=0 flags=0x100
+unit3 x=0 y=0 alt=0 hdg=0 fuel=0 spd=0 wp=0 flags=0x0
+unit4 x=0 y=0 alt=0 hdg=0 fuel=0 spd=0 wp=0 flags=0x0
+unit5 x=0 y=0 alt=0 hdg=0 fuel=0 spd=0 wp=0 flags=0x0
+unit6 x=0 y=0 alt=0 hdg=0 fuel=0 spd=0 wp=0 flags=0x0
+unit7 x=0 y=0 alt=0 hdg=0 fuel=0 spd=0 wp=0 flags=0x0
+obj1 x=10048 y=8640 obj=0x109 flags=0x0 unitType=1 occ=0 patrol=0 unitRef=1
+obj2 x=12480 y=11840 obj=0x105 flags=0x0 unitType=1 occ=0 patrol=0 unitRef=1
+occupants=3
