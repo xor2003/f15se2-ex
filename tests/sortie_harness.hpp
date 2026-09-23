@@ -19,6 +19,7 @@
 #include "headless.h"
 
 #include "math/legacy_airspeed.hpp"
+#include "math/aerodynamics.hpp"
 #include "math/legacy_altitude.hpp"
 #include "math/legacy_rotation.hpp"
 #include "math/legacy_horizontal.hpp"
@@ -137,8 +138,10 @@ inline void pushKey(SDL_Scancode scancode, SDL_Keycode key) {
  * guidance (recoveryApproach/recoveryBank/recoveryAttitude/recoveryThrust)
  * flies the whole corridor approach into "Safe Landing"; kWrap flies the
  * player into the east theater bound so the per-tick position clamp
- * (egframe.c confine block) engages for hundreds of ticks. */
-enum class Profile { kSortie, kLoop, kCombat, kStick, kLand, kWrap };
+ * (egframe.c confine block) engages for hundreds of ticks; kStall idles
+ * the throttle and pulls up until belowStall, then lets
+ * correctFlightStall's nose-drop and the dive recover it. */
+enum class Profile { kSortie, kLoop, kCombat, kStick, kLand, kWrap, kStall };
 
 constexpr int ticksForProfile(Profile profile) {
     return profile == Profile::kLand ? kLandTicks
@@ -157,6 +160,13 @@ inline void pushScheduleKeys(int tick, Profile profile) {
     /* kWrap is hands-off after the shared ramp: a straight powered run at
      * the east theater bound. */
     if (profile == Profile::kWrap) return;
+    if (profile == Profile::kStall) {
+        /* Idle throttle through the stall, back up once the dive has
+         * rebuilt airspeed — the pull-out needs the engine spooled. */
+        if (tick >= 40 && tick < 80) pushKey(SDL_SCANCODE_MINUS, SDLK_MINUS);
+        if (tick >= 300 && tick < 360) pushKey(SDL_SCANCODE_EQUALS, SDLK_EQUALS);
+        return;
+    }
     if (profile == Profile::kCombat) {
         if (tick == 60) pushKey(SDL_SCANCODE_L, SDLK_L);            // gear up (real key)
         /* Autopilot altitude-hold steers to waypoints[1] (the primary target,
@@ -258,6 +268,15 @@ inline void applyScheduleStick(int tick, Profile profile) {
         else if (tick >= 360 && tick < 430) pitch = 0xa8;         // pull out
         else if (tick >= 430 && tick < 540) roll = 0xa8;          // sustained turn
         else if (tick >= 540 && tick < 640) pitch = 0x58;         // descend
+    } else if (profile == Profile::kStall) {
+        /* Gentle climb-bleed into an ordinary low-speed stall (a hard
+         * pull gives an accelerated stall — the G-load raises the corner
+         * speed past the airspeed — whose dive modern cannot recover
+         * inside 5000 altitude). Centred 280-300 isolates the
+         * correctFlightStall nose-drop; the pull from 300 arrests the
+         * dive once speed is back. */
+        if (tick >= 60 && tick < 280) pitch = 0xa8;
+        else if (tick >= 300 && tick < 500) pitch = 0xa0;
     }
     /* kSortie intentionally stays centred: its golden was recorded while
      * byte writes were being absorbed by updateStick — i.e. it pins a
@@ -852,6 +871,45 @@ inline void boundaryRequire(const BoundaryCheck &b) {
                               "Y-band base");
 }
 
+/* Non-degenerate proof for the stall profile: the plane must actually
+ * enter the stall regime (belowStall while airborne), the production
+ * correctFlightStall response must drop the nose (pitch goes negative
+ * while below stall with a centred stick — no other pitch authority),
+ * and the dive must recover speed above the threshold without a crash. */
+struct StallCheck {
+    bool entrySeen = false;
+    bool noseDropSeen = false;
+    bool recoveredSeen = false;
+    bool lostAirframe = false;
+    int stallTicks = 0;
+};
+inline void stallObserve(StallCheck &s, int) {
+    const bool below = AerodynamicsMath<GameBackend>::belowStall(
+        g_velocity, g_stallSpeed);
+    if (below) {
+        s.entrySeen = true;
+        ++s.stallTicks;
+        /* Stick is centred through the stall window (pull ends at 280):
+         * a negative pitch here can only be the correctFlightStall
+         * nose-drop, not a stick command. */
+        if (legacy::signedAngle(g_ourPitch) < -0x200) s.noseDropSeen = true;
+    } else if (s.stallTicks > 0) {
+        s.recoveredSeen = true;
+    }
+    if (g_ejectState != 0 || legacy::altitudeUnits(g_altitude) == 0)
+        s.lostAirframe = true;
+}
+inline void stallRequire(const StallCheck &s) {
+    require(s.entrySeen, "stall: never entered the stall regime "
+                         "(belowStall while airborne)");
+    require(s.stallTicks >= 20, "stall: stall regime not sustained");
+    require(s.noseDropSeen, "stall: correctFlightStall nose-drop never "
+                            "dropped the nose below the horizon");
+    require(s.recoveredSeen, "stall: never recovered above the threshold");
+    require(!s.lostAirframe, "stall: airframe lost (eject/ground) before "
+                            "recovery");
+}
+
 /* worldExportToEnd round-trip: run the real EGAME -> END debrief export after
  * the sortie and check every block against the live tables — including the
  * reversed +2-byte unitRef shift (plane i re-exports the lead / previous
@@ -1088,6 +1146,20 @@ inline void runTick(int tick, Profile profile = Profile::kSortie) {
         g_planeTable.planes[5].mapY = 0xff00;
         g_planeTable.planes[5].active = 1;
         g_planeTable.planes[5].flags = 0x601;
+    }
+    if (profile == Profile::kStall && tick == 0) {
+        /* Airborne just above the static stall threshold (~2780 units):
+         * idle throttle plus the climb-bleed crosses belowStall, where
+         * correctFlightStall applies its nose-drop each tick — the path
+         * under test. Altitude 6000 leaves dive-recovery room: modern's
+         * fractional dive loses ~1800 more than fixed's. */
+        g_altitude = legacy::altitudeFromUnits(6000);
+        g_viewZ = 6000;
+        g_velocity = legacy::speedFromUnits(3200);
+        g_ViewX = legacy::viewX(0x4000 * 32);
+        g_ViewY = legacy::viewY((0x8000 - 0x4000) * 32);
+        g_ourHead = legacy::angleFromWord((int16)0x4000);
+        rebuildOrientation();
     }
     if (profile == Profile::kLand && tick == 0) {
         /* Pretend both targets were destroyed — the recovery leg is the path

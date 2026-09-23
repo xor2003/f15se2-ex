@@ -77,6 +77,7 @@ int runSortie(const char *path, bool record, bool dump, Profile profile) {
     StickCheck stick;
     LandingCheck land;
     BoundaryCheck boundary;
+    StallCheck stall;
     for (int tick = 0; tick < ticks; ++tick) {
         runTick(tick, profile);
         if (profile == Profile::kLoop) loopObserve(loop, tick);
@@ -84,6 +85,7 @@ int runSortie(const char *path, bool record, bool dump, Profile profile) {
         if (profile == Profile::kStick) stickObserve(stick, tick);
         if (profile == Profile::kLand) landingObserve(land, tick);
         if (profile == Profile::kWrap) boundaryObserve(boundary, tick);
+        if (profile == Profile::kStall) stallObserve(stall, tick);
 
         const std::uint32_t flight = hashFlight();
         const std::uint32_t camera = hashCamera();
@@ -133,6 +135,7 @@ int runSortie(const char *path, bool record, bool dump, Profile profile) {
         verifyWorldExport();
     }
     if (profile == Profile::kWrap) boundaryRequire(boundary);
+    if (profile == Profile::kStall) stallRequire(stall);
     if (record) {
         require(trace.good(), "trace write failed");
         std::fprintf(stderr, "recorded %d ticks to %s\n", ticks, path);
@@ -156,16 +159,19 @@ int main(int argc, char **argv) {
     if (land) --argc;
     const bool wrap = argc >= 2 && std::string(argv[argc - 1]) == "--wrap";
     if (wrap) --argc;
+    const bool stall = argc >= 2 && std::string(argv[argc - 1]) == "--stall";
+    if (stall) --argc;
     const bool record = argc == 3 && std::string(argv[1]) == "record";
     const bool fields = argc == 3 && std::string(argv[1]) == "fields";
     const bool dump = argc >= 2 && std::string(argv[1]) == "dump";
     require(record || fields || dump || argc == 1,
-            "usage: sortie_parity_tests [record <out.trace> | fields <out.trace> | dump] [--loop | --combat | --stick | --land | --wrap]");
+            "usage: sortie_parity_tests [record <out.trace> | fields <out.trace> | dump] [--loop | --combat | --stick | --land | --wrap | --stall]");
     const Profile profile = loop ? Profile::kLoop
                                : combat ? Profile::kCombat
                                         : stick ? Profile::kStick
                                                 : land ? Profile::kLand
-                                                       : wrap ? Profile::kWrap : Profile::kSortie;
+                                                       : wrap ? Profile::kWrap
+                                                              : stall ? Profile::kStall : Profile::kSortie;
     initSortie(profile);
     int result = 0;
     if (fields) {
@@ -177,7 +183,8 @@ int main(int argc, char **argv) {
                              : stick ? F15_GOLDEN_DIR "/sortie_stick_parity.trace"
                                      : land ? F15_GOLDEN_DIR "/sortie_land_parity.trace"
                                             : wrap ? F15_GOLDEN_DIR "/sortie_wrap_parity.trace"
-                                                   : F15_GOLDEN_DIR "/sortie_parity.trace");
+                                                   : stall ? F15_GOLDEN_DIR "/sortie_stall_parity.trace"
+                                                           : F15_GOLDEN_DIR "/sortie_parity.trace");
         result = runSortie(path, record, dump, profile);
     }
     teardown();
@@ -187,6 +194,9 @@ int main(int argc, char **argv) {
                         ticksForProfile(profile));
         } else if (wrap) {
             std::printf("wrap parity: %d ticks match the sortie_wrap golden\n",
+                        ticksForProfile(profile));
+        } else if (stall) {
+            std::printf("stall parity: %d ticks match the sortie_stall golden\n",
                         ticksForProfile(profile));
         } else {
             std::puts(loop ? "loop parity: 660 ticks match the sortie_loop golden"

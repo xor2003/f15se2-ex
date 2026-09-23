@@ -2181,6 +2181,32 @@ coordinates.
 modern's pinned trace shows the same bound contact with its fractional
 pre-clamp fine positions.
 
+## Stall sortie checkpoint (stall-regime coverage)
+
+The stall math was typed (`Aero::belowStall`/`stallThreshold`/
+`stallResponse`/`StallSeverity`) and unit-tested, but no profile
+entered the stall regime end to end. The `--stall` profile seeds the
+plane airborne at altitude 6000, speed 3200 (just above the ~2780
+static threshold), idles the throttle (MINUS train), and pulls into a
+gentle climb-bleed — an ordinary low-speed stall, entered through the
+real `correctFlightStall` gate `flightAboveGround() && belowStall`.
+A hard pull was tried first: the G-load raises `corner` and therefore
+`g_stallSpeed` (an accelerated stall), whose deeper nose-drop dive
+modern could not recover inside 5000 altitude — its fractional
+response loses ~1800 more altitude than fixed's.
+
+The stick then centres (280-300) so the observed nose-drop is provably
+the stall response — the stick's pull byte can only command nose-up —
+and resumes a gentle pull plus EQUALS to arrest the dive once speed
+returns. `stallRequire` asserts: `belowStall` entry while airborne,
+a sustained stall regime (`>= 20` ticks — both backends sit ~40-70),
+the nose-drop (`g_ourPitch < -0x200` while below stall), recovery back
+above the threshold, and no airframe loss (`g_ejectState == 0`,
+altitude never 0). `sortie_stall_parity_tests` pins
+`sortie_stall_parity.trace`; `modern_sortie_stall_tests` pins
+`sortie_stall_fields_modern.trace` — modern's pinned run bottoms at
+alt ~300 before recovering.
+
 ## Provenance and import corrections
 
 The classes came from `f15se2-re/main`, commit `6cbbec1`, originally introduced
@@ -2225,6 +2251,7 @@ input widths or introduce new flight-model formulas.
 | Combat/AI | Projectile guidance/state, bullet tracks, SimObject decision reads, acquisition, lock cones, corridor gates, fine-position shadow, attitude shadow (heading/pitch/bank), alt/speed shadows (SimObject + flag-aliased Projectile.alt) typed | Hit-test broad phases are word-domain game rules (precise swept test already typed); packed words remain synced render/serialization mirrors (Projectile.alt bit0 = radar flag) |
 | Randomness/time | Scaling helper; render-side draws split onto a dedicated non-checked stream so render frame rate cannot shift sim RNG; full audit confirms every sim-stream caller is sim-tick/init-path | Frame pacer accumulators reviewed: event counts and derived ratios, legitimately plain counters |
 | END/debrief | Audit complete: the debrief module (enbrief/endbrf/enaward/endata) computes integer event tallies — kill counts, mission score, ratings — and display coordinates only; no physical quantities flow through it, so there is nothing to type. Its one quantity interface is the `worldExportToEnd()` block, round-trip verified by the combat profile | — |
+| START/mission-gen | Audit complete: stgen/stmissn run once at setup, not per-tick. Their `approxDistance`/`calcBearing`/midpoint arithmetic is a separate fixed-point oracle producing packed words — no fractional path can survive into the word tables by contract. The fine-precision outputs (`FlightUnit.xPrecise`/`yPrecise` = `SimObject.worldX`/`worldY` at the same packed offsets) are already typed-routed through `objectFineSet` in `worldxfer.c`; `baseXPrecise`/`baseYPrecise` are write-only in this port | — |
 
 Not every integer operation is fixed-point math. Object indices, packed flags,
 table addressing, binary serialization and event counters remain integers.
@@ -2423,12 +2450,16 @@ kill (the modern run exercises the same code but decorrelates to a
 near-miss). Landing outcome is covered: the `--land` profile flies the
 recovery corridor to "Safe Landing" and `finalizeMission(0)` on both
 backends. Theater-edge contact is covered: the `--wrap` profile holds
-the player pinned against the east bound under power for ~400 ticks
-while the per-frame scan ranges a band base at 0xff00 through the
-16-bit ring wrap on both backends. Still missing: real mission-file
-loads, interactive `.bbx` recordings, real-time pacing, and
-multi-platform runs — so modern coverage remains a scripted-profile
-acceptance gate, not a certification of the whole game.
+the player pinned against both bounds under power while the per-frame
+scan ranges band bases through the 16-bit ring wrap on both backends.
+Stall entry/recovery is covered: the `--stall` profile enters the
+stall regime through the real `belowStall` gate and recovers through
+the `correctFlightStall` nose-drop on both backends. Still missing:
+real mission-file loads, interactive `.bbx` recordings (the port has
+no recording/replay machinery), real-time pacing, long-duration
+flights, and multi-platform runs — so modern coverage remains a
+scripted-profile acceptance gate, not a certification of the whole
+game.
 
 Reproduce standalone Clang checks from the repository root:
 
