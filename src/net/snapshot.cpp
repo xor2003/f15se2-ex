@@ -12,6 +12,7 @@
 
 #include "comm.h"
 #include "egdata.h"
+#include "egkeys.h"
 #include "egtypes.h"
 #include "struct.h"
 
@@ -528,8 +529,9 @@ void decApplyOwnPlayer(struct NetReader *r) {
     /* Sim-driven display state comes back over the wire (view/panel commands
      * execute in the server ctx, and director/autopilot code can force them).
      * Deliberately NOT applied: mapZoomLevel/mapCenterX/mapCenterY (the local
-     * tacmap blip pass owns zoom/centering) and detailLevel/nightMode (purely
-     * local presentation toggles). */
+     * tacmap blip pass owns zoom/centering). detailLevel/nightMode ARE applied:
+     * they gate the sky dome/terrain fill/LOD tables and nightMode is set
+     * sim-side at mission start, so the client has no other source for them. */
     g_viewMode = (ViewMode)s.viewMode;
     g_mapMode = s.mapMode;
     g_activePanelMode = s.activePanelMode;
@@ -537,6 +539,11 @@ void decApplyOwnPlayer(struct NetReader *r) {
     g_viewTargetObj = s.viewTargetObj;
     g_lastMissileSlot = s.lastMissileSlot;
     g_autopilotEngaged = s.autopilotEngaged;
+    if (g_detailLevel != s.detailLevel) {
+        g_detailLevel = s.detailLevel;
+        setupLodDistances(); /* LOD/cull distance tables derive from it */
+    }
+    g_nightMode = s.nightMode;
     /* Camera-interp inputs: crash-cam eye and wreck/parachute pose. */
     g_crashCamX = s.crashX;
     g_crashCamY = s.crashY;

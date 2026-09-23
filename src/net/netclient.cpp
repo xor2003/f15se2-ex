@@ -206,6 +206,15 @@ int netClientMain(const char *hostPort, const char *name) {
     initTacMapView();    /* bakes the terrain map into the MFD backing image */
     audio_setup(0, f15DgtlResult);
     g_headlessSim = 0;
+    /* framePlayerPre's mission-start block runs only sim-side; mirror the bits
+     * that are presentation-owned here (the sim-driven ones arrive on the
+     * wire). g_frameRateScaling feeds HUD message timers and the spin-angle
+     * math; switchIndicatorColor seeds the HUD palette slots. */
+    g_frameRateScaling = F15_NET_TICKRATE;
+    g_frameTimingAccum = 12;
+    recalcTimeScale();
+    g_mapZoomLevel = 1;
+    switchIndicatorColor(3, 10);
     /* Same timer plumbing as runGameSession: frameTick + the 60 Hz counters
      * drive HUD message fade, DAC colour cycling, view-ring indexing. */
     setTimerTickHook(egAdvanceFrameTick);
