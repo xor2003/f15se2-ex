@@ -213,7 +213,10 @@ int run(bool record, const char *recordPath, Profile profile) {
         }
     }
     if (loop) loopRequire(loopCheck);
-    if (combat) combatRequire(combatCheck);
+    if (combat) {
+        combatRequire(combatCheck);
+        verifyWorldExport();
+    }
     if (record) {
         require(modernGolden.good(), "modern golden write failed");
         std::fprintf(stderr, "recorded %d modern field ticks to %s\n", kSortieTicks, recordPath);

@@ -1997,6 +1997,14 @@ e28b9a4); `modern_sortie_combat_tests` pins `sortie_combat_fields_modern`
 exactly plus the same assertions, with the fixed-envelope/discrete layers
 skipped because combat trajectories decorrelate through AI retargeting.
 
+The profile closes with `verifyWorldExport()`: the real
+`worldExportToEnd()` debrief export runs against the post-mission tables
+and every block is checked — plane records round-trip field-for-field
+(including the reversed +2-byte unitRef shift), the SimObject block, the
+waypoint block, target slots, string pool, category/kill/grid tables,
+route/waypoint/SAM counts and the padlock slot all match their live
+sources.
+
 Correction recorded here: the sortie schedule's "gear" presses use the G key,
 which is actually the Maverick weapon-slot select (L is gear). The labels
 were wrong but harmless — the goldens pinned the real behaviour either way.

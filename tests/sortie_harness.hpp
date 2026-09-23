@@ -29,6 +29,7 @@
 #include "egflight.h"
 #include "egkeys.h"
 #include "comm.h"
+#include "endtypes.h"
 #include "input.h"
 #include "strand.h"
 #include "gfx.h"
@@ -69,6 +70,22 @@ extern int16 missionMidX, missionMidY;
 extern unsigned int missionTargetX, missionTargetY;
 extern int16 missionTarget2X, missionTarget2Y, missionBase2X, missionBase2Y;
 void initMissionStrings();
+void worldExportToEnd(void);
+/* END-side debrief globals (endata.c) written by worldExportToEnd. */
+extern int16 worldWaypointCount;
+extern uint8 worldRouteTable[];
+extern int16 worldRouteCount;
+extern uint16 worldSamCount;
+extern uint8 worldSamTable[];
+extern char unitTypeTable[];
+extern uint8 worldUnitFlags[];
+extern char worldStringBuf[];
+extern uint8 gridFlags[];
+extern int16 worldGridSize;
+extern uint8 worldMiscHeader[];
+extern struct WeaponDataBlock weaponDataBlock;
+extern TargetBlock targetBlock;
+extern uint8 flightDataBuf[0x600];
 
 namespace sortie {
 using namespace f15::math;
@@ -581,6 +598,42 @@ inline void combatRequire(const CombatCheck &c) {
     require(c.aiMoved, "combat: no AI object ever moved");
     require(c.alertSeen, "combat: threat alert never engaged");
     require(c.weaponSeen, "combat: no weapon ever left the rail");
+}
+
+/* worldExportToEnd round-trip: run the real EGAME -> END debrief export after
+ * the sortie and check every block against the live tables — including the
+ * reversed +2-byte unitRef shift (plane i re-exports the lead / previous
+ * plane's secondaryNameIndex). */
+inline void verifyWorldExport() {
+    worldExportToEnd();
+    require(worldObjectCount == 6, "export: plane count");
+    require(worldSamCount == 7, "export: unit count");
+    require(worldWaypointCount == (int16)(1 | (2 << 8)), "export: waypoint count");
+    require(worldRouteCount == g_planeScanCount, "export: route count");
+    require(worldGridSize == 200, "export: distance accumulator");
+    for (int i = 0; i < 6; ++i) {
+        const MapTarget &p = g_planeTable.planes[i];
+        require(worldObjects[i].x_coord == p.mapX && worldObjects[i].y_coord == p.mapY &&
+                worldObjects[i].unitType == p.active && worldObjects[i].targetFlags == p.flags &&
+                worldObjects[i].occupantType == p.alertLevel &&
+                worldObjects[i].patrolCount == p.threatTimer &&
+                worldObjects[i].objectIdx == p.nameIndex,
+                "export: plane record field mismatch");
+        const uint16 ref = (i == 0) ? (uint16)g_planeTable.nameIndexLead
+                                    : (uint16)g_planeTable.planes[i - 1].secondaryNameIndex;
+        require(worldObjects[i].unitRef == ref, "export: shifted unitRef mismatch");
+    }
+    require(memcmp(worldSamTable, g_simObjects, 7 * sizeof(struct SimObject)) == 0,
+            "export: sim object block");
+    require(memcmp(&weaponDataBlock, waypoints, 16) == 0, "export: waypoint block");
+    require(memcmp(&targetBlock, g_targetSlots, sizeof(TargetBlock)) == 0,
+            "export: target slots");
+    require(memcmp(worldStringBuf, g_stringPool, 750) == 0, "export: string pool");
+    require(memcmp(unitTypeTable, g_shapeTargetCategory, 100) == 0, "export: categories");
+    require(memcmp(worldUnitFlags, g_tileKillTally, 100) == 0, "export: kill tally");
+    require(memcmp(gridFlags, g_mapCellFlags, 256) == 0, "export: grid flags");
+    const int16 padlockWord = (int16)(worldMiscHeader[0] | (worldMiscHeader[1] << 8));
+    require(padlockWord == g_padlockAircraft, "export: padlock slot");
 }
 
 inline void initSortie(Profile profile = Profile::kSortie) {

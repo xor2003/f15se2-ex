@@ -110,7 +110,10 @@ int runSortie(const char *path, bool record, bool dump, Profile profile) {
     /* Guard against a degenerate run (e.g. the sim never advanced). */
     require(flightFold != 0 || objectsFold != 0, "sortie produced an empty state stream");
     if (profile == Profile::kLoop) loopRequire(loop);
-    if (profile == Profile::kCombat) combatRequire(combat);
+    if (profile == Profile::kCombat) {
+        combatRequire(combat);
+        verifyWorldExport();
+    }
     if (record) {
         require(trace.good(), "trace write failed");
         std::fprintf(stderr, "recorded %d ticks to %s\n", kSortieTicks, path);
