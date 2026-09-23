@@ -490,6 +490,60 @@ static void test_bullet_pool_lifetime(void) {
     g_residentPlayer = -1;
 }
 
+/* ---- render interpolation: map coords stay in map space ------------------ */
+
+void netRenderSnapCapture(void);
+void netRenderApplyInterp(int64 num, int64 den);
+void netRenderRestore(void);
+
+/* Parked remote players carry posY in map space (0x8000-(ViewY>>5)), NOT
+ * wy>>5 - the 0x01000000 render-Y offset doesn't survive the uint16
+ * truncation. An interpolated render between snapshots must keep mapY
+ * stable for the whole frame (was: 0x4000 -> 0xc000 mid-render, breaking
+ * the 3D range check and radar projection until the restore pass). */
+static void test_interp_preserves_map_coords(void) {
+    int slot;
+    setupWorld();
+    g_groundUnitCount = 20; /* sweep covers the parked slot */
+    slot = 19;
+    memset(&g_simObjects[slot], 0, sizeof(g_simObjects[slot]));
+    /* the netPlayerPublishObject layout: render worldY inverted, map posY
+     * in map space */
+    g_simObjects[slot].worldX = 0x12345000;
+    g_simObjects[slot].worldY = 0x01000000 - 0x80000; /* ViewY = 0x80000 */
+    g_simObjects[slot].posX = 0x2468;
+    g_simObjects[slot].posY = 0x4000;
+    g_simObjects[slot].alt = 500;
+    g_simObjects[slot].flags.b[0] = 2; /* alive */
+    g_simObjects[slot].flags.b[1] = SIMFLAG_B1_REMOTE_PLAYER;
+
+    /* two identical captures = two consecutive identical snapshots */
+    netRenderSnapCapture();
+    netRenderSnapCapture();
+    /* mid-frame tween: map coords must hold their own convention */
+    netRenderApplyInterp(1, 2);
+    CHECK(g_simObjects[slot].posY == 0x4000);
+    CHECK(g_simObjects[slot].posX == 0x2468);
+    /* restore returns the authoritative fields */
+    netRenderRestore();
+    CHECK(g_simObjects[slot].posY == 0x4000);
+    CHECK(g_simObjects[slot].worldY == 0x01000000 - 0x80000);
+
+    /* map-boundary crossing wraps the short way: 0xffe0 -> 0x0020
+     * (delta +0x40 across 0x10000), midpoint lands near 0, not ~0x8000 */
+    g_simObjects[slot].posY = 0xffe0;
+    netRenderSnapCapture();
+    g_simObjects[slot].posY = 0x0020;
+    netRenderSnapCapture();
+    netRenderApplyInterp(1, 2);
+    {
+        int16 mid = (int16)g_simObjects[slot].posY;
+        CHECK(mid <= 0x20 && mid >= -0x20);
+    }
+    netRenderRestore();
+    CHECK(g_simObjects[slot].posY == 0x0020);
+}
+
 /* ---- frameThreatScan: per-player scope-sweep timer ----------------------- */
 
 /* g_scopeSweepTimer is a per-pilot RWR debounce: it must tick down inside
@@ -706,6 +760,7 @@ int main(void) {
     test_obs_inbound_missile();
     test_obs_sites_and_threat();
     test_bullet_pool_lifetime();
+    test_interp_preserves_map_coords();
     test_scope_timer_per_player();
     test_snap_truncated_atomic();
     test_snap_stale_rejected();

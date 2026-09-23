@@ -106,7 +106,11 @@ void drawTacticalMap(char page) {
         i += 2;
     }
     for (i = 0; i < g_groundUnitCount; i++) {
-        if ((g_simObjects[i].flags.b[0] & 2) && g_simObjects[i].speed != 0) {
+        if ((g_simObjects[i].flags.b[0] & 2) &&
+            (g_simObjects[i].speed != 0 ||
+             /* live remote pilots show on radar even when stationary -
+              * a parked/spawned plane is still an aircraft contact */
+             (g_simObjects[i].flags.b[1] & SIMFLAG_B1_REMOTE_PLAYER))) {
             projectMapPoint(g_simObjects[i].posX, g_simObjects[i].posY);
             if (g_projDepth != -1) {
                 if (g_currentWeaponType == 1 && i == g_airTargetLock) {

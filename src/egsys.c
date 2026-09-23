@@ -132,6 +132,14 @@ static int angleSnaps(int32 a, int32 b) {
     return d >= 0x4000 || d <= -0x4000;
 }
 
+/* Wrap-aware interpolation in 16-bit map space: the int16 delta takes the
+ * shortest path across the 0x10000 boundary, so a contact crossing the map
+ * edge tweens a few units instead of sweeping across the whole map. */
+static int32 lerpMap16(uint16 a, uint16 b, int64 num, int64 den) {
+    int16 d = (int16)(b - a);
+    return (int32)a + (int32)(((int64)d * num) / den);
+}
+
 /* Interpolate a heading/pitch/roll pose. The gimbal flip changes the
  * REPRESENTATION of all three components at once (head/roll jump 0x8000 while
  * pitch reflects with a small delta); snapping only the offending component
@@ -211,9 +219,11 @@ static uint64 simStepNsNow(void) {
  *     advances a few hundred world units; a reuse/respawn jumps map-scale).
  *   - projectiles: ttl decrements by exactly 1 per step in flight and a reused
  *     slot always passes through ttl==0, so interpolate iff next.ttl==prev.ttl-1.
- * posX/posY mirror worldX/worldY (>>5) so the HUD reticle (projectWorldToHud,
- * which reads posX/posY) and the 3D model (drawWorldObject, worldX/worldY) stay
- * consistent. */
+ * posX/posY are interpolated in their own map convention (wrap-aware):
+ * for ordinary AI objects they still mirror worldX/worldY (>>5), but for
+ * parked remote players posY is 0x8000-(ViewY>>5), which a render-space
+ * derivation corrupts. The HUD reticle (projectWorldToHud, reading
+ * posX/posY) and the 3D model (worldX/worldY) stay consistent. */
 typedef struct {
     int32 worldX, worldY;
     uint16 posX, posY;
@@ -272,8 +282,14 @@ static void objApplyInterp(const SimObjSnap *sp, const SimObjSnap *sn,
         wy = lerpLinear(sp[i].worldY, sn[i].worldY, num, den);
         g_simObjects[i].worldX = wx;
         g_simObjects[i].worldY = wy;
-        g_simObjects[i].posX = (uint16)(wx >> 5);
-        g_simObjects[i].posY = (uint16)(wy >> 5);
+        /* posX/posY are MAP-space fields, not a derivation of render
+         * coords: for parked remote players posY = 0x8000-(ViewY>>5) and
+         * (uint16)(wy>>5) loses the 0x01000000 render offset - the review's
+         * 0x4000 -> 0xc000 mid-render corruption. Interpolate the captured
+         * map fields directly so range checks/radar see the real position
+         * throughout the interpolated frame. */
+        g_simObjects[i].posX = (uint16)lerpMap16(sp[i].posX, sn[i].posX, num, den);
+        g_simObjects[i].posY = (uint16)lerpMap16(sp[i].posY, sn[i].posY, num, den);
         g_simObjects[i].alt = (int16)lerpLinear(sp[i].alt, sn[i].alt, num, den);
         /* enemy AI flips its pose representation the same way as the player
          * (egthreat pitch>0x4000: head+=0x8000, bank+=0x8000, pitch reflected) */

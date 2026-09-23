@@ -93,6 +93,25 @@ Notes:
 - The staleness gate resets on each MISSION_SETUP apply, so a reconnecting
   client accepts its first snapshot regardless of prior tick values.
 
+## Round 5 findings (post 02e67b2)
+
+Fifth-pass review (debugger-driven) confirmed the snapshot wire coordinates
+are correct but found the render-side interpolation corrupting map Y inside
+the draw window, plus two visibility gaps. All three fixed and verified;
+build green, 34/34 + 31/31 tests pass, two-client live probe shows both
+players at the intended 128-map-unit spacing across every snapshot.
+
+| # | Issue | Status |
+|---|-------|--------|
+| 1 | [P1] objApplyInterp derived posY from render worldY (`(uint16)(wy>>5)`), corrupting remote mapY 0x4000 -> 0xc000 mid-render; 3D range check and radar projection then rejected the contact | FIXED - posX/posY interpolate their own captured map fields via wrap-aware `lerpMap16` (int16 shortest-path delta); worldX/worldY keep separate render-space lerp. `net_sim_tests::test_interp_preserves_map_coords`: identical snapshots keep posY=0x4000 through interp+restore, and 0xffe0->0x0020 wraps the short way |
+| 2 | [P2] Spawn separation 0x180 (=12 map units) co-located radar contacts under the ownship icon | FIXED - 0x1000 (=128 map units) per formation step; live two-probe check: id=1 parked at mapX 30752 vs id=0 at 30624, stable across 211+ snapshots |
+| 3 | [P2] Radar aircraft filter required speed != 0, hiding stationary remote players | FIXED - `egui.c` tacmap loop also accepts `SIMFLAG_B1_REMOTE_PLAYER`; parked remotes already set flags.b[0]=2 when alive |
+
+Note: the parked-remote object writes posY in the 0x8000-(ViewY>>5) map
+convention carried on the wire as mapY; the render convention (worldY,
+inverted) is intentionally NOT unified - the fix separates the two
+interpolation paths rather than changing snapshot encoding.
+
 ## Round 4 findings (post f97b54d)
 
 Fourth-pass review confirmed four round-3 fixes but showed the projectile

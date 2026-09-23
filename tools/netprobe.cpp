@@ -126,6 +126,7 @@ static void printMsg(const uint8_t *msg, size_t len) {
             uint8_t pid = nrU8(&r);
             struct NetPlayerState s;
             decPlayerState(&r, &s);
+            printf("PROBE snap-plr id=%u map=%d,%d\n", pid, s.mapX, s.mapY);
             if ((int)pid == g_myId)
                 printf("PROBE snap-own id=%u knots=%d apAlt=%d apEng=%u\n",
                        pid, s.knots, s.autopilotAlt,

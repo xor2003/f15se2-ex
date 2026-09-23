@@ -315,9 +315,10 @@ static void onHello(NetPeer peer, struct NetReader *r) {
     /* Spawn separation: alternating lateral offset in map units, applied once
      * the ctx finishes mission init (initPhase>=2) - for the playerInitCtx
      * path the position is only assigned during the first sim ticks, so the
-     * offset must wait or it gets clobbered. Slot1 +0x180, slot2 -0x180,
-     * slot3 +0x300... a formation spread, not a single point. */
-    p->spawnOff = slot > 0 ? ((slot & 1) ? 1 : -1) * ((slot + 1) / 2) * 0x180
+     * offset must wait or it gets clobbered. Slot1 +0x1000, slot2 -0x1000,
+     * slot3 +0x2000... a formation spread wide enough that each contact
+     * resolves as a distinct radar blip, not a single point. */
+    p->spawnOff = slot > 0 ? ((slot & 1) ? 1 : -1) * ((slot + 1) / 2) * 0x1000
                          : 0;
     sendHelloAck(peer, slot);
     sendMissionSetup(p);
