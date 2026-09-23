@@ -380,10 +380,17 @@ void remoteInputInit(struct RemoteInput *r) {
     r->frameTickPtr = &frameTick;
 }
 
-int remoteInputPushKey(struct RemoteInput *r, uint16 scan) {
+void (*g_remoteKeyServedHook)(struct RemoteInput *r, uint16 scan,
+                              uint32 cmdSeq, uint8 cmdIdx);
+
+int remoteInputPushKey(struct RemoteInput *r, uint16 scan,
+                       uint32 cmdSeq, uint8 cmdIdx) {
     if ((uint8)(r->tail - r->head) >= REMOTE_KEY_QUEUE)
         return 0; /* queue full: rejected (rate-limit protection, plan §28) */
-    r->queue[r->tail++ % REMOTE_KEY_QUEUE] = scan;
+    r->queue[r->tail % REMOTE_KEY_QUEUE] = scan;
+    r->queueSeq[r->tail % REMOTE_KEY_QUEUE] = cmdSeq;
+    r->queueIdx[r->tail % REMOTE_KEY_QUEUE] = cmdIdx;
+    r->tail++;
     return 1;
 }
 
@@ -400,8 +407,13 @@ static int remoteKeyWaiting(void *ctx) {
 }
 static uint16 remoteReadKey(void *ctx) {
     struct RemoteInput *r = (struct RemoteInput *)ctx;
-    uint16 k = r->queue[r->head++ % REMOTE_KEY_QUEUE];
+    uint16 k = r->queue[r->head % REMOTE_KEY_QUEUE];
+    uint32 cmdSeq = r->queueSeq[r->head % REMOTE_KEY_QUEUE];
+    uint8 cmdIdx = r->queueIdx[r->head % REMOTE_KEY_QUEUE];
+    r->head++;
     r->lastServeTick = *r->frameTickPtr;
+    if (g_remoteKeyServedHook)
+        g_remoteKeyServedHook(r, k, cmdSeq, cmdIdx); /* sim consumed it */
     return k;
 }
 static void remotePollAxes(void *ctx, uint8 *joyX, uint8 *joyY) {

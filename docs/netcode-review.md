@@ -93,6 +93,22 @@ Notes:
 - The staleness gate resets on each MISSION_SETUP apply, so a reconnecting
   client accepts its first snapshot regardless of prior tick values.
 
+## Round 3 findings (post 451bf51)
+
+Third-pass review reopened four round-2 entries (gunfire, command
+delivery, capacity, canonical hash) and found two new defects. All six
+fixed and verified; build green, 34/34 + 31/31 tests pass, ASan/UBSan
+clean of project-code reports.
+
+| # | Issue | Status |
+|---|-------|--------|
+| 1 | [P1] Per-player gun slots shortened projectile lifetime (release cleared airborne rounds, second shot overwrote the first) | FIXED - server firing now claims any FREE slot in the shared 16-entry player pool (bulletTracks[0..15], enemy tracers stay at 16-19); saturated pool falls back to rotating overwrite. The no_fire release-sweep runs in SP only. `net_sim_tests::test_bullet_pool_lifetime`: release keeps the round airborne, a second shot claims a different slot, idle players clear nothing, SP rotating slot + sweep unchanged |
+| 2 | [P2] Snapshot staleness gate dead for negative ticks (`s_lastFrameTick >= 0` as "unset") | FIXED - explicit `s_haveLastTick` flag replaces the sentinel; the int16 modular diff already handled wrap. Test `test_snap_negative_ticks` reproduces the reported -32760 -> -32761 rejection plus resend, older, newer, and the 32767 -> -32768 wrap (walked via modular-reachable hops) |
+| 3 | [P2] Command rejection invisible to clients; no command-level dedup | FIXED - `NE_CMD_ACK` event: subject=clientSeq, object=cmd index, arg=0 executed / 1 rejected. Executed acks fire from a served-hook inside `remoteReadKey` (the sim actually consumed the key); reject acks fire at queue-full push time. Per-key (seq,idx) tags ride parallel queue arrays in `RemoteInput`. Server dedups command-bearing packets via `lastCmdSeq` (independent of axes freshness). Client surfaces rejections on the HUD. Live: cmd ack arg=0 per served key; resent cmd packet executed once (one "Autopilot off"); 52-cmd flood -> arg=1 rejections once the 32-entry queue saturated |
+| 4 | [P2] Admission checked only sim-object capacity | FIXED - `playerCapacity()` = `min(8, F15_MAX_SIM_OBJECTS - g_groundUnitCount, F15_MAX_MAP_TARGETS - g_planeCount)`: a mission without map-target storage NAKs instead of accepting players that can't get tactical-map entries |
+| 5 | [P2] One player's scope timer gated world threats | FIXED - `g_scopeSweepTimer` is a per-pilot RWR debounce (fireGroundThreat sets it on contact). Its decrement moved from `updateThreatSites` (one resident ctx) into `frameThreatScan` (every player's own pass), and the world-side gate now fires unconditionally on the server - `serverFireGroundThreat` swaps in the chosen victim's ctx and applies `g_scopeSweepTimer < 0` THERE, so pilot A's active sweep can no longer suppress a site engaging pilot B. SP semantics unchanged |
+| 6 | [P2] worldHash not canonical (raw PlayerSim bytes included presentation/string state; bullets/map-targets/RNG omitted) | FIXED - hash now covers simObjects + projectiles + bulletTracks (player pool + enemy slots) + planeTable (up to g_planeCount) + mapEvents + waypoints + targetSlots + entity counts + mission tick/status + `g_randCallCount` (new: counts in-sim rand() draws - all sim RNG funnels through randomRange since the fxRandomRange split) + `frameTick`; players fold in via `playerCtxHash()` (sim region only: ViewX..missionEndedFlag) + slot index. Cosmetic state can't change the hash; gameplay divergence can't hide |
+
 ## 1. [P1] Remote pause freezes the entire server
 
 NC_PAUSE and NC_SCREENSHOT reach waitForKeyPress(), which waits on the

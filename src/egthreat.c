@@ -47,8 +47,14 @@ void updateThreatSites() {
                         ((g_planeTable.planes[siteIdx].alertLevel >> 3) + 0x20) +
                     siteIdx / 2;
             }
-            if (g_planeTable.planes[siteIdx].threatTimer == 4 && g_scopeSweepTimer < 0) {
-                /* server: engage a specific player under that player's ctx */
+            if (g_planeTable.planes[siteIdx].threatTimer == 4 &&
+                (g_threatFireHook || g_scopeSweepTimer < 0)) {
+                /* The scope-timer term is a per-PILOT engagement debounce
+                 * (fireGroundThreat sets it to g_frameRateScaling on a
+                 * contact). SP reads the single resident ctx directly; on
+                 * the server the hook swaps in the chosen victim's ctx and
+                 * applies the check there - one pilot's active sweep must
+                 * not suppress a threat against another pilot. */
                 if (g_threatFireHook)
                     g_threatFireHook(siteIdx);
                 else
@@ -76,7 +82,9 @@ void updateThreatSites() {
         }
     }
 
-    g_scopeSweepTimer--;
+    /* g_scopeSweepTimer's decrement moved into frameThreatScan: it is a
+     * per-player cockpit timer, and this function runs under ONE resident
+     * ctx - decrementing here would advance only that player's sweep. */
 }
 
 /* ---- merged from egflt.c ---- */

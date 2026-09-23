@@ -1852,6 +1852,7 @@ int16 g_rollMatrix[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0x7FFF};
 
 /* bulletTracks: 3D projectile table (player rounds + threat shots), HUD-projected. */
 struct BulletTrack bulletTracks[20];
+int32 g_randCallCount; /* in-sim rand() draws (canonical hash input) */
 
 /* 3x3 rotation matrix scratch buffers (9 words): written by
  * multiplyMatrix3x3Far/buildRotationMatrixFar, read as [axis]/[3+axis]/[6+axis]. */

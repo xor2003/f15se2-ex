@@ -86,6 +86,11 @@ void frameThreatScan(void) {
     int16 tmp;
     int16 i;
 
+    /* RWR sweep debounce: a per-player cockpit timer (set by
+     * fireGroundThreat under the victim's ctx), so it ticks down in the
+     * player pass where every ctx's timers advance exactly once. */
+    g_scopeSweepTimer--;
+
     if ((frameTick & 7) != 0) goto skip_target_section;
 
     g_prevThreatIndex = g_closestThreatIndex;

@@ -149,6 +149,14 @@ static void applyEvent(const struct NetEvent *ev) {
         g_missionOver = 1;
         g_landingType = ev->arg;
         break;
+    case NE_CMD_ACK:
+        /* command outcome: subject=clientSeq, object=cmd index, arg=status
+         * (0=executed, 1=rejected). The executed case is already visible as
+         * the command's own effect; a rejection is what the pilot must be
+         * told about - the press did nothing. */
+        if (ev->arg != 0)
+            hudMessage("COMMAND REJECTED BY SERVER");
+        break;
     default:
         break;
     }

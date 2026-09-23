@@ -499,6 +499,11 @@ void seedRng(void) {
 int randomRange(int maxVal) { /* Original: rnd(Max). Deterministic ((long)Max * rand()) >> 15 range scaling. */
     enum { RAND_SCALE_SHIFT = 15 };
     /* DOS rand() is 15-bit (RAND_MAX 0x7fff); mask to match so the >>15 scaling yields [0, maxVal). */
+    /* All in-sim rand() consumption funnels here (draw code uses
+     * fxRandomRange) - counting calls lets the canonical state hash detect
+     * when two peers' sims consumed different amounts of RNG even if the
+     * drawn values coincidentally matched. */
+    g_randCallCount++;
     return (int)(((long)(rand() & 0x7fff) * (long)maxVal) >> RAND_SCALE_SHIFT);
 }
 

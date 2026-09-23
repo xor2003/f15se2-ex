@@ -43,7 +43,10 @@ static int s_worldObjCount = -1;      /* authoritative object count from setup *
 static int s_worldPlaneCount = -1;    /* authoritative planeTable count */
 static unsigned s_parkedMask;         /* player ids currently published */
 static unsigned s_seenMask;           /* player ids seen in this snapshot */
-static int16_t s_lastFrameTick = -1;  /* staleness gate (wraps with frameTick) */
+static int16_t s_lastFrameTick;       /* last committed authoritative tick */
+static int s_haveLastTick;            /* 1 once a snapshot has committed -
+                                       * frameTick is signed, so "unset"
+                                       * needs its own flag, not a sentinel */
 
 void netSetupBuild(struct NetWriter *w) {
     int i, n;
@@ -135,7 +138,7 @@ int netSetupApply(struct NetReader *r) {
     s_worldObjCount = g_groundUnitCount; /* remote players park above this */
     s_worldPlaneCount = g_planeCount;
     s_parkedMask = s_seenMask = 0;
-    s_lastFrameTick = -1; /* new world: staleness gate re-arms on first snap */
+    s_haveLastTick = 0; /* new world: staleness gate re-arms on first snap */
     g_missionStatus = nrI16(r);
     g_unusedSavedWord = nrI16(r);
     g_padlockAircraft = nrI16(r);
@@ -647,8 +650,9 @@ int netSnapApply(struct NetReader *r, int playerId) {
         if ((t.projs[i].id & ~0xFFu) != NET_ID_PROJECTILE_BASE ||
             (t.projs[i].id & 0xFFu) >= F15_MAX_PROJECTILES)
             return 0;
-    /* stale/out-of-order delivery must never roll live state back */
-    if (s_lastFrameTick >= 0 && (int16_t)(t.frameTick - s_lastFrameTick) <= 0)
+    /* stale/out-of-order delivery must never roll live state back
+     * (int16 diff handles the wrap; negative ticks compare correctly) */
+    if (s_haveLastTick && (int16_t)(t.frameTick - s_lastFrameTick) <= 0)
         return 0;
 
     /* ---- commit: validated, now mutate ---- */
@@ -757,6 +761,7 @@ int netSnapApply(struct NetReader *r, int playerId) {
     g_missionStatus = t.missionStatus;
     frameTick = t.frameTick; /* authoritative sim tick - drives the view ring etc. */
     s_lastFrameTick = t.frameTick;
+    s_haveLastTick = 1;
     for (i = 0; i < F15_WAYPOINTS; i++) {
         waypoints[i].mapX = t.wpX[i];
         waypoints[i].mapY = t.wpY[i];

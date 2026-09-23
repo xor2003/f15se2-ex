@@ -395,38 +395,106 @@ static void test_obs_sites_and_threat(void) {
 
 void tryPlayerFire(void); /* egframe.c segment fn (no header, same as f15world.c) */
 
-/* A nonfiring player's pass clears only ITS slot, never a teammate's round:
- * on the server each resident player owns bulletTracks[g_residentPlayer]. */
-static void test_bullet_slot_isolation(void) {
+/* Server gun rounds claim any FREE slot in the shared pool (stamped with
+ * the shooter). A trigger release or a later shot never deletes an
+ * airborne round, and other players' passes clear nothing - rounds keep
+ * full flight lifetime for longer-range hits. SP keeps the legacy
+ * rotating slot + release sweep. */
+static void test_bullet_pool_lifetime(void) {
     static struct GameComm comm; /* localFireButton reads commData->setupUseJoy */
+    int i;
     setupWorld();
     commData = &comm;
     memset(&comm, 0, sizeof(comm));
-    g_bulletTrackCount = F15_MAX_PLAYERS;
+    g_bulletTrackCount = F15_MAX_PLAYERS * 2; /* server pool: 16 slots */
     memset(bulletTracks, 0, sizeof(bulletTracks));
-    frameTick = 3; /* odd: the fire pass runs */
     g_gunAmmo = 500;
     g_ejectState = 0;
-    /* player 0 fires: round lands in slot 0, stamped owner 0 */
     g_ourHead = 0x1000; /* nonzero yaw so the tracer's posX liveness is set */
+
+    /* shot 1 claims the first free slot, stamped owner 0 */
+    frameTick = 1;
     g_residentPlayer = 0;
     g_axisInputAccum[0] = 1;
     tryPlayerFire();
     CHECK(bulletTracks[0].posX != 0 || bulletTracks[0].posY != 0);
     CHECK(bulletTracks[0].targetPlayer == 0);
-    /* player 1's nonfiring pass clears slot 1 only: player 0's tracer and
-     * hit eligibility survive */
-    g_residentPlayer = 1;
+
+    /* trigger release on a later odd tick: the airborne round survives */
+    frameTick = 3;
     g_axisInputAccum[0] = 0;
     tryPlayerFire();
-    CHECK(bulletTracks[1].posX == 0);
     CHECK(bulletTracks[0].posX != 0 || bulletTracks[0].posY != 0);
-    /* and the converse: player 0 idle must not clear player 1's tracer */
-    bulletTracks[1].posX = 0x5000 << 5;
-    bulletTracks[1].targetPlayer = 1;
-    g_residentPlayer = 0;
+
+    /* second shot lands in a DIFFERENT slot; the first keeps flying */
+    frameTick = 5;
+    g_axisInputAccum[0] = 1;
     tryPlayerFire();
-    CHECK(bulletTracks[1].posX != 0);
+    CHECK(bulletTracks[0].posX != 0 || bulletTracks[0].posY != 0);
+    CHECK(bulletTracks[1].posX != 0 || bulletTracks[1].posY != 0);
+    CHECK(bulletTracks[1].targetPlayer == 0);
+
+    /* another player's idle pass clears nothing */
+    frameTick = 7;
+    g_residentPlayer = 2;
+    g_axisInputAccum[0] = 0;
+    tryPlayerFire();
+    for (i = 0; i < 2; i++)
+        CHECK(bulletTracks[i].posX != 0 || bulletTracks[i].posY != 0);
+
+    /* saturated pool: all slots busy -> overwrite falls back to rotation */
+    for (i = 0; i < g_bulletTrackCount; i++)
+        if (!bulletTracks[i].posX) {
+            bulletTracks[i].posX = 1;
+            bulletTracks[i].targetPlayer = 3;
+        }
+    frameTick = 9; /* rotating slot (9>>1)%16 = 4 */
+    g_residentPlayer = 0;
+    g_axisInputAccum[0] = 1;
+    tryPlayerFire();
+    CHECK(bulletTracks[4].targetPlayer == 0);
+
+    /* SP mode (resident -1): rotating slot + release sweep unchanged */
+    g_residentPlayer = -1;
+    memset(bulletTracks, 0, sizeof(bulletTracks));
+    frameTick = 11; /* rotating slot (11>>1)%16 = 5 */
+    g_axisInputAccum[0] = 1;
+    tryPlayerFire();
+    CHECK(bulletTracks[5].posX != 0 || bulletTracks[5].posY != 0);
+    frameTick = 43; /* rotation back to slot 5: release sweep clears it */
+    g_axisInputAccum[0] = 0;
+    tryPlayerFire();
+    CHECK(bulletTracks[5].posX == 0);
+    g_residentPlayer = -1;
+}
+
+/* ---- frameThreatScan: per-player scope-sweep timer ----------------------- */
+
+/* g_scopeSweepTimer is a per-pilot RWR debounce: it must tick down inside
+ * each player's OWN pass (frameThreatScan), not once under whichever ctx
+ * the world pass happens to hold. One pilot's active sweep can no longer
+ * suppress a site engaging another pilot. */
+static void test_scope_timer_per_player(void) {
+    static struct PlayerSim a, b;
+    setupWorld();
+    memset(&a, 0, sizeof(a));
+    memset(&b, 0, sizeof(b));
+    g_scopeSweepTimer = 5;
+    playerSwapOut(&a); /* a.scopeSweepTimer = 5 */
+    g_scopeSweepTimer = 12;
+    playerSwapOut(&b); /* b.scopeSweepTimer = 12 */
+    frameTick = 1;
+    playerSwapIn(&a);
+    g_residentPlayer = 0;
+    frameThreatScan();
+    playerSwapOut(&a);
+    CHECK(a.scopeSweepTimer == 4);
+    playerSwapIn(&b);
+    g_residentPlayer = 1;
+    frameThreatScan();
+    playerSwapOut(&b);
+    CHECK(b.scopeSweepTimer == 11);
+    CHECK(a.scopeSweepTimer == 4); /* B's pass didn't touch A's timer */
     g_residentPlayer = -1;
 }
 
@@ -528,6 +596,7 @@ static void test_snap_invalid_ids_rejected(void) {
     nrInit(&r, buf, w.len);
     CHECK(netSnapApply(&r, 0) == 0);
     CHECK(g_missionTick == 55); /* nothing committed */
+
     /* an out-of-range object id likewise */
     nwInit(&w, buf, sizeof(buf));
     nwU8(&w, 0);             /* 0 players */
@@ -556,6 +625,49 @@ static void test_snap_invalid_ids_rejected(void) {
     CHECK(g_missionTick == 55);
 }
 
+/* frameTick is signed: the staleness gate must keep working across the
+ * negative half of the cycle (was: s_lastFrameTick >= 0 meant "unset",
+ * so every negative tick looked like a first snapshot). */
+static void test_snap_negative_ticks(void) {
+    uint8_t buf[8192];
+    struct NetReader r;
+    int len;
+    setupWorld();
+    /* first negative tick commits (wrap-ambiguous vs the previous 601:
+     * -32760-601 wraps positive, so it's "newer" modularly) */
+    len = buildSnap(buf, sizeof(buf), -32760);
+    nrInit(&r, buf, (size_t)len);
+    CHECK(netSnapApply(&r, 0) == 1);
+    CHECK(frameTick == -32760);
+    /* resend of the same negative tick: stale, must not re-commit */
+    g_missionTick = 77;
+    nrInit(&r, buf, (size_t)len);
+    CHECK(netSnapApply(&r, 0) == 0);
+    CHECK(g_missionTick == 77);
+    /* older negative tick: -32761 -> rejected (the reported repro) */
+    len = buildSnap(buf, sizeof(buf), -32761);
+    nrInit(&r, buf, (size_t)len);
+    CHECK(netSnapApply(&r, 0) == 0);
+    /* newer negative tick accepted */
+    len = buildSnap(buf, sizeof(buf), -32759);
+    nrInit(&r, buf, (size_t)len);
+    CHECK(netSnapApply(&r, 0) == 1);
+    CHECK(frameTick == -32759);
+    /* the wrap itself: 32767 -> -32768 is +1 modularly -> accepted.
+     * (modular order means only ~half the tick space is reachable in one
+     * step, so walk up: -32759 -> 8 -> 32767 -> -32768) */
+    len = buildSnap(buf, sizeof(buf), 8);
+    nrInit(&r, buf, (size_t)len);
+    CHECK(netSnapApply(&r, 0) == 1);
+    len = buildSnap(buf, sizeof(buf), 32767);
+    nrInit(&r, buf, (size_t)len);
+    CHECK(netSnapApply(&r, 0) == 1);
+    len = buildSnap(buf, sizeof(buf), -32768);
+    nrInit(&r, buf, (size_t)len);
+    CHECK(netSnapApply(&r, 0) == 1);
+    CHECK(frameTick == -32768);
+}
+
 /* ---- runner ------------------------------------------------------------ */
 
 int main(void) {
@@ -571,10 +683,12 @@ int main(void) {
     test_obs_full_mode();
     test_obs_inbound_missile();
     test_obs_sites_and_threat();
-    test_bullet_slot_isolation();
+    test_bullet_pool_lifetime();
+    test_scope_timer_per_player();
     test_snap_truncated_atomic();
     test_snap_stale_rejected();
     test_snap_invalid_ids_rejected();
+    test_snap_negative_ticks();
     if (fails == 0) {
         printf("net_sim_tests: all pass\n");
         return 0;

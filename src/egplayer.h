@@ -187,6 +187,11 @@ int simInputFireButton(int n);
 
 struct RemoteInput {
     uint16 queue[REMOTE_KEY_QUEUE];
+    /* execution-ack tags parallel to queue[]: which (clientSeq, cmd index)
+     * produced each key, so the server can emit NE_CMD_ACK when the sim
+     * actually consumes it. 0 seq = untagged. */
+    uint32 queueSeq[REMOTE_KEY_QUEUE];
+    uint8 queueIdx[REMOTE_KEY_QUEUE];
     uint8 head, tail;
     uint8 joyX, joyY, buttons;
     int16 lastServeTick;
@@ -194,7 +199,12 @@ struct RemoteInput {
 };
 
 void remoteInputInit(struct RemoteInput *r);
-int remoteInputPushKey(struct RemoteInput *r, uint16 scan); /* 0 = queue full */
+int remoteInputPushKey(struct RemoteInput *r, uint16 scan,
+                       uint32 cmdSeq, uint8 cmdIdx); /* 0 = queue full */
+/* fired when the sim consumes a queued remote key (server installs it to
+ * emit the execution ack; NULL in single-player/tools) */
+extern void (*g_remoteKeyServedHook)(struct RemoteInput *r, uint16 scan,
+                                     uint32 cmdSeq, uint8 cmdIdx);
 void remoteInputSetAxes(struct RemoteInput *r, uint8 joyX, uint8 joyY,
                         uint8 buttons);
 const struct SimInputOps *remoteInputOps(void);

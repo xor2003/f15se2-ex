@@ -54,7 +54,8 @@ struct ServerPlayer {
     uint8_t role;
     char name[F15_NAME_LEN + 1];
     uint32_t lastSeq;
-    uint32_t cmdDrops;  /* reliable cmds rejected by a full key queue */
+    uint32_t lastCmdSeq; /* app-level dedup: last clientSeq carrying cmds */
+    uint32_t cmdDrops;   /* reliable cmds rejected by a full key queue */
     int32_t spawnOff; /* pending lateral spawn offset (world units), 0 = none */
     uint8_t inputArrived; /* sync-step: input packet seen since last tick */
     struct PlayerSim ctx;
@@ -87,7 +88,9 @@ static void sendEvent(uint16_t type, NetPeer to, int16_t arg, const char *text) 
     nwInit(&w, buf, sizeof(buf));
     netMsgWriteHeader(&w, NETMSG_EVENT, srvTick(), 0);
     encEvent(&w, &ev);
-    if (g_curPeer != NET_PEER_INVALID)
+    if (to != NET_PEER_INVALID)
+        g_net->send(to, buf, w.len, NET_SEND_RELIABLE);
+    else if (g_curPeer != NET_PEER_INVALID)
         g_net->send(g_curPeer, buf, w.len, NET_SEND_RELIABLE);
     else {
         int i;
@@ -95,7 +98,40 @@ static void sendEvent(uint16_t type, NetPeer to, int16_t arg, const char *text) 
             if (g_players[i].used && g_players[i].ready)
                 g_net->send(g_players[i].peer, buf, w.len, NET_SEND_RELIABLE);
     }
-    (void)to;
+}
+
+/* command outcome (NE_CMD_ACK): subject = the input packet's clientSeq,
+ * object = command index inside that packet, arg = status. The pair
+ * (clientSeq, idx) is the application-level command id - the sender can
+ * match the ack against its own send order. */
+static void sendCmdAck(NetPeer peer, uint32_t seq, uint8_t idx, int16_t st) {
+    uint8_t buf[NET_MSG_HEADER_SIZE + 64];
+    struct NetEvent ev;
+    struct NetWriter w;
+    memset(&ev, 0, sizeof(ev));
+    ev.eventType = NE_CMD_ACK;
+    ev.subject = seq;
+    ev.object = idx;
+    ev.arg = st;
+    nwInit(&w, buf, sizeof(buf));
+    netMsgWriteHeader(&w, NETMSG_EVENT, srvTick(), 0);
+    encEvent(&w, &ev);
+    g_net->send(peer, buf, w.len, NET_SEND_RELIABLE);
+}
+
+/* fired from remoteReadKey when the sim consumes a queued command key:
+ * the ack now means "executed", not merely "accepted into the queue" */
+static void onRemoteKeyServed(struct RemoteInput *r, uint16 scan,
+                              uint32 seq, uint8 idx) {
+    int i;
+    (void)scan;
+    if (!seq)
+        return; /* untagged key */
+    for (i = 0; i < F15_MAX_PLAYERS; i++)
+        if (g_players[i].used && &g_players[i].input == r) {
+            sendCmdAck(g_players[i].peer, seq, idx, 0);
+            return;
+        }
 }
 
 static void evHud(const char *t) { sendEvent(NE_HUD_MESSAGE, g_curPeer, 0, t); }
@@ -141,12 +177,16 @@ static int bootWorld(int seed, int theater, int difficulty) {
 
 /* ---- player slots ---- */
 
-/* Admission is bounded by parked-object storage: each player needs a fixed
- * g_simObjects slot above g_groundUnitCount, and the array is
- * F15_MAX_SIM_OBJECTS total. A mission with no room NAKs instead of
- * accepting a player it can't simulate/publish. */
+/* Admission is bounded by BOTH parked-storages: each player needs a fixed
+ * g_simObjects slot above g_groundUnitCount AND a g_planeTable map-target
+ * slot above g_planeCount - the arrays have independent limits. A mission
+ * short on either NAKs instead of accepting a player it can't simulate or
+ * publish on the tactical map. */
 static int playerCapacity(void) {
     int cap = F15_MAX_SIM_OBJECTS - g_groundUnitCount;
+    int mapCap = F15_MAX_MAP_TARGETS - g_planeCount;
+    if (mapCap < cap)
+        cap = mapCap;
     if (cap > F15_MAX_PLAYERS)
         cap = F15_MAX_PLAYERS;
     return cap < 0 ? 0 : cap;
@@ -301,6 +341,17 @@ static void onInput(ServerPlayer *p, struct NetReader *r) {
         p->lastSeq = in.clientSeq;
         p->inputArrived = 1;
     }
+    /* Application-level dedup on the command stream: the reliable transport
+     * already delivers each packet once, but a resent/replayed cmd packet
+     * must not execute twice. (clientSeq, cmd index) is the command id;
+     * axes freshness above is tracked separately so a cmd packet lagging
+     * behind newer unreliable axes still runs. */
+    if (in.nCmds > 0) {
+        if (in.clientSeq <= p->lastCmdSeq)
+            in.nCmds = 0; /* duplicate command packet: don't re-execute */
+        else
+            p->lastCmdSeq = in.clientSeq;
+    }
     for (i = 0; i < in.nCmds; i++) {
         uint16_t scan;
         /* Pause/screenshot are client-local presentation ops; server-side
@@ -309,8 +360,11 @@ static void onInput(ServerPlayer *p, struct NetReader *r) {
         if (in.cmds[i] == NC_PAUSE || in.cmds[i] == NC_SCREENSHOT)
             continue;
         scan = netCmdToScan(in.cmds[i]);
-        if (scan && !remoteInputPushKey(&p->input, scan)) {
-            /* queue full = explicit rejection: count it, log occasionally */
+        if (scan && !remoteInputPushKey(&p->input, scan, in.clientSeq,
+                                        (uint8_t)i)) {
+            /* queue full = explicit rejection: ack it so the sender can
+             * tell dropped commands from executed ones */
+            sendCmdAck(p->peer, in.clientSeq, (uint8_t)i, 1);
             if (++p->cmdDrops <= 4 || (p->cmdDrops & 0xFF) == 0)
                 fprintf(stderr,
                         "f15server: player %d cmd queue full, dropped #%u\n",
@@ -384,12 +438,19 @@ static void serverFireGroundThreat(int16 planeIdx) {
     }
     victim = pickThreatTarget(g_planeTable.planes[planeIdx].mapX,
                               g_planeTable.planes[planeIdx].mapY);
-    if (victim < 0 || victim == g_worldCtxIdx) {
-        fireGroundThreat(planeIdx);
+    if (victim < 0)
+        victim = g_worldCtxIdx;
+    /* g_scopeSweepTimer is the firing pilot's RWR debounce: evaluate it in
+     * the VICTIM's ctx, so pilot A's active sweep never gates a site that
+     * is engaging pilot B. */
+    if (victim == g_worldCtxIdx) {
+        if (g_scopeSweepTimer < 0)
+            fireGroundThreat(planeIdx);
         return;
     }
     swapInVictim(victim);
-    fireGroundThreat(planeIdx);
+    if (g_scopeSweepTimer < 0)
+        fireGroundThreat(planeIdx);
     swapBackFromVictim();
 }
 
@@ -488,33 +549,58 @@ static void onPlayerObjectHit(int16 objIdx) {
 
 /* ---- tick ---- */
 
+static uint32_t fnvBlock(uint32_t h, const void *p, size_t n) {
+    const uint8_t *b = (const uint8_t *)p;
+    size_t i;
+    for (i = 0; i < n; i++) {
+        h ^= b[i];
+        h *= 16777619u;
+    }
+    return h;
+}
+
+/* Canonical simulation-state hash (plan §24, review round 3):
+ * covers every authoritative table the sim reads/writes - world objects,
+ * projectiles/missiles, the bullet table, map-target table, map events,
+ * waypoints, target slots - plus mission/timing scalars and the in-sim RNG
+ * position (g_randCallCount). Player state folds in through
+ * playerCtxHash(), which is defined to hash ONLY the simulation region of
+ * PlayerSim (ViewX..missionEndedFlag): cosmetic/presentation fields and
+ * string scratch cannot perturb the hash, and padding never leaks in. */
 static uint32_t worldHash(void) {
-    /* canonical world hash (plan §24): shared tables + every live player ctx
-     * (ctxs are memset at init, so padding bytes stay zero and the raw hash
-     * is deterministic) */
     uint32_t h = 2166136261u;
-    int i;
-    const uint8_t *b;
-    b = (const uint8_t *)g_simObjects;
-    for (i = 0; i < (int)(F15_MAX_SIM_OBJECTS * sizeof(g_simObjects[0])); i++) {
-        h ^= b[i];
-        h *= 16777619u;
-    }
-    b = (const uint8_t *)g_projectiles;
-    for (i = 0; i < (int)(F15_MAX_PROJECTILES * sizeof(g_projectiles[0])); i++) {
-        h ^= b[i];
-        h *= 16777619u;
-    }
+    int i, n;
+    h = fnvBlock(h, g_simObjects,
+                 F15_MAX_SIM_OBJECTS * sizeof(g_simObjects[0]));
+    h = fnvBlock(h, g_projectiles,
+                 F15_MAX_PROJECTILES * sizeof(g_projectiles[0]));
+    n = g_bulletTrackCount + 4; /* player pool + enemy tracer slots */
+    if (n > 20)
+        n = 20;
+    h = fnvBlock(h, bulletTracks, (size_t)n * sizeof(bulletTracks[0]));
+    n = g_planeCount;
+    if (n > F15_MAX_MAP_TARGETS)
+        n = F15_MAX_MAP_TARGETS;
+    if (n > 0)
+        h = fnvBlock(h, g_planeTable.planes, (size_t)n * sizeof(g_planeTable.planes[0]));
+    h = fnvBlock(h, mapEvents, F15_MAX_MAP_EVENTS * sizeof(mapEvents[0]));
+    h = fnvBlock(h, waypoints, F15_WAYPOINTS * sizeof(waypoints[0]));
+    h = fnvBlock(h, g_targetSlots, 2 * sizeof(g_targetSlots[0]));
+    h ^= (uint32_t)g_targetEntityCount;
+    h ^= (uint32_t)g_planeCount << 8;
+    h ^= (uint32_t)g_groundUnitCount << 16;
+    h ^= (uint32_t)g_planeScanCount << 24;
+    h *= 16777619u;
+    h ^= (uint32_t)g_missionTick;
+    h ^= (uint32_t)g_missionStatus << 16;
+    h *= 16777619u;
+    h ^= (uint32_t)g_randCallCount;
     for (i = 0; i < F15_MAX_PLAYERS; i++) {
-        int j;
         if (!g_players[i].used || !g_players[i].ready)
             continue;
         h ^= (uint32_t)i; /* which slot the ctx lives in matters */
-        b = (const uint8_t *)&g_players[i].ctx;
-        for (j = 0; j < (int)sizeof(struct PlayerSim); j++) {
-            h ^= b[j];
-            h *= 16777619u;
-        }
+        h ^= playerCtxHash(&g_players[i].ctx);
+        h *= 16777619u;
     }
     h ^= (uint32_t)frameTick;
     return h;
@@ -706,6 +792,7 @@ int main(int argc, char **argv) {
     /* threat fire routines delegate victim selection + ctx swap to us */
     g_threatFireHook = serverFireGroundThreat;
     g_airThreatFireHook = serverFireAirThreat;
+    g_remoteKeyServedHook = onRemoteKeyServed; /* cmd execution acks */
     g_playerObjectHitHook = onPlayerObjectHit;
     g_simEvents.onHudMessage = evHud;
     g_simEvents.onTimedMessage = evTimed;
@@ -717,10 +804,9 @@ int main(int argc, char **argv) {
         fprintf(stderr, "f15server: asset/boot failure\n");
         return 1;
     }
-    /* every player owns bulletTracks[playerIdx] on the server: a nonfiring
-     * player clears only its own tracer slot, never a teammate's shot */
-    if (g_bulletTrackCount < F15_MAX_PLAYERS)
-        g_bulletTrackCount = F15_MAX_PLAYERS;
+    /* server player rounds share the whole player pool: free-slot claim,
+     * rotating overwrite under saturation; last 4 slots stay enemy tracers */
+    g_bulletTrackCount = F15_MAX_PLAYERS * 2;
     fprintf(stderr, "f15server: world ready, listening on :%d\n", port);
 
     g_net = createGnsTransport();

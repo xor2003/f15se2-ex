@@ -95,9 +95,9 @@ static void test_ctx_hash(void) {
 static void test_remote_input_one_key_per_tick(void) {
     struct RemoteInput r;
     remoteInputInit(&r);
-    remoteInputPushKey(&r, 0x1e61); /* 'a' */
-    remoteInputPushKey(&r, 0x266c); /* 'l' */
-    remoteInputPushKey(&r, 0x1372); /* 'r' */
+    remoteInputPushKey(&r, 0x1e61, 0, 0); /* 'a' */
+    remoteInputPushKey(&r, 0x266c, 0, 0); /* 'l' */
+    remoteInputPushKey(&r, 0x1372, 0, 0); /* 'r' */
 
     frameTick = 100;
     CHECK(simInputKeyWaiting() == 0); /* local ops still installed */
@@ -135,7 +135,7 @@ static void test_remote_input_queue_full(void) {
     int i;
     remoteInputInit(&r);
     for (i = 0; i < REMOTE_KEY_QUEUE + 8; i++)
-        remoteInputPushKey(&r, 0x100 + i);
+        remoteInputPushKey(&r, 0x100 + i, 0, 0);
 
     frameTick = 1;
     simInputSet(remoteInputOps(), &r);
@@ -145,6 +145,33 @@ static void test_remote_input_queue_full(void) {
         frameTick++;
     }
     CHECK(simInputKeyWaiting() == 0);
+    simInputReset();
+}
+
+/* Command-ack tags ride the queue to the sim-side read (NE_CMD_ACK feed). */
+static struct RemoteInput *s_servedR;
+static uint16 s_servedKey;
+static uint32 s_servedSeq;
+static uint8 s_servedIdx;
+static void servedHook(struct RemoteInput *r, uint16 scan, uint32 seq,
+                       uint8 idx) {
+    s_servedR = r;
+    s_servedKey = scan;
+    s_servedSeq = seq;
+    s_servedIdx = idx;
+}
+static void test_remote_input_served_hook(void) {
+    struct RemoteInput r;
+    remoteInputInit(&r);
+    remoteInputPushKey(&r, 0x2049, 42, 1); /* cmd id (seq=42, idx=1) */
+    g_remoteKeyServedHook = servedHook;
+    s_servedR = 0;
+    frameTick = 5;
+    simInputSet(remoteInputOps(), &r);
+    CHECK(simInputReadKey() == 0x2049);
+    CHECK(s_servedR == &r);
+    CHECK(s_servedKey == 0x2049 && s_servedSeq == 42 && s_servedIdx == 1);
+    g_remoteKeyServedHook = 0;
     simInputReset();
 }
 
@@ -160,6 +187,7 @@ int main(void) {
     test_ctx_hash();
     test_remote_input_one_key_per_tick();
     test_remote_input_queue_full();
+    test_remote_input_served_hook();
     if (fails == 0)
         printf("player_ctx_tests: OK\n");
     return fails ? 1 : 0;

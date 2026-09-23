@@ -486,14 +486,23 @@ void tryPlayerFire(void) {
     if (!(frameTick & 1)) {
         return;
     }
-    /* Player rounds: each resident player owns bulletTracks[g_residentPlayer]
-     * on the server (a nonfiring player clears only its own slot, never a
-     * teammate's tracer). Single-player (resident -1) keeps the original
-     * frame-derived rotating slot. */
-    if (g_residentPlayer >= 0)
-        slot = g_residentPlayer % g_bulletTrackCount;
-    else
+    /* Round slot selection:
+     * - SP (resident -1): the original frame-derived rotating slot; a round
+     *   lives ~2*g_bulletTrackCount ticks before the rotation overwrites it.
+     * - server: claim any FREE slot in the shared player pool (0..count-1)
+     *   and stamp the owner. A saturated pool overwrites the rotating index.
+     *   Rounds keep independent flight: a later shot or a trigger release
+     *   never deletes an airborne round - only the SP path below keeps the
+     *   legacy release-sweep. */
+    if (g_residentPlayer >= 0) {
+        for (slot = 0; slot < g_bulletTrackCount; slot++)
+            if (bulletTracks[slot].posX == 0)
+                break;
+        if (slot >= g_bulletTrackCount)
+            slot = (int)((frameTick >> 1) % g_bulletTrackCount);
+    } else {
         slot = (frameTick >> 1) % g_bulletTrackCount;
+    }
     firing = readAxisInput(0);
     if (!firing) goto no_fire;
     if (g_gunAmmo <= 0) goto no_fire;
@@ -516,7 +525,10 @@ void tryPlayerFire(void) {
     g_gunFiredFlag = 1;
     goto done_fire;
 no_fire:
-    bulletTracks[slot].posX = 0;
+    /* legacy release-sweep, SP only: on the server an airborne round keeps
+     * flying (it dies on a hit or when the shared pool overwrites it). */
+    if (g_residentPlayer < 0)
+        bulletTracks[slot].posX = 0;
     g_gunFiredFlag = 0;
 done_fire:
     if (firing) {

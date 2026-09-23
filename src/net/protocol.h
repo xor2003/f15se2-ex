@@ -315,6 +315,8 @@ enum NetEventType {
     NE_EJECTED,
     NE_MISSION_END,
     NE_VIEW_HINT, /* director-style "switch view" suggestion */
+    NE_CMD_ACK,   /* command outcome: subject=clientSeq, object=cmd index,
+                   * arg=status (0=executed by sim, 1=rejected/queue full) */
 };
 
 #endif /* F15_NET_PROTOCOL_H */
