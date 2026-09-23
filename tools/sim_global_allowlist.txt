@@ -83,8 +83,6 @@ g_airTargetLock
 g_altLabelBuf
 g_altRemainder
 g_altTapeTickStep
-g_attackRangeX
-g_attackRangeY
 g_autoCrashDive
 g_autoLandingActive
 g_autopilotEngaged

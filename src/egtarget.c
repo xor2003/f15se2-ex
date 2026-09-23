@@ -280,8 +280,8 @@ skip_aam:
             if (g_simObjects[idx].alt < 999 && g_nightMode == 0) {
                 marker = 0;
                 if ((g_planeTable.planes[g_closestThreatIndex].flags & 0x200) &&
-                    abs(g_simObjects[idx].posX - g_planeTable.planes[g_closestThreatIndex].mapX) < g_attackRangeX >> 5 &&
-                    abs(g_simObjects[idx].posY - g_planeTable.planes[g_closestThreatIndex].mapY) < g_attackRangeY >> 5) {
+                    abs(g_simObjects[idx].posX - g_planeTable.planes[g_closestThreatIndex].mapX) < g_attackRangeX &&
+                    abs(g_simObjects[idx].posY - g_planeTable.planes[g_closestThreatIndex].mapY) < g_attackRangeY) {
                     marker = 0x80;
                 }
                 if (g_sceneHeightRender != f15::math::legacy::Altitudes::render(0x80) || marker == 0x80) {

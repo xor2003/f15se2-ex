@@ -353,19 +353,32 @@ void updateFrame(void) {
 
 skip_target_section:
     if (g_nearestThreatRange < 0x200 || missionAtHeight(g_groundAltitude)) {
+        /* Corridor half-extents in map words. The originals stored fine
+         * (word<<5) constants that every consumer shifted back — all exact
+         * multiples of 32, so the word values are lossless. The scan box is
+         * a long thin approach funnel (shorter when the base is destroyed);
+         * the landing box is the |dx|<=8, |dy|<=30 corridor the auto-land
+         * check gates on. gameData->unk4==1 widens both. */
+        constexpr int16 kScanHalfX = 0xa0 >> 5;        /* 5  */
+        constexpr int16 kScanHalfY = 0x800 >> 5;       /* 64 */
+        constexpr int16 kScanHalfYDestroyed = 0x400 >> 5; /* 32 */
+        constexpr int16 kCorridorHalfX = 0x100 >> 5;   /* 8  */
+        constexpr int16 kCorridorHalfY = 0x3c0 >> 5;   /* 30 */
+        constexpr int16 kEasyHalfXBonus = 0x100 >> 5;  /* +8  */
+        constexpr int16 kEasyHalfYBonus = 0x200 >> 5;  /* +16 */
         g_groundAltitude = {};
-        g_attackRangeX = 0xa0;
-        g_attackRangeY = 0x800;
+        g_attackRangeX = kScanHalfX;
+        g_attackRangeY = kScanHalfY;
         if (g_planeTable.planes[g_closestThreatIndex].flags & 0x800) {
-            g_attackRangeY = 0x400;
+            g_attackRangeY = kScanHalfYDestroyed;
         }
         const auto threatOff = mapOffset(flightMapPosition(),
                                          g_planeTable.planes[g_closestThreatIndex].mapX,
                                          g_planeTable.planes[g_closestThreatIndex].mapY);
         if (g_planeTable.planes[g_closestThreatIndex].flags & 0x200) {
             g_groundAltitude = f15::math::legacy::terrainFromUnits(0x80);
-            g_attackRangeX = 0x100;
-            g_attackRangeY = 0x3c0;
+            g_attackRangeX = kCorridorHalfX;
+            g_attackRangeY = kCorridorHalfY;
             if (missionAtHeight(g_groundAltitude) && flightKnots() > SpeedMath::knots(0x50)) {
                 const auto forwardDist = threatOff.ringY() * g_northSouthSign;
                 if (forwardDist >= 0x10 && forwardDist <= 0x14) {
@@ -378,11 +391,11 @@ skip_target_section:
             }
         }
         if (gameData->unk4 == 1) {
-            g_attackRangeX += 0x100;
-            g_attackRangeY += 0x200;
+            g_attackRangeX += kEasyHalfXBonus;
+            g_attackRangeY += kEasyHalfYBonus;
         }
-        if (std::abs(threatOff.dx) > (g_attackRangeX >> 5) ||
-            (std::abs(threatOff.dy) > (g_attackRangeY >> 5))) {
+        if (std::abs(threatOff.dx) > g_attackRangeX ||
+            (std::abs(threatOff.dy) > g_attackRangeY)) {
             g_groundAltitude = {};
             g_inLandingCorridor = 0;
         } else {
