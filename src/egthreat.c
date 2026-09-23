@@ -74,7 +74,7 @@ void updateThreatSites() {
             g_planeTable.planes[siteIdx].threatTimer -= 1;
             if (g_planeTable.planes[siteIdx].threatTimer <= 0) {
                 g_planeTable.planes[siteIdx].threatTimer =
-                    ((int16)(char)g_frameRateScaling.word() << 8) /
+                    g_frameRateScaling.shifted(8) /
                         ((g_planeTable.planes[siteIdx].alertLevel >> 3) + 0x20) +
                     siteIdx / 2;
             }
@@ -90,7 +90,7 @@ void updateThreatSites() {
     if (g_mapMode == 0 && g_scopeSweepTimer.isPositive() && g_hudVisible != 0 && g_scopeArcRange > 1) {
         if (g_detailLevel != 0) {
             captureScopePanel();
-            arcRadius = (int16)((int32)clampRange(g_scopeSweepTimer.elapsedWithin(g_frameRateScaling.word()), 1, g_frameRateScaling.word()) * (int32)g_scopeArcRange / (int32)g_frameRateScaling.word()) << 6;
+            arcRadius = (int16)g_frameRateScaling.perTick((int32)clampRange(g_scopeSweepTimer.elapsedWithin(g_frameRateScaling.word()), 1, g_frameRateScaling.word()) * (int32)g_scopeArcRange) << 6;
         } else {
             arcRadius = g_scopeArcRange << 6;
             g_scopeArcRange = 0;
