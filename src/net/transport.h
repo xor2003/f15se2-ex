@@ -42,8 +42,10 @@ class NetTransport {
   public:
     virtual ~NetTransport() = default;
 
-    /* Server: bind a listen port. Client: connect to "host:port". */
-    virtual bool listen(uint16_t port) = 0;
+    /* Server: bind a listen port. bindAddr NULL/empty listens on every
+     * interface; an IP literal binds just that interface. Client: connect
+     * to "host:port". */
+    virtual bool listen(const char *bindAddr, uint16_t port) = 0;
     virtual bool connect(const char *hostPort) = 0;
     virtual void closePeer(NetPeer peer, int reason) = 0;
     virtual void shutdown() = 0;

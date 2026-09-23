@@ -21,6 +21,7 @@
 #include "r2d.h"
 #include "const.h"
 #include "comm.h"
+#include "net/protocol.h" /* F15_MAX_MAP_EVENTS: decoy pool bound */
 
 #include <dos.h>
 #include <stdio.h>
@@ -420,15 +421,19 @@ void countermeasures(int16 eventType) {
     int16 i, slot;
 
     slot = -1;
-    if ((g_eventTimers[eventType])-- <= 0) {
+    if (g_eventTimers[eventType] <= 0) {
         g_eventTimers[eventType] = 0;
         hudMessage("Stores exhausted");
     } else {
-        for (i = 1; i < 4; i++) {
+        /* shared decoy pool: find space BEFORE spending stores - a full
+         * pool rejects the release without consuming inventory (the old
+         * order burned one store and deployed nothing) */
+        for (i = 1; i < F15_MAX_MAP_EVENTS; i++) {
             if (mapEvents[i].ttl == 0)
                 slot = i;
         }
         if (slot != -1) {
+            g_eventTimers[eventType]--;
             mapEvents[slot].mapX = g_viewX_;
             mapEvents[slot].mapY = g_viewY_;
             mapEvents[slot].type = eventType;
@@ -449,15 +454,17 @@ void countermeasures(int16 eventType) {
             strcat(strBuf, ":");
             strcat(strBuf, itoa(g_eventTimers[eventType], g_itoaScratch, 10));
             setTimedMessage(strBuf);
+            makeSound(22, 2);
+        } else {
+            hudMessage("Decoy slots full");
         }
-        makeSound(22, 2);
     }
 }
 
 // ==== seg000:0x1636 ====
 void tickMessageTimers(void) {
     int16 i;
-    for (i = 0; i < 4; i++) {
+    for (i = 0; i < F15_MAX_MAP_EVENTS; i++) {
         if (mapEvents[i].ttl != 0) {
             (mapEvents[i].ttl)--;
             if (mapEvents[i].ttl == 0) {

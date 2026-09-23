@@ -93,6 +93,20 @@ Notes:
 - The staleness gate resets on each MISSION_SETUP apply, so a reconnecting
   client accepts its first snapshot regardless of prior tick values.
 
+## Round 8 findings (post b91759d + ee014c5)
+
+Eighth-pass review confirmed the round-7 fixes and reported two carry-over
+P2s; the host-side request added interface binding to the new --server/
+--host path. All fixed and verified; build green, 34/34 net + 31/31 base
+test binaries pass (new cases added inside net_sim_tests and
+gameplay_behavior_tests), ASan/UBSan clean, `git diff --check` clean.
+
+| # | Issue | Status |
+|---|-------|--------|
+| 1 | [P2] Countermeasures consumed inventory without deploying: `(g_eventTimers[t])--` ran before the shared mapEvents slot scan - a full 3-slot pool still burned a store and played the release sound; debugger: inventory 12 -> 11, no decoy | FIXED - slot search first; a full pool rejects via hudMessage ("Decoy slots full") with no decrement and no sound; inventory decrement moved inside the successful-deploy branch. Pool also grew: F15_MAX_MAP_EVENTS 4 -> 16 (slot 0 = shared marker, 1..15 = decoys, ~2/player); wire layout change bumped F15_NET_VERSION 3 -> 4. gameplay_behavior_tests: full pool keeps stores, freed slot deploys, empty stores reject |
+| 2 | [P2] F6 backfill lerped heading/pitch/roll independently: across a vertical-flight representation change (h/r +0x8000, pitch reflects) the gap fill invented -90deg in-between poses; debugger: 0deg -> -180deg produced -90deg samples | FIXED - backfill now calls the existing lerpPose policy (egsys.c): any component delta >= 0x4000 snaps the whole triple to cur; non-flip gaps still lerp per component. net_sim_tests::test_view_ring_gimbal_backfill covers normal->flip, flip->normal, and the same flip straddling the int16 wrap |
+| 3 | Server could not bind a chosen interface: listen() always wildcarded | FIXED - NetTransport::listen(bindAddr, port); GNS parses an IP literal (NULL/empty = wildcard). `--bind IP` on f15server/--server; `--host --bind IP` passes it to the child and the parent joins that IP (wildcard/0.0.0.0/:: still joins 127.0.0.1). Readiness line prints the bound address. Verified: bound socket answers on 192.168.8.9 but not on 127.0.0.1; --host --bind end-to-end |
+
 ## Round 7 findings (post df2b367)
 
 Seventh-pass review re-confirmed the round-6 fixes and reported four

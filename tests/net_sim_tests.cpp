@@ -846,6 +846,65 @@ static void test_view_ring_wrap_backfill(void) {
     CHECK(g_viewSnapshotRing[2].worldX == 0x1000);  /* tick -32766 = B */
 }
 
+/* A gimbal flip rewrites heading/roll by 0x8000 while pitch reflects as the
+ * airframe crosses vertical. Backfilled ring slots must snap the whole pose
+ * (lerpPose policy): component-wise tweening invents -90deg poses between
+ * the two representations. Covers both crossings and the int16 wrap. */
+static void test_view_ring_gimbal_backfill(void) {
+    /* prev test ended at -32766; seed a normal-representation base pose */
+    frameTick = -32765;
+    g_ourHead = 0x1000;
+    g_ourPitch = 0x2000;
+    g_ourRoll = 0;
+    g_ViewX = g_ViewY = 0;
+    g_viewZ = 0;
+    netViewRingPush();
+    /* gap=3, cur is the flipped representation (h/r shifted by 0x8000) */
+    frameTick = -32762;
+    g_ourHead = -0x7000;
+    g_ourPitch = 0x6000;
+    g_ourRoll = -0x8000;
+    netViewRingPush();
+    /* missed ticks -32764 -> slot 4, -32763 -> slot 5: snap to cur pose */
+    CHECK(g_viewSnapshotRing[4].heading == -0x7000 &&
+          g_viewSnapshotRing[4].pitch == 0x6000 &&
+          g_viewSnapshotRing[4].roll == -0x8000);
+    CHECK(g_viewSnapshotRing[5].heading == -0x7000 &&
+          g_viewSnapshotRing[5].pitch == 0x6000 &&
+          g_viewSnapshotRing[5].roll == -0x8000);
+    /* opposite crossing: flipped -> normal across another 3-tick gap */
+    frameTick = -32761;
+    netViewRingPush(); /* gap=1: only writes slot 7, keeps prev = flipped */
+    frameTick = -32758;
+    g_ourHead = 0x1000;
+    g_ourPitch = 0x2000;
+    g_ourRoll = 0;
+    netViewRingPush();
+    /* missed ticks -32760 -> slot 8, -32759 -> slot 9: snap back to normal */
+    CHECK(g_viewSnapshotRing[8].heading == 0x1000 &&
+          g_viewSnapshotRing[8].pitch == 0x2000 &&
+          g_viewSnapshotRing[8].roll == 0);
+    CHECK(g_viewSnapshotRing[9].heading == 0x1000 &&
+          g_viewSnapshotRing[9].pitch == 0x2000 &&
+          g_viewSnapshotRing[9].roll == 0);
+    /* same flip but straddling the int16 wrap (gap 4: 32766 -> -32766) */
+    frameTick = 32766;
+    netViewRingPush(); /* big modular jump: just re-seeds, prev = normal */
+    frameTick = -32766;
+    g_ourHead = -0x7000;
+    g_ourPitch = 0x6000;
+    g_ourRoll = -0x8000;
+    netViewRingPush();
+    CHECK(g_viewSnapshotRing[15].heading == -0x7000 &&
+          g_viewSnapshotRing[15].roll == -0x8000); /* 32767 */
+    CHECK(g_viewSnapshotRing[0].heading == -0x7000 &&
+          g_viewSnapshotRing[0].roll == -0x8000);  /* -32768 */
+    CHECK(g_viewSnapshotRing[1].heading == -0x7000 &&
+          g_viewSnapshotRing[1].roll == -0x8000);  /* -32767 */
+    CHECK(g_viewSnapshotRing[2].heading == -0x7000 &&
+          g_viewSnapshotRing[2].roll == -0x8000);  /* -32766 = cur */
+}
+
 /* ---- runner ------------------------------------------------------------ */
 
 int main(void) {
@@ -870,6 +929,7 @@ int main(void) {
     test_snap_negative_ticks();
     test_damage_seq_edge_trigger();
     test_view_ring_wrap_backfill();
+    test_view_ring_gimbal_backfill();
     if (fails == 0) {
         printf("net_sim_tests: all pass\n");
         return 0;

@@ -12,6 +12,7 @@
 #include "struct.h"
 #include "comm.h"
 #include "headless.h"
+#include "net/protocol.h" /* F15_MAX_MAP_EVENTS */
 
 #include <cstdlib>
 #include <cstring>
@@ -31,6 +32,7 @@ extern void finalizeMission(int outcome);
 extern void buildRangeString(int16 rangeRaw);
 extern void applyGravityFall(void);
 extern void tickMessageTimers(void);
+extern void countermeasures(int16 eventType);
 extern void resetSimObjectLocks(void);
 extern void recalcTimeScale(void);
 extern void exitSlowMotion(void);
@@ -54,7 +56,7 @@ void resetGameplayState() {
     std::memset(&g_planeTable, 0, sizeof(g_planeTable));
     std::memset(g_projectiles, 0, sizeof(struct Projectile) * 12);
     std::memset(g_targetSlots, 0, sizeof(struct TargetSlot) * 2);
-    std::memset(mapEvents, 0, sizeof(struct MapEvent) * 4);
+    std::memset(mapEvents, 0, sizeof(struct MapEvent) * F15_MAX_MAP_EVENTS);
     std::memset(&g_replayLog, 0, sizeof(g_replayLog));
     strBuf[0] = '\0';
     g_viewX_ = g_viewY_ = 0;
@@ -482,6 +484,32 @@ int main() {
             "tickMessageTimers decrements live events");
     require(mapEvents[1].ttl == 0 && mapEvents[1].type == 0,
             "tickMessageTimers clears the event type at zero ttl");
+
+    // --- countermeasures pool-full rejection (egframe) ---------------------
+    // The decoy pool (slots 1..F15_MAX_MAP_EVENTS-1) is shared world state:
+    // a release with no free slot must NOT consume inventory.
+    resetGameplayState();
+    g_eventTimers[1] = 3;
+    for (int i = 1; i < F15_MAX_MAP_EVENTS; i++) {
+        mapEvents[i].ttl = 10;
+        mapEvents[i].type = 1;
+    }
+    countermeasures(1);
+    require(g_eventTimers[1] == 3,
+            "full decoy pool rejects release without consuming inventory");
+    // freeing a slot lets the same release deploy again
+    mapEvents[5].ttl = 0;
+    countermeasures(1);
+    require(g_eventTimers[1] == 2,
+            "free decoy slot consumes one store");
+    require(mapEvents[5].type == 1 && mapEvents[5].ttl != 0,
+            "release writes the freed decoy slot");
+    // empty stores still report exhaustion, never go negative
+    g_eventTimers[1] = 0;
+    mapEvents[6].ttl = 0;
+    countermeasures(1);
+    require(g_eventTimers[1] == 0 && mapEvents[6].ttl == 0,
+            "empty stores reject without deploying");
 
     // --- resetSimObjectLocks (egframe) --------------------------------------
     resetGameplayState();

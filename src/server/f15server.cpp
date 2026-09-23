@@ -769,8 +769,8 @@ static int allInputsArrived(void) {
 
 static void usage(void) {
     fprintf(stderr,
-            "f15server --game <dir> [--port N] [--seed N] [--theater N]\n"
-            "          [--difficulty N] [--sync-step] [--obs-full]\n");
+            "f15server --game <dir> [--port N] [--bind IP] [--seed N]\n"
+            "          [--theater N] [--difficulty N] [--sync-step] [--obs-full]\n");
     exit(1);
 }
 
@@ -781,6 +781,7 @@ int f15ServerMain(int argc, char **argv) {
     int port = DEFAULT_PORT;
     int seed = 12345, theater = 0, difficulty = 0;
     const char *gameDir = getenv("F15SE2_DIR");
+    const char *bindAddr = 0; /* NULL = all interfaces */
     int i;
 
     for (i = 1; i < argc; i++) {
@@ -788,6 +789,8 @@ int f15ServerMain(int argc, char **argv) {
             gameDir = argv[++i];
         else if (!strcmp(argv[i], "--port") && i + 1 < argc)
             port = atoi(argv[++i]);
+        else if (!strcmp(argv[i], "--bind") && i + 1 < argc)
+            bindAddr = argv[++i];
         else if (!strcmp(argv[i], "--seed") && i + 1 < argc)
             seed = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--theater") && i + 1 < argc)
@@ -831,13 +834,14 @@ int f15ServerMain(int argc, char **argv) {
     g_bulletTrackCount = F15_MAX_PLAYERS * 2;
 
     g_net = createGnsTransport();
-    if (!g_net || !g_net->listen((uint16_t)port)) {
+    if (!g_net || !g_net->listen(bindAddr, (uint16_t)port)) {
         fprintf(stderr, "f15server: listen failed\n");
         return 1;
     }
     /* --host waits on this line for readiness: it must print only once the
      * socket actually accepts. */
-    fprintf(stderr, "f15server: world ready, listening on :%d\n", port);
+    fprintf(stderr, "f15server: world ready, listening on %s:%d\n",
+            bindAddr ? bindAddr : "", port);
 
     {
         uint64_t nextNs = SDL_GetTicksNS();

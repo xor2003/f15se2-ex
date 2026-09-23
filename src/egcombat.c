@@ -14,6 +14,7 @@
 #include "log.h"
 #include "const.h"
 #include "comm.h"
+#include "net/protocol.h" /* F15_MAX_MAP_EVENTS: decoy scan bound */
 
 #include <dos.h>
 #include <memory.h>
@@ -213,7 +214,7 @@ void updateThreatTargeting(void) {
                         }
                     }
                     scan++;
-                } while (scan < 4);
+                } while (scan < F15_MAX_MAP_EVENTS);
 
                 if (best > 0x200) {
                     if (g_projectiles[slot].targetRef > 2 &&

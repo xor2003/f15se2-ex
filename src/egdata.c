@@ -11,6 +11,7 @@
 #include "struct.h"
 #include "comm.h"
 #include "egdata.h"
+#include "net/protocol.h" /* F15_MAX_MAP_EVENTS sizes mapEvents[] */
 #include <stdio.h>
 #include <dos.h>
 
@@ -1693,9 +1694,11 @@ uint8 g_tapeColumn = 0;
 uint8 g_tapeChar = 0;
 int16 g_tapeCursorX = 0;
 
-/* mapEvents: 4 tactical-map marker slots (flare/chaff/lock markers). A slot is
-   free when ttl == 0; entries are aged down by tickMessageTimers. */
-struct MapEvent mapEvents[4];
+/* mapEvents: tactical-map marker slots (flare/chaff/lock markers). A slot is
+   free when ttl == 0; entries are aged down by tickMessageTimers. Slot 0 is
+   the shared padlock/lock marker; 1..F15_MAX_MAP_EVENTS-1 are the decoy pool
+   (the wire ships all of them, so the size lives in net/protocol.h). */
+struct MapEvent mapEvents[F15_MAX_MAP_EVENTS];
 uint8 g_joyRawX = 0; /* keyboard virtual-stick raw pitch axis (int9Handler) */
 uint8 g_joyRawY = 0; /* keyboard virtual-stick raw roll axis (int9Handler) */
 /* Normalized/calibrated stick deflection: [0] = pitch, [1] = roll.

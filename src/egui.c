@@ -12,6 +12,7 @@
 #include "r2d.h"
 #include "hdsprite.h"
 #include "const.h"
+#include "net/protocol.h" /* F15_MAX_MAP_EVENTS: marker draw bound */
 
 #include "comm.h"
 
@@ -180,7 +181,7 @@ void drawTacticalMap(char page) {
             blitGaugeSprite(0, 3, vtxScratch.vproj.x.lo, vtxScratch.vproj.y.lo);
         }
     }
-    for (i = 0; i < 4; i++) {
+    for (i = 0; i < F15_MAX_MAP_EVENTS; i++) {
         if (mapEvents[i].ttl != 0) {
             projectMapPoint(mapEvents[i].mapX, mapEvents[i].mapY);
             if (g_projDepth != -1) {

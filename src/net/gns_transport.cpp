@@ -34,12 +34,18 @@ class GnsTransport final : public NetTransport {
     GnsTransport() = default;
     ~GnsTransport() override { shutdown(); }
 
-    bool listen(uint16_t port) override {
+    bool listen(const char *bindAddr, uint16_t port) override {
         if (!initLib())
             return false;
         SteamNetworkingIPAddr addr;
         SteamNetworkingConfigValue_t opt[3];
         addr.Clear();
+        /* NULL/empty = wildcard (all interfaces); an IP literal binds only
+         * that interface so a host can pick which network it serves */
+        if (bindAddr && *bindAddr && !addr.ParseString(bindAddr)) {
+            fprintf(stderr, "GNS: bad bind address '%s'\n", bindAddr);
+            return false;
+        }
         addr.m_port = port;
         /* without the status-changed callback inbound connections are never
          * surfaced for accept; AllowWithoutAuth+Unencrypted = LAN/Internet

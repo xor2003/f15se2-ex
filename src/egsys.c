@@ -487,12 +487,17 @@ void netViewRingPush(void) {
                     (int32)(((int64)(cur.worldY - s_ringPrev.worldY) * a) >> 12);
                 e->alt = (int16)(s_ringPrev.alt +
                     (((int32)(cur.alt - s_ringPrev.alt) * a) >> 12));
-                e->heading = (int16)(s_ringPrev.heading +
-                    (((int16)(cur.heading - s_ringPrev.heading) * a) >> 12));
-                e->pitch = (int16)(s_ringPrev.pitch +
-                    (((int16)(cur.pitch - s_ringPrev.pitch) * a) >> 12));
-                e->roll = (int16)(s_ringPrev.roll +
-                    (((int16)(cur.roll - s_ringPrev.roll) * a) >> 12));
+                /* whole-pose lerp: a gimbal flip rewrites h/p/r together, so
+                 * component-wise tweening would invent in-between poses */
+                {
+                    int32 fh, fp, fr;
+                    lerpPose(s_ringPrev.heading, s_ringPrev.pitch, s_ringPrev.roll,
+                             cur.heading, cur.pitch, cur.roll, a, 4096,
+                             &fh, &fp, &fr);
+                    e->heading = (int16)fh;
+                    e->pitch = (int16)fp;
+                    e->roll = (int16)fr;
+                }
             }
         }
     }

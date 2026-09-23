@@ -13,9 +13,10 @@
 #include <stdint.h>
 
 #define F15_NET_MAGIC 0x4631354d /* 'F15M' */
-/* v3: NetPlayerState gained damageSeq - any layout change MUST bump this or
- * mixed builds pass the handshake then decode incompatible player blocks. */
-#define F15_NET_VERSION 3
+/* v4: F15_MAX_MAP_EVENTS grew (shared decoy pool sized for multiplayer) -
+ * any layout change MUST bump this or mixed builds pass the handshake then
+ * decode incompatible player blocks. */
+#define F15_NET_VERSION 4
 #define F15_NET_DEFAULT_PORT 27015 /* --connect with no :port lands here */
 #define F15_NET_TICKRATE 15 /* legacy sim rate: g_frameRateScaling */
 #define F15_MAX_PLAYERS 8
@@ -24,7 +25,7 @@
 #define F15_MAX_SIM_OBJECTS 20
 #define F15_MAX_PROJECTILES 12
 #define F15_MAX_MAP_TARGETS 74
-#define F15_MAX_MAP_EVENTS 4
+#define F15_MAX_MAP_EVENTS 16 /* slot 0 = shared marker; 1..15 = decoy pool */
 #define F15_WAYPOINTS 4
 
 typedef uint32_t NetEntityId;

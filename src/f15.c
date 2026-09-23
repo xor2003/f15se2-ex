@@ -88,7 +88,7 @@ static void hostChildCleanup(void) {
  * reading (or stall it once full). Boot output is still echoed through.
  * Returns 1 once the port is accepting; on failure the child is reaped
  * here. Success leaves hostChildPid set for cleanup. */
-static int spawnHostServer(const char *gameDir, int port) {
+static int spawnHostServer(const char *gameDir, int port, const char *bindAddr) {
     char exePath[4096], portStr[16], logPath[] = "/tmp/f15hostXXXXXX";
     char buf[1024];
     size_t used = 0;
@@ -128,8 +128,13 @@ static int spawnHostServer(const char *gameDir, int port) {
         dup2(logFd, STDERR_FILENO);
         if (logFd != STDERR_FILENO)
             close(logFd);
-        execl(exePath, exePath, "--server", "--game",
-              gameDir ? gameDir : ".", "--port", portStr, (char *)NULL);
+        if (bindAddr && *bindAddr)
+            execl(exePath, exePath, "--server", "--game",
+                  gameDir ? gameDir : ".", "--port", portStr,
+                  "--bind", bindAddr, (char *)NULL);
+        else
+            execl(exePath, exePath, "--server", "--game",
+                  gameDir ? gameDir : ".", "--port", portStr, (char *)NULL);
         _exit(127);
     }
     close(logFd);
@@ -180,6 +185,8 @@ void usage(int errcode) {
            "  --name NAME            Pilot name for --connect/--host\n"
            "  --host                 Start a local server and join it\n"
            "  --port N               Port for --host (default 27015)\n"
+           "  --bind IP              Interface IP --host's server listens on\n"
+           "                        (default: all interfaces)\n"
            "  --server [server-opts] Run headless as a dedicated server\n"
 #endif
     );
@@ -195,6 +202,7 @@ int main(int argc, char *argv[]) {
     char hostAddr[64];
     int serverIdx = -1, hostMode = 0;
     int hostPort = F15_NET_DEFAULT_PORT;
+    const char *hostBind = 0;
     hostArgv0 = argv[0];
 #endif
     log_set_app("f15");
@@ -220,6 +228,10 @@ int main(int argc, char *argv[]) {
             pilotName = argv[++i];
         }
         else if (strcmp(optStr, "--host") == 0) hostMode = 1;
+        else if (strcmp(optStr, "--bind") == 0) {
+            if (i + 1 >= argc) { printf("Option requires an argument: --bind\n"); usage(1); }
+            hostBind = argv[++i];
+        }
         else if (strcmp(optStr, "--port") == 0) {
             if (i + 1 >= argc) { printf("Option requires an argument: --port\n"); usage(1); }
             hostPort = atoi(argv[++i]);
@@ -254,12 +266,20 @@ int main(int argc, char *argv[]) {
     if (hostMode) {
         /* --host: spawn ourselves as a headless server child, wait for it to
          * listen, then join as a normal client. The child is reaped on every
-         * exit path via the atexit hook registered by the spawn. */
-        if (!spawnHostServer(gameDir, hostPort)) {
+         * exit path via the atexit hook registered by the spawn. A --bind
+         * literal becomes the connect target too - the socket lives on that
+         * interface, not on loopback; wildcard binds still join via loopback. */
+        if (!spawnHostServer(gameDir, hostPort, hostBind)) {
             fprintf(stderr, "f15: --host: local server failed to start\n");
             goto shutdown;
         }
-        snprintf(hostAddr, sizeof(hostAddr), "127.0.0.1:%d", hostPort);
+        {
+            const char *joinIp = "127.0.0.1";
+            if (hostBind && *hostBind && strcmp(hostBind, "0.0.0.0") != 0 &&
+                strcmp(hostBind, "::") != 0)
+                joinIp = hostBind;
+            snprintf(hostAddr, sizeof(hostAddr), "%s:%d", joinIp, hostPort);
+        }
         netAddr = hostAddr;
     }
 #endif

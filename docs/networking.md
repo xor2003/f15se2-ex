@@ -621,6 +621,7 @@ not required:
 f15se2-ex --server --game /path/to/f15 --port 27015   # in-process dedicated server
 f15se2-ex --host --port 27015 --name Viper            # spawn local server + join it
 f15se2-ex --connect 10.0.0.5 --name Viper             # joins 10.0.0.5:27015
+f15se2-ex --host --bind 192.168.1.10 --name Viper     # serve only that interface
 ```
 
 `--host` forks the same executable with `--server`, waits for its
