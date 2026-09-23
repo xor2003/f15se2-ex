@@ -10,6 +10,7 @@
 #include <string.h>
 #include "egcode.h"
 #include "egdata.h"
+#include "egsnap.h"
 #include "inttype.h"
 #include "gfx.h"
 #include "gfx_impl.h"
@@ -17,7 +18,7 @@
 
 /* per-frame work reconstructed in their own TUs (egflight/egtacmap/egframe),
  * not surfaced in a header; declared here for the game loop below. */
-void debugDumpFrame(void);
+void debugDumpFrame(void); /* debugframe.c */
 void renderFrame(void);
 void renderHudFrame(int unused);
 void stepFlightModel(void);
@@ -40,8 +41,6 @@ void updateFrame(void);
  * precision. */
 
 #define NS_PER_SEC 1000000000ULL
-#define SIM_OBJ_MAX 20
-#define PROJ_MAX 12
 #define OBJ_TELEPORT_GUARD 0x2000 /* world units/axis; a real step moves << this */
 #define SEEKER_TELEPORT_GUARD 0x400 /* seeker units/axis; a lock switch jumps >> a tracking step */
 
@@ -53,24 +52,14 @@ void updateFrame(void);
  * player->target bearing in the director/target views) and the crash-cam eye
  * (g_crashCam*, the 0x8c view) so those tracking views interpolate coherently
  * too. Moving objects are interpolated separately (object snapshot helpers
- * below). */
-typedef struct {
-    int32 viewX, viewY, viewZ;
-    int32 head, pitch, roll;
-    int32 mapX, mapY; /* g_viewX_ / g_viewY_ */
-    int32 crashX, crashY, crashZ;
-    int32 wreckX, wreckY, wreckAlt; /* downed-aircraft wreck/parachute */
-    /* HUD reticle inputs derived from the player state each sim step (gun-reticle
-     * vertical trim, air-to-air seeker head offset). They ride the same snapshot so
-     * the reticles glide every render frame instead of snapping at the sim rate. */
-    int32 rollPitchTrim, aamSeekerX, aamSeekerY;
-} CamSnapshot;
+ * below). Snapshot types + the shared helpers' interface live in egsnap.h
+ * (net/netrender.c uses the same machinery). */
 
 static int32 iabs32(int32 v) {
     return v < 0 ? -v : v;
 }
 
-static void camCapture(CamSnapshot *s) {
+void camCapture(CamSnapshot *s) {
     s->viewX = g_ViewX;
     s->viewY = g_ViewY;
     s->viewZ = g_viewZ;
@@ -90,7 +79,7 @@ static void camCapture(CamSnapshot *s) {
     s->aamSeekerY = g_aamSeekerY;
 }
 
-static void camRestore(const CamSnapshot *s) {
+void camRestore(const CamSnapshot *s) {
     g_ViewX = s->viewX;
     g_ViewY = s->viewY;
     g_viewZ = (int16)s->viewZ;
@@ -147,8 +136,8 @@ static int32 lerpMap16(uint16 a, uint16 b, int64 num, int64 den) {
  * while the others keep tweening mixes two representations into a visibly
  * wrong pose (the "90deg flip-flop" when pulling through the vertical), so a
  * flip in any component snaps the whole triple to the new pose. */
-static void lerpPose(int32 h0, int32 p0, int32 r0, int32 h1, int32 p1, int32 r1,
-                     int64 num, int64 den, int32 *h, int32 *p, int32 *r) {
+void lerpPose(int32 h0, int32 p0, int32 r0, int32 h1, int32 p1, int32 r1,
+              int64 num, int64 den, int32 *h, int32 *p, int32 *r) {
     if (angleSnaps(h0, h1) || angleSnaps(p0, p1) || angleSnaps(r0, r1)) {
         *h = h1;
         *p = p1;
@@ -160,7 +149,7 @@ static void lerpPose(int32 h0, int32 p0, int32 r0, int32 h1, int32 p1, int32 r1,
     }
 }
 
-static void camApplyInterp(const CamSnapshot *p, const CamSnapshot *n, int64 num, int64 den) {
+void camApplyInterp(const CamSnapshot *p, const CamSnapshot *n, int64 num, int64 den) {
     int32 poseH, poseP, poseR;
     g_ViewX = lerpLinear(p->viewX, n->viewX, num, den);
     g_ViewY = lerpLinear(p->viewY, n->viewY, num, den);
@@ -224,20 +213,8 @@ static uint64 simStepNsNow(void) {
  * for ordinary AI objects they still mirror worldX/worldY (>>5), but for
  * parked remote players posY is 0x8000-(ViewY>>5), which a render-space
  * derivation corrupts. The HUD reticle (projectWorldToHud, reading
- * posX/posY) and the 3D model (worldX/worldY) stay consistent. */
-typedef struct {
-    int32 worldX, worldY;
-    uint16 posX, posY;
-    int16 alt, head, pitch, bank;
-    uint8 alive;
-} SimObjSnap;
-
-typedef struct {
-    int32 fineX, fineY, alt; /* fineX/fineY: authoritative mapX<<5-scale position */
-    int16 head, pitch;       /* g_projectiles[].worldX/worldY hold the missile yaw/pitch */
-    int16 ttl;
-} ProjSnap;
-
+ * posX/posY) and the 3D model (worldX/worldY) stay consistent.
+ * SimObjSnap/ProjSnap themselves live in egsnap.h. */
 static int simObjCount(void) {
     int n = g_groundUnitCount;
     if (n < 0) n = 0;
@@ -245,7 +222,7 @@ static int simObjCount(void) {
     return n;
 }
 
-static void objCapture(SimObjSnap *sim, ProjSnap *proj) {
+void objCapture(SimObjSnap *sim, ProjSnap *proj) {
     int i, n = simObjCount();
     for (i = 0; i < n; i++) {
         sim[i].worldX = g_simObjects[i].worldX;
@@ -268,9 +245,9 @@ static void objCapture(SimObjSnap *sim, ProjSnap *proj) {
     }
 }
 
-static void objApplyInterp(const SimObjSnap *sp, const SimObjSnap *sn,
-                           const ProjSnap *pp, const ProjSnap *pn,
-                           int64 num, int64 den) {
+void objApplyInterp(const SimObjSnap *sp, const SimObjSnap *sn,
+                    const ProjSnap *pp, const ProjSnap *pn,
+                    int64 num, int64 den) {
     int i, n = simObjCount();
     for (i = 0; i < n; i++) {
         int32 wx, wy, poseH, poseP, poseR;
@@ -322,7 +299,7 @@ static void objApplyInterp(const SimObjSnap *sp, const SimObjSnap *sn,
     }
 }
 
-static void objRestore(const SimObjSnap *sn, const ProjSnap *pn) {
+void objRestore(const SimObjSnap *sn, const ProjSnap *pn) {
     int i, n = simObjCount();
     for (i = 0; i < n; i++) {
         g_simObjects[i].worldX = sn[i].worldX;
@@ -419,155 +396,6 @@ void gameMainLoop(void) {
 
 void runGameLoop(void) {
     gameMainLoop();
-}
-
-/* ---- Net client render interpolation ----
- * A network client never steps the sim locally: authoritative snapshots land in
- * the live globals via netSnapApply(), so snapshot ARRIVAL replaces the sim step
- * as the capture boundary. The render frame then tweens prev->cur exactly like
- * gameMainLoop does between sim steps, and restores the authoritative "cur" so
- * the next capture diffs clean snapshot data (never an interpolated leftover). */
-static CamSnapshot netCamPrev, netCamCur;
-static SimObjSnap netObjPrev[SIM_OBJ_MAX], netObjCur[SIM_OBJ_MAX];
-static ProjSnap netProjPrev[PROJ_MAX], netProjCur[PROJ_MAX];
-
-/* Call right after a snapshot has been applied to the live globals. */
-void netRenderSnapCapture(void) {
-    netCamPrev = netCamCur;
-    memcpy(netObjPrev, netObjCur, sizeof(netObjPrev));
-    memcpy(netProjPrev, netProjCur, sizeof(netProjPrev));
-    camCapture(&netCamCur);
-    objCapture(netObjCur, netProjCur);
-}
-
-/* ---- delayed-camera history --------------------------------------------
- * VIEW_EXT_DYNAMIC reads g_viewSnapshotRing[(frameTick-k)&0xF]: the server
- * writes one entry per sim tick; here one lands per snapshot. Without care
- * the camera reads zeroed slots at join and stale slots across packet gaps,
- * and with a stationary aircraft the delayed pose coincides with the plane
- * (camera inside it). Push via netViewRingPush: seed the whole ring on the
- * first snapshot, then backfill skipped ticks by lerping the previous pose
- * toward the current one so every slot holds a plausible sample. */
-static int s_ringHave;
-static int16 s_ringLastTick;
-static struct ViewSnapshot s_ringPrev;
-
-void netViewRingPush(void) {
-    struct ViewSnapshot cur;
-    cur.heading = g_ourHead;
-    cur.pitch = (int16)g_ourPitch;
-    cur.roll = g_ourRoll;
-    cur.worldX = g_ViewX;
-    cur.worldY = g_ViewY;
-    cur.alt = g_viewZ;
-    if (!s_ringHave) {
-        int k;
-        for (k = 0; k < 16; k++)
-            g_viewSnapshotRing[k] = cur;
-        s_ringHave = 1;
-    } else {
-        int16 gap = (int16)(frameTick - s_ringLastTick); /* modular */
-        if (gap > 1) {
-            /* Iterate by elapsed-step count, not signed tick order: across
-             * the int16 wrap (32766 -> -32766) gap is still 4 but any
-             * 't < frameTick' loop sees -32766 < 32766 and fills nothing.
-             * dt wraps into the missed ticks; the lerp fraction uses the
-             * same modular distance. */
-            int i, fill = gap - 1;
-            if (fill > 15)
-                fill = 15; /* only the last 15 missed ticks stay addressable */
-            for (i = 1; i <= fill; i++) {
-                int16 dt = (int16)(frameTick - fill + i - 1);
-                int a = (int)(((int32)(int16)(dt - s_ringLastTick) << 12) / gap);
-                int s = dt & 0xF;
-                struct ViewSnapshot *e = &g_viewSnapshotRing[s];
-                e->worldX = s_ringPrev.worldX +
-                    (int32)(((int64)(cur.worldX - s_ringPrev.worldX) * a) >> 12);
-                e->worldY = s_ringPrev.worldY +
-                    (int32)(((int64)(cur.worldY - s_ringPrev.worldY) * a) >> 12);
-                e->alt = (int16)(s_ringPrev.alt +
-                    (((int32)(cur.alt - s_ringPrev.alt) * a) >> 12));
-                /* whole-pose lerp: a gimbal flip rewrites h/p/r together, so
-                 * component-wise tweening would invent in-between poses */
-                {
-                    int32 fh, fp, fr;
-                    lerpPose(s_ringPrev.heading, s_ringPrev.pitch, s_ringPrev.roll,
-                             cur.heading, cur.pitch, cur.roll, a, 4096,
-                             &fh, &fp, &fr);
-                    e->heading = (int16)fh;
-                    e->pitch = (int16)fp;
-                    e->roll = (int16)fr;
-                }
-            }
-        }
-    }
-    g_viewSnapshotRing[frameTick & 0xF] = cur;
-    s_ringPrev = cur;
-    s_ringLastTick = frameTick;
-}
-
-/* Write the interpolated pose into the live globals for one renderFrame(). */
-void netRenderApplyInterp(int64 num, int64 den) {
-    if (den <= 0) den = 1;
-    camApplyInterp(&netCamPrev, &netCamCur, num, den);
-    objApplyInterp(netObjPrev, netObjCur, netProjPrev, netProjCur, num, den);
-}
-
-/* Put the authoritative latest snapshot back after rendering. */
-void netRenderRestore(void) {
-    camRestore(&netCamCur);
-    objRestore(netObjCur, netProjCur);
-}
-
-/* Debug frame dump: F15_DUMP_FRAME=<ppm> writes the front page once frameTick
- * passes F15_DUMP_AT (default ~120); F15_DUMP_EVERY=<n> repeats it every n
- * ticks (path gets _NNNNN suffix). Software-render only: under GL the page
- * carries just the cockpit chrome (world + HUD draw immediately to GL), so
- * the dump is handled by debugDumpFrameGL in r3d_gl.c instead. */
-void debugDumpFrame(void) {
-    static int done = 0, seq = 0, lastTick = -1;
-    static char seqPath[1024];
-    const char *path;
-    const char *at;
-    struct SDL_Surface *surf;
-    int every, x, y;
-    FILE *f;
-    if (r3dgl_active())
-        return;
-    if (!(path = getenv("F15_DUMP_FRAME")) || !*path)
-        return;
-    at = getenv("F15_DUMP_AT");
-    if (frameTick < (at ? atoi(at) : 120))
-        return;
-    every = (at = getenv("F15_DUMP_EVERY")) ? atoi(at) : 0;
-    if (done && (every <= 0 || frameTick - lastTick < every))
-        return;
-    done = 1;
-    lastTick = frameTick;
-    if (every > 0) {
-        size_t plen = strlen(path);
-        if (plen > 4 && !strcmp(path + plen - 4, ".ppm"))
-            plen -= 4;
-        snprintf(seqPath, sizeof(seqPath), "%.*s_%05d.ppm",
-                 (int)plen, path, seq++);
-        path = seqPath;
-    }
-    surf = gfx_getPageSurface(g_pageFront[0]);
-    f = surf ? fopen(path, "wb") : 0;
-    if (!f)
-        return;
-    fprintf(f, "P6\n%d %d\n255\n", surf->w, surf->h);
-    for (y = 0; y < surf->h; y++)
-        for (x = 0; x < surf->w; x++) {
-            uint8_t r, g, b;
-            gfx_paletteRGB(((uint8_t *)surf->pixels)[y * surf->pitch + x],
-                           &r, &g, &b);
-            fputc(r, f);
-            fputc(g, f);
-            fputc(b, f);
-        }
-    fclose(f);
-    fprintf(stderr, "f15: dumped %dx%d frame to %s\n", surf->w, surf->h, path);
 }
 
 /* setupDac (egcode.asm _setupDac) - load the 256-colour palette: dacValues1 →

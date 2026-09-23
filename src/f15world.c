@@ -30,15 +30,10 @@
 #include "egtypes.h"
 #include "struct.h"
 
-/* egframe.c segment functions shared with the single-player updateFrame()
- * (non-static but not declared in a header - same convention as egframe.c). */
-void framePlayerPre(void);
-void framePlayerTimers(void);
-void framePlayerMission(void);
-void frameWorldTick(void);
+/* Segments shared with the single-player updateFrame(): the frame* ones are
+ * declared in egframe.h (definitions in egframeseg.c); the remaining helpers
+ * still live in egframe.c next to upstream code. */
 void tickMessageTimers(void);
-void moveBullets(void);
-void tryPlayerFire(void);
 void updateTracerParticles(void);
 void applyGravityFall(void);
 void dispatchKeyScancode(void);

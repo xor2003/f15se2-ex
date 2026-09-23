@@ -831,8 +831,8 @@ void renderFrame() {
          * the sim rate. */
         int r1, a = g_renderAlphaQ12;
         struct ViewSnapshot *s0, *s1;
-        tmp = (frameTick - ((g_frameRateScaling + 1) / 2) - 1) & 0xf;
-        r1 = (tmp + 1) & 0xf;
+        tmp = (frameTick - ((g_frameRateScaling + 1) / 2) - 1) & F15_VIEW_RING_MASK;
+        r1 = (tmp + 1) & F15_VIEW_RING_MASK;
         s0 = &g_viewSnapshotRing[tmp];
         s1 = &g_viewSnapshotRing[r1];
         if (poseSnapsQ12(s0, s1)) {

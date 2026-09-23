@@ -50,7 +50,7 @@ static int g_missionOver;
 static int16 g_landingType = 3;
 static uint32_t g_clientSeq;
 
-void debugDumpFrame(void);                /* egsys.c: F15_DUMP_FRAME=<ppm> */
+void debugDumpFrame(void);                /* debugframe.c: F15_DUMP_FRAME=<ppm> */
 void loadPic(const char *filename, int segment); /* filepic.c */
 
 /* ---- baked cockpit-panel elements -------------------------------------
@@ -116,9 +116,17 @@ static void netPanelReconcile(void) {
     primed = 1;
 }
 
+/* Largest payload a client->server message carries (inputs are tiny; this is
+ * generous headroom so the stack buffer never truncates a writer). */
+#define NETCLIENT_MAX_PAYLOAD 4096
+/* Snapshot-arrival pacing sanity bounds: 20ms (2x tick) to 500ms. Gaps
+ * outside this window are bursts/stalls, not the steady interval. */
+#define SNAP_INTERVAL_MIN_NS 20000000ULL
+#define SNAP_INTERVAL_MAX_NS 500000000ULL
+
 static void sendMsg(uint8_t type, NetTick tick, const void *payload,
                     size_t len, int reliable) {
-    uint8_t buf[NET_MSG_HEADER_SIZE + 4096];
+    uint8_t buf[NET_MSG_HEADER_SIZE + NETCLIENT_MAX_PAYLOAD];
     struct NetWriter w;
     nwInit(&w, buf, sizeof(buf));
     netMsgWriteHeader(&w, type, tick, (uint16_t)len);
@@ -307,7 +315,7 @@ int netClientMain(const char *hostPort, const char *name) {
     {
         /* Snapshot-arrival pacing for render interpolation (replaces the local
          * sim step as the tween boundary). */
-        uint64_t snapNs = 0, snapIntervalNs = 1000000000ULL / 15;
+        uint64_t snapNs = 0, snapIntervalNs = 1000000000ULL / F15_NET_TICKRATE;
         int snapsSeen = 0;
         while (!g_missionOver) {
             NetRecv ev;
@@ -353,7 +361,9 @@ int netClientMain(const char *hostPort, const char *name) {
                         snapsSeen++;
                         if (snapNs) {
                             uint64_t d = now - snapNs;
-                            if (d >= 20000000ULL && d <= 500000000ULL)
+                            /* sanity gate: only plausible inter-snapshot gaps
+                             * train the pacing estimate (jitters/stalls skip) */
+                            if (d >= SNAP_INTERVAL_MIN_NS && d <= SNAP_INTERVAL_MAX_NS)
                                 snapIntervalNs = d;
                         }
                         snapNs = now;

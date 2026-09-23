@@ -132,7 +132,7 @@ struct PlayerSim {
     int32 viewTargetX, viewTargetY;
     int16 viewTargetAlt, viewTargetObj;
     int16 padlockAircraft, externalCamDist;
-    struct ViewSnapshot viewSnapshotRing[16];
+    struct ViewSnapshot viewSnapshotRing[F15_VIEW_RING_SLOTS];
     int16 camRotMatrix[9];
     int32 camEyeX, camEyeY, camEyeZ;
     int16 camEyeFracX, camEyeFracY, camEyeFracZ;

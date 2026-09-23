@@ -36,6 +36,7 @@ int r3dgl_initContext(struct SDL_Window *win);
 
 /* Nonzero once the GL context is live. */
 int r3dgl_active(void);
+struct SDL_Window *r3dgl_window(void);
 
 /* Nonzero when the last present carried a live 3D flight frame. The GL 3D lives in
  * the framebuffer (not the retained page), so a bare re-present of the page

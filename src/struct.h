@@ -158,6 +158,11 @@ struct ViewSnapshot {
 };
 STATIC_ASSERT(sizeof(struct ViewSnapshot) == 16);
 
+/* Delayed-camera history depth (VIEW_EXT_DYNAMIC / network ring push):
+ * must stay a power of two - readers mask the tick with F15_VIEW_RING_MASK. */
+#define F15_VIEW_RING_SLOTS 16
+#define F15_VIEW_RING_MASK (F15_VIEW_RING_SLOTS - 1)
+
 // In-flight guided-weapon tracking (g_projectiles[12]): slots 0-7 = SAM/ground
 // threat shots, 8-11 = player-fired missiles. fireMissile() claims a slot whose
 // ttl == 0 and seeds the launch position; ttl counts down the flight time. 0x18 bytes.

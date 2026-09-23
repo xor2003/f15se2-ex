@@ -140,6 +140,7 @@ set(EGAME_SOURCES
     ${SRC_DIR}/egmain.c
     ${SRC_DIR}/egsphere.c
     ${SRC_DIR}/egframe.c
+    ${SRC_DIR}/egframeseg.c
     ${SRC_DIR}/f15world.c
     ${SRC_DIR}/worldxfer.c
     ${SRC_DIR}/eg3dview.c
@@ -155,10 +156,12 @@ set(EGAME_SOURCES
     ${SRC_DIR}/egtacmap.c
     ${SRC_DIR}/egui.c
     ${SRC_DIR}/egtarget.c
+    ${SRC_DIR}/egtarget_net.c
     ${SRC_DIR}/egtgt2.c
     ${SRC_DIR}/egmath.c
     ${SRC_DIR}/egkeys.c
     ${SRC_DIR}/egplayer.c
+    ${SRC_DIR}/net/netrender.c
     ${SRC_DIR}/egpic.c
     ${SRC_DIR}/egdata.c
     ${SRC_DIR}/egfarbuf.c
@@ -172,6 +175,7 @@ set(EGAME_SOURCES
     ${SRC_DIR}/r3dmesh.c
     ${SRC_DIR}/r2d.c
     ${SRC_DIR}/egsys.c
+    ${SRC_DIR}/debugframe.c
     ${SRC_DIR}/egtick.c
     ${SRC_DIR}/eginput.c
     ${SRC_DIR}/egstubs.c
@@ -207,6 +211,7 @@ list(APPEND F15SE2_SOURCES ${END_SOURCES})
 set_source_files_properties(
     ${F15SE2_SOURCES}
     ${SRC_DIR}/vgapal.c
+    ${SRC_DIR}/f15host.c
     PROPERTIES LANGUAGE CXX
 )
 
@@ -587,7 +592,8 @@ if(F15_NET)
 
     target_compile_definitions(f15se2_core PUBLIC F15_NET=1)
     target_sources(f15se2 PRIVATE ${SRC_DIR}/net/netclient.cpp
-                                  ${SRC_DIR}/server/f15server.cpp)
+                                  ${SRC_DIR}/server/f15server.cpp
+                                  ${SRC_DIR}/f15host.c)
     # f15net->core back-refs (snapshot.cpp calls egui/egtgt2): repeat core
     # after f15net so the static linker resolves them.
     target_link_libraries(f15se2 PRIVATE f15net f15se2_core)
