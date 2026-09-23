@@ -13,6 +13,7 @@
 #include "inttype.h"
 #include "gfx.h"
 #include "gfx_impl.h"
+#include "r3d_gl.h"
 
 /* per-frame work reconstructed in their own TUs (egflight/egtacmap/egframe),
  * not surfaced in a header; declared here for the game loop below. */
@@ -439,6 +440,67 @@ void netRenderSnapCapture(void) {
     objCapture(netObjCur, netProjCur);
 }
 
+/* ---- delayed-camera history --------------------------------------------
+ * VIEW_EXT_DYNAMIC reads g_viewSnapshotRing[(frameTick-k)&0xF]: the server
+ * writes one entry per sim tick; here one lands per snapshot. Without care
+ * the camera reads zeroed slots at join and stale slots across packet gaps,
+ * and with a stationary aircraft the delayed pose coincides with the plane
+ * (camera inside it). Push via netViewRingPush: seed the whole ring on the
+ * first snapshot, then backfill skipped ticks by lerping the previous pose
+ * toward the current one so every slot holds a plausible sample. */
+static int s_ringHave;
+static int16 s_ringLastTick;
+static struct ViewSnapshot s_ringPrev;
+
+void netViewRingPush(void) {
+    struct ViewSnapshot cur;
+    cur.heading = g_ourHead;
+    cur.pitch = (int16)g_ourPitch;
+    cur.roll = g_ourRoll;
+    cur.worldX = g_ViewX;
+    cur.worldY = g_ViewY;
+    cur.alt = g_viewZ;
+    if (!s_ringHave) {
+        int k;
+        for (k = 0; k < 16; k++)
+            g_viewSnapshotRing[k] = cur;
+        s_ringHave = 1;
+    } else {
+        int16 gap = (int16)(frameTick - s_ringLastTick); /* modular */
+        if (gap > 1) {
+            /* Iterate by elapsed-step count, not signed tick order: across
+             * the int16 wrap (32766 -> -32766) gap is still 4 but any
+             * 't < frameTick' loop sees -32766 < 32766 and fills nothing.
+             * dt wraps into the missed ticks; the lerp fraction uses the
+             * same modular distance. */
+            int i, fill = gap - 1;
+            if (fill > 15)
+                fill = 15; /* only the last 15 missed ticks stay addressable */
+            for (i = 1; i <= fill; i++) {
+                int16 dt = (int16)(frameTick - fill + i - 1);
+                int a = (int)(((int32)(int16)(dt - s_ringLastTick) << 12) / gap);
+                int s = dt & 0xF;
+                struct ViewSnapshot *e = &g_viewSnapshotRing[s];
+                e->worldX = s_ringPrev.worldX +
+                    (int32)(((int64)(cur.worldX - s_ringPrev.worldX) * a) >> 12);
+                e->worldY = s_ringPrev.worldY +
+                    (int32)(((int64)(cur.worldY - s_ringPrev.worldY) * a) >> 12);
+                e->alt = (int16)(s_ringPrev.alt +
+                    (((int32)(cur.alt - s_ringPrev.alt) * a) >> 12));
+                e->heading = (int16)(s_ringPrev.heading +
+                    (((int16)(cur.heading - s_ringPrev.heading) * a) >> 12));
+                e->pitch = (int16)(s_ringPrev.pitch +
+                    (((int16)(cur.pitch - s_ringPrev.pitch) * a) >> 12));
+                e->roll = (int16)(s_ringPrev.roll +
+                    (((int16)(cur.roll - s_ringPrev.roll) * a) >> 12));
+            }
+        }
+    }
+    g_viewSnapshotRing[frameTick & 0xF] = cur;
+    s_ringPrev = cur;
+    s_ringLastTick = frameTick;
+}
+
 /* Write the interpolated pose into the live globals for one renderFrame(). */
 void netRenderApplyInterp(int64 num, int64 den) {
     if (den <= 0) den = 1;
@@ -454,8 +516,9 @@ void netRenderRestore(void) {
 
 /* Debug frame dump: F15_DUMP_FRAME=<ppm> writes the front page once frameTick
  * passes F15_DUMP_AT (default ~120); F15_DUMP_EVERY=<n> repeats it every n
- * ticks (path gets _NNNNN suffix). Software-render only (GL composites
- * natively). */
+ * ticks (path gets _NNNNN suffix). Software-render only: under GL the page
+ * carries just the cockpit chrome (world + HUD draw immediately to GL), so
+ * the dump is handled by debugDumpFrameGL in r3d_gl.c instead. */
 void debugDumpFrame(void) {
     static int done = 0, seq = 0, lastTick = -1;
     static char seqPath[1024];
@@ -464,6 +527,8 @@ void debugDumpFrame(void) {
     struct SDL_Surface *surf;
     int every, x, y;
     FILE *f;
+    if (r3dgl_active())
+        return;
     if (!(path = getenv("F15_DUMP_FRAME")) || !*path)
         return;
     at = getenv("F15_DUMP_AT");

@@ -501,13 +501,29 @@ void tryPlayerFire(void) {
      *   shot) and each round survives >= count launches globally. The
      *   cursor is unsigned, so it stays valid across the int16 frameTick
      *   wrap; the SP remainder in no_fire is sign-normalized likewise.
+     * - free->full transition: the cursor may point AT the free slot the
+     *   previous shooter just claimed; the fresh mask records every slot
+     *   allocated this tick and the fallback skips them, so a later same-
+     *   tick shooter can never evict a round that hasn't left the barrel
+     *   zone yet. With <=8 shooters and count>=16 a non-fresh victim
+     *   always exists; the bounded loop degrades to plain round-robin if
+     *   every slot is somehow fresh.
      *   A later shot or a trigger release never deletes an airborne round. */
     if (g_residentPlayer >= 0) {
+        int tries;
+        if ((int16)(frameTick - g_bulletFreshTick) != 0)
+            g_bulletFreshMask = 0; /* different tick (modular compare) */
+        g_bulletFreshTick = frameTick;
         for (slot = 0; slot < g_bulletTrackCount; slot++)
             if (bulletTracks[slot].posX == 0)
                 break;
-        if (slot >= g_bulletTrackCount)
-            slot = (int16)(g_bulletPoolCursor++ % (uint32)g_bulletTrackCount);
+        if (slot >= g_bulletTrackCount) {
+            tries = g_bulletTrackCount;
+            do {
+                slot = (int16)(g_bulletPoolCursor++ % (uint32)g_bulletTrackCount);
+            } while ((g_bulletFreshMask & (1u << slot)) && --tries > 0);
+        }
+        g_bulletFreshMask |= 1u << slot;
     } else {
         slot = (frameTick >> 1) % g_bulletTrackCount;
         if (slot < 0)

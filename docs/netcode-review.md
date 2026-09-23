@@ -93,6 +93,38 @@ Notes:
 - The staleness gate resets on each MISSION_SETUP apply, so a reconnecting
   client accepts its first snapshot regardless of prior tick values.
 
+## Round 7 findings (post df2b367)
+
+Seventh-pass review re-confirmed the round-6 fixes and reported four
+definite bugs (one debugger-reproduced each for BRG and the bullet
+transition) plus a missing client asset found during countermeasure
+verification. All fixed and verified; build green, 34/34 + 31/31 tests
+pass, ASan/UBSan clean, `git diff --check` clean.
+
+| # | Issue | Status |
+|---|-------|--------|
+| 1 | [P2] BRG 180: drawTargetView subtracted `g_ViewY` (player-space) from a worldY arg in a different convention - every nearby target bore ~south; debugger: due-east target read angle 32766/180 deg instead of 16384/90 | FIXED - callee now treats inputs as map-fine: `dyFine = worldY - (0x100000 - g_ViewY)`, bearing via `computeBearing32(dxFine, -dyFine)` (also corrects preview orientation/scale deltas); the remote call site feeds `simObjectFineY(wpIdx)` (render-space -> map-fine). Ground callers already passed map-fine and were equally wrong before |
+| 2 | [P1] Wire layout changed without a version bump: `damageSeq` added 2 bytes per player block but old/new builds both advertised v2 - mixed builds handshake then decode incompatible layouts | FIXED - `F15_NET_VERSION` 3; enforcement already exists at the message header (`netMsgReadHeader` u16 check) and the HELLO `protoVer` check - old clients are NAKed at handshake now |
+| 3 | [P1] Bullet collision at the free->full transition: one free slot + cursor pointing there -> player A claims it via free-scan, player B's saturated fallback overwrites it same tick (owner 0 -> 1 in one slot, one tick) | FIXED - `g_bulletFreshMask`/`g_bulletFreshTick` record slots claimed this frameTick; the saturated fallback skips fresh slots (bounded loop, degrades to plain round-robin if all fresh - unreachable with <=8 shooters in 16 slots). Both folded into worldHash (they determine future evictions). `net_sim_tests`: player 5 claims the last free slot under the cursor, player 6's same-tick pass falls through to slot 5, cursor consumes both steps, owner 5 survives |
+| 4 | [P2] F6 history backfill fails across signed tick wrap: modular gap of 4 (32766 -> -32766) but the `t < frameTick` loop ran zero iterations | FIXED - `netViewRingPush` (moved to egsys.c for testability, exported via egcode.h) iterates by elapsed-step count and wraps each destination index; the lerp fraction uses the same modular distance. `net_sim_tests::test_view_ring_wrap_backfill`: missed ticks 32767/-32768/-32767 land the 1/4, 2/4, 3/4 lerp poses |
+| 5 | [P2] Network client never loaded `f15.spr`: game_init allocates the sheet buffer but START (which the net path skips) populated it - every legacy gauge sprite (chaff/flare markers, ownship chevron, runway/target blips, gun reticle, AAM diamond, hit flash, tape sprites) blitted out of an empty sheet. GL uses the same sheet via r2d_submitImageF for codes the HD set doesn't cover (flare=2, chaff=3) | FIXED - `loadPic("f15.spr", commData->gfxInitResult)` after game_init, before setupInstrumentLayoutFar/drawCockpit - same order as the server and START |
+
+Live render verification (Xvfb + llvmpipe, headless): server + probe
+(`cmd:14` flare, `cmd:15` chaff) + client. Software path (F15_RENDER=software,
+F15_DUMP_FRAME): scope frames show the marker cluster at the deploy point
+appear after the commands and thin out at ttl expiry; ownship chevron and
+aircraft blips (same sheet) draw throughout. GL path: `debugDumpFrameGL`
+(readback hook added in r3dgl_present pre-swap, same env contract) captured
+640x400 composites - full cockpit incl. scope grid/markers; the post-deploy
+frame shows the new marker sprites vs the pre-deploy baseline. The SW
+page-dump is now skipped under GL (the page holds only chrome there).
+
+Note: markers deploy at the deployer's position which sits near the
+observing ownship's projected point - marker-vs-contact pixels were not
+individually isolated in the busy scope, but the appear/expire cycle is
+visible in the stacked crops and the blit path is the same one the
+provably-rendered ownship/blip sprites use.
+
 ## Round 6 findings (post 1ffa9dd)
 
 Sixth-pass review confirmed the round-5 fixes and reported five live

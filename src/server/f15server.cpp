@@ -598,6 +598,8 @@ static uint32_t worldHash(void) {
     h *= 16777619u;
     h ^= (uint32_t)g_randCallCount;
     h ^= g_bulletPoolCursor; /* next saturated-pool overwrite slot */
+    h ^= (uint32_t)(uint16_t)g_bulletFreshTick << 8;
+    h ^= g_bulletFreshMask << 16; /* this-tick allocs the fallback skips */
     for (i = 0; i < F15_MAX_PLAYERS; i++) {
         if (!g_players[i].used || !g_players[i].ready)
             continue;

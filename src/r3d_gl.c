@@ -37,7 +37,11 @@
 #include "egtypes.h"
 #include "log.h"
 
+#include <stdio.h>  /* debugDumpFrameGL: FILE ppm dump */
 #include <stdlib.h> /* qsort */
+#include <string.h> /* strlen/strcmp for the dump path suffix */
+
+static void debugDumpFrameGL(void);
 
 /* ---- GL context / selection ------------------------------------------- */
 
@@ -2226,7 +2230,56 @@ void r3dgl_present(SDL_Surface *page, int shakeOffset) {
     s_sceneRendered = 0;
     s_pageComposited = 0;
     r2d_vectorMarkPresented();
+    debugDumpFrameGL(); /* readback BEFORE swap (back buffer is dead after) */
     SDL_GL_SwapWindow(s_win);
+}
+
+/* GL twin of egsys.c's debugDumpFrame: F15_DUMP_FRAME=<ppm> writes the frame
+ * once frameTick passes F15_DUMP_AT (default ~120); F15_DUMP_EVERY=<n>
+ * repeats every n ticks (path gets _NNNNN suffix). Called just before
+ * SwapWindow: the back buffer still holds the just-drawn frame (after the
+ * swap its contents are undefined). */
+static void debugDumpFrameGL(void) {
+    static int done = 0, seq = 0, lastTick = -1;
+    static char seqPath[1024];
+    static uint8 *rowbuf;
+    const char *path;
+    const char *at;
+    int every, w = 0, h = 0, y;
+    FILE *f;
+    if (!(path = SDL_getenv("F15_DUMP_FRAME")) || !*path)
+        return;
+    at = SDL_getenv("F15_DUMP_AT");
+    if (frameTick < (at ? atoi(at) : 120))
+        return;
+    every = (at = SDL_getenv("F15_DUMP_EVERY")) ? atoi(at) : 0;
+    if (done && (every <= 0 || frameTick - lastTick < every))
+        return;
+    if (!SDL_GetWindowSizeInPixels(s_win, &w, &h) || w <= 0 || h <= 0)
+        return;
+    done = 1;
+    lastTick = frameTick;
+    if (every > 0) {
+        size_t plen = strlen(path);
+        if (plen > 4 && !strcmp(path + plen - 4, ".ppm"))
+            plen -= 4;
+        snprintf(seqPath, sizeof(seqPath), "%.*s_%05d.ppm",
+                 (int)plen, path, seq++);
+        path = seqPath;
+    }
+    f = fopen(path, "wb");
+    if (!f)
+        return;
+    rowbuf = (uint8 *)realloc(rowbuf, (size_t)w * 3);
+    fprintf(f, "P6\n%d %d\n255\n", w, h);
+    /* glReadPixels is bottom-up; write top-down */
+    glReadBuffer(GL_BACK);
+    for (y = h - 1; y >= 0; y--) {
+        glReadPixels(0, y, w, 1, GL_RGB, GL_UNSIGNED_BYTE, rowbuf);
+        fwrite(rowbuf, 1, (size_t)w * 3, f);
+    }
+    fclose(f);
+    fprintf(stderr, "f15: dumped %dx%d GL frame to %s\n", w, h, path);
 }
 
 int r3dgl_flightLive(void) { return s_glFlightLive; }

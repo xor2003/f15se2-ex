@@ -845,7 +845,10 @@ void drawHudWorldOverlay(void) {
          * the F-15, not aircraftTypes[0] (MiG-23). */
         drawTargetView(simObjectViewModel(wpIdx, 1),
                        g_simObjects[wpIdx].worldX,
-                       g_simObjects[wpIdx].worldY,
+                       /* drawTargetView differences against the MAP-fine
+                        * viewer Y (0x100000-g_ViewY): feed the object's
+                        * map-fine Y, not render-space worldY for remotes */
+                       simObjectFineY(wpIdx),
                        g_simObjects[wpIdx].alt,
                        g_simObjects[wpIdx].heading.w,
                        g_simObjects[wpIdx].pitch,

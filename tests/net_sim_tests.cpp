@@ -482,6 +482,32 @@ static void test_bullet_pool_lifetime(void) {
     CHECK(bulletTracks[0].targetPlayer == 0);
     CHECK(bulletTracks[1].targetPlayer == 2);
 
+    /* free->full transition: ONE free slot remains and the shared cursor
+     * points AT it. Player 5's free-scan claims it; player 6's pass finds
+     * the pool saturated and the cursor lands on that same slot - the
+     * fresh mask must skip it so the fallback evicts an OLD round, not
+     * the shot that hasn't left the barrel yet (was: owner 5 -> 6 in the
+     * same slot, same tick). */
+    memset(bulletTracks, 0, sizeof(bulletTracks));
+    for (i = 0; i < g_bulletTrackCount; i++) {
+        bulletTracks[i].posX = 1;
+        bulletTracks[i].targetPlayer = 3;
+    }
+    bulletTracks[4].posX = 0;          /* the single free slot */
+    g_bulletPoolCursor = 4;            /* cursor aimed right at it */
+    g_bulletFreshMask = 0;
+    g_bulletFreshTick = 0;
+    frameTick = 13;
+    g_residentPlayer = 5;
+    g_axisInputAccum[0] = 1;
+    tryPlayerFire();                   /* free-scan -> slot 4 */
+    CHECK(bulletTracks[4].targetPlayer == 5);
+    g_residentPlayer = 6;
+    tryPlayerFire();                   /* saturated: slot 4 is fresh -> skip */
+    CHECK(bulletTracks[4].targetPlayer == 5); /* NOT evicted same-tick */
+    CHECK(bulletTracks[5].targetPlayer == 6); /* fell through to slot 5 */
+    CHECK(g_bulletPoolCursor == 6);    /* consumed both cursor steps */
+
     /* SP mode (resident -1): rotating slot + release sweep unchanged */
     g_residentPlayer = -1;
     memset(bulletTracks, 0, sizeof(bulletTracks));
@@ -791,6 +817,35 @@ static void test_snap_negative_ticks(void) {
     CHECK(frameTick == -32768);
 }
 
+/* ---- delayed-camera ring: signed-wrap backfill --------------------------- */
+
+void netViewRingPush(void); /* egsys.c */
+
+/* netViewRingPush backfills missed ring ticks by lerping prev->cur. Across
+ * the int16 wrap (32766 -> -32766) the modular gap is 4 but any signed
+ * 't < frameTick' loop runs zero times; the fill must iterate by elapsed
+ * steps and wrap each destination index. */
+static void test_view_ring_wrap_backfill(void) {
+    /* first push seeds every slot with pose A (tick 32766 -> slot 14) */
+    frameTick = 32766;
+    g_ourHead = 0;
+    g_ourPitch = 0;
+    g_ourRoll = 0;
+    g_ViewX = 0;
+    g_ViewY = 0;
+    g_viewZ = 0;
+    netViewRingPush();
+    /* pose B lands +4 modularly at -32766 with a different worldX */
+    frameTick = -32766;
+    g_ViewX = 0x1000;
+    netViewRingPush();
+    /* the three missed ticks got 1/4, 2/4, 3/4 of the A->B lerp */
+    CHECK(g_viewSnapshotRing[15].worldX == 0x400);  /* tick 32767 */
+    CHECK(g_viewSnapshotRing[0].worldX == 0x800);   /* tick -32768 */
+    CHECK(g_viewSnapshotRing[1].worldX == 0xC00);   /* tick -32767 */
+    CHECK(g_viewSnapshotRing[2].worldX == 0x1000);  /* tick -32766 = B */
+}
+
 /* ---- runner ------------------------------------------------------------ */
 
 int main(void) {
@@ -814,6 +869,7 @@ int main(void) {
     test_snap_invalid_ids_rejected();
     test_snap_negative_ticks();
     test_damage_seq_edge_trigger();
+    test_view_ring_wrap_backfill();
     if (fails == 0) {
         printf("net_sim_tests: all pass\n");
         return 0;

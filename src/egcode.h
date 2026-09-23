@@ -91,6 +91,9 @@ uint64 timerNowNs(void);
 void netRenderSnapCapture(void);
 void netRenderApplyInterp(int64 num, int64 den);
 void netRenderRestore(void);
+/* Net-client camera history (egsys.c): seed/backfill g_viewSnapshotRing per
+ * applied snapshot so VIEW_EXT_DYNAMIC never reads empty/stale slots. */
+void netViewRingPush(void);
 int getTimeOfDay();
 SDL_IOStream *openFile(const char *path, int mode);
 void fileClose(SDL_IOStream *handle);

@@ -205,13 +205,17 @@ int16 computeBearing32(int32 deltaX, int32 deltaY) {
 }
 
 // ==== seg000:0xcb42 ====
-/* worldX/worldY are the target's FINE world position (mapX<<5 scale, matching
- * g_ViewX/g_ViewY and SimObject.worldX). The original took the coarse map coords
- * (posX/mapX) and subtracted the coarse g_viewX_; with the port's render/sim
- * decouple both operands round to the ÷32 grid independently and beat ±1 against
- * each other between sim ticks, so the tracked model jittered on a ~32-unit grid.
- * Differencing the fine coords (once, below) and taking the bearing/pitch off those
- * fine deltas removes both the beat and the coarse angular snapping. */
+/* worldX/worldY are the target's FINE world position in the MAP-fine
+ * convention (posX<<5 / posY<<5 = 0x100000-ViewY scale - SimObject.worldY
+ * and callers' mapY<<5 are both in it). g_ViewY is the inverse of that:
+ * viewer map-fine Y == 0x100000 - g_ViewY, so the Y delta must subtract
+ * THAT, not g_ViewY (was: every nearby target bore ~south - BRG 180).
+ * The original took the coarse map coords (posX/mapX) and subtracted the
+ * coarse g_viewX_; with the port's render/sim decouple both operands round
+ * to the ÷32 grid independently and beat ±1 against each other between sim
+ * ticks, so the tracked model jittered on a ~32-unit grid. Differencing the
+ * fine coords (once, below) and taking the bearing/pitch off those fine
+ * deltas removes both the beat and the coarse angular snapping. */
 void drawTargetView(int shapeId, int32 worldX, int32 worldY, int altitude, int objYaw, int objPitch, int objRoll, int mode, int shift) {
     int32 dxFine, dyFine, dzFine;
     int unused;
@@ -236,7 +240,7 @@ void drawTargetView(int shapeId, int32 worldX, int32 worldY, int altitude, int o
     *g_targetViewParams = 1;
 
     dxFine = worldX - g_ViewX;
-    dyFine = worldY - g_ViewY;
+    dyFine = worldY - (0x100000L - g_ViewY); /* map-fine relY (== posY delta <<5) */
     dzFine = altitude - g_viewZ;
 
     if (mode < 2) {

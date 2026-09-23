@@ -50,62 +50,8 @@ static int g_missionOver;
 static int16 g_landingType = 3;
 static uint32_t g_clientSeq;
 
-/* ---- delayed-camera history --------------------------------------------
- * VIEW_EXT_DYNAMIC reads g_viewSnapshotRing[(frameTick-k)&0xF]: the server
- * writes one entry per sim tick; here one lands per snapshot. Without care
- * the camera reads zeroed slots at join and stale slots across packet gaps,
- * and with a stationary aircraft the delayed pose coincides with the plane
- * (camera inside it). Push via viewRingPush: seed the whole ring on the
- * first snapshot, then backfill skipped ticks by lerping the previous pose
- * toward the current one so every slot holds a plausible sample. */
-static int s_ringHave;
-static int16_t s_ringLastTick;
-static struct ViewSnapshot s_ringPrev;
-
-static void viewRingPush(void) {
-    struct ViewSnapshot cur;
-    cur.heading = g_ourHead;
-    cur.pitch = (int16)g_ourPitch;
-    cur.roll = g_ourRoll;
-    cur.worldX = g_ViewX;
-    cur.worldY = g_ViewY;
-    cur.alt = g_viewZ;
-    if (!s_ringHave) {
-        int k;
-        for (k = 0; k < 16; k++)
-            g_viewSnapshotRing[k] = cur;
-        s_ringHave = 1;
-    } else {
-        int16_t gap = (int16_t)(frameTick - s_ringLastTick);
-        if (gap > 1) {
-            int t, first = s_ringLastTick + 1;
-            if (first < frameTick - 15)
-                first = frameTick - 15;
-            for (t = first; t < frameTick; t++) {
-                int a = (int)(((int32_t)(t - s_ringLastTick) << 12) / gap);
-                int s = t & 0xF;
-                struct ViewSnapshot *e = &g_viewSnapshotRing[s];
-                e->worldX = s_ringPrev.worldX +
-                    (int32_t)(((int64_t)(cur.worldX - s_ringPrev.worldX) * a) >> 12);
-                e->worldY = s_ringPrev.worldY +
-                    (int32_t)(((int64_t)(cur.worldY - s_ringPrev.worldY) * a) >> 12);
-                e->alt = (int16)(s_ringPrev.alt +
-                    (((int32_t)(cur.alt - s_ringPrev.alt) * a) >> 12));
-                e->heading = (int16)(s_ringPrev.heading +
-                    (((int16_t)(cur.heading - s_ringPrev.heading) * a) >> 12));
-                e->pitch = (int16)(s_ringPrev.pitch +
-                    (((int16_t)(cur.pitch - s_ringPrev.pitch) * a) >> 12));
-                e->roll = (int16)(s_ringPrev.roll +
-                    (((int16_t)(cur.roll - s_ringPrev.roll) * a) >> 12));
-            }
-        }
-    }
-    g_viewSnapshotRing[frameTick & 0xF] = cur;
-    s_ringPrev = cur;
-    s_ringLastTick = frameTick;
-}
-
 void debugDumpFrame(void);                /* egsys.c: F15_DUMP_FRAME=<ppm> */
+void loadPic(const char *filename, int segment); /* filepic.c */
 
 /* ---- baked cockpit-panel elements -------------------------------------
  * drawWeaponAmmo/drawWeaponSelectMarker/UpdateThrottleState/drawFuelGauge/
@@ -323,8 +269,12 @@ int netClientMain(const char *hostPort, const char *name) {
     }
 
     /* world data applied by netSetupApply inside the handshake; now load the
-     * renderer resources and derive names/spawn from the received tables. */
+     * renderer resources and derive names/spawn from the received tables.
+     * f15.spr decodes into the buffer game_init allocated: START does this on
+     * the normal path, the network client skipped it - chaff/flare icons and
+     * the other legacy sprite HUD elements blit out of that sheet. */
     resetMissionRuntimeState();
+    loadPic("f15.spr", commData->gfxInitResult);
     gfxBufPtr = commData->gfxInitResult;
     setupInstrumentLayoutFar();
     g_netClientMode = 1; /* initMissionStrings skips worldImportToEgame */
@@ -402,7 +352,7 @@ int netClientMain(const char *hostPort, const char *name) {
                         snapNs = now;
                         /* trailing-replay view ring: seed/backfill so the
                          * delayed camera never reads empty or stale slots */
-                        viewRingPush();
+                        netViewRingPush();
                     }
                 } else if (type == NETMSG_EVENT) {
                     struct NetEvent e;

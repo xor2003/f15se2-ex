@@ -1854,6 +1854,9 @@ int16 g_rollMatrix[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0x7FFF};
 struct BulletTrack bulletTracks[20];
 int32 g_randCallCount; /* in-sim rand() draws (canonical hash input) */
 uint32 g_bulletPoolCursor; /* server round-robin overwrite cursor */
+uint32 g_bulletFreshMask;  /* slots allocated this frameTick - saturated
+                            * fallback must skip them (free->full transition) */
+int16 g_bulletFreshTick;   /* frameTick the fresh mask belongs to */
 
 /* 3x3 rotation matrix scratch buffers (9 words): written by
  * multiplyMatrix3x3Far/buildRotationMatrixFar, read as [axis]/[3+axis]/[6+axis]. */
