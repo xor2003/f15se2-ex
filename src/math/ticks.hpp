@@ -81,6 +81,9 @@ public:
     /* Same-domain threshold compares. */
     bool exceeds(TickDuration n) const { return value_ > n.value_; }
     bool atLeast(TickDuration n) const { return value_ >= n.value_; }
+    /* value_ == other - 1: "exactly one decrement behind" — the snapshot
+     * pairing test for a still-live countdown slot. */
+    bool oneLessThan(TickDuration other) const { return value_ == other.value_ - 1; }
 
     friend bool operator==(TickDuration a, TickDuration b) { return a.value_ == b.value_; }
     friend bool operator!=(TickDuration a, TickDuration b) { return !(a == b); }
@@ -102,6 +105,9 @@ public:
         if (value_ > 0) value_ = static_cast<std::int16_t>(value_ - 1);
         else if (value_ < 0) value_ = static_cast<std::int16_t>(value_ + 1);
     }
+    /* |value|: remaining count on signed countdowns whose sign carries the
+     * event flavor (hit-effect arms ±8/-3/-1 and decays toward zero). */
+    int magnitude() const { return value_ < 0 ? -value_ : value_; }
 
     /* Elapsed-tick phases and shifts (missionTick cadences). */
     int phase(int period) const { return value_ & (period - 1); }

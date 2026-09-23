@@ -112,7 +112,7 @@ void fireAirThreat(int16 objIdx) {
                                 g_projectiles[slot].pitch = g_simObjectPitch[objIdx] - angleFromWord(0x400);
                                 g_projectiles[slot].bank = g_simObjectBank[objIdx];
 
-                                g_projectiles[slot].ttl = f15::math::TickDuration::fromWord((int16)((f15::specLockRangeUnits(sams[idx].lockRange) * (int32)g_frameRateScaling.word()) / (int32)g_projectiles[slot].speed));
+                                g_projectiles[slot].ttl = f15::math::TickDuration::fromWord((int16)(g_frameRateScaling.scaled(f15::specLockRangeUnits(sams[idx].lockRange)) / (int32)g_projectiles[slot].speed));
 
                                 g_projectiles[slot].specIdx = idx;
                                 g_projectiles[slot].targetRef = -objIdx;
@@ -173,7 +173,7 @@ void spawnEnemyAircraft(int16 slot, int16 objType) {
     objectAttitudeSet(g_simObjectBank[slot], g_simObjects[slot].bank.w, AircraftAngle{});
     g_simObjects[slot].flags.w |= SIMOBJ_ACTIVE | SIMOBJ_ALIVE | SIMOBJ_CLIMBOUT;
     g_simObjects[slot].objType = objType;
-    g_simObjects[slot].timer = (int16)(((int32)aircraftTypes[spec].range << 11) * (int32)g_frameRateScaling.word() / (int32)aircraftTypes[spec].maxSpeed);
+    g_simObjects[slot].timer = (int16)(g_frameRateScaling.scaled((int32)aircraftTypes[spec].range << 11) / (int32)aircraftTypes[spec].maxSpeed);
     if (g_padlockAircraft == -1) {
         g_simObjects[slot].flags.w &= ~SIMOBJ_TRACKED_SITE;
     }
@@ -776,7 +776,7 @@ void fireMissile() {
     g_projectiles[slot].pitch = g_ourPitch;
     g_projectiles[slot].bank = g_ourRoll;
 
-    g_projectiles[slot].ttl = f15::math::TickDuration::fromWord((int16)((f15::specLockRangeUnits(sams[spec].lockRange) * (sams[spec].weaponClass == 6 ? 1 : 2)) * (int32)g_frameRateScaling.word() / (int32)(f15::specProjSpeed(sams[spec].maxSpeed) + 1)) + 6);
+    g_projectiles[slot].ttl = f15::math::TickDuration::fromWord((int16)(g_frameRateScaling.scaled(f15::specLockRangeUnits(sams[spec].lockRange) * (sams[spec].weaponClass == 6 ? 1 : 2)) / (int32)(f15::specProjSpeed(sams[spec].maxSpeed) + 1)) + 6);
 
     if (g_projectiles[slot].ttl.atMost(6)) {
         g_projectiles[slot].ttl = f15::math::TickDuration::fromWord(999);

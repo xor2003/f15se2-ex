@@ -923,7 +923,7 @@ void drawHudWorldOverlay(void) {
     }
 
     if (!g_hitEffectTimer.isZero() && g_activePanelMode == 0x13 && g_lockedTargetKilled != 0 && g_targetInHudFlag != 0) {
-        blitSprite(252, 140, (abs(g_hitEffectTimer.word()) - 8) * -32, 0x3f, 32, 32, 0);
+        blitSprite(252, 140, (g_hitEffectTimer.magnitude() - 8) * -32, 0x3f, 32, 32, 0);
     }
 
     if (g_activePanelMode == 0x13 && g_prevKillMarker != 0 && g_targetInHudFlag == 0) {

@@ -305,14 +305,14 @@ static void objApplyInterp(const SimObjSnap *sp, const SimObjSnap *sn,
          * ttl=0, snaps instead of lerping and the tracking camera sawtooths
          * against the interpolated player state. A reused slot passes through
          * ttl==0 and a respawn teleports, so both guard against streaks. */
-        if (pp[i].ttl.word() == 0 || pn[i].ttl.word() == 0 ||
+        if (pp[i].ttl.isZero() || pn[i].ttl.isZero() ||
             std::abs(f15::math::legacy::fineRep(pn[i].fineX) -
                      f15::math::legacy::fineRep(pp[i].fineX)) >= OBJ_TELEPORT_GUARD ||
             std::abs(f15::math::legacy::fineRep(pn[i].fineY) -
                      f15::math::legacy::fineRep(pp[i].fineY)) >= OBJ_TELEPORT_GUARD)
             continue;
 #else
-        if (pp[i].ttl.atMost(0) || pn[i].ttl.word() != pp[i].ttl.word() - 1)
+        if (pp[i].ttl.atMost(0) || !pn[i].ttl.oneLessThan(pp[i].ttl))
             continue;
 #endif
         g_projectiles[i].fineX = Fine::interpolate(pp[i].fineX, pn[i].fineX, fraction);

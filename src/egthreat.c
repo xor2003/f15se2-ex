@@ -170,7 +170,7 @@ void fireGroundThreat(int16 planeIdx) {
                                         g_projectiles[slot].speed = 1;
                                         g_projectiles[slot].head = angleFromWord(bearing[0]);
                                         g_projectiles[slot].pitch = angleFromWord(0x4000);
-                                        g_projectiles[slot].ttl = f15::math::TickDuration::fromWord((int16)((f15::specLockRangeUnits(sams[threatType].lockRange) * (int32)g_frameRateScaling.word()) / (int32)f15::specProjSpeed(sams[threatType].maxSpeed)));
+                                        g_projectiles[slot].ttl = f15::math::TickDuration::fromWord((int16)(g_frameRateScaling.scaled(f15::specLockRangeUnits(sams[threatType].lockRange)) / (int32)f15::specProjSpeed(sams[threatType].maxSpeed)));
                                         g_projectiles[slot].specIdx = threatType;
                                         g_projectiles[slot].targetRef = planeIdx;
 
