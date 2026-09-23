@@ -326,7 +326,7 @@ void animateArm(int a, int b) {
         return;
     }
     /* Legacy page path (software / no HD art) — byte-identical to upstream. */
-    spriteIdx = armSpriteIndex[b];
+    spriteIdx = armSpriteIndex[b >= 0 ? b : 0];
     if (a == -1) {
         /* Snapshot the clean briefing into the save-under backing image. The
          * arm-cursor erase below restores from here. */
@@ -345,7 +345,7 @@ void animateArm(int a, int b) {
     spriteBlitW = armBlitW[spriteIdx];
     spriteBlitH = armBlitH[spriteIdx];
     gfx_restoreFromImage(g_stBacking, *page1NumPtr, spriteBlitX, spriteBlitY, spriteBlitX, spriteBlitY, spriteBlitW, spriteBlitH);
-    if (b < 5 && enableHighlight != 0) {
+    if (b >= 0 && b < 5 && enableHighlight != 0) {
         gfx_switchColor(page1NumPtr, 113, b * 21 + 34, 297, b * 21 + 42, COLOR_BRIEF_DESC_HL, COLOR_BRIEF_DESC_NORMAL);
     }
 }

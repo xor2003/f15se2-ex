@@ -437,21 +437,35 @@ void netRenderRestore(void) {
 }
 
 /* Debug frame dump: F15_DUMP_FRAME=<ppm> writes the front page once frameTick
- * passes F15_DUMP_AT (default ~120). Software-render only (GL composites
+ * passes F15_DUMP_AT (default ~120); F15_DUMP_EVERY=<n> repeats it every n
+ * ticks (path gets _NNNNN suffix). Software-render only (GL composites
  * natively). */
 void debugDumpFrame(void) {
-    static int done = 0;
+    static int done = 0, seq = 0, lastTick = -1;
+    static char seqPath[1024];
     const char *path;
     const char *at;
     struct SDL_Surface *surf;
-    int x, y;
+    int every, x, y;
     FILE *f;
-    if (done || !(path = getenv("F15_DUMP_FRAME")) || !*path)
+    if (!(path = getenv("F15_DUMP_FRAME")) || !*path)
         return;
     at = getenv("F15_DUMP_AT");
     if (frameTick < (at ? atoi(at) : 120))
         return;
+    every = (at = getenv("F15_DUMP_EVERY")) ? atoi(at) : 0;
+    if (done && (every <= 0 || frameTick - lastTick < every))
+        return;
     done = 1;
+    lastTick = frameTick;
+    if (every > 0) {
+        size_t plen = strlen(path);
+        if (plen > 4 && !strcmp(path + plen - 4, ".ppm"))
+            plen -= 4;
+        snprintf(seqPath, sizeof(seqPath), "%.*s_%05d.ppm",
+                 (int)plen, path, seq++);
+        path = seqPath;
+    }
     surf = gfx_getPageSurface(g_pageFront[0]);
     f = surf ? fopen(path, "wb") : 0;
     if (!f)

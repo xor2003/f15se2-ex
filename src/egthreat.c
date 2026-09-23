@@ -179,7 +179,7 @@ int16 computeThreatRangeBearing(int16 threatX, int16 threatY, int16 threatAlt, i
     deltaY = g_viewY_ - threatY;
     range = (uint16)rangeApprox(deltaX, deltaY) >> 6;
     bearing = computeBearing(deltaX, -deltaY);
-    score = (score = (aNone[threatType].dangerTier + g_missionStatus * 2 + 3) * aNone[threatType].lethality / 16) * (((uint16)g_viewZ >> 6) + 0x40) >> 7;
+    score = ((aNone[threatType].dangerTier + g_missionStatus * 2 + 3) * aNone[threatType].lethality / 16) * (((uint16)g_viewZ >> 6) + 0x40) >> 7;
     *outBearing = bearing;
     *outRange = range;
     return score;

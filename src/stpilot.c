@@ -202,8 +202,10 @@ void blinkPilot() {
 void gameDataToPilot(struct Pilot *pilot) {
     // uint16 var_4;
     int charIdx;
-    for (charIdx = 0; (pilot->name[charIdx] = gameData->pilotName[charIdx]); charIdx++) {
+    for (charIdx = 0; charIdx < 21; charIdx++) {
+        if (!(pilot->name[charIdx] = gameData->pilotName[charIdx])) break;
     }
+    pilot->name[21] = '\0';
     pilot->total_score = gameData->totalScore;
     pilot->last_score = gameData->lastScore;
     pilot->theater = gameData->theater;
@@ -215,9 +217,10 @@ void gameDataToPilot(struct Pilot *pilot) {
 // TODO: change argument to struct Pilot
 void pilotToGameData(const uint8 *pilotData) {
     int charIdx;
-    for (charIdx = 0; 1; charIdx++) {
+    for (charIdx = 0; charIdx < 21; charIdx++) {
         if ((gameData->pilotName[charIdx] = pilotData[charIdx]) == '\0') break;
     }
+    gameData->pilotName[21] = '\0';
     gameData->totalScore = rdU32(pilotData + ROSTER_SCORE_LO);
     gameData->lastScore = rdU16(pilotData + ROSTER_LASTSCORE);
     gameData->theater = *(pilotData + ROSTER_THEATER);

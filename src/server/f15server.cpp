@@ -51,7 +51,7 @@ struct ServerPlayer {
     uint8_t role;
     char name[F15_NAME_LEN + 1];
     uint32_t lastSeq;
-    int32_t spawnOff; /* pending lateral spawn offset (map units), 0 = none */
+    int32_t spawnOff; /* pending lateral spawn offset (world units), 0 = none */
     struct PlayerSim ctx;
     struct RemoteInput input;
 };
@@ -337,8 +337,8 @@ static void serverTick(void) {
         simInputSet(remoteInputOps(), &p->input);
         simulatePlayer(&p->ctx);
         if (p->spawnOff != 0 && p->ctx.initPhase >= 2) {
-            p->ctx.viewX_ += (int16_t)p->spawnOff;
-            p->ctx.ViewX += p->spawnOff << 5;
+            p->ctx.viewX_ += (int16_t)(p->spawnOff >> 5);
+            p->ctx.ViewX += p->spawnOff;
             p->spawnOff = 0;
         }
         if (p->ctx.missionEndedFlag[0] && !p->ctx.ended) {
@@ -347,15 +347,20 @@ static void serverTick(void) {
         }
     }
     g_curPeer = NET_PEER_INVALID;
-    /* world pass under ctx 0's globals (frameThreatScan is player-centric) */
-    if (g_players[0].used) {
-        playerSwapIn(&g_players[0].ctx);
+    /* world pass under the first ready player's globals (frameThreatScan is
+     * player-centric; must not die when slot 0's player departs) */
+    for (i = 0; i < F15_MAX_PLAYERS; i++) {
+        if (!g_players[i].used || !g_players[i].ready ||
+            g_players[i].ctx.ended)
+            continue;
+        playerSwapIn(&g_players[i].ctx);
         updateWorldFrame();
-        playerSwapOut(&g_players[0].ctx);
-        if (!g_haveTemplate && g_players[0].ctx.initPhase >= 2) {
-            g_spawnTemplate = g_players[0].ctx;
+        playerSwapOut(&g_players[i].ctx);
+        if (!g_haveTemplate && g_players[i].ctx.initPhase >= 2) {
+            g_spawnTemplate = g_players[i].ctx;
             g_haveTemplate = 1;
         }
+        break;
     }
     simInputReset();
     g_stateHash = worldHash();

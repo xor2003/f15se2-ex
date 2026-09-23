@@ -698,6 +698,7 @@ uint16 signedRatio16(int16 numerator, int16 denominator) { /* Original: IntDiv(A
     /* Divide two signed 15-bit fractions, then restore the combined sign. */
     if (numerator < 0) numeratorSign = -1;
     if (denominator < 0) denominatorSign = -1;
+    if (denominator == 0) return 0;
     absNumerator = (int32)(numerator < 0 ? -numerator : numerator);
     absDenominator = (int32)(denominator < 0 ? -denominator : denominator);
     /* Original callers consume the 16-bit quotient word, including wraparound
@@ -705,7 +706,6 @@ uint16 signedRatio16(int16 numerator, int16 denominator) { /* Original: IntDiv(A
      * host-width signed arithmetic result. */
     return (uint16)((uint16)((((uint32)(uint16)absNumerator) << 16) / (uint32)absDenominator >> 1) *
                     (int)numeratorSign * (int)denominatorSign);
-done:;
 }
 
 #define ASIN_TABLE_SHIFT 9

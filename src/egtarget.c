@@ -225,6 +225,16 @@ skip_aam:
 
         g_projDepth >>= depthShift;
 
+        /* Remote-piloted parked objects render as the player aircraft (F-15
+         * model 6 gear-down / 7 gear-up); everyone else via aircraftTypes. */
+        {
+            int16 vmdl;
+            if (g_simObjects[idx].flags.b[1] & SIMFLAG_B1_REMOTE_PLAYER)
+                vmdl = (g_simObjects[idx].flags.b[1] & SIMFLAG_B1_GEAR_DOWN) ? 6 : 7;
+            else
+                vmdl = (&aircraftTypes[g_simObjects[idx].spec].viewModelId)
+                           [(g_projDepth > planeFineDepth) ? 0 : 1];
+
         if (g_projDepth > planeModelDepth) {
             if (g_simObjects[idx].alt < 999 && g_nightMode == 0) {
                 marker = 0;
@@ -234,8 +244,7 @@ skip_aam:
                     marker = 0x80;
                 }
                 if (g_viewZ != 0x80 || marker == 0x80) {
-                    drawAircraftShadow(
-                                    (&aircraftTypes[g_simObjects[idx].spec].viewModelId)[(g_projDepth > planeFineDepth) ? 0 : 1],
+                    drawAircraftShadow(vmdl,
                                     g_simObjects[idx].worldX, g_simObjects[idx].worldY,
                                     marker, g_simObjects[idx].heading.w,
                                     g_simObjects[idx].pitch, g_simObjects[idx].bank.w,
@@ -244,14 +253,14 @@ skip_aam:
             }
 
             /* Draw the target */
-            drawWorldObject(
-                (&aircraftTypes[g_simObjects[idx].spec].viewModelId)[(g_projDepth > planeFineDepth) ? 0 : 1],
+            drawWorldObject(vmdl,
                 g_simObjects[idx].worldX, g_simObjects[idx].worldY, g_simObjects[idx].alt,
                 g_simObjects[idx].heading.w, g_simObjects[idx].pitch,
                 g_simObjects[idx].bank.w, 2 - depthShift);
         } else {
             setDrawColor(COLOR_WHITE);;
             drawViewportLine(vtxScratch.vproj.x.lo, vtxScratch.vproj.y.lo, vtxScratch.vproj.x.lo, vtxScratch.vproj.y.lo);
+        }
         }
     next2:;
     }

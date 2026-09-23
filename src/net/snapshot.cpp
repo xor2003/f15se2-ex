@@ -365,24 +365,30 @@ void netPlayerPublishObject(int idx, const struct NetPlayerState *s) {
     s_parkedMask |= 1u << idx;
     if (slot >= 0) {
         o = &g_simObjects[slot];
+        /* Object-space Y runs inverted vs the player convention: ownship draws
+         * at 0x01000000 - g_ViewY (egtarget.c), so flip the wire Y the same
+         * way. posX/posY are the projection seeds (map units). */
         o->worldX = s->worldX;
-        o->worldY = s->worldY;
+        o->worldY = (int32)(0x01000000L - s->worldY);
         o->posX = (uint16_t)(s->worldX >> 5);
-        o->posY = (uint16_t)(s->worldY >> 5);
+        o->posY = (uint16_t)((0x01000000L - s->worldY) >> 5);
         o->alt = s->alt;
         o->heading.w = s->head;
         o->pitch = s->pitch;
         o->bank.w = s->roll;
-        o->spec = 0;             /* F-15 model */
+        o->spec = 0;
         o->speed = s->knots;
-        o->objType = 0;
+        o->objType = pslot;    /* back-link to the parked planeTable entry */
         o->flags.b[0] = s->alive ? 2 : 0; /* alive bit (world objects) */
-        o->flags.b[1] = 0;
+        /* remote-pilot marker: renderer draws the player F-15 model for these */
+        o->flags.b[1] = SIMFLAG_B1_REMOTE_PLAYER;
+        if (s->planeFlags & 1)
+            o->flags.b[1] |= SIMFLAG_B1_GEAR_DOWN;
     }
     if (pslot >= 0) {
         t = &g_planeTable.planes[pslot];
         t->mapX = (uint16_t)(s->worldX >> 5);
-        t->mapY = (uint16_t)(s->worldY >> 5);
+        t->mapY = (uint16_t)(uint32_t)((0x01000000L - s->worldY) >> 5);
         t->active = 1;
         /* 0x400 = aircraft class, 0x01 = air unit: renders as the airborne
          * blip on the tacmap and a target marker on the scope. */

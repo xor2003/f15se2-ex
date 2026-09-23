@@ -248,6 +248,13 @@ struct SimObject {
 STATIC_ASSERT(sizeof(struct SimObject) == 36);
 STATIC_ASSERT(sizeof(struct SimObject) == FLIGHTUNIT_SIZE);
 
+/* SimObject.flags.b[1] extension bits used ONLY for client-parked remote
+ * pilots (slots >= the world object count; never a server-owned object).
+ * REMOTE_PLAYER makes the 3D path render the player-aircraft model (6/7)
+ * instead of aircraftTypes[spec]; GEAR_DOWN picks the gear-down model. */
+#define SIMFLAG_B1_REMOTE_PLAYER 0x10
+#define SIMFLAG_B1_GEAR_DOWN     0x04
+
 struct MapTarget {
     uint16 mapX;              // +0x00  map X coord (worldX = mapX << 5)
     uint16 mapY;              // +0x02  map Y coord (worldY = mapY << 5)

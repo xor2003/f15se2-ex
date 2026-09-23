@@ -30,8 +30,10 @@ static inline void nwBytes(struct NetWriter *w, const void *src, size_t n) {
         w->overflow = 1;
         return;
     }
-    memcpy(w->buf + w->len, src, n);
-    w->len += n;
+    if (n != 0) {
+        memcpy(w->buf + w->len, src, n);
+        w->len += n;
+    }
 }
 
 static inline void nwU8(struct NetWriter *w, uint8_t v) { nwBytes(w, &v, 1); }

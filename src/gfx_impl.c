@@ -714,7 +714,7 @@ static void drawStringCore(int16 *params, const char *string,
     surfW = surf->w;
     surfH = surf->h;
 
-    for (charIdx = 0; string[charIdx] != 0 && charIdx < 256; charIdx++) {
+    for (charIdx = 0; charIdx < 256 && string[charIdx] != 0; charIdx++) {
         ch = (uint8)string[charIdx];
 
         /* Inline color escape: chars >= 0x80 change the text color.
@@ -783,7 +783,7 @@ void FAR gfx_drawGlyphStrRot(const char *string, int fontIdx, int color,
     bitmaps = g_fontBitmapPtrs[fontIdx];
     widthTab = g_fontWidthTables[fontIdx];
     if (!bitmaps) return;
-    for (ci = 0; string[ci] != 0 && ci < 256; ci++) {
+    for (ci = 0; ci < 256 && string[ci] != 0; ci++) {
         uint8 ch = (uint8)string[ci];
         if (ch & 0x80) { color = ch & 0x7F; continue; } /* inline colour escape */
         if (ch >= 0x20) {
