@@ -2495,11 +2495,15 @@ stall regime through the real `belowStall` gate and recovers through
 the `correctFlightStall` nose-drop on both backends. Sustained flight
 is covered: the `--long` profile holds the autopilot on for 3000
 ticks through a two-leg waypoint route, a `recoveryApproach` pattern
-transit, scan retargets and real fuel burn on both backends. Still
-missing: real mission-file loads, interactive `.bbx` recordings (the
-port has no recording/replay machinery), real-time pacing, and
-multi-platform runs — so modern coverage remains a scripted-profile
-acceptance gate, not a certification of the whole game.
+transit, scan retargets and real fuel burn on both backends. Mission
+generation runs on real theater data: `mission_gen_tests` drives
+`runGenerator` from the real SVN world/terrain tables. Still
+missing: binary mission-asset loads end-to-end (the generator fixture
+seeds parsed tables rather than running the `.wld`/`.3dG` loaders),
+interactive `.bbx` recordings (the port has no recording/replay
+machinery), real-time pacing, and multi-platform runs — so modern
+coverage remains a scripted-profile acceptance gate, not a
+certification of the whole game.
 
 Reproduce standalone Clang checks from the repository root:
 
