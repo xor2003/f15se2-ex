@@ -490,18 +490,23 @@ void tryPlayerFire(void) {
      * - SP (resident -1): the original frame-derived rotating slot; a round
      *   lives ~2*g_bulletTrackCount ticks before the rotation overwrites it.
      * - server: claim any FREE slot in the shared player pool (0..count-1)
-     *   and stamp the owner. A saturated pool overwrites the rotating index.
-     *   Rounds keep independent flight: a later shot or a trigger release
-     *   never deletes an airborne round - only the SP path below keeps the
-     *   legacy release-sweep. */
+     *   and stamp the owner. A saturated pool overwrites in round-robin
+     *   order via g_bulletPoolCursor: every firing player gets a DIFFERENT
+     *   slot within a tick (allocation order can't erase a teammate's new
+     *   shot) and each round survives >= count launches globally. The
+     *   cursor is unsigned, so it stays valid across the int16 frameTick
+     *   wrap; the SP remainder below is sign-normalized for the same wrap.
+     *   A later shot or a trigger release never deletes an airborne round. */
     if (g_residentPlayer >= 0) {
         for (slot = 0; slot < g_bulletTrackCount; slot++)
             if (bulletTracks[slot].posX == 0)
                 break;
         if (slot >= g_bulletTrackCount)
-            slot = (int)((frameTick >> 1) % g_bulletTrackCount);
+            slot = (int16)(g_bulletPoolCursor++ % (uint32)g_bulletTrackCount);
     } else {
         slot = (frameTick >> 1) % g_bulletTrackCount;
+        if (slot < 0)
+            slot += g_bulletTrackCount;
     }
     firing = readAxisInput(0);
     if (!firing) goto no_fire;

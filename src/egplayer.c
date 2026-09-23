@@ -258,11 +258,18 @@ void playerSwapIn(const struct PlayerSim *p) {
 }
 
 /* Canonical hash over the simulation-meaningful ctx state (plan §24): used by
- * determinism/regression tests. Excludes pure-presentation scratch. */
+ * determinism/regression tests. Covers the contiguous sim region plus the
+ * gameplay fields that live OUTSIDE it; pure-presentation scratch and
+ * string buffers are excluded. Field classification follows actual
+ * consumers:
+ *   active            slot lifecycle - gates the server player pass
+ *   ended             mission-over - gates sim participation
+ *   viewHeadingOffset read by simTargetLock's look-away checks (egtarget.c)
+ *   padlockAircraft   read by threat targeting/escort spawn (egthreat.c)
+ * The rest of the trailing block (view/camera/scope string scratch,
+ * tacmap indicators, HUD timers) only feeds draw paths. */
 uint32 playerCtxHash(const struct PlayerSim *p) {
     const uint8 *b = (const uint8 *)p;
-    /* hash only the well-defined region: from ViewX to missionEndedFlag
-     * inclusive - the trailing presentation/string block is unstable. */
     size_t lo = offsetof(struct PlayerSim, ViewX);
     size_t hi = offsetof(struct PlayerSim, missionEndedFlag) + sizeof(p->missionEndedFlag);
     uint32 h = 2166136261u;
@@ -271,6 +278,14 @@ uint32 playerCtxHash(const struct PlayerSim *p) {
         h ^= b[i];
         h *= 16777619u;
     }
+    h ^= (uint32)(uint16)p->active;
+    h *= 16777619u;
+    h ^= (uint32)(uint16)p->ended;
+    h *= 16777619u;
+    h ^= (uint32)(uint16)p->viewHeadingOffset;
+    h *= 16777619u;
+    h ^= (uint32)(uint16)p->padlockAircraft;
+    h *= 16777619u;
     return h;
 }
 

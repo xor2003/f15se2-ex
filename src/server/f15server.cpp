@@ -595,6 +595,7 @@ static uint32_t worldHash(void) {
     h ^= (uint32_t)g_missionStatus << 16;
     h *= 16777619u;
     h ^= (uint32_t)g_randCallCount;
+    h ^= g_bulletPoolCursor; /* next saturated-pool overwrite slot */
     for (i = 0; i < F15_MAX_PLAYERS; i++) {
         if (!g_players[i].used || !g_players[i].ready)
             continue;

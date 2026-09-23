@@ -93,6 +93,27 @@ Notes:
 - The staleness gate resets on each MISSION_SETUP apply, so a reconnecting
   client accepts its first snapshot regardless of prior tick values.
 
+## Round 4 findings (post f97b54d)
+
+Fourth-pass review confirmed four round-3 fixes but showed the projectile
+allocation and hash entries were still premature: saturated-pool writes
+could go out of bounds and collided between same-tick players, and the
+ctx hash skipped gameplay fields outside its contiguous region. All three
+fixed and verified; build green, 34/34 + 31/31 tests pass, ASan/UBSan
+clean of project-code reports (the negative-tick saturated-pool path runs
+in the ASan test build).
+
+| # | Issue | Status |
+|---|-------|--------|
+| 1 | [P1] Saturated-pool fallback indexes with signed frameTick: negative ticks wrote bulletTracks[-2] | FIXED - fallback now uses `g_bulletPoolCursor` (uint32, monotonic) instead of a frame-derived remainder; the SP rotating index is sign-normalized (`if (slot < 0) slot += count`). Cursor value is hashed in worldHash since it determines future allocations |
+| 2 | [P1] Same-tick shooters collide on one saturated fallback slot | FIXED - the cursor advances per allocation, so every firing player gets a distinct slot even when the pool is full; each round survives >= count launches globally. Test: two players firing at tick 9 occupy different slots, both stamped and live |
+| 3 | [P2] playerCtxHash excludes ended/viewHeadingOffset (and other gameplay fields outside the contiguous region) | FIXED - hash still covers ViewX..missionEndedFlag, plus explicit folds for the gameplay fields that live outside it: `active`, `ended` (before ViewX), `viewHeadingOffset` (simTargetLock look-away), `padlockAircraft` (threat targeting/escort spawn). Presentation-only fields verified excluded by test mutation |
+
+Round-3 entry amendments: findings 1 (bullet allocation) and 6 (canonical
+hash) were marked FIXED prematurely - both required the round-4 follow-ups
+above. Findings 2 (negative-tick ordering), 3 (command acks/dedup), 4
+(map capacity) and 5 (per-victim scope debounce) stand as verified.
+
 ## Round 3 findings (post 451bf51)
 
 Third-pass review reopened four round-2 entries (gunfire, command

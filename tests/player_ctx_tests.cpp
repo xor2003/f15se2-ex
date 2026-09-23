@@ -88,6 +88,30 @@ static void test_ctx_hash(void) {
     CHECK(ha != hb);
     b.ourPitch = a.ourPitch; /* restore: hash the canonical region again */
     CHECK(playerCtxHash(&b) == ha);
+
+    /* gameplay fields OUTSIDE the contiguous region must also move the
+     * hash (active/ended sit before ViewX; viewHeadingOffset/
+     * padlockAircraft live in the presentation block but feed sim code) */
+    b = a;
+    b.ended = 1;
+    CHECK(playerCtxHash(&b) != ha);
+    b = a;
+    b.active = 1;
+    CHECK(playerCtxHash(&b) != ha);
+    b = a;
+    b.viewHeadingOffset = 0x4000;
+    CHECK(playerCtxHash(&b) != ha);
+    b = a;
+    b.padlockAircraft = 3;
+    CHECK(playerCtxHash(&b) != ha);
+
+    /* and presentation-only scratch still cannot perturb the hash */
+    b = a;
+    b.viewMode = (ViewMode)7;
+    b.hudMsgTimer = 42;
+    b.strBuf[0] = 'x';
+    b.tacmapIndicators[5] = 9;
+    CHECK(playerCtxHash(&b) == ha);
 }
 
 /* Remote source serves at most one key per frameTick (the legacy sim reads a

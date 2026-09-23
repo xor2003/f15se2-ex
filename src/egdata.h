@@ -32,6 +32,8 @@ extern struct SpriteParams gaugeSpriteParams;
 extern struct SpriteParams blitSpriteParams;
 extern struct BulletTrack bulletTracks[20];
 extern int32 g_randCallCount; /* in-sim rand() draws (canonical hash input) */
+extern uint32 g_bulletPoolCursor; /* server round-robin overwrite cursor
+                                   * for a saturated player-round pool */
 extern uint8 g_dacSupported;
 extern int16 exitCode;
 extern int16 f15DgtlResult;

@@ -442,17 +442,32 @@ static void test_bullet_pool_lifetime(void) {
     for (i = 0; i < 2; i++)
         CHECK(bulletTracks[i].posX != 0 || bulletTracks[i].posY != 0);
 
-    /* saturated pool: all slots busy -> overwrite falls back to rotation */
+    /* saturated pool: all slots busy -> round-robin overwrite via the
+     * world cursor, so same-tick shooters get DIFFERENT slots and nobody's
+     * new shot is erased by a later player's pass */
     for (i = 0; i < g_bulletTrackCount; i++)
         if (!bulletTracks[i].posX) {
             bulletTracks[i].posX = 1;
             bulletTracks[i].targetPlayer = 3;
         }
-    frameTick = 9; /* rotating slot (9>>1)%16 = 4 */
+    g_bulletPoolCursor = 0;
+    frameTick = 9;
     g_residentPlayer = 0;
     g_axisInputAccum[0] = 1;
+    tryPlayerFire(); /* cursor 0 -> slot 0 */
+    CHECK(bulletTracks[0].targetPlayer == 0);
+    /* player 2 fires the same tick: cursor 1 -> slot 1, slot 0 survives */
+    g_residentPlayer = 2;
     tryPlayerFire();
-    CHECK(bulletTracks[4].targetPlayer == 0);
+    CHECK(bulletTracks[1].targetPlayer == 2);
+    CHECK(bulletTracks[0].targetPlayer == 0);
+    /* negative frameTick: unsigned cursor still yields a valid slot */
+    frameTick = -3;
+    g_residentPlayer = 3;
+    tryPlayerFire(); /* cursor 2 -> slot 2 */
+    CHECK(bulletTracks[2].targetPlayer == 3);
+    CHECK(bulletTracks[0].targetPlayer == 0);
+    CHECK(bulletTracks[1].targetPlayer == 2);
 
     /* SP mode (resident -1): rotating slot + release sweep unchanged */
     g_residentPlayer = -1;
@@ -465,6 +480,13 @@ static void test_bullet_pool_lifetime(void) {
     g_axisInputAccum[0] = 0;
     tryPlayerFire();
     CHECK(bulletTracks[5].posX == 0);
+    /* SP negative frameTick: the rotating index is sign-normalized, so a
+     * shot during the negative half of the tick cycle stays in bounds */
+    memset(bulletTracks, 0, sizeof(bulletTracks));
+    frameTick = -3; /* (int16)(-3>>1) = -2 -> normalized slot 14 */
+    g_axisInputAccum[0] = 1;
+    tryPlayerFire();
+    CHECK(bulletTracks[14].posX != 0 || bulletTracks[14].posY != 0);
     g_residentPlayer = -1;
 }
 
