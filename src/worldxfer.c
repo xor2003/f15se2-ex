@@ -52,6 +52,7 @@ extern int16 g_targetEntityCount;
 extern int16 g_planeScanCount;
 extern struct GroundTargetTable g_planeTable;
 extern int16 g_groundUnitCount;
+extern int16 g_simObjScanBound;
 extern struct SimObject g_simObjects[];
 extern uint8 g_shapeTargetCategory[];
 extern uint8 g_tileKillTally[];
@@ -120,6 +121,7 @@ void worldImportToEgame(void) {
     }
 
     g_groundUnitCount = (int16)flightUnitCount;
+    g_simObjScanBound = g_groundUnitCount;
     memcpy(g_simObjects, flightUnits, (size_t)flightCnt * sizeof(struct SimObject));
 
     memcpy(g_shapeTargetCategory, wldReadBuf7, CATEGORY_BYTES);

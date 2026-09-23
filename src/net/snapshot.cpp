@@ -362,16 +362,22 @@ void netPlayerPublishObject(int idx, const struct NetPlayerState *s) {
     struct SimObject *o;
     struct MapTarget *t;
     s_seenMask |= 1u << idx;
-    s_parkedMask |= 1u << idx;
+    /* Only mark parked when a slot was actually allocated - a failed alloc
+     * must not extend the render/radar iteration bounds past the arrays. */
+    if (slot >= 0 || pslot >= 0)
+        s_parkedMask |= 1u << idx;
     if (slot >= 0) {
         o = &g_simObjects[slot];
-        /* Object-space Y runs inverted vs the player convention: ownship draws
-         * at 0x01000000 - g_ViewY (egtarget.c), so flip the wire Y the same
-         * way. posX/posY are the projection seeds (map units). */
+        /* Two Y conventions, kept separate:
+         * - render space (worldY): object Y is inverted vs player ViewY -
+         *   ownship draws at 0x01000000 - g_ViewY (egtarget.c).
+         * - map space (posY, viewY_): 0x8000 - (ViewY>>5) - carried on the
+         *   wire as s->mapY; projectWorldToHud/computeTargetBearing consume
+         *   pos* in this convention. */
         o->worldX = s->worldX;
         o->worldY = (int32)(0x01000000L - s->worldY);
-        o->posX = (uint16_t)(s->worldX >> 5);
-        o->posY = (uint16_t)((0x01000000L - s->worldY) >> 5);
+        o->posX = s->mapX;
+        o->posY = s->mapY;
         o->alt = s->alt;
         o->heading.w = s->head;
         o->pitch = s->pitch;
@@ -387,8 +393,9 @@ void netPlayerPublishObject(int idx, const struct NetPlayerState *s) {
     }
     if (pslot >= 0) {
         t = &g_planeTable.planes[pslot];
-        t->mapX = (uint16_t)(s->worldX >> 5);
-        t->mapY = (uint16_t)(uint32_t)((0x01000000L - s->worldY) >> 5);
+        /* radar/tacmap entries use the same map convention as viewX_/viewY_ */
+        t->mapX = s->mapX;
+        t->mapY = s->mapY;
         t->active = 1;
         /* 0x400 = aircraft class, 0x01 = air unit: renders as the airborne
          * blip on the tacmap and a target marker on the scope. */
@@ -443,6 +450,8 @@ int netSnapApply(struct NetReader *r, int playerId) {
                 if (slot > hi) hi = slot;
                 m &= m - 1;
             }
+            if (hi > F15_MAX_SIM_OBJECTS)
+                hi = F15_MAX_SIM_OBJECTS;
             g_groundUnitCount = (int16)hi;
         }
         if (s_worldPlaneCount >= 0) {
@@ -454,6 +463,8 @@ int netSnapApply(struct NetReader *r, int playerId) {
                 if (slot > hi) hi = slot;
                 m &= m - 1;
             }
+            if (hi > F15_MAX_MAP_TARGETS)
+                hi = F15_MAX_MAP_TARGETS;
             g_planeCount = (int16)hi;
         }
     }

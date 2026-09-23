@@ -140,6 +140,7 @@ set(EGAME_SOURCES
     ${SRC_DIR}/egmain.c
     ${SRC_DIR}/egsphere.c
     ${SRC_DIR}/egframe.c
+    ${SRC_DIR}/f15world.c
     ${SRC_DIR}/worldxfer.c
     ${SRC_DIR}/eg3dview.c
     ${SRC_DIR}/eg3dproj.c

@@ -45,20 +45,13 @@ int16 computeMapTargetRange(int16 targetIdx);
 int16 computeSimObjectRange(int16 objIdx);
 int16 computeTargetBearing(int16 targetX, int16 targetY, int16 wantBearing);
 
-void updateTargetLock(void) {
-    int16 p, a, b, range, d, e, marker, idx, depthShift, i, j, k, best, m, n;
-    int16 p0, a0, b0, c0, d0, e0, deadInit, lockedRange, h0;
-    int16 dk;
-    int16 lodM, planeModelDepth, planeFineDepth;
-    int16 airSelect;
-
-    deadInit = 0;
-
-    /* Fire at g_viewMode == 0x8b (sidewinder lock) */
-    if (g_viewMode == VIEW_TARGET) {
-        drawWorldObject(6, (int32)g_ViewX, 0x01000000L - g_ViewY,
-                        g_viewZ + 0x10, g_ourHead, g_ourPitch, g_ourRoll, 2);
-    }
+/* Target-acquisition half of updateTargetLock: the AAM/ground-target scan
+ * and the air-target select that resolve g_groundTargetLock/g_airTargetLock
+ * from world state + the resident ctx. Runs in the sim step (single-player:
+ * updateFrame; the server calls it per player ctx) so locks are authoritative
+ * and independent of render rate — updateTargetLock() below is drawing only. */
+void simTargetLock(void) {
+    int16 range, idx, best, lockedRange, airSelect;
 
     if (g_aamLockCooldown != 0) {
         g_aamLockCooldown--;
@@ -129,6 +122,74 @@ void updateTargetLock(void) {
     }
 
 skip_aam:
+
+    /* Air-target select. The 0x80 bit means "(re)acquire": either no current
+       lock (-1) or the T key just requested the next target. With an A2A missile
+       selected the lock is then sticky (T cycles, like the ground-target lock);
+       other weapons keep auto-acquiring the nearest contact every frame. */
+    range = 0x4b << (6 - (uint8)g_nightMode);
+    if (g_airTargetLock & 0x80) {
+        airSelect = 1;
+        if (g_airTargetLock != -1) {
+            idx = g_airTargetLock - 0x80;
+            lockedRange = computeTargetBearing(g_simObjects[idx].posX, g_simObjects[idx].posY, 1);
+            if (abs((int16)(g_ourHead + g_viewHeadingOffset - g_targetBearing)) > 0x2000) {
+                lockedRange = 0;
+            }
+        } else {
+            lockedRange = 0;
+        }
+    } else if (g_currentWeaponType == 1 &&
+               (g_simObjects[g_airTargetLock].flags.b[0] & 0x22) == 2) {
+        /* A2A missile selected and the designated target is still a live
+           contact: hold the lock (T cycles to the next one). */
+        airSelect = 0;
+        lockedRange = 0;
+    } else {
+        airSelect = 1;
+        lockedRange = 0;
+    }
+
+    best = -1;
+    for (idx = 0; idx < g_simObjScanBound; idx++) {
+        if (!(g_simObjects[idx].flags.b[0] & 2))
+            continue;
+        /* own parked remote object must never be lockable */
+        if ((g_simObjects[idx].flags.b[1] & SIMFLAG_B1_REMOTE_PLAYER) &&
+            g_simObjects[idx].objType == g_residentPlayer)
+            continue;
+        if (computeSimObjectRange(idx) >= 4800 && g_directorMode == 0)
+            continue;
+        if (airSelect && range > g_targetRange && lockedRange < g_targetRange &&
+            !(g_viewMode & 0x80) && !(g_simObjects[idx].flags.b[0] & 0x20) &&
+            g_simObjects[idx].speed != 0) {
+            computeTargetBearing(g_simObjects[idx].posX, g_simObjects[idx].posY, 1);
+            if (abs((int16)(g_ourHead + g_viewHeadingOffset - g_targetBearing)) < 0x2000) {
+                range = g_targetRange;
+                best = idx;
+            }
+        }
+    }
+
+    if (best != -1) {
+        g_airTargetLock = best;
+        g_lockedTargetKilled = 0;
+    }
+    if (g_airTargetLock & 0x80) {
+        g_airTargetLock = -1;
+    }
+}
+
+void updateTargetLock(void) {
+    int16 marker, idx, depthShift;
+    int16 lodM, planeModelDepth, planeFineDepth;
+
+    /* Fire at g_viewMode == 0x8b (sidewinder lock) */
+    if (g_viewMode == VIEW_TARGET) {
+        drawWorldObject(6, (int32)g_ViewX, 0x01000000L - g_ViewY,
+                        g_viewZ + 0x10, g_ourHead, g_ourPitch, g_ourRoll, 2);
+    }
+
     /* Missile/chaff loop (8 entries, stride 8) */
     for (idx = 0; idx < 8; idx++) {
         if (g_particles[idx].posX != 0) {
@@ -147,7 +208,6 @@ skip_aam:
     }
 
     /* Air-to-ground targeting */
-    range = 0x4b << (6 - (uint8)g_nightMode);
 
     /* depthShift is the original distance/altitude "spottability" zoom: with a far
        target (or high altitude) it right-shifts world objects' positions in
@@ -174,49 +234,14 @@ skip_aam:
     planeModelDepth = -0x20 * lodM; /* dot -> model gate: -0x20 (normal) / -0x100 (detail 4) */
     planeFineDepth = -0x10 * lodM;  /* coarse -> fine model: -0x10 (normal) / -0x80 (detail 4) */
 
-    /* Air-target select. The 0x80 bit means "(re)acquire": either no current
-       lock (-1) or the T key just requested the next target. With an A2A missile
-       selected the lock is then sticky (T cycles, like the ground-target lock);
-       other weapons keep auto-acquiring the nearest contact every frame. */
-    if (g_airTargetLock & 0x80) {
-        airSelect = 1;
-        if (g_airTargetLock != -1) {
-            idx = g_airTargetLock - 0x80;
-            lockedRange = computeTargetBearing(g_simObjects[idx].posX, g_simObjects[idx].posY, 1);
-            if (abs((int16)(g_ourHead + g_viewHeadingOffset - g_targetBearing)) > 0x2000) {
-                lockedRange = 0;
-            }
-        } else {
-            lockedRange = 0;
-        }
-    } else if (g_currentWeaponType == 1 &&
-               (g_simObjects[g_airTargetLock].flags.b[0] & 0x22) == 2) {
-        /* A2A missile selected and the designated target is still a live
-           contact: hold the lock (T cycles to the next one). */
-        airSelect = 0;
-        lockedRange = 0;
-    } else {
-        airSelect = 1;
-        lockedRange = 0;
-    }
-
-    best = -1;
+    /* Air contacts + threat aircraft (target acquisition itself moved to
+     * simTargetLock in the sim update; this loop only draws). */
     for (idx = 0; idx < g_groundUnitCount; idx++) {
         if (!(g_simObjects[idx].flags.b[0] & 2))
             goto next2;
 
         if (computeSimObjectRange(idx) >= 4800 && g_directorMode == 0)
             goto next2;
-
-        if (airSelect && range > g_targetRange && lockedRange < g_targetRange && !(g_viewMode & 0x80) &&
-            !(g_simObjects[idx].flags.b[0] & 0x20) &&
-            g_simObjects[idx].speed != 0) {
-            computeTargetBearing(g_simObjects[idx].posX, g_simObjects[idx].posY, 1);
-            if (abs((int16)(g_ourHead + g_viewHeadingOffset - g_targetBearing)) < 0x2000) {
-                range = g_targetRange;
-                best = idx;
-            }
-        }
 
         projectWorldToHud(g_simObjects[idx].posX, g_simObjects[idx].posY, g_simObjects[idx].alt);
 
@@ -263,14 +288,6 @@ skip_aam:
         }
         }
     next2:;
-    }
-
-    if (best != -1) {
-        g_airTargetLock = best;
-        g_lockedTargetKilled = 0;
-    }
-    if (g_airTargetLock & 0x80) {
-        g_airTargetLock = -1;
     }
 
     /* SAM/missile visual loop (12 entries, stride 0x18) */
@@ -436,54 +453,36 @@ static long roundToTargetDist2(int idx, int objIdx) {
     return cx * cx + cy * cy + cz * cz;
 }
 
-/* Cannon tracers + explosion sparks as real world-space 3D line geometry
- * (drawWorldLine): submitted into the scene BEFORE r3d_endScene so the software
- * depth sort occludes them and the GL backend z-tests + fogs them. Kept separate
- * from drawHudWorldOverlay (which does the 2D HUD symbology) so the effects join
- * the 3D pass; game-logic order is tracer hit-detect then explosion. */
-void drawWorldEffects(void) {
-    int hitFlag, tmp, idx, radius, objIdx, pointY, pointX, dist, wpEntry, prevX, gunRadius;
-    /* Rounds advance and the burst timer ticks per SIM step; this runs per
-     * render frame, so the game-logic half (hit tests, expiry, timer) fires only
-     * on frames that consumed a step — the drawing half runs every frame. */
-    int stepped = g_simStepsThisFrame > 0;
+/* Game-logic half of the world effects: per-step hit tests, damage and the
+ * burst timer. Runs inside the sim update (single-player: updateFrame; the
+ * server calls it per player ctx so every player's rounds resolve under
+ * their own globals), never at render time — hit results no longer depend
+ * on screen visibility or render rate. Player rounds are owned (targetPlayer)
+ * and only processed in the owner's pass; the 4 enemy tracers are unowned:
+ * every player's pass tests them against its own position, the first hit
+ * consumes the round. */
+void simBulletHits(void) {
+    int hitFlag, idx, objIdx, pointY, pointX, dist, wpEntry, gunRadius;
     int16 bx, by;
 
     gunRadius = 0x200 / isqrt(g_frameRateScaling * 4 + 8);
 
     for (idx = 0; idx < g_bulletTrackCount + 4; idx++) {
-        long ax, ay, az, ex, ey, ez;
         if (bulletTracks[idx].posX == 0) continue;
-
-        /* Render-interpolated position: rounds fly straight at constant speed,
-         * so pos + vel*alpha is exact between sim steps (no snapshots needed). */
-        ax = (bulletTracks[idx].posX + (((int32)bulletTracks[idx].velX * g_renderAlphaQ12) >> 12)) & BULLET_FINE_MASK;
-        ay = (bulletTracks[idx].posY + (((int32)bulletTracks[idx].velY * g_renderAlphaQ12) >> 12)) & BULLET_FINE_MASK;
-        az = bulletTracks[idx].alt + (((int32)bulletTracks[idx].velZ * g_renderAlphaQ12) >> 12);
-        ex = (ax + (bulletTracks[idx].velX >> 1)) & BULLET_FINE_MASK;
-        ey = (ay + (bulletTracks[idx].velY >> 1)) & BULLET_FINE_MASK;
-        ez = az + (bulletTracks[idx].velZ >> 1);
-
-        projectWorldToHudFine(ax, ay, (int)az);
-        prevX = vtxScratch.vproj.x.lo;
-        projectWorldToHudFine(ex, ey, (int)ez);
-        if (vtxScratch.vproj.x.lo == -1 || prevX == -1) continue;
-
-        /* The projectWorldToHudFine pair above gates on-screen visibility (as the
-         * original did); the tracer itself is a real world-space 3D segment
-         * (round -> half a velocity-step ahead) so it perspective-projects,
-         * occludes and hazes with the scene instead of overlaying a flat line. */
-        drawWorldLine(ax, ay, (int)az, ex, ey, (int)ez,
-                      idx < g_bulletTrackCount ? 0x0d : 0x0c);
-
-        if (!stepped) continue;
+        if (idx < g_bulletTrackCount &&
+            bulletTracks[idx].targetPlayer != g_residentPlayer)
+            continue;
 
         hitFlag = 0;
         bx = (int16)(bulletTracks[idx].posX >> 5);
         by = (int16)(bulletTracks[idx].posY >> 5);
 
         if (idx < g_bulletTrackCount) {
-            for (objIdx = 0; objIdx < g_groundUnitCount; objIdx++) {
+            for (objIdx = 0; objIdx < g_simObjScanBound; objIdx++) {
+                /* never test own parked remote object (would self-kill) */
+                if ((g_simObjects[objIdx].flags.b[1] & SIMFLAG_B1_REMOTE_PLAYER) &&
+                    g_simObjects[objIdx].objType == g_residentPlayer)
+                    continue;
                 if ((g_simObjects[objIdx].flags.b[0] & 0x22) == 2) {
 
                     dist = (abs((int16)(bulletTracks[idx].alt - g_simObjects[objIdx].alt)) >> 5) +
@@ -563,6 +562,48 @@ void drawWorldEffects(void) {
     }
 
     if (g_hitEffectTimer != 0) {
+        g_hitEffectTimer -= signOf(g_hitEffectTimer);
+    } else {
+        g_lockedTargetKilled = 0;
+    }
+}
+
+/* Cannon tracers + explosion sparks as real world-space 3D line geometry
+ * (drawWorldLine): submitted into the scene BEFORE r3d_endScene so the software
+ * depth sort occludes them and the GL backend z-tests + fogs them. Kept separate
+ * from drawHudWorldOverlay (which does the 2D HUD symbology) so the effects join
+ * the 3D pass. Drawing only: hit tests, damage and the burst timer tick moved
+ * to simBulletHits() in the sim update. */
+void drawWorldEffects(void) {
+    int tmp, idx, radius, dist, prevX;
+
+    for (idx = 0; idx < g_bulletTrackCount + 4; idx++) {
+        long ax, ay, az, ex, ey, ez;
+        if (bulletTracks[idx].posX == 0) continue;
+
+        /* Render-interpolated position: rounds fly straight at constant speed,
+         * so pos + vel*alpha is exact between sim steps (no snapshots needed). */
+        ax = (bulletTracks[idx].posX + (((int32)bulletTracks[idx].velX * g_renderAlphaQ12) >> 12)) & BULLET_FINE_MASK;
+        ay = (bulletTracks[idx].posY + (((int32)bulletTracks[idx].velY * g_renderAlphaQ12) >> 12)) & BULLET_FINE_MASK;
+        az = bulletTracks[idx].alt + (((int32)bulletTracks[idx].velZ * g_renderAlphaQ12) >> 12);
+        ex = (ax + (bulletTracks[idx].velX >> 1)) & BULLET_FINE_MASK;
+        ey = (ay + (bulletTracks[idx].velY >> 1)) & BULLET_FINE_MASK;
+        ez = az + (bulletTracks[idx].velZ >> 1);
+
+        projectWorldToHudFine(ax, ay, (int)az);
+        prevX = vtxScratch.vproj.x.lo;
+        projectWorldToHudFine(ex, ey, (int)ez);
+        if (vtxScratch.vproj.x.lo == -1 || prevX == -1) continue;
+
+        /* The projectWorldToHudFine pair above gates on-screen visibility (as the
+         * original did); the tracer itself is a real world-space 3D segment
+         * (round -> half a velocity-step ahead) so it perspective-projects,
+         * occludes and hazes with the scene instead of overlaying a flat line. */
+        drawWorldLine(ax, ay, (int)az, ex, ey, (int)ez,
+                      idx < g_bulletTrackCount ? 0x0d : 0x0c);
+    }
+
+    if (g_hitEffectTimer != 0) {
         /* Explosion burst as world-space 3D sparks radiating from the hit point:
          * each is a real line (drawWorldLine) so the star has perspective, occludes
          * and hazes — not a flat screen-space starburst. The projectWorldToHud call
@@ -593,9 +634,6 @@ void drawWorldEffects(void) {
                 drawWorldLine(hx, hy, g_hitAlt, ex, ey, (int)ez, color);
             }
         }
-        if (stepped) g_hitEffectTimer -= signOf(g_hitEffectTimer);
-    } else {
-        g_lockedTargetKilled = 0;
     }
 }
 

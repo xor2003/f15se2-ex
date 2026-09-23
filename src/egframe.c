@@ -11,6 +11,7 @@
 #include "egmath.h"
 #include "egplayer.h"
 #include "egtacmap.h"
+#include "egtarget.h"
 #include "egthreat.h"
 #include "egtypes.h"
 #include "egui.h"
@@ -44,12 +45,15 @@ int16 setCommWorldbufPtr();
  * P-segments only touch player-scoped globals, the W-segments world state.
  * Single-player calls them interleaved exactly as before; the net server runs
  * the W pass once and the P pass per PlayerSim context. */
-static void framePlayerPre(void);
+/* Segments shared with the single-player updateFrame below; the server-side
+ * composition lives in f15world.c. frameThreatScan/frameThreatEscort are also
+ * defined there — the scan's world-mutating half was split out so the server
+ * can drive it with a deterministic threat target. */
+void framePlayerPre(void);
 void frameTacmapBlip(void);
-static void framePlayerTimers(void);
-static void frameThreatScan(void);
-static void framePlayerMission(void);
-static void frameWorldTick(void);
+void framePlayerTimers(void);
+void framePlayerMission(void);
+void frameWorldTick(void);
 
 // ==== seg000:0x0720 ====
 /* Original order, preserved for single-player:
@@ -69,38 +73,23 @@ void updateFrame(void) {
     frameTacmapBlip();
     framePlayerTimers();
     frameThreatScan();
+    frameThreatEscort(g_closestThreatIndex,
+                      g_prevThreatIndex != g_closestThreatIndex);
     framePlayerMission();
     frameWorldTick();
     dispatchKeyScancode();
+    /* gun tracer hit tests + damage: was inside drawWorldEffects at render
+     * time; combat now resolves in the sim step regardless of rendering */
+    simBulletHits();
+    /* air/ground target acquisition: was inside updateTargetLock at render
+     * time; locks now resolve in the sim step */
+    simTargetLock();
 }
 
-/* World-only pass for the authoritative server (runs once per tick while a
- * valid player ctx is resident - frameThreatScan reads the resident ctx's
- * position). */
-void updateWorldFrame(void) {
-    updateThreatSites();
-    updateObjects();
-    updateThreatTargeting();
-    tickMessageTimers();
-    moveBullets();
-    updateTracerParticles();
-    frameThreatScan();
-    frameWorldTick();
-}
+/* The server's world-only/per-player compositions of these segments live in
+ * f15world.c (updateWorldFrame/updatePlayerFrame). */
 
-/* Per-player pass for the authoritative server (runs per ctx). */
-void updatePlayerFrame(void) {
-    framePlayerPre();
-    tryPlayerFire();
-    applyGravityFall();
-    if (!g_headlessSim)
-        frameTacmapBlip(); /* presentation-only: no renderer on the server */
-    framePlayerTimers();
-    framePlayerMission();
-    dispatchKeyScancode();
-}
-
-static void framePlayerPre(void) {
+void framePlayerPre(void) {
     int16 tmp, unused;
     uint16 val;
     int16 i;
@@ -239,7 +228,7 @@ void frameTacmapBlip(void) {
     g_unusedViewYSnap = g_viewY_;
 }
 
-static void framePlayerTimers(void) {
+void framePlayerTimers(void) {
     if (g_directorEventDeadline == frameTick) {
         if (g_autopilotEngaged == 0) {
             g_viewMode = VIEW_COCKPIT;
@@ -255,84 +244,8 @@ static void framePlayerTimers(void) {
     }
 }
 
-static void frameThreatScan(void) {
-    int16 tmp;
-    int16 i, objIdx;
 
-    if ((frameTick & 7) != 0) goto skip_target_section;
-
-    g_prevThreatIndex = g_closestThreatIndex;
-    g_nearestThreatRange = 0x7fff;
-    for (i = 0; i < g_planeCount; i++) {
-        if ((g_planeTable.planes[i].flags & 0x201) != 0 &&
-            (g_planeTable.planes[i].flags & 0x500) != 0 &&
-            (g_planeTable.planes[i].flags & 0x800) == 0) {
-            tmp = rangeApprox(g_viewX_ - g_planeTable.planes[i].mapX, g_viewY_ - g_planeTable.planes[i].mapY);
-            if (tmp < g_nearestThreatRange) {
-                g_nearestThreatRange = tmp;
-                g_closestThreatIndex = i;
-            }
-        }
-    }
-    if (g_prevThreatIndex != g_closestThreatIndex) {
-        g_targetSlots[1].viewIndex = g_closestThreatIndex;
-        waypoints[3].mapX = g_planeTable.planes[g_closestThreatIndex].mapX;
-        waypoints[3].mapY = g_planeTable.planes[g_closestThreatIndex].mapY;
-    }
-
-    if (g_prevThreatIndex != g_closestThreatIndex && (g_planeTable.planes[g_closestThreatIndex].flags & 0x800) == 0) {
-        for (i = 1; i <= 2; i++) {
-            g_simObjects[g_groundUnitCount - i].flags.b[0] &= ~2;
-            g_simObjects[g_groundUnitCount - i].spec = g_planeTable.planes[g_closestThreatIndex].flags & 0x400 ? 13 : 0;
-            if (g_planeTable.planes[g_closestThreatIndex].flags & 0x100) {
-                g_simObjects[g_groundUnitCount - i].spec = 18;
-            }
-            g_simObjects[g_groundUnitCount - i].objType = g_closestThreatIndex;
-        }
-        for (i = 3; i <= 4; i++) {
-            objIdx = g_groundUnitCount - i;
-            g_simObjects[objIdx].flags.b[0] |= 2;
-            g_simObjects[objIdx].posX = g_planeTable.planes[g_closestThreatIndex].mapX;
-            g_simObjects[objIdx].posY = g_planeTable.planes[g_closestThreatIndex].mapY;
-            if ((g_planeTable.planes[g_closestThreatIndex].flags & 0x200) != 0) {
-                g_simObjects[objIdx].posX += g_northSouthSign * 5;
-                g_simObjects[objIdx].posY += (i & 1) * g_northSouthSign * 0x10;
-                g_simObjects[objIdx].alt = 132;
-            } else {
-                g_simObjects[objIdx].posX += 10;
-                g_simObjects[objIdx].posY += ((i + g_closestThreatIndex) & 3) * 0x10;
-                g_simObjects[objIdx].alt = 4;
-            }
-            g_simObjects[objIdx].worldX = (int32)g_simObjects[objIdx].posX << 5;
-            g_simObjects[objIdx].worldY = (int32)g_simObjects[objIdx].posY << 5;
-            g_simObjects[objIdx].heading.w = -randomRange(0x4000);
-            g_simObjects[objIdx].spec = g_planeTable.planes[g_closestThreatIndex].flags & 0x400 ? 8 : 11;
-            if (g_planeTable.planes[g_closestThreatIndex].flags & 0x100) {
-                g_simObjects[objIdx].spec = 9;
-            }
-        }
-    }
-
-    if ((frameTick & 0x7f) == 0) {
-        if ((g_planeTable.planes[g_closestThreatIndex].flags & 0x800) == 0) {
-            objIdx = frameTick & 0x80 ? g_groundUnitCount - 1 : g_groundUnitCount - 2;
-            if ((g_simObjects[objIdx].flags.b[0] & 2) == 0) {
-                spawnEnemyAircraft(objIdx, g_closestThreatIndex);
-                g_simObjects[objIdx].flags.w = 0x207;
-                g_simObjects[objIdx].alt = 1000;
-                g_simObjects[objIdx].speed = 250;
-                g_simObjects[objIdx].worldY += g_northSouthSign * 0x3000;
-            }
-        }
-        g_unusedEventHist2 = g_unusedEventHist1;
-        g_unusedEventHist1 = g_unusedEventHist0;
-        g_unusedEventHist0 = 0;
-    }
-
-skip_target_section:;
-}
-
-static void framePlayerMission(void) {
+void framePlayerMission(void) {
     int16 i;
 
     if (g_nearestThreatRange < 0x200 || g_groundAltitude == g_viewZ) {
@@ -452,7 +365,7 @@ skip_autopilot:
     g_targetLeadAngle = (g_planeTable.planes[g_closestThreatIndex].flags & 0x200 && g_nearestThreatRange < 0x500) ? (((g_northSouthSign << 8) / g_frameRateScaling) + g_targetLeadAngle) & 0xfff : 0;
 }
 
-static void frameWorldTick(void) {
+void frameWorldTick(void) {
     int16 i;
 
     frameTick++;
@@ -592,6 +505,7 @@ void tryPlayerFire(void) {
     bulletTracks[slot].posX = (g_ViewX + bulletTracks[slot].velX) & BULLET_FINE_MASK;
     bulletTracks[slot].posY = (0x100000L - g_ViewY + bulletTracks[slot].velY) & BULLET_FINE_MASK;
     bulletTracks[slot].alt = bulletTracks[slot].velZ + g_viewZ - 2;
+    bulletTracks[slot].targetPlayer = g_residentPlayer;
     g_gunFiredFlag = 1;
     goto done_fire;
 no_fire:

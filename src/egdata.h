@@ -356,6 +356,16 @@ extern int16 g_enemyGroundRemaining;
 extern char string_3C04A[80];
 extern int16 g_mapMode;
 extern int16 g_enemyAlertFlag;
+extern int16 g_residentPlayer;
+extern void (*g_threatFireHook)(int16 planeIdx);
+extern void (*g_airThreatFireHook)(int16 objIdx);
+/* Iteration bound for target/bullet scans over g_simObjects: == g_groundUnitCount
+ * in single-player; the server extends it to cover parked remote-player objects
+ * (slots above the world objects) without touching g_groundUnitCount itself. */
+extern int16 g_simObjScanBound;
+/* Called when a simObject is destroyed; server uses it to map parked
+ * remote-player objects back to their owner for damage attribution. */
+extern void (*g_playerObjectHitHook)(int16 objIdx);
 extern int16 g_activePanelMode;
 extern int16 g_targetLeadAngle;
 extern char *g_targetNameTable[];

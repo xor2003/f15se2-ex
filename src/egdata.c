@@ -2254,6 +2254,19 @@ int16 g_groundUnitCount;
 int16 g_enemyGroundRemaining;
 int16 g_mapMode;
 int16 g_enemyAlertFlag;
+/* Index of the PlayerSim ctx currently swapped in (server only); -1 in
+ * single-player where no player indexing exists. Projectiles compare their
+ * targetPlayer owner against this so each shot advances under its own ctx. */
+int16 g_residentPlayer = -1;
+/* Server threat-fire hooks: when set, the threat sites/aircraft fire
+ * routines delegate target selection + ctx swap to the server instead of
+ * engaging whichever ctx happens to be resident. NULL = single-player. */
+void (*g_threatFireHook)(int16 planeIdx) = 0;
+void (*g_airThreatFireHook)(int16 objIdx) = 0;
+/* See egdata.h. Set to g_groundUnitCount at mission import; the server bumps
+ * it to include parked remote-player slots above the real objects. */
+int16 g_simObjScanBound;
+void (*g_playerObjectHitHook)(int16 objIdx) = 0;
 int16 g_activePanelMode;
 int16 g_targetLeadAngle;
 char *g_targetNameTable[100];

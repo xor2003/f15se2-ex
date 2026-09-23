@@ -48,7 +48,11 @@ void updateThreatSites() {
                     siteIdx / 2;
             }
             if (g_planeTable.planes[siteIdx].threatTimer == 4 && g_scopeSweepTimer < 0) {
-                fireGroundThreat(siteIdx);
+                /* server: engage a specific player under that player's ctx */
+                if (g_threatFireHook)
+                    g_threatFireHook(siteIdx);
+                else
+                    fireGroundThreat(siteIdx);
                 g_planeTable.planes[siteIdx].flags |= 0x02;
             }
         } else {
@@ -142,6 +146,7 @@ void fireGroundThreat(int16 planeIdx) {
                                         g_projectiles[slot].ttl = (int16)((((int32)sams[threatType].lockRange << 3) * (int32)g_frameRateScaling) / (int32)(sams[threatType].maxSpeed >> 6));
                                         g_projectiles[slot].specIdx = threatType;
                                         g_projectiles[slot].targetRef = planeIdx;
+                                        g_projectiles[slot].targetPlayer = g_residentPlayer;
 
                                         placeString(planeIdx);
                                         strcat(strBuf, " firing ");
@@ -560,7 +565,11 @@ void updateObjects(void) {
                         (fireOffset = (((uint8)objIdx & 8) >> 3) + (objIdx & 7) * 2,
                          frameTick % (g_frameRateScaling << 4) == fireOffset * g_frameRateScaling) &&
                         !(o & 0x20)) {
-                        fireAirThreat(objIdx);
+                        /* server: engage a specific player under that ctx */
+                        if (g_airThreatFireHook)
+                            g_airThreatFireHook(objIdx);
+                        else
+                            fireAirThreat(objIdx);
                     }
                 }
             } else {

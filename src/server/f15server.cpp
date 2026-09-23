@@ -16,9 +16,11 @@
 #include "comm.h"
 #include "common.h"
 #include "egcode.h"
+#include "egcombat.h"
 #include "egdata.h"
 #include "egframe.h"
 #include "egplayer.h"
+#include "egthreat.h"
 #include "egtypes.h"
 #include "gfx.h"
 #include "inttype.h"
@@ -38,6 +40,7 @@ void resetMissionRuntimeState(void);   /* egmain.c */
 void drawCockpit(void);                /* egmain.c */
 bool setGamePath(const char *path);    /* file_io.c */
 bool verifyGameAssets();               /* file_io.c */
+void fireGroundThreat(int16 planeIdx); /* egthreat.c (file-local decl there) */
 
 /* server tick on the wire: the sim's frameTick, widened */
 static NetTick srvTick(void) { return (NetTick)(uint16_t)g_missionTick; }
@@ -52,6 +55,7 @@ struct ServerPlayer {
     char name[F15_NAME_LEN + 1];
     uint32_t lastSeq;
     int32_t spawnOff; /* pending lateral spawn offset (world units), 0 = none */
+    uint8_t inputArrived; /* sync-step: input packet seen since last tick */
     struct PlayerSim ctx;
     struct RemoteInput input;
 };
@@ -204,11 +208,18 @@ static void onHello(NetPeer peer, struct NetReader *r) {
         g_net->closePeer(peer, 0);
         return;
     }
-    slot = slotFree();
-    if (slot < 0) {
-        sendSimple(peer, NETMSG_HELLO_NAK, 0, "server full", 11);
-        g_net->closePeer(peer, 0);
-        return;
+    /* A peer that already owns a slot re-initializes it (client restarted on
+     * the same connection) rather than leaking extra slots. */
+    for (slot = 0; slot < F15_MAX_PLAYERS; slot++)
+        if (g_players[slot].used && g_players[slot].peer == peer)
+            break;
+    if (slot >= F15_MAX_PLAYERS) {
+        slot = slotFree();
+        if (slot < 0) {
+            sendSimple(peer, NETMSG_HELLO_NAK, 0, "server full", 11);
+            g_net->closePeer(peer, 0);
+            return;
+        }
     }
     ServerPlayer *p = &g_players[slot];
     memset(p, 0, sizeof(*p));
@@ -262,11 +273,18 @@ static void onInput(ServerPlayer *p, struct NetReader *r) {
     /* latest-wins axes/buttons; commands queue (plan §3) */
     remoteInputSetAxes(&p->input, in.joyX, in.joyY, in.buttons);
     for (i = 0; i < in.nCmds; i++) {
-        uint16_t scan = netCmdToScan(in.cmds[i]);
+        uint16_t scan;
+        /* Pause/screenshot are client-local presentation ops; server-side
+         * keyDispatch would block in waitForKeyPress() on a local keyboard
+         * that does not exist, freezing the sim for everyone. */
+        if (in.cmds[i] == NC_PAUSE || in.cmds[i] == NC_SCREENSHOT)
+            continue;
+        scan = netCmdToScan(in.cmds[i]);
         if (scan)
             remoteInputPushKey(&p->input, scan);
     }
     p->lastSeq = in.clientSeq;
+    p->inputArrived = 1;
 }
 
 static void dropPlayer(int i) {
@@ -275,6 +293,165 @@ static void dropPlayer(int i) {
     fprintf(stderr, "f15server: player %d left\n", i);
     g_players[i].used = 0;
     g_players[i].ready = 0;
+}
+
+/* ---- per-player threat ownership ---- */
+
+static int firstReadyPlayer(void) {
+    int i;
+    for (i = 0; i < F15_MAX_PLAYERS; i++)
+        if (g_players[i].used && g_players[i].ready && !g_players[i].ctx.ended)
+            return i;
+    return -1;
+}
+
+/* Which ready player a threat should engage: nearest by map range
+ * (deterministic; ties break to the lowest slot). */
+static int pickThreatTarget(int16 threatX, int16 threatY) {
+    int i, best = -1;
+    uint16 bestRange = 0xffff;
+    for (i = 0; i < F15_MAX_PLAYERS; i++) {
+        ServerPlayer *p = &g_players[i];
+        uint16 r;
+        if (!p->used || !p->ready || p->ctx.ended)
+            continue;
+        r = (uint16)rangeApprox(p->ctx.viewX_ - threatX, p->ctx.viewY_ - threatY);
+        if (r < bestRange) {
+            bestRange = r;
+            best = i;
+        }
+    }
+    return best;
+}
+
+static int g_worldCtxIdx = -1; /* ctx currently resident in the world pass */
+
+/* Temporarily swap the world pass's resident ctx out for `victim`'s, run the
+ * enclosed fire routine, then restore. The legacy fire code's ctx reads
+ * (range/bearing/envelope, warning cues, event checks) then see the player
+ * actually being engaged, and the launched shot's targetPlayer owner is
+ * stamped with the victim via g_residentPlayer. */
+static void swapInVictim(int victim) {
+    playerSwapOut(&g_players[g_worldCtxIdx].ctx);
+    playerSwapIn(&g_players[victim].ctx);
+    g_residentPlayer = (int16)victim;
+}
+
+static void swapBackFromVictim(void) {
+    int victim = g_residentPlayer;
+    playerSwapOut(&g_players[victim].ctx);
+    playerSwapIn(&g_players[g_worldCtxIdx].ctx);
+    g_residentPlayer = (int16)g_worldCtxIdx;
+}
+
+static void serverFireGroundThreat(int16 planeIdx) {
+    int victim;
+    if (g_worldCtxIdx < 0) { /* no resident ctx (shouldn't happen) */
+        fireGroundThreat(planeIdx);
+        return;
+    }
+    victim = pickThreatTarget(g_planeTable.planes[planeIdx].mapX,
+                              g_planeTable.planes[planeIdx].mapY);
+    if (victim < 0 || victim == g_worldCtxIdx) {
+        fireGroundThreat(planeIdx);
+        return;
+    }
+    swapInVictim(victim);
+    fireGroundThreat(planeIdx);
+    swapBackFromVictim();
+}
+
+static void serverFireAirThreat(int16 objIdx) {
+    int victim;
+    if (g_worldCtxIdx < 0) {
+        fireAirThreat(objIdx);
+        return;
+    }
+    victim = pickThreatTarget(g_simObjects[objIdx].posX,
+                              g_simObjects[objIdx].posY);
+    if (victim < 0 || victim == g_worldCtxIdx) {
+        fireAirThreat(objIdx);
+        return;
+    }
+    swapInVictim(victim);
+    fireAirThreat(objIdx);
+    swapBackFromVictim();
+}
+
+/* Shots whose owner ctx departed would freeze in place; re-home them to the
+ * lowest-indexed ready player so they keep advancing exactly once per tick. */
+static void rehomeOrphanProjectiles(void) {
+    int i;
+    for (i = 0; i < F15_MAX_PROJECTILES; i++) {
+        int16 owner;
+        if (g_projectiles[i].ttl == 0)
+            continue;
+        owner = g_projectiles[i].targetPlayer;
+        if (owner >= 0 && owner < F15_MAX_PLAYERS && g_players[owner].used &&
+            g_players[owner].ready && !g_players[owner].ctx.ended)
+            continue;
+        g_projectiles[i].targetPlayer = (int16)firstReadyPlayer();
+    }
+}
+
+/* ---- parked remote-player objects (lockable/hittable player aircraft) ----
+ * Each ready player's ctx is mirrored into g_simObjects at a fixed slot above
+ * the real world objects (same convention as the client's parked remotes).
+ * g_groundUnitCount stays untouched so updateObjects/escorts don't see them;
+ * g_simObjScanBound extends the combat scans (AAM acquisition, gun tests,
+ * missile target scans) over the parked slots. objType carries the owner
+ * player index so loops can exclude "self". */
+static int s_parkedObjBase = -1;
+
+static void publishRemoteObjects(void) {
+    int i;
+    if (s_parkedObjBase < 0)
+        s_parkedObjBase = g_groundUnitCount;
+    for (i = 0; i < F15_MAX_PLAYERS; i++) {
+        int slot = s_parkedObjBase + i;
+        struct SimObject *o;
+        ServerPlayer *p = &g_players[i];
+        if (slot >= F15_MAX_SIM_OBJECTS)
+            break;
+        o = &g_simObjects[slot];
+        if (p->used && p->ready && !p->ctx.ended) {
+            o->posX = p->ctx.viewX_;
+            o->posY = p->ctx.viewY_;
+            o->worldX = p->ctx.ViewX;
+            o->worldY = 0x01000000L - p->ctx.ViewY;
+            o->alt = p->ctx.viewZ;
+            o->heading.w = p->ctx.ourHead;
+            o->pitch = p->ctx.ourPitch;
+            o->bank.w = p->ctx.ourRoll;
+            o->spec = 0;
+            o->speed = p->ctx.knots;
+            o->objType = (int16)i; /* owner player index */
+            o->flags.b[0] = 2;     /* alive/eligible world object */
+            o->flags.b[1] = SIMFLAG_B1_REMOTE_PLAYER |
+                            ((p->ctx.playerPlaneFlags & 1) ? SIMFLAG_B1_GEAR_DOWN : 0);
+        } else {
+            o->flags.w = 0; /* gone -> no longer lockable/hittable */
+        }
+    }
+    g_simObjScanBound = (int16)(s_parkedObjBase + F15_MAX_PLAYERS);
+    if (g_simObjScanBound > F15_MAX_SIM_OBJECTS)
+        g_simObjScanBound = F15_MAX_SIM_OBJECTS;
+}
+
+/* A parked remote object was destroyed (missile/guns): apply the damage to
+ * the owning player's ctx — same fields the legacy bombTarget() bumps when a
+ * SAM hits the player. Decisive: a destroyed airframe forces the eject path. */
+static void onPlayerObjectHit(int16 objIdx) {
+    int owner = objIdx - s_parkedObjBase;
+    ServerPlayer *p;
+    if (owner < 0 || owner >= F15_MAX_PLAYERS)
+        return;
+    p = &g_players[owner];
+    if (!p->used)
+        return;
+    p->ctx.gunHits += 8;
+    p->ctx.bombDamageMask |= 0xff;
+    p->ctx.damageTakenFlag = 1;
 }
 
 /* ---- tick ---- */
@@ -326,16 +503,41 @@ static void sendSnapshots(void) {
         g_net->send(g_players[ids[i]].peer, buf, w.len, NET_SEND_UNRELIABLE);
 }
 
+/* The world pass still has residual ctx-relative reads (last-hit refs,
+ * autopilot flag, threat-scope bookkeeping). Run it under the most-threatened
+ * player's ctx so those reads follow the action; deterministic tiebreak by
+ * lowest slot keeps swapped slot assignments equivalent. */
+static int pickWorldCtx(void) {
+    int i, best = -1;
+    int16 bestRange = 0x7fff;
+    for (i = 0; i < F15_MAX_PLAYERS; i++) {
+        ServerPlayer *p = &g_players[i];
+        if (!p->used || !p->ready || p->ctx.ended)
+            continue;
+        if (p->ctx.nearestThreatRange < bestRange) {
+            bestRange = p->ctx.nearestThreatRange;
+            best = i;
+        }
+    }
+    return best >= 0 ? best : firstReadyPlayer();
+}
+
 static void serverTick(void) {
     int i;
-    /* per-player pass */
+    /* park each ready player as a lockable/hittable sim object (positions
+     * from last tick - one consistent view for the whole tick's combat) */
+    publishRemoteObjects();
+    /* per-player pass: each ctx steps its own flight, fires, takes its own
+     * threat guidance/damage and threat scan under its own globals */
     for (i = 0; i < F15_MAX_PLAYERS; i++) {
         ServerPlayer *p = &g_players[i];
         if (!p->used || !p->ready || p->ctx.ended)
             continue;
         g_curPeer = p->peer;
+        g_residentPlayer = (int16)i;
         simInputSet(remoteInputOps(), &p->input);
         simulatePlayer(&p->ctx);
+        g_residentPlayer = -1;
         if (p->spawnOff != 0 && p->ctx.initPhase >= 2) {
             p->ctx.viewX_ += (int16_t)(p->spawnOff >> 5);
             p->ctx.ViewX += p->spawnOff;
@@ -347,32 +549,45 @@ static void serverTick(void) {
         }
     }
     g_curPeer = NET_PEER_INVALID;
-    /* world pass under the first ready player's globals (frameThreatScan is
-     * player-centric; must not die when slot 0's player departs) */
-    for (i = 0; i < F15_MAX_PLAYERS; i++) {
-        if (!g_players[i].used || !g_players[i].ready ||
-            g_players[i].ctx.ended)
-            continue;
+    rehomeOrphanProjectiles();
+    /* world pass once, under the most-threatened player's ctx */
+    i = pickWorldCtx();
+    if (i >= 0) {
+        int16 threatIdx, threatChanged;
+        g_worldCtxIdx = i;
+        g_residentPlayer = (int16)i;
         playerSwapIn(&g_players[i].ctx);
         updateWorldFrame();
+        /* escort/interceptor spawns track the most-threatened player's
+         * closest threat (its scan ran in this tick's player pass) */
+        threatIdx = g_players[i].ctx.closestThreatIndex;
+        threatChanged =
+            g_players[i].ctx.prevThreatIndex != g_players[i].ctx.closestThreatIndex;
+        if (threatIdx >= 0)
+            frameThreatEscort(threatIdx, threatChanged);
         playerSwapOut(&g_players[i].ctx);
+        g_worldCtxIdx = -1;
+        g_residentPlayer = -1;
         if (!g_haveTemplate && g_players[i].ctx.initPhase >= 2) {
             g_spawnTemplate = g_players[i].ctx;
             g_haveTemplate = 1;
         }
-        break;
     }
     simInputReset();
     g_stateHash = worldHash();
+    /* sync-step: consume this tick's input readiness */
+    for (i = 0; i < F15_MAX_PLAYERS; i++)
+        g_players[i].inputArrived = 0;
 }
 
 static int allInputsArrived(void) {
     int i;
-    /* sync-step mode: tick only when every ready player has input for this
-     * tick (plan §22 - deterministic training). v1: lastSeq monotonic. */
+    /* sync-step mode: tick only when every ready player sent input since the
+     * last tick (plan §22 - deterministic training). The flag is consumed by
+     * the completed tick so stale readiness can't free-run the sim. */
     for (i = 0; i < F15_MAX_PLAYERS; i++)
         if (g_players[i].used && g_players[i].ready && !g_players[i].ctx.ended &&
-            g_players[i].lastSeq == 0)
+            !g_players[i].inputArrived)
             return 0;
     return g_readyCount > 0;
 }
@@ -416,6 +631,10 @@ int main(int argc, char **argv) {
         return 1;
     }
     g_headlessSim = 1;
+    /* threat fire routines delegate victim selection + ctx swap to us */
+    g_threatFireHook = serverFireGroundThreat;
+    g_airThreatFireHook = serverFireAirThreat;
+    g_playerObjectHitHook = onPlayerObjectHit;
     g_simEvents.onHudMessage = evHud;
     g_simEvents.onTimedMessage = evTimed;
     g_simEvents.onSound = evSound;

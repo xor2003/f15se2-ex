@@ -180,6 +180,11 @@ struct Projectile {
      * flight doesn't stair-step. Wraps at 21 bits to mirror the uint16 map wrap. */
     int32 fineX; // +0x18
     int32 fineY; // +0x1C
+    /* Multiplayer owner: slots<8 = the player this threat shot guides on
+     * (victim); slots>=8 = the player who fired (shooter). Guidance runs
+     * under that player's ctx so position/damage land correctly and each
+     * projectile still advances exactly once per tick. -1 = single-player. */
+    int16 targetPlayer;
 };
 
 /* g_proj3d: the world-space origin (x,y,z) projectObjects() projects the 3D scene
@@ -206,6 +211,11 @@ struct BulletTrack {
     int32 velX;
     int32 velY;
     int32 velZ;
+    /* owner of a player round (idx < g_bulletTrackCount): only that player's
+     * pass runs its hit test. Enemy tracers (last 4) are unowned - every
+     * player's pass tests them against its own position; the first hit
+     * consumes the round. -1 = single-player. */
+    int16 targetPlayer;
 };
 /* Fine map coords span coarse 0..0xffff << 5; the mask keeps the DOS int16
  * coarse-wrap semantics after summing fine velocities. */

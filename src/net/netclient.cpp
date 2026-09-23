@@ -300,7 +300,12 @@ int netClientMain(const char *hostPort, const char *name) {
                 nwInit(&w, buf, sizeof(buf));
                 netMsgWriteHeader(&w, NETMSG_INPUT, (NetTick)frameTick, 0);
                 encInput(&w, &in);
-                g_net->send(NET_PEER_SERVER, buf, w.len, NET_SEND_UNRELIABLE);
+                /* Discrete commands (gear, launch, throttle steps) must not
+                 * be lost - reliable when the packet carries any. Axes-only
+                 * packets stay unreliable (latest-wins). */
+                g_net->send(NET_PEER_SERVER, buf, w.len,
+                            in.nCmds > 0 ? NET_SEND_RELIABLE
+                                         : NET_SEND_UNRELIABLE);
             }
 
             g_net->poll();

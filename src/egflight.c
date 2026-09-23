@@ -1130,6 +1130,10 @@ void waitForKeyPress(void) {
     int16 savedTiming;
     int key;
 
+    /* headless server has no local keyboard; waiting here would freeze the
+     * authoritative sim for every connected player. */
+    if (g_headlessSim) return;
+
     audio_engineDroneOff();
     savedTiming = g_frameTimingAccum;
     /* The DOS version busy-polled BIOS kbhit(). The native blocking reader

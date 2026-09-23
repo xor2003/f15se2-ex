@@ -88,6 +88,8 @@ void fireAirThreat(int16 objIdx) {
 
                                 g_projectiles[slot].specIdx = idx;
                                 g_projectiles[slot].targetRef = -objIdx;
+                                /* the engaged player owns this threat shot */
+                                g_projectiles[slot].targetPlayer = g_residentPlayer;
 
                                 strcpy(strBuf, sams[idx].name);
                                 strcat(strBuf, " fired by ");
@@ -171,6 +173,14 @@ void updateThreatTargeting(void) {
 
     for (slot = 0; slot < 12; slot++) {
         if (g_projectiles[slot].ttl != 0) {
+            /* Multiplayer: every in-flight shot is owned by exactly one
+             * player ctx (slots<8: the victim it guides on; slots>=8: the
+             * shooter). The owner pass processes its own shots so guidance,
+             * warnings and damage are player-correct while each projectile
+             * still advances exactly once per tick. Single-player leaves
+             * every targetPlayer -1 == g_residentPlayer. */
+            if (g_projectiles[slot].targetPlayer != g_residentPlayer)
+                continue;
             spec = g_projectiles[slot].specIdx;
             locked = 0;
             aimY = 0;
@@ -213,7 +223,7 @@ void updateThreatTargeting(void) {
             } else {
                 best = 0x7fff;
                 if (mode == 7) {
-                    for (scan = 0; scan < g_groundUnitCount; scan++) {
+                    for (scan = 0; scan < g_simObjScanBound; scan++) {
                         /* A2A: once the shot has a remembered launch target
                            (targetLock, a g_simObjects index) only that contact is
                            eligible, so the missile tracks the target that was
@@ -525,6 +535,7 @@ int samCanAcquireTarget(int slot, int targetX, int targetY, int targetAlt, int m
 // ==== seg000:0x86f8 ====
 void destroyAircraft(int16 objIdx) {
     int16 eventType;
+    int16 wasRemote = g_simObjects[objIdx].flags.b[1] & SIMFLAG_B1_REMOTE_PLAYER;
 
     if (!(g_simObjects[objIdx].flags.b[0] & 0x20)) {
         aircraftTypes[g_simObjects[objIdx].spec].killCount += 1;
@@ -545,6 +556,11 @@ void destroyAircraft(int16 objIdx) {
         if (g_simObjects[objIdx].speed != 0) goto done;
         g_simObjects[objIdx].flags.w &= 0x1c1;
     done:;
+        /* parked remote-player object destroyed -> attribute damage to
+         * its owner (checked inside the once-only block above, before
+         * flags.w &= 0x1c1 can clear the REMOTE marker) */
+        if (g_playerObjectHitHook && wasRemote)
+            g_playerObjectHitHook(objIdx);
     }
     strcpy(strBuf, aircraftTypes[g_simObjects[objIdx].spec].name);
     makeSound(2, 2);
@@ -725,6 +741,8 @@ void fireMissile() {
     g_projectiles[slot].specIdx = spec;
     g_projectiles[slot].weaponIdx = weaponIdx;
     g_projectiles[slot].targetLock = -1;
+    /* the firing player owns this shot: guidance/damage run under their ctx */
+    g_projectiles[slot].targetPlayer = g_residentPlayer;
 
     if (spec != 30) {
         g_projectiles[slot].worldY -= 0x1000;
