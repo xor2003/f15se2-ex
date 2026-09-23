@@ -152,7 +152,7 @@ void advanceFlightOrientation(const f15::math::RotationDeltas<f15::math::GameBac
         math, g_orientMatrix, deltas);
     for (unsigned i = 0; i < advanced.products; ++i) {
         ++g_rotationCounter;
-        if (!(static_cast<uint16>(g_rotationCounter) & 7)) g_orientationDirty = 1;
+        if (g_rotationCounter.phase(8) == 0) g_orientationDirty = 1;
     }
     if (advanced.products) g_matrixScratch = advanced.matrix;
     g_orientMatrix = advanced.matrix;
@@ -808,8 +808,8 @@ switch_break:
 
 void applyRotationDelta(const f15::math::Matrix3<f15::math::GameBackend> &matA,
                         const f15::math::Matrix3<f15::math::GameBackend> &matB) {
-    g_rotationCounter++;
-    if (!(static_cast<uint16>(g_rotationCounter) & 7)) {
+    ++g_rotationCounter;
+    if (g_rotationCounter.phase(8) == 0) {
         g_orientationDirty = 1;
     }
     g_matrixScratch = matA * matB;
@@ -834,7 +834,7 @@ void rebuildOrientation() {
     legacy::storeTerms(math.terms(angles), g_rotSinYaw, g_rotCosYaw,
                        g_sphereRadius, g_sphereDistZ, g_spherePitch, g_sphereRoll);
     g_orientationDirty = 0;
-    g_rotationCounter = 0;
+    g_rotationCounter = {};
 }
 
 uint16 signedRatio16(int16 numerator, int16 denominator) { /* Original: IntDiv(A,B). Divide two signed 15-bit fractions. */

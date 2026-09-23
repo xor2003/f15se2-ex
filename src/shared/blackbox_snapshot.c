@@ -237,7 +237,7 @@ int blackbox_snapshotWriteJson(const char *path) {
             "\"last_missile_slot\":%d,\"fire_cooldown\":%d,"
             "\"active_bullet_tracks\":%d},\n",
             (int)g_gunAmmo, (int)g_currentWeaponType,
-            (int)g_lastMissileSlot, (int)g_fireCooldown,
+            (int)g_lastMissileSlot, (int)g_fireCooldown.word(),
             (int)g_bulletTrackCount);
     writeMissionTables(f);
     writeSimObjects(f);

@@ -1134,7 +1134,8 @@ inline void initSortie(Profile profile = Profile::kSortie) {
     g_ourPitch = g_ourRoll = {};
     g_stallSpeed = {};
     g_liftForce = g_rollPitchTrim = {};
-    g_orientationDirty = g_rotationCounter = g_rollWasNonzero = 0;
+    g_rotationCounter = {};
+    g_orientationDirty = g_rollWasNonzero = 0;
 
     if (profile != Profile::kCombat && profile != Profile::kLand) {
         /* A few seeded contacts so threat/targeting/object paths engage.

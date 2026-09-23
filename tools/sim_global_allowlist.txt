@@ -73,7 +73,6 @@ flt15_buf2
 flt15_size
 g_aamLeadDist
 g_aamLockActive
-g_aamLockCooldown
 g_aamSeekerX
 g_aamSeekerY
 g_acqAimY
@@ -168,7 +167,6 @@ g_externalCamDist
 g_extraScaleShift
 g_faceVtxCount
 g_finalThreatScore
-g_fireCooldown
 g_flightPathMarkerY
 g_frameRateAccum
 g_frameSyncPending
@@ -299,7 +297,6 @@ g_rngSeed
 g_rotCosYaw
 g_rotInputX
 g_rotSinYaw
-g_rotationCounter
 g_savedPrimVtxScale
 g_scopeArcColor
 g_scopeArcEnd

@@ -1882,7 +1882,7 @@ int16 g_viewZ; /* altitude-Z */
 
 /* Uncompressed flight altitude; g_viewZ uses the compressed scene-height scale. */
 f15::math::FlightAltitude<f15::math::GameBackend> g_altitude;
-int16 g_rotationCounter = 0;
+f15::math::TickDuration g_rotationCounter;
 char g_rollWasNonzero = 0;
 /* g_orientationDirty: orientation-dirty flag. Set when heading/pitch/roll change so the
    next frame rebuilds the rotation matrix; cleared by rebuildOrientation(). */
@@ -2014,7 +2014,7 @@ uint8 g_extraScaleShift = 0;
  * g_kbdSensitivity: detail-level counter (0..2), also a joystick-scaling factor. */
 int16 g_frameSyncWait = 0;
 int16 g_kbdSensitivity = 2;
-int16 g_fireCooldown = 0;
+f15::math::TickDuration g_fireCooldown;
 
 /* Per-axis joystick read accumulator, indexed by axis in readAxisInput.
  * The key handler reuses slots [0]/[1]/[2] as scratch state (egkeys.c). */
@@ -2147,7 +2147,7 @@ f15::math::WordRep<f15::math::GameBackend> g_simObjectSpeed[20];
 /* g_wingmanX/811: viewX/viewY scratch for the player tile-object world pos. */
 uint16 g_wingmanX = 0;
 uint16 g_wingmanY = 0;
-int16 g_aamLockCooldown;
+f15::math::TickDuration g_aamLockCooldown;
 int32 g_camEyeY;
 f15::math::MapPosition<f15::math::GameBackend> g_threatRefPos;
 f15::math::Angle<f15::math::GameBackend> g_liftForce;

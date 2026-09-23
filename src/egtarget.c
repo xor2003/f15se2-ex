@@ -111,8 +111,8 @@ void updateTargetLock(void) {
                         signedAngle(g_ourHead), signedAngle(g_ourPitch), signedAngle(g_ourRoll), 2);
     }
 
-    if (g_aamLockCooldown != 0) {
-        g_aamLockCooldown--;
+    if (!g_aamLockCooldown.isZero()) {
+        --g_aamLockCooldown;
     }
 
     if (!(g_groundTargetLock & 0x80)) {
@@ -120,7 +120,7 @@ void updateTargetLock(void) {
         if (g_aamLockActive != 0) goto skip_aam;
     }
     if (g_activePanelMode != 0x13) goto skip_aam;
-    if (g_aamLockCooldown != 0) goto skip_aam;
+    if (!g_aamLockCooldown.isZero()) goto skip_aam;
     if (g_currentWeaponType == 1) goto skip_aam;
     if (g_viewMode & 0x80) goto skip_aam;
 
@@ -170,7 +170,7 @@ void updateTargetLock(void) {
 
     if (best & 0x80) {
         if (g_groundTargetLock == -1) {
-            g_aamLockCooldown = 4;
+            g_aamLockCooldown = f15::math::TickDuration::fromWord(4);
         } else {
             g_groundTargetLock = -1;
         }

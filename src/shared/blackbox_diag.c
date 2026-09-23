@@ -171,7 +171,7 @@ static uint32 hashWeapons(void) {
         h = hashAdd(h, (uint32)f15::math::legacy::fineWord(p->fineY));
     }
     h = hashAdd(h, (uint16)g_gunAmmo); h = hashAdd(h, (uint16)g_currentWeaponType);
-    h = hashAdd(h, (uint16)g_lastMissileSlot); h = hashAdd(h, (uint16)g_fireCooldown);
+    h = hashAdd(h, (uint16)g_lastMissileSlot); h = hashAdd(h, (uint16)g_fireCooldown.word());
     return h;
 }
 

@@ -314,12 +314,12 @@ void keyDispatch(uint16 scanCode) {
     }
 
 end_dispatch:
-    if (g_fireCooldown > 0)
-        g_fireCooldown--;
+    if (g_fireCooldown.isPositive())
+        --g_fireCooldown;
 
-    if (readAxisInput(1) != 0 && g_fireCooldown == 0) {
+    if (readAxisInput(1) != 0 && g_fireCooldown.isZero()) {
         fireMissile();
-        g_fireCooldown = 4;
+        g_fireCooldown = f15::math::TickDuration::fromWord(4);
     }
 
     switchIndicatorColor(3, (*(char *)&g_playerPlaneFlags & 1)             ? 4

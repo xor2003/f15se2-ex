@@ -102,7 +102,8 @@ void updateFrame(void) {
         g_threatActiveTimer = TickDuration{};
         g_scopeSweepTimer = TickDuration::fromWord(1);
         g_airTargetLock = g_groundTargetLock = -1;
-        g_fireCooldown = g_bombDamageMask = missileSpecIndex = waypointIndex = g_unusedWaypointTail = 0;
+        g_fireCooldown = {};
+        g_bombDamageMask = missileSpecIndex = waypointIndex = g_unusedWaypointTail = 0;
         g_autopilotAltitude = {};
         g_closestThreatIndex = g_unusedEventHist0 = g_unusedEventHist1 = g_unusedEventHist2 = (int8)(g_halfScaleRender = 0);
         g_threatRefPos = {}; g_threatRefZ = {};
