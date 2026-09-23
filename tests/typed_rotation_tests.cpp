@@ -94,16 +94,16 @@ void fixedAndCallers() {
         const auto b = rotation_reference::rotation(by, bp, br, g_angleLut);
         const auto product = rotation_reference::multiply(expected, b);
         require(words(matrix * FC::matrixWords(b.data())) == product, "fixed product changed");
-        g_rotationCounter = 7;
+        g_rotationCounter = f15::math::TickDuration::fromWord(7);
         g_orientationDirty = 0;
         applyRotationDelta(FC::matrixWords(expected.data()), FC::matrixWords(b.data()));
         require(product == words(g_orientMatrix) &&
                 product == words(g_matrixScratch) &&
-                g_rotationCounter == 8 && g_orientationDirty == 1, "flight rotation caller changed");
+                g_rotationCounter.equals(8) && g_orientationDirty == 1, "flight rotation caller changed");
         g_ourHead = angleFromWord(static_cast<int16>(yaw)); g_ourPitch = angleFromWord(static_cast<int16>(pitch)); g_ourRoll = angleFromWord(static_cast<int16>(roll));
         rebuildOrientation();
         require(expected == words(g_orientMatrix) &&
-                g_rotationCounter == 0 && g_orientationDirty == 0, "flight rebuild caller changed");
+                g_rotationCounter.isZero() && g_orientationDirty == 0, "flight rebuild caller changed");
     }
     // General word matrices exercise accumulator wrap, not only near-unit rotations.
     for (int sample = 0; sample < 2000; ++sample) {
@@ -289,7 +289,7 @@ void attitudeAndDeltas() {
     // Persistent state and the actual flight caller are checked tick by tick.
     auto expected = rotation_reference::rotation(1200, 400, 800, g_angleLut);
     g_orientMatrix = FC::matrixWords(expected.data());
-    g_rotationCounter = 0;
+    g_rotationCounter = {};
     for (int tick = 0; tick < 4096; ++tick) {
         const auto delta = fixed.rollDelta(FC::angleWord(tick % 129 - 64));
         expected = rotation_reference::multiply(expected, words(delta));
@@ -299,7 +299,7 @@ void attitudeAndDeltas() {
     }
     int rotations = 0;
     bool dirty = false;
-    g_rotationCounter = 0;
+    g_rotationCounter = {};
     g_orientationDirty = 0;
     for (int tick = 0; tick < 8192; ++tick) {
         const auto roll = fixed.rollDelta(FC::angleWord(31));
@@ -317,7 +317,7 @@ void attitudeAndDeltas() {
         const auto attitude = rotation_reference::recover(expected, false, g_angleLut);
         dirty = dirty || attitude.dirty;
         computeAttitudeAngles();
-        require(g_rotationCounter == rotations && bool(g_orientationDirty) == dirty &&
+        require(g_rotationCounter.equals(rotations) && bool(g_orientationDirty) == dirty &&
                 signedAngle(g_ourHead) == attitude.yaw && signedAngle(g_ourPitch) == attitude.pitch && signedAngle(g_ourRoll) == attitude.roll,
                 "fixed update/recovery refresh schedule changed");
         if (dirty) {

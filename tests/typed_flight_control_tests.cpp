@@ -90,10 +90,10 @@ void productionCaller() {
         g_orientMatrix = A::matrixWords(expected.data());
         g_matrixScratch = Matrix3<F>::identity();
         auto scratch = rotation_reference::Matrix{32767,0,0,0,32767,0,0,0,32767};
-        g_rotationCounter = tick & 7;
+        g_rotationCounter = f15::math::TickDuration::fromWord(tick & 7);
         g_orientationDirty = tick % 5 == 0;
         g_rollWasNonzero = tick % 2;
-        int count = g_rotationCounter;
+        int count = g_rotationCounter.word();
         bool dirty = g_orientationDirty != 0;
         const int roll = tick % 9 == 0 ? 0 : tick % 253 - 126;
         const int pitch = tick % 7 == 0 ? 0 : tick % 1024 - 512;
@@ -121,7 +121,7 @@ void productionCaller() {
         A::matrixWords(g_orientMatrix, actual.data());
         A::matrixWords(g_matrixScratch, actualScratch.data());
         require(actual == expected && actualScratch == scratch, "flight rotation order changed");
-        require(g_rotationCounter == count && (g_orientationDirty != 0) == (dirty || recovered.dirty),
+        require(g_rotationCounter.equals(count) && (g_orientationDirty != 0) == (dirty || recovered.dirty),
                 "flight rotation refresh changed");
         require(legacy::signedAngle(g_ourHead) == recovered.yaw &&
                 legacy::signedAngle(g_ourPitch) == recovered.pitch &&

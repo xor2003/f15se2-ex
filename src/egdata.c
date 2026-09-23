@@ -501,7 +501,7 @@ int16 g_slowMotionMode = 2;
 #else
 int16 g_slowMotionMode = 1;
 #endif
-f15::math::Ticks g_directorEventDeadline = f15::math::Ticks::fromWord(-1);
+f15::math::Ticks g_directorEventDeadline = f15::math::Ticks::disarmed();
 int g_directorMode = 0;
 int16 g_resupplyCount = 1;
 int16 g_autoLandingActive = 0;

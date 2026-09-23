@@ -1090,7 +1090,7 @@ void renderFrame() {
             g_viewTargetY = (uint32)g_planeTable.planes[g_viewTargetObj & 0x3f].mapY << 5;
             g_viewTargetAlt = g_planeTable.planes[g_viewTargetObj & 0x3f].flags & 0x200 ? 200 : 50;
             camDist = 7;
-            if (g_autopilotEngaged != 0 && g_directorEventDeadline.word() == -1) camDist = 6;
+            if (g_autopilotEngaged != 0 && g_directorEventDeadline.isDisarmed()) camDist = 6;
         }
         if (g_directorMode == 0) camDist = savedCamDist;
         computeTrackingCameraAngles(g_viewTargetX, g_viewTargetY,

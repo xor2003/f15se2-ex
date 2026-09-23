@@ -326,11 +326,11 @@ int main() {
     // the attitude with the original inverse-trig and signed quotient rules.
     g_ourHead = g_ourPitch = g_ourRoll = {};
     g_orientationDirty = 1;
-    g_rotationCounter = 99;
+    g_rotationCounter = f15::math::TickDuration::fromWord(99);
     rebuildOrientation();
     OrientationCodec::matrixWords(g_orientMatrix, orientationWords);
     require(g_orientationDirty == 0 &&
-                g_rotationCounter == 0 &&
+                g_rotationCounter.isZero() &&
                 orientationWords[0] == kQ15ZeroAngleProduct &&
                 orientationWords[4] == kQ15ZeroAngleProduct &&
                 orientationWords[8] == kQ15ZeroAngleProduct,
@@ -450,11 +450,11 @@ int main() {
     int16 identityB[9] = {};
     identityA[0] = identityA[4] = identityA[8] = kQ15Identity;
     identityB[0] = identityB[4] = identityB[8] = kQ15Identity;
-    g_rotationCounter = kRotationDirtyPeriod - 1;
+    g_rotationCounter = f15::math::TickDuration::fromWord(kRotationDirtyPeriod - 1);
     g_orientationDirty = 0;
     applyRotationDelta(OrientationCodec::matrixWords(identityA), OrientationCodec::matrixWords(identityB));
     OrientationCodec::matrixWords(g_orientMatrix, orientationWords);
-    require(g_rotationCounter == kRotationDirtyPeriod &&
+    require(g_rotationCounter.equals(kRotationDirtyPeriod) &&
                 g_orientationDirty == 1 &&
                 orientationWords[0] == kQ15ZeroAngleProduct &&
                 orientationWords[4] == kQ15ZeroAngleProduct &&

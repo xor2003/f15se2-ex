@@ -108,7 +108,8 @@ void recoveryGuidance(SDL_Joystick *stick) {
         g_ourRoll = legacy::angleFromWord(roll);
         g_stallSpeed = {};
         g_liftForce = g_rollPitchTrim = {};
-        g_orientationDirty = g_rotationCounter = g_rollWasNonzero = 0;
+        g_rotationCounter = {};
+        g_orientationDirty = g_rollWasNonzero = 0;
         rebuildOrientation();
 
         const int ns = carrier ? direction : (y > 0 ? -1 : y < 0 ? 1 : 0);
@@ -250,7 +251,8 @@ void thrustAndFuel() {
         g_stallSpeed = {};
         g_liftForce = g_rollPitchTrim = {};
         g_rollPitchTrim = legacy::angleFromWord(initialTrim);
-        g_orientationDirty = g_rotationCounter = g_rollWasNonzero = 0;
+        g_rotationCounter = {};
+        g_orientationDirty = g_rollWasNonzero = 0;
         rebuildOrientation();
         // Preserve the pre-correction matrix output even if stall recovery
         // rebuilds g_orientMatrix later in the step.

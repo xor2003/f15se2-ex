@@ -241,7 +241,7 @@ void updateFrame(void) {
         if (g_autopilotEngaged == 0) {
             g_viewMode = VIEW_COCKPIT;
         }
-        g_directorEventDeadline = Ticks::fromWord(-1);
+        g_directorEventDeadline = Ticks::disarmed();
     }
     if (!g_threatActiveTimer.isZero()) {
         --g_threatActiveTimer;
@@ -769,7 +769,7 @@ void finalizeMission(int outcome) {
 // ==== seg000:0x1bc3 ====
 void scheduleEventCheck(int16 eventObjIdx, uint16 priority) {
     if (priority > (uint16)g_directorMode) return;
-    if (g_directorEventDeadline.word() != -1) return;
+    if (g_directorEventDeadline.isArmed()) return;
     g_viewTargetObj = eventObjIdx;
     scheduleTimedEvent(VIEW_MISSILE, g_directorMode == 1 ? 3 : 4);
 }
@@ -787,7 +787,7 @@ void scheduleTimedEvent(ViewMode viewMode, int16 delay) {
 void generateRandomRadioMessage(void) {
     int16 idx;
 
-    if (g_directorEventDeadline.word() != -1) {
+    if (g_directorEventDeadline.isArmed()) {
         return;
     }
     g_autopilotAltitude = f15::math::legacy::renderHeightFromUnits(500);

@@ -46,6 +46,12 @@ public:
     unsigned umod(int n) const { return uword() % n; }
     /* Disarmed/sentinel tests for deadline-style state. */
     bool isZero() const { return value_ == 0; }
+    /* Deadline arm state: -1 marks "no deadline armed" — the director
+     * deadline idles there between events; only a real frame instant
+     * counts as armed. */
+    static Ticks disarmed() { return Ticks(-1); }
+    bool isArmed() const { return value_ != -1; }
+    bool isDisarmed() const { return value_ == -1; }
 };
 
 /* Tick-domain duration/count: countdown timers (arm, decrement, expire) and
