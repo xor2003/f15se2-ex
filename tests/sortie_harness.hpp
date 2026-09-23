@@ -104,6 +104,10 @@ constexpr int kCombatTicks = 900;
  * auto-land -> Safe Landing chain still runs end to end; ~900 ticks reach
  * landingType 3 on fixed, 1600 leaves modern drift margin. */
 constexpr int kLandTicks = 1600;
+/* The boundary profile starts at mapX 0x7c00 heading east: ~300 ticks to
+ * the 0x7e00 theater bound at cruise, the rest pinned against it — long
+ * enough to prove the clamp holds and the plane stays powered. */
+constexpr int kWrapTicks = 660;
 constexpr std::uint32_t kSeed = 0x51e7u;
 
 
@@ -128,8 +132,10 @@ inline void pushKey(SDL_Scancode scancode, SDL_Keycode key) {
  * weapon designate/fire keys run; kLand reuses that imported mission but
  * seeds the mission-complete flags and waypointIndex=3 so the recovery
  * guidance (recoveryApproach/recoveryBank/recoveryAttitude/recoveryThrust)
- * flies the whole corridor approach into "Safe Landing". */
-enum class Profile { kSortie, kLoop, kCombat, kStick, kLand };
+ * flies the whole corridor approach into "Safe Landing"; kWrap flies the
+ * player into the east theater bound so the per-tick position clamp
+ * (egframe.c confine block) engages for hundreds of ticks. */
+enum class Profile { kSortie, kLoop, kCombat, kStick, kLand, kWrap };
 
 constexpr int ticksForProfile(Profile profile) {
     return profile == Profile::kLand ? kLandTicks
@@ -144,6 +150,9 @@ inline void pushScheduleKeys(int tick, Profile profile) {
      * ground weapon; the label was wrong but the pinned goldens recorded it. */
     if (tick == 45) pushKey(SDL_SCANCODE_G, SDLK_G);
     if (profile == Profile::kLoop) return;
+    /* kWrap is hands-off after the shared ramp: a straight powered run at
+     * the east theater bound. */
+    if (profile == Profile::kWrap) return;
     if (profile == Profile::kCombat) {
         if (tick == 60) pushKey(SDL_SCANCODE_L, SDLK_L);            // gear up (real key)
         /* Autopilot altitude-hold steers to waypoints[1] (the primary target,
@@ -742,6 +751,39 @@ inline void landingRequire(const LandingCheck &l) {
     require(l.landed, "land: no Safe Landing / finalizeMission(0)");
 }
 
+/* Non-degenerate proof for the theater-boundary profile: the plane must
+ * actually fly to the east bound, the clamp must pin it there (never past
+ * 0x7e00 post-updateFrame), and it must hold under sustained power — the
+ * snap-per-tick behavior only shows when the plane keeps pushing. */
+struct BoundaryCheck {
+    bool approached = false;
+    bool edgeSeen = false;
+    bool speedKept = false;
+    int clampedTicks = 0;
+    int16 maxX = 0;
+};
+inline void boundaryObserve(BoundaryCheck &b, int) {
+    /* g_viewX_ is refreshed from flightMapPosition() at the top of
+     * updateFrame and overwritten by the clamp when a bound is hit — so it
+     * is the post-clamp map word at observe time. */
+    const int16 mx = g_viewX_;
+    if (mx > b.maxX) b.maxX = mx;
+    if (mx > 0x7c40) b.approached = true;
+    if (mx >= 0x7e00) {
+        b.edgeSeen = true;
+        ++b.clampedTicks;
+        if (legacy::speedUnits(g_velocity) > 0x100) b.speedKept = true;
+    }
+}
+inline void boundaryRequire(const BoundaryCheck &b) {
+    require(b.approached, "wrap: never advanced east from the 0x7c00 seed");
+    require(b.edgeSeen, "wrap: never reached the 0x7e00 theater bound");
+    require(b.clampedTicks >= 60, "wrap: boundary contact not sustained");
+    require(b.speedKept, "wrap: velocity died at the bound (clamp killed "
+                           "the plane instead of pinning position)");
+    require(b.maxX <= 0x7e00, "wrap: position leaked past the clamp bound");
+}
+
 /* worldExportToEnd round-trip: run the real EGAME -> END debrief export after
  * the sortie and check every block against the live tables — including the
  * reversed +2-byte unitRef shift (plane i re-exports the lead / previous
@@ -936,6 +978,19 @@ inline void runTick(int tick, Profile profile = Profile::kSortie) {
     applyScheduleStick(tick, profile);
     stepFlightModel();
     updateFrame();
+    if (profile == Profile::kWrap && tick == 0) {
+        /* Airborne start near the east theater bound: the confine block in
+         * updateFrame (clampRange to [0x100,0x7e00]x[0x200,0x7d00], fine coord
+         * snapped to the cell edge) is the path under test — it fires only at
+         * spawn in the other profiles. Heading 0x4000 = +mapX. */
+        g_altitude = legacy::altitudeFromUnits(2000);
+        g_viewZ = 2000;
+        g_velocity = legacy::speedFromUnits(8100);
+        g_ViewX = legacy::viewX(0x7c00 * 32);
+        g_ViewY = legacy::viewY((0x8000 - 0x4000) * 32);
+        g_ourHead = legacy::angleFromWord((int16)0x4000);
+        rebuildOrientation();
+    }
     if (profile == Profile::kLand && tick == 0) {
         /* Pretend both targets were destroyed — the recovery leg is the path
          * under test, not the kill chain that sets these flags. Applied after

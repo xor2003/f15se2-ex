@@ -2123,6 +2123,41 @@ backends land through the real production path. The profile also closes
 with `verifyWorldExport()`, so the debrief export is checked against a
 mission that actually finalized.
 
+## Theater-boundary sortie checkpoint (clamp-contact coverage)
+
+No prior profile held the player against a theater edge — the
+`updateFrame` confine block (`egframe.c`) only fired at spawn. The
+`--wrap` profile starts the player airborne at mapX 0x7c00, mapY 0x4000,
+altitude 2000, speed 8100, heading 0x4000 (+mapX, with
+`rebuildOrientation()` — the matrix, not the Euler word, is
+authoritative), then flies hands-off at full throttle into the east
+bound. The seed runs inside `runTick` after tick 0's `updateFrame`
+because the `g_initPhase` mission-init block rewrites the flight state.
+
+The theater is a clamp, not a torus: `clampRange` pins mapX to
+`[0x100,0x7e00]` and mapY to `[0x200,0x7d00]`, and on a bound hit the
+coarse `g_viewX_`/`g_viewY_` word and the fine `g_ViewX`/`g_ViewY`
+coordinate are both snapped to the cell edge — so the fine coordinate
+loses its sub-word fraction exactly there on both backends. The plane
+reaches 0x7e00 around tick 250 on fixed and stays pinned for the
+remaining ~410 ticks of the 660-tick run (`kWrapTicks`), sliding ~200
+map words south along the bound — sustained clamp contact under power,
+not a single crossing. The wrapped map-ring arithmetic (`mapOffset` /
+`mapRange` shortest-delta semantics) is exercised by the
+math-boundary tests and the combat profile's contact range math; this
+profile covers the player clamp half of the boundary story.
+
+`boundaryRequire` asserts: eastward advance from the seed (post-clamp
+map word `g_viewX_` past 0x7c40), bound contact (`>= 0x7e00`),
+sustained pinning (`>= 60` clamped ticks), the airframe keeps flying
+(`speedUnits(g_velocity) > 0x100` while pinned — the clamp pins
+position, it does not kill the plane), and no leak past the bound
+(`max g_viewX_ <= 0x7e00` across all 660 ticks).
+`sortie_wrap_parity_tests` pins `sortie_wrap_parity.trace`;
+`modern_sortie_wrap_tests` pins `sortie_wrap_fields_modern.trace` —
+modern's pinned trace shows the same bound contact with its fractional
+pre-clamp fine positions.
+
 ## Provenance and import corrections
 
 The classes came from `f15se2-re/main`, commit `6cbbec1`, originally introduced
@@ -2364,10 +2399,13 @@ acquires an air contact, the player-launched missile guides on
 kill (the modern run exercises the same code but decorrelates to a
 near-miss). Landing outcome is covered: the `--land` profile flies the
 recovery corridor to "Safe Landing" and `finalizeMission(0)` on both
-backends. Still missing: real mission-file loads, wrap-boundary scenarios,
-interactive `.bbx` recordings, real-time pacing, and multi-platform runs —
-so modern coverage remains a scripted-profile acceptance gate, not a
-certification of the whole game.
+backends. Theater-edge contact is covered: the `--wrap` profile holds
+the player pinned against the east bound under power for ~400 ticks on
+both backends. Still missing: real mission-file loads, object/contact
+wrap-seam sortie scenarios, interactive `.bbx` recordings, real-time
+pacing, and multi-platform runs — so modern coverage remains a
+scripted-profile acceptance gate, not a certification of the whole
+game.
 
 Reproduce standalone Clang checks from the repository root:
 
