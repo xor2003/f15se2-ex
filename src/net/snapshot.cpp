@@ -18,8 +18,6 @@
 
 extern "C" {
 
-void decApplyOwnPlayer(struct NetReader *r); /* fwd: defined below */
-
 /* entity id layout (v1): 0..19 simObjects, 0x100+ projectiles,
  * 0x200+i remote players, 0x300+i planeTable sites (see protocol.h). */
 
@@ -45,6 +43,7 @@ static int s_worldObjCount = -1;      /* authoritative object count from setup *
 static int s_worldPlaneCount = -1;    /* authoritative planeTable count */
 static unsigned s_parkedMask;         /* player ids currently published */
 static unsigned s_seenMask;           /* player ids seen in this snapshot */
+static int16_t s_lastFrameTick = -1;  /* staleness gate (wraps with frameTick) */
 
 void netSetupBuild(struct NetWriter *w) {
     int i, n;
@@ -136,6 +135,7 @@ int netSetupApply(struct NetReader *r) {
     s_worldObjCount = g_groundUnitCount; /* remote players park above this */
     s_worldPlaneCount = g_planeCount;
     s_parkedMask = s_seenMask = 0;
+    s_lastFrameTick = -1; /* new world: staleness gate re-arms on first snap */
     g_missionStatus = nrI16(r);
     g_unusedSavedWord = nrI16(r);
     g_padlockAircraft = nrI16(r);
@@ -414,7 +414,10 @@ void netObsBuild(struct NetWriter *w, const struct PlayerSim *ctx,
             goto done;
     }
     /* Missiles: RWR-entitled when inbound at this observer, visible-trail
-     * entitled when on the scope. */
+     * entitled when on the scope. "Inbound" means the shot seeks ME:
+     * slots 0-7 are threat shots whose targetPlayer is the engaged victim;
+     * slots 8+ are player-fired and targetPlayer is the SHOOTER - for those
+     * inbound means their targetLock is this observer's parked object. */
     for (i = 0; i < F15_MAX_PROJECTILES; i++) {
         const struct Projectile *p = &g_projectiles[i];
         struct NetObsContact c;
@@ -424,7 +427,15 @@ void netObsBuild(struct NetWriter *w, const struct PlayerSim *ctx,
             continue;
         mx = (int16_t)(p->fineX >> 5);
         my = (int16_t)(p->fineY >> 5);
-        inbound = p->targetPlayer == playerIdx;
+        if (i < 8) {
+            inbound = p->targetPlayer == playerIdx;
+        } else {
+            inbound = p->targetLock >= 0 &&
+                      p->targetLock < F15_MAX_SIM_OBJECTS &&
+                      (g_simObjects[p->targetLock].flags.b[1] &
+                       SIMFLAG_B1_REMOTE_PLAYER) &&
+                      g_simObjects[p->targetLock].objType == playerIdx;
+        }
         if (!inbound && !obsFull) {
             projectMapPoint(mx, my);
             if (g_projDepth == -1)
@@ -548,20 +559,107 @@ void netPlayerPublishObject(int idx, const struct NetPlayerState *s) {
     }
 }
 
+/* Decoded snapshot scratch: the whole payload lands here first; live globals
+ * only change in the commit pass after every byte validated (atomic apply -
+ * a truncated/invalid packet mutates nothing). Single consumer, static. */
+struct SnapTmp {
+    uint8_t nPlayers;
+    uint8_t ids[F15_MAX_PLAYERS];
+    struct NetPlayerState players[F15_MAX_PLAYERS];
+    uint8_t nObjs;
+    struct NetSimObject objs[F15_MAX_SIM_OBJECTS];
+    uint8_t nProj;
+    struct NetProjectile projs[F15_MAX_PROJECTILES];
+    uint8_t nPlanes;
+    struct NetMapTarget planes[F15_MAX_MAP_TARGETS];
+    struct NetMapEvent events[F15_MAX_MAP_EVENTS];
+    int16_t missionTick, missionStatus, frameTick;
+    uint16_t wpX[F15_WAYPOINTS], wpY[F15_WAYPOINTS];
+    int16_t tsState[2], tsPlane[2], tsView[2], tsFlags[2];
+    uint32_t stateHash;
+};
+
+static void applyPlayerGlobals(const struct NetPlayerState *s);
+
 int netSnapApply(struct NetReader *r, int playerId) {
-    int i, n;
-    uint8_t nPlayers = nrU8(r);
+    static struct SnapTmp t;
+    int i;
+
+    /* ---- decode: temp storage only, no live-state writes ---- */
+    t.nPlayers = nrU8(r);
+    if (t.nPlayers > F15_MAX_PLAYERS)
+        return 0; /* count overflow would misalign the rest of the payload */
+    for (i = 0; i < t.nPlayers; i++) {
+        t.ids[i] = nrU8(r);
+        decPlayerState(r, &t.players[i]);
+    }
+    t.nObjs = nrU8(r);
+    if (t.nObjs > F15_MAX_SIM_OBJECTS)
+        return 0;
+    for (i = 0; i < t.nObjs; i++)
+        decSimObject(r, &t.objs[i]);
+    t.nProj = nrU8(r);
+    if (t.nProj > F15_MAX_PROJECTILES)
+        return 0;
+    for (i = 0; i < t.nProj; i++)
+        decProjectile(r, &t.projs[i]);
+    t.nPlanes = nrU8(r);
+    if (t.nPlanes > F15_MAX_MAP_TARGETS)
+        return 0;
+    for (i = 0; i < t.nPlanes; i++)
+        decMapTarget(r, &t.planes[i]);
+    for (i = 0; i < F15_MAX_MAP_EVENTS; i++) {
+        t.events[i].mapX = nrU16(r);
+        t.events[i].mapY = nrU16(r);
+        t.events[i].type = nrI16(r);
+        t.events[i].ttl = nrI16(r);
+    }
+    t.missionTick = nrI16(r);
+    t.missionStatus = nrI16(r);
+    t.frameTick = nrI16(r);
+    for (i = 0; i < F15_WAYPOINTS; i++) {
+        t.wpX[i] = nrU16(r);
+        t.wpY[i] = nrU16(r);
+    }
+    for (i = 0; i < 2; i++) {
+        t.tsState[i] = nrI16(r);
+        t.tsPlane[i] = nrI16(r);
+        t.tsView[i] = nrI16(r);
+        t.tsFlags[i] = nrI16(r);
+    }
+    t.stateHash = nrU32(r);
+
+    /* ---- validate: integrity, bounds, ids, staleness ---- */
+    if (r->underrun)
+        return 0;
+    for (i = 0; i < t.nPlayers; i++) {
+        int j;
+        if (t.ids[i] >= F15_MAX_PLAYERS)
+            return 0;
+        for (j = 0; j < i; j++)
+            if (t.ids[j] == t.ids[i])
+                return 0; /* duplicate player block */
+    }
+    for (i = 0; i < t.nObjs; i++)
+        if (t.objs[i].id >= F15_MAX_SIM_OBJECTS)
+            return 0;
+    for (i = 0; i < t.nProj; i++)
+        if ((t.projs[i].id & ~0xFFu) != NET_ID_PROJECTILE_BASE ||
+            (t.projs[i].id & 0xFFu) >= F15_MAX_PROJECTILES)
+            return 0;
+    /* stale/out-of-order delivery must never roll live state back */
+    if (s_lastFrameTick >= 0 && (int16_t)(t.frameTick - s_lastFrameTick) <= 0)
+        return 0;
+
+    /* ---- commit: validated, now mutate ---- */
     s_seenMask = 0;
-    for (i = 0; i < nPlayers; i++) {
-        uint8_t pid = nrU8(r);
-        if (pid == playerId) {
+    for (i = 0; i < t.nPlayers; i++) {
+        if (t.ids[i] == playerId) {
             /* own aircraft: write the authoritative block into the globals the
              * renderer/cockpit read. */
-            decApplyOwnPlayer(r);
+            applyPlayerGlobals(&t.players[i]);
         } else {
-            struct NetPlayerState s;
-            decPlayerState(r, &s);
-            netPlayerPublishObject(pid, &s);
+            netPlayerPublishObject(t.ids[i], &t.players[i]);
         }
     }
     /* Departed players: unpark their object/plane slots so husks don't linger. */
@@ -610,149 +708,148 @@ int netSnapApply(struct NetReader *r, int playerId) {
         }
     }
 
-    n = nrU8(r);
-    for (i = 0; i < n; i++) {
-        struct NetSimObject o;
-        int slot;
-        decSimObject(r, &o);
-        slot = (int)o.id;
-        if (slot < 0 || slot >= F15_MAX_SIM_OBJECTS)
-            continue;
-        g_simObjects[slot].worldX = o.worldX;
-        g_simObjects[slot].worldY = o.worldY;
-        g_simObjects[slot].posX = o.posX;
-        g_simObjects[slot].posY = o.posY;
-        g_simObjects[slot].alt = o.alt;
-        g_simObjects[slot].heading.w = o.head;
-        g_simObjects[slot].pitch = o.pitch;
-        g_simObjects[slot].bank.w = o.bank;
-        g_simObjects[slot].spec = o.spec;
-        g_simObjects[slot].flags.w = o.flags;
-        g_simObjects[slot].speed = o.speed;
-        g_simObjects[slot].objType = o.objType;
+    for (i = 0; i < t.nObjs; i++) {
+        int slot = (int)t.objs[i].id;
+        g_simObjects[slot].worldX = t.objs[i].worldX;
+        g_simObjects[slot].worldY = t.objs[i].worldY;
+        g_simObjects[slot].posX = t.objs[i].posX;
+        g_simObjects[slot].posY = t.objs[i].posY;
+        g_simObjects[slot].alt = t.objs[i].alt;
+        g_simObjects[slot].heading.w = t.objs[i].head;
+        g_simObjects[slot].pitch = t.objs[i].pitch;
+        g_simObjects[slot].bank.w = t.objs[i].bank;
+        g_simObjects[slot].spec = t.objs[i].spec;
+        g_simObjects[slot].flags.w = t.objs[i].flags;
+        g_simObjects[slot].speed = t.objs[i].speed;
+        g_simObjects[slot].objType = t.objs[i].objType;
     }
 
-    n = nrU8(r);
-    for (i = 0; i < n; i++) {
-        struct NetProjectile p;
-        int slot;
-        decProjectile(r, &p);
-        slot = (int)(p.id & 0xFFu);
-        if (slot >= F15_MAX_PROJECTILES)
-            continue;
-        g_projectiles[slot].fineX = p.fineX;
-        g_projectiles[slot].fineY = p.fineY;
-        g_projectiles[slot].alt = p.alt;
-        g_projectiles[slot].ttl = p.ttl;
-        g_projectiles[slot].specIdx = p.specIdx;
-        g_projectiles[slot].mapX = (uint16_t)(p.fineX >> 5);
-        g_projectiles[slot].mapY = (uint16_t)(p.fineY >> 5);
+    for (i = 0; i < t.nProj; i++) {
+        int slot = (int)(t.projs[i].id & 0xFFu);
+        g_projectiles[slot].fineX = t.projs[i].fineX;
+        g_projectiles[slot].fineY = t.projs[i].fineY;
+        g_projectiles[slot].alt = t.projs[i].alt;
+        g_projectiles[slot].ttl = t.projs[i].ttl;
+        g_projectiles[slot].specIdx = t.projs[i].specIdx;
+        g_projectiles[slot].mapX = (uint16_t)(t.projs[i].fineX >> 5);
+        g_projectiles[slot].mapY = (uint16_t)(t.projs[i].fineY >> 5);
     }
 
-    n = nrU8(r);
-    for (i = 0; i < n && i < F15_MAX_MAP_TARGETS; i++) {
+    for (i = 0; i < t.nPlanes; i++) {
         struct MapTarget *p = &g_planeTable.planes[i];
-        p->mapX = nrU16(r);
-        p->mapY = nrU16(r);
-        p->active = nrI16(r);
-        p->flags = nrI16(r);
-        p->alertLevel = nrI16(r);
-        p->threatTimer = nrI16(r);
-        p->nameIndex = nrI16(r);
+        p->mapX = t.planes[i].mapX;
+        p->mapY = t.planes[i].mapY;
+        p->active = t.planes[i].active;
+        p->flags = t.planes[i].flags;
+        p->alertLevel = t.planes[i].alertLevel;
+        p->threatTimer = t.planes[i].threatTimer;
+        p->nameIndex = t.planes[i].nameIndex;
     }
 
     for (i = 0; i < F15_MAX_MAP_EVENTS; i++) {
-        mapEvents[i].mapX = nrU16(r);
-        mapEvents[i].mapY = nrU16(r);
-        mapEvents[i].type = nrI16(r);
-        mapEvents[i].ttl = nrI16(r);
+        mapEvents[i].mapX = t.events[i].mapX;
+        mapEvents[i].mapY = t.events[i].mapY;
+        mapEvents[i].type = t.events[i].type;
+        mapEvents[i].ttl = t.events[i].ttl;
     }
 
-    g_missionTick = nrI16(r);
-    g_missionStatus = nrI16(r);
-    frameTick = nrI16(r); /* authoritative sim tick - drives the view ring etc. */
+    g_missionTick = t.missionTick;
+    g_missionStatus = t.missionStatus;
+    frameTick = t.frameTick; /* authoritative sim tick - drives the view ring etc. */
+    s_lastFrameTick = t.frameTick;
     for (i = 0; i < F15_WAYPOINTS; i++) {
-        waypoints[i].mapX = nrU16(r);
-        waypoints[i].mapY = nrU16(r);
+        waypoints[i].mapX = t.wpX[i];
+        waypoints[i].mapY = t.wpY[i];
     }
     for (i = 0; i < 2; i++) {
-        g_targetSlots[i].state = nrI16(r);
-        g_targetSlots[i].planeIndex = nrI16(r);
-        g_targetSlots[i].viewIndex = nrI16(r);
-        g_targetSlots[i].flags = nrI16(r);
+        g_targetSlots[i].state = t.tsState[i];
+        g_targetSlots[i].planeIndex = t.tsPlane[i];
+        g_targetSlots[i].viewIndex = t.tsView[i];
+        g_targetSlots[i].flags = t.tsFlags[i];
     }
-    (void)nrU32(r); /* stateHash: compare against client-side hash later */
-    return !r->underrun;
+    (void)t.stateHash; /* compare against client-side hash later */
+    return 1;
 }
 
 /* own player block -> globals (client). Kept separate so the decoder stays
  * the single writer of the cockpit view state. */
-void decApplyOwnPlayer(struct NetReader *r) {
-    struct NetPlayerState s;
+static void applyPlayerGlobals(const struct NetPlayerState *s) {
     int i;
-    decPlayerState(r, &s);
-    g_ViewX = s.worldX;
-    g_ViewY = s.worldY;
-    g_viewZ = s.alt;
-    g_ourHead = s.head;
-    g_ourPitch = s.pitch;
-    g_ourRoll = s.roll;
-    g_viewX_ = s.mapX;
-    g_viewY_ = s.mapY;
-    g_knots = s.knots;
-    g_thrust = s.thrust;
-    g_setThrust = s.setThrust;
-    g_velocity = s.velocity;
-    g_altitude = s.altitude;
-    g_fuelRemaining = s.fuel;
-    g_gunAmmo = s.gunAmmo;
+    g_ViewX = s->worldX;
+    g_ViewY = s->worldY;
+    g_viewZ = s->alt;
+    g_ourHead = s->head;
+    g_ourPitch = s->pitch;
+    g_ourRoll = s->roll;
+    g_viewX_ = s->mapX;
+    g_viewY_ = s->mapY;
+    g_knots = s->knots;
+    g_thrust = s->thrust;
+    g_setThrust = s->setThrust;
+    g_velocity = s->velocity;
+    g_altitude = s->altitude;
+    g_fuelRemaining = s->fuel;
+    g_gunAmmo = s->gunAmmo;
     for (i = 0; i < 3; i++)
-        missleSpec[i].ammo = s.weaponAmmo[i];
-    g_currentWeaponType = s.curWeapon;
-    missileSpecIndex = s.weaponSel;
-    g_playerPlaneFlags = s.planeFlags;
-    g_ejectState = s.ejectState;
-    g_autopilotAltitude = s.autopilotAlt;
-    g_airTargetLock = s.airLock;
-    g_groundTargetLock = s.groundLock;
-    g_radarScopeRange = s.radarRange;
-    waypointIndex = s.waypointIdx;
-    g_waypointBearing = s.waypointBearing;
-    g_gearDownArmed = s.gearArmed;
-    g_stallSpeed = s.stallSpeed;
-    g_cornerSpeed = s.cornerSpeed;
-    g_aamSeekerX = s.aamSeekerX;
-    g_aamSeekerY = s.aamSeekerY;
-    g_rollPitchTrim = s.rollPitchTrim;
-    g_gees = s.gees;
-    g_damageTakenFlag = s.damageFlag;
-    commData->landingType = s.landingType;
-    g_finalThreatScore = s.score;
+        missleSpec[i].ammo = s->weaponAmmo[i];
+    g_currentWeaponType = s->curWeapon;
+    missileSpecIndex = s->weaponSel;
+    g_playerPlaneFlags = s->planeFlags;
+    g_ejectState = s->ejectState;
+    g_autopilotAltitude = s->autopilotAlt;
+    g_airTargetLock = s->airLock;
+    g_groundTargetLock = s->groundLock;
+    g_radarScopeRange = s->radarRange;
+    waypointIndex = s->waypointIdx;
+    g_waypointBearing = s->waypointBearing;
+    g_gearDownArmed = s->gearArmed;
+    g_stallSpeed = s->stallSpeed;
+    g_cornerSpeed = s->cornerSpeed;
+    g_aamSeekerX = s->aamSeekerX;
+    g_aamSeekerY = s->aamSeekerY;
+    g_rollPitchTrim = s->rollPitchTrim;
+    g_gees = s->gees;
+    g_damageTakenFlag = s->damageFlag;
+    commData->landingType = s->landingType;
+    g_finalThreatScore = s->score;
     /* Sim-driven display state comes back over the wire (view/panel commands
      * execute in the server ctx, and director/autopilot code can force them).
      * Deliberately NOT applied: mapZoomLevel/mapCenterX/mapCenterY (the local
      * tacmap blip pass owns zoom/centering). detailLevel/nightMode ARE applied:
      * they gate the sky dome/terrain fill/LOD tables and nightMode is set
      * sim-side at mission start, so the client has no other source for them. */
-    g_viewMode = (ViewMode)s.viewMode;
-    g_mapMode = s.mapMode;
-    g_activePanelMode = s.activePanelMode;
-    g_directorMode = s.directorMode;
-    g_viewTargetObj = s.viewTargetObj;
-    g_lastMissileSlot = s.lastMissileSlot;
-    g_autopilotEngaged = s.autopilotEngaged;
-    if (g_detailLevel != s.detailLevel) {
-        g_detailLevel = s.detailLevel;
+    g_viewMode = (ViewMode)s->viewMode;
+    g_mapMode = s->mapMode;
+    g_activePanelMode = s->activePanelMode;
+    g_directorMode = s->directorMode;
+    g_viewTargetObj = s->viewTargetObj;
+    g_lastMissileSlot = s->lastMissileSlot;
+    g_autopilotEngaged = s->autopilotEngaged;
+    if (g_detailLevel != s->detailLevel) {
+        g_detailLevel = s->detailLevel;
         setupLodDistances(); /* LOD/cull distance tables derive from it */
     }
-    g_nightMode = s.nightMode;
+    g_nightMode = s->nightMode;
     /* Camera-interp inputs: crash-cam eye and wreck/parachute pose. */
-    g_crashCamX = s.crashX;
-    g_crashCamY = s.crashY;
-    g_crashCamZ = s.crashZ;
-    g_wreckX = s.wreckX;
-    g_wreckY = s.wreckY;
-    g_wreckAlt = s.wreckAlt;
+    g_crashCamX = s->crashX;
+    g_crashCamY = s->crashY;
+    g_crashCamZ = s->crashZ;
+    g_wreckX = s->wreckX;
+    g_wreckY = s->wreckY;
+    g_wreckAlt = s->wreckAlt;
+}
+
+/* Public wrappers (snapshot.h): single player-block encode/apply, used by
+ * tests and by netclient when a lone block needs decoding outside a full
+ * snapshot. */
+void netEncPlayerFromCtx(struct NetWriter *w, const struct PlayerSim *c) {
+    encPlayerBlock(w, c);
+}
+
+void netApplyPlayerToGlobals(struct NetReader *r) {
+    struct NetPlayerState s;
+    decPlayerState(r, &s);
+    applyPlayerGlobals(&s);
 }
 
 } /* extern "C" */

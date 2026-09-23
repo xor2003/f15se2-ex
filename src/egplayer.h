@@ -194,7 +194,7 @@ struct RemoteInput {
 };
 
 void remoteInputInit(struct RemoteInput *r);
-void remoteInputPushKey(struct RemoteInput *r, uint16 scan);
+int remoteInputPushKey(struct RemoteInput *r, uint16 scan); /* 0 = queue full */
 void remoteInputSetAxes(struct RemoteInput *r, uint8 joyX, uint8 joyY,
                         uint8 buttons);
 const struct SimInputOps *remoteInputOps(void);

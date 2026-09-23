@@ -380,10 +380,11 @@ void remoteInputInit(struct RemoteInput *r) {
     r->frameTickPtr = &frameTick;
 }
 
-void remoteInputPushKey(struct RemoteInput *r, uint16 scan) {
+int remoteInputPushKey(struct RemoteInput *r, uint16 scan) {
     if ((uint8)(r->tail - r->head) >= REMOTE_KEY_QUEUE)
-        return; /* queue full: drop (rate-limit protection, plan §28) */
+        return 0; /* queue full: rejected (rate-limit protection, plan §28) */
     r->queue[r->tail++ % REMOTE_KEY_QUEUE] = scan;
+    return 1;
 }
 
 void remoteInputSetAxes(struct RemoteInput *r, uint8 joyX, uint8 joyY,

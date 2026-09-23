@@ -54,12 +54,14 @@ static void sendHello(void) {
     fflush(stdout);
 }
 
-static void sendInput(void) {
+/* input with an explicit seq (staleness probes: the server must ignore
+ * seq <= the last applied one for axes/readiness) */
+static void sendInputSeq(uint32_t seq) {
     static uint8_t buf[256];
     struct NetWriter w;
     struct NetInput in;
     memset(&in, 0, sizeof(in));
-    in.clientSeq = ++g_seq;
+    in.clientSeq = seq;
     in.joyX = in.joyY = 0x80;
     in.nCmds = (uint8_t)g_nPend;
     memcpy(in.cmds, g_pendCmds, g_nPend);
@@ -69,9 +71,13 @@ static void sendInput(void) {
     /* mirror the client rule: reliable when the packet carries commands */
     g_net->send(NET_PEER_SERVER, buf, w.len,
                 g_nPend > 0 ? NET_SEND_RELIABLE : NET_SEND_UNRELIABLE);
-    printf("PROBE input-sent seq=%u cmds=%d\n", g_seq, g_nPend);
+    printf("PROBE input-sent seq=%u cmds=%d\n", seq, g_nPend);
     fflush(stdout);
     g_nPend = 0;
+}
+
+static void sendInput(void) {
+    sendInputSeq(++g_seq);
 }
 
 static void sendBye(void) {
@@ -83,6 +89,8 @@ static void sendBye(void) {
     printf("PROBE bye-sent\n");
     fflush(stdout);
 }
+
+static int g_myId = -1;
 
 static void printMsg(const uint8_t *msg, size_t len) {
     struct NetReader r;
@@ -97,9 +105,11 @@ static void printMsg(const uint8_t *msg, size_t len) {
     switch (type) {
     case NETMSG_HELLO_ACK: {
         struct NetHelloAck a;
-        if (decHelloAck(&r, &a))
+        if (decHelloAck(&r, &a)) {
+            g_myId = a.playerId;
             printf("PROBE ack id=%u rate=%u flags=0x%x tick=%u\n",
                    a.playerId, a.tickRate, a.flags, (unsigned)a.serverTick);
+        }
         break;
     }
     case NETMSG_HELLO_NAK:
@@ -108,9 +118,21 @@ static void printMsg(const uint8_t *msg, size_t len) {
     case NETMSG_MISSION_SETUP:
         printf("PROBE setup tick=%u len=%u\n", (unsigned)tick, (unsigned)len);
         break;
-    case NETMSG_SNAPSHOT:
+    case NETMSG_SNAPSHOT: {
+        /* decode the player blocks; report our own authoritative state */
+        int i, n = nrU8(&r);
         printf("PROBE snap tick=%u\n", (unsigned)tick);
+        for (i = 0; i < n && i < F15_MAX_PLAYERS; i++) {
+            uint8_t pid = nrU8(&r);
+            struct NetPlayerState s;
+            decPlayerState(&r, &s);
+            if ((int)pid == g_myId)
+                printf("PROBE snap-own id=%u knots=%d apAlt=%d apEng=%u\n",
+                       pid, s.knots, s.autopilotAlt,
+                       s.autopilotEngaged);
+        }
         break;
+    }
     case NETMSG_OBS: {
         static struct NetPlayerState own;
         static struct NetObs obs;
@@ -212,6 +234,7 @@ int main(int argc, char **argv) {
         const char *t = argv[i];
         if (!strcmp(t, "hello")) sendHello();
         else if (!strcmp(t, "input")) sendInput();
+        else if (!strncmp(t, "inputseq:", 9)) sendInputSeq((uint32_t)atoi(t + 9));
         else if (!strcmp(t, "bye")) sendBye();
         else if (!strcmp(t, "quit")) break;
         else if (!strncmp(t, "cmd:", 4)) {

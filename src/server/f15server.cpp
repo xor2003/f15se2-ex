@@ -54,6 +54,7 @@ struct ServerPlayer {
     uint8_t role;
     char name[F15_NAME_LEN + 1];
     uint32_t lastSeq;
+    uint32_t cmdDrops;  /* reliable cmds rejected by a full key queue */
     int32_t spawnOff; /* pending lateral spawn offset (world units), 0 = none */
     uint8_t inputArrived; /* sync-step: input packet seen since last tick */
     struct PlayerSim ctx;
@@ -140,9 +141,20 @@ static int bootWorld(int seed, int theater, int difficulty) {
 
 /* ---- player slots ---- */
 
+/* Admission is bounded by parked-object storage: each player needs a fixed
+ * g_simObjects slot above g_groundUnitCount, and the array is
+ * F15_MAX_SIM_OBJECTS total. A mission with no room NAKs instead of
+ * accepting a player it can't simulate/publish. */
+static int playerCapacity(void) {
+    int cap = F15_MAX_SIM_OBJECTS - g_groundUnitCount;
+    if (cap > F15_MAX_PLAYERS)
+        cap = F15_MAX_PLAYERS;
+    return cap < 0 ? 0 : cap;
+}
+
 static int slotFree(void) {
-    int i;
-    for (i = 0; i < F15_MAX_PLAYERS; i++)
+    int i, cap = playerCapacity();
+    for (i = 0; i < cap; i++)
         if (!g_players[i].used)
             return i;
     return -1;
@@ -198,9 +210,23 @@ static void spawnFromTemplate(struct PlayerSim *dst, int idx) {
     dst->comm.landingType = 1;
 }
 
+static void sendHelloAck(NetPeer peer, int slot) {
+    struct NetHelloAck ack;
+    uint8_t buf[NET_MSG_HEADER_SIZE + 16];
+    struct NetWriter w;
+    memset(&ack, 0, sizeof(ack));
+    ack.playerId = (uint8_t)slot;
+    ack.tickRate = F15_NET_TICKRATE;
+    ack.flags = g_syncStep ? 1 : 0;
+    ack.serverTick = srvTick();
+    nwInit(&w, buf, sizeof(buf));
+    netMsgWriteHeader(&w, NETMSG_HELLO_ACK, srvTick(), 0);
+    encHelloAck(&w, &ack);
+    g_net->send(peer, buf, w.len, NET_SEND_RELIABLE);
+}
+
 static void onHello(NetPeer peer, struct NetReader *r) {
     struct NetHello h;
-    struct NetHelloAck ack;
     int slot;
     if (!decHello(r, &h))
         return;
@@ -209,18 +235,24 @@ static void onHello(NetPeer peer, struct NetReader *r) {
         g_net->closePeer(peer, 0);
         return;
     }
-    /* A peer that already owns a slot re-initializes it (client restarted on
-     * the same connection) rather than leaking extra slots. */
     for (slot = 0; slot < F15_MAX_PLAYERS; slot++)
         if (g_players[slot].used && g_players[slot].peer == peer)
             break;
-    if (slot >= F15_MAX_PLAYERS) {
-        slot = slotFree();
-        if (slot < 0) {
-            sendSimple(peer, NETMSG_HELLO_NAK, 0, "server full", 11);
-            g_net->closePeer(peer, 0);
-            return;
-        }
+    if (slot < F15_MAX_PLAYERS) {
+        /* Duplicate HELLO on a live association: the client lost the ACK or
+         * restarted its handshake. Re-send join state but never touch the
+         * running ctx - a real rejoin is BYE + new connection, not an
+         * implicit reset. */
+        ServerPlayer *p = &g_players[slot];
+        sendHelloAck(peer, slot);
+        sendMissionSetup(p);
+        return;
+    }
+    slot = slotFree();
+    if (slot < 0) {
+        sendSimple(peer, NETMSG_HELLO_NAK, 0, "server full", 11);
+        g_net->closePeer(peer, 0);
+        return;
     }
     ServerPlayer *p = &g_players[slot];
     memset(p, 0, sizeof(*p));
@@ -247,19 +279,7 @@ static void onHello(NetPeer peer, struct NetReader *r) {
      * slot3 +0x300... a formation spread, not a single point. */
     p->spawnOff = slot > 0 ? ((slot & 1) ? 1 : -1) * ((slot + 1) / 2) * 0x180
                          : 0;
-    memset(&ack, 0, sizeof(ack));
-    ack.playerId = (uint8_t)slot;
-    ack.tickRate = F15_NET_TICKRATE;
-    ack.flags = g_syncStep ? 1 : 0;
-    ack.serverTick = srvTick();
-    {
-        uint8_t buf[NET_MSG_HEADER_SIZE + 16];
-        struct NetWriter w;
-        nwInit(&w, buf, sizeof(buf));
-        netMsgWriteHeader(&w, NETMSG_HELLO_ACK, srvTick(), 0);
-        encHelloAck(&w, &ack);
-        g_net->send(peer, buf, w.len, NET_SEND_RELIABLE);
-    }
+    sendHelloAck(peer, slot);
     sendMissionSetup(p);
     p->ready = 1;
     fprintf(stderr, "f15server: peer %u joined as player %d (%s, role %d)\n",
@@ -268,11 +288,19 @@ static void onHello(NetPeer peer, struct NetReader *r) {
 
 static void onInput(ServerPlayer *p, struct NetReader *r) {
     struct NetInput in;
-    int i;
+    int i, fresh;
     if (!decInput(r, &in))
         return;
-    /* latest-wins axes/buttons; commands queue (plan §3) */
-    remoteInputSetAxes(&p->input, in.joyX, in.joyY, in.buttons);
+    /* Axes are latest-wins: a stale/reordered packet must not regress
+     * controls or count as sync-step readiness. Commands ride the reliable
+     * stream and can legitimately arrive behind a newer unreliable axes
+     * packet, so they always execute regardless of clientSeq freshness. */
+    fresh = in.clientSeq > p->lastSeq;
+    if (fresh) {
+        remoteInputSetAxes(&p->input, in.joyX, in.joyY, in.buttons);
+        p->lastSeq = in.clientSeq;
+        p->inputArrived = 1;
+    }
     for (i = 0; i < in.nCmds; i++) {
         uint16_t scan;
         /* Pause/screenshot are client-local presentation ops; server-side
@@ -281,11 +309,14 @@ static void onInput(ServerPlayer *p, struct NetReader *r) {
         if (in.cmds[i] == NC_PAUSE || in.cmds[i] == NC_SCREENSHOT)
             continue;
         scan = netCmdToScan(in.cmds[i]);
-        if (scan)
-            remoteInputPushKey(&p->input, scan);
+        if (scan && !remoteInputPushKey(&p->input, scan)) {
+            /* queue full = explicit rejection: count it, log occasionally */
+            if (++p->cmdDrops <= 4 || (p->cmdDrops & 0xFF) == 0)
+                fprintf(stderr,
+                        "f15server: player %d cmd queue full, dropped #%u\n",
+                        (int)(p - g_players), (unsigned)p->cmdDrops);
+        }
     }
-    p->lastSeq = in.clientSeq;
-    p->inputArrived = 1;
 }
 
 static void dropPlayer(int i) {
@@ -458,7 +489,9 @@ static void onPlayerObjectHit(int16 objIdx) {
 /* ---- tick ---- */
 
 static uint32_t worldHash(void) {
-    /* canonical world hash (plan §24): player ctxs + shared tables */
+    /* canonical world hash (plan §24): shared tables + every live player ctx
+     * (ctxs are memset at init, so padding bytes stay zero and the raw hash
+     * is deterministic) */
     uint32_t h = 2166136261u;
     int i;
     const uint8_t *b;
@@ -471,6 +504,17 @@ static uint32_t worldHash(void) {
     for (i = 0; i < (int)(F15_MAX_PROJECTILES * sizeof(g_projectiles[0])); i++) {
         h ^= b[i];
         h *= 16777619u;
+    }
+    for (i = 0; i < F15_MAX_PLAYERS; i++) {
+        int j;
+        if (!g_players[i].used || !g_players[i].ready)
+            continue;
+        h ^= (uint32_t)i; /* which slot the ctx lives in matters */
+        b = (const uint8_t *)&g_players[i].ctx;
+        for (j = 0; j < (int)sizeof(struct PlayerSim); j++) {
+            h ^= b[j];
+            h *= 16777619u;
+        }
     }
     h ^= (uint32_t)frameTick;
     return h;
@@ -673,6 +717,10 @@ int main(int argc, char **argv) {
         fprintf(stderr, "f15server: asset/boot failure\n");
         return 1;
     }
+    /* every player owns bulletTracks[playerIdx] on the server: a nonfiring
+     * player clears only its own tracer slot, never a teammate's shot */
+    if (g_bulletTrackCount < F15_MAX_PLAYERS)
+        g_bulletTrackCount = F15_MAX_PLAYERS;
     fprintf(stderr, "f15server: world ready, listening on :%d\n", port);
 
     g_net = createGnsTransport();

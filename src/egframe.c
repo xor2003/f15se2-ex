@@ -486,7 +486,14 @@ void tryPlayerFire(void) {
     if (!(frameTick & 1)) {
         return;
     }
-    slot = (frameTick >> 1) % g_bulletTrackCount;
+    /* Player rounds: each resident player owns bulletTracks[g_residentPlayer]
+     * on the server (a nonfiring player clears only its own slot, never a
+     * teammate's tracer). Single-player (resident -1) keeps the original
+     * frame-derived rotating slot. */
+    if (g_residentPlayer >= 0)
+        slot = g_residentPlayer % g_bulletTrackCount;
+    else
+        slot = (frameTick >> 1) % g_bulletTrackCount;
     firing = readAxisInput(0);
     if (!firing) goto no_fire;
     if (g_gunAmmo <= 0) goto no_fire;

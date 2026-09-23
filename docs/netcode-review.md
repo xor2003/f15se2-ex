@@ -70,6 +70,29 @@ New defects found and fixed during gate testing:
   aliased the slot's own name entry (latent UB, ASan abort under
   multi-player state) - self-copy now skipped.
 
+## Round 2 findings (post e0f51a0 + d49a07f)
+
+Second-pass review found 7 further issues plus 3 carry-overs. All fixed
+and verified; build green, 34/34 + 31/31 tests pass.
+
+| # | Issue | Status |
+|---|-------|--------|
+| 1 | [P1] Players overwrite each other's gunfire (shared frame-derived bullet slot) | FIXED - server players own `bulletTracks[g_residentPlayer]`; `g_bulletTrackCount` raised to >=8 at boot so slots 0-7 are per-player and enemy tracers shift to 8-11. `net_sim_tests`: firing player 0's round survives player 1's idle pass and vice versa |
+| 2 | [P1] Victim ctx swap changes the attacker's aircraft profile | FIXED - `fireAirThreat` + its HUD message now read `aircraftTypes[g_simObjects[objIdx].spec]`, not ambient `g_threatSpec` (verified remaining `g_threatSpec` readers at egthreat.c:407/:588 sit inside `updateObjects`' own loop where spec is assigned per-iteration and correctly restored by the swap). Residual wart noted: `threatSpec` is world-loop scratch that happens to live in the ctx; no reader consumes a stale value today |
+| 3 | [P1] Rejected snapshots corrupt live state | FIXED - `netSnapApply` now decodes into a static `SnapTmp`, validates (underrun, count bounds, player-id range/dup, entity-id ranges, frameTick staleness vs last committed tick), then commits. Tests: truncated snap leaves `g_ViewX`/`g_missionTick`/`frameTick`/objects untouched; resend and older ticks rejected; newer accepted; dup player id and out-of-range object id rejected |
+| 4 | [P2] Reliable commands can still disappear + stale input counts as fresh | FIXED - `remoteInputPushKey` returns 0 on full queue; server counts/logs drops (explicit rejection). `onInput` applies axes + readiness only when `clientSeq > lastSeq`; command blocks still execute (reliable stream can legitimately arrive behind newer unreliable axes). Live: sync-step seq 5 -> 1 snap, seq 4 -> none, dup seq 5 -> none, seq 6 -> 1 snap |
+| 5 | [P2] Repeated HELLO resets an existing player | FIXED - duplicate HELLO on a live association re-sends ACK + MISSION_SETUP and returns without touching the ctx. Live: "Autopilot on" -> apAlt=2000 in the own block; re-HELLO -> same slot re-ACKed, apAlt still 2000, knots continue uninterrupted |
+| 6 | [P2] Rendering still changes simulation state | FIXED - HUD draw's `g_groundTargetLock = -1` removed (simTargetLock already performs the identical look-away drop each tick under every ctx); explosion spark flicker uses a private `fxRandomRange` LCG so draw-side consumption can't perturb the sim's `rand()` sequence |
+| 7 | [P2] Outgoing missiles reported as inbound in NETMSG_OBS | FIXED - slots 0-7 keep `targetPlayer`=victim semantics; player-fired slots (>=8, `targetPlayer`=shooter) are inbound only when `targetLock` resolves to the observer's parked REMOTE_PLAYER object. Test covers own shot excluded, foreign threat excluded, enemy shot locked-on-me flagged INBOUND |
+| 8 | [#2 carryover] Capacity admission | FIXED - `slotFree` bounded by `playerCapacity()` = `min(8, F15_MAX_SIM_OBJECTS - g_groundUnitCount)`; a mission without parked-slot storage NAKs instead of accepting un-simulatable players |
+| 9 | [Verification carryover] worldHash must include player ctxs | FIXED - `worldHash` now folds each used+ready player's full PlayerSim (memset-at-init keeps padding deterministic) plus the slot index, alongside the shared tables |
+
+Notes:
+- `onHello` keeps the existing-association check before `slotFree`, so the
+  capacity gate cannot kick a live player out on a re-handshake.
+- The staleness gate resets on each MISSION_SETUP apply, so a reconnecting
+  client accepts its first snapshot regardless of prior tick values.
+
 ## 1. [P1] Remote pause freezes the entire server
 
 NC_PAUSE and NC_SCREENSHOT reach waitForKeyPress(), which waits on the

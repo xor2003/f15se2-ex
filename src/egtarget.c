@@ -344,6 +344,15 @@ void updateTargetLock(void) {
 done:;
 }
 
+/* Cosmetic-only RNG for the explosion spark flicker: deliberately NOT
+ * randomRange()/rand() so drawing can never perturb the sim's deterministic
+ * sequence (headless and rendered runs must produce identical sim state). */
+static uint16 s_fxRandState = 0x5eed;
+static int fxRandomRange(int maxVal) {
+    s_fxRandState = (uint16)(s_fxRandState * 25173 + 13849);
+    return (int)(((long)(s_fxRandState >> 1) * (long)maxVal) >> 15);
+}
+
 /* World-space radius of an explosion burst, in fine map units (the alt axis
  * shares the same 1/32-coarse scale). Tunable by eye. */
 static const int EXPLOSION_WORLD_RADIUS = 0x20;
@@ -616,20 +625,20 @@ void drawWorldEffects(void) {
             long hy = (long)(uint16)g_hitMapY << 5;
             radius = EXPLOSION_WORLD_RADIUS;
             for (idx = 0; idx < 8; idx++) {
-                int color = randomRange(4) + COLOR_LIGHTRED;
+                int color = fxRandomRange(4) + COLOR_LIGHTRED;
                 long ex, ey, ez;
                 if (g_hitAlt > 0) {
                     /* airburst: scatter in a world-space sphere around the hit */
-                    ex = hx + randomRange(radius << 1) - radius;
-                    ey = hy + randomRange(radius << 1) - radius;
-                    ez = g_hitAlt + randomRange(radius << 1) - radius;
+                    ex = hx + fxRandomRange(radius << 1) - radius;
+                    ey = hy + fxRandomRange(radius << 1) - radius;
+                    ez = g_hitAlt + fxRandomRange(radius << 1) - radius;
                 } else {
                     /* ground burst: fan horizontally and plume upward */
-                    tmp = randomRange(0x8000) - 0x4000;
-                    dist = randomRange(radius);
+                    tmp = fxRandomRange(0x8000) - 0x4000;
+                    dist = fxRandomRange(radius);
                     ex = hx + sinMul(tmp, dist);
                     ey = hy - cosMul(tmp, dist);
-                    ez = g_hitAlt + randomRange(radius);
+                    ez = g_hitAlt + fxRandomRange(radius);
                 }
                 drawWorldLine(hx, hy, g_hitAlt, ex, ey, (int)ez, color);
             }
@@ -765,10 +774,6 @@ void drawHudWorldOverlay(void) {
                                             ((uint16)g_planeTable.planes[wpIdx].mapY >> 11) * 16] &
                              1) != 0)) {
                     drawStringActivePage("No Target", 252, 142, 0x0f);
-                }
-
-                if (abs((int16)((g_ourHead + g_viewHeadingOffset) - g_targetBearing)) > 0x2000) {
-                    g_groundTargetLock = -1;
                 }
             }
         }

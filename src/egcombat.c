@@ -37,7 +37,12 @@ void fireAirThreat(int16 objIdx) {
     uint16 acqRange;
     int16 h, idx, slot, k, l, range, n;
 
-    idx = aircraftTypes[g_threatSpec].modelId;
+    /* Attacker profile from the firing object itself, not the ambient
+     * g_threatSpec: the server swaps in the victim's ctx before calling this,
+     * which restores the victim's stale threatSpec and would silently change
+     * the attacker's model. In single-player g_threatSpec == objIdx.spec here
+     * anyway (updateObjects assigns it at the top of this iteration). */
+    idx = aircraftTypes[g_simObjects[objIdx].spec].modelId;
 
     range = computeThreatRangeBearing(
         g_simObjects[objIdx].posX,
@@ -93,7 +98,7 @@ void fireAirThreat(int16 objIdx) {
 
                                 strcpy(strBuf, sams[idx].name);
                                 strcat(strBuf, " fired by ");
-                                strcat(strBuf, aircraftTypes[g_threatSpec].name);
+                                strcat(strBuf, aircraftTypes[g_simObjects[objIdx].spec].name);
                                 hudMessage(strBuf);
 
                                 makeSound(6, 2);
