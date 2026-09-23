@@ -2142,17 +2142,33 @@ loses its sub-word fraction exactly there on both backends. The plane
 reaches 0x7e00 around tick 250 on fixed and stays pinned for the
 remaining ~410 ticks of the 660-tick run (`kWrapTicks`), sliding ~200
 map words south along the bound — sustained clamp contact under power,
-not a single crossing. The wrapped map-ring arithmetic (`mapOffset` /
-`mapRange` shortest-delta semantics) is exercised by the
-math-boundary tests and the combat profile's contact range math; this
-profile covers the player clamp half of the boundary story.
+not a single crossing.
+
+The profile also covers the object side of the seam. The playable
+bounds sit inside a contiguous 16-bit map ring: the unreachable band
+`[0x7e01,0x00ff]` spans the ring's `0x0000` point. Band objects are
+ranged by their shortest ring delta — the band's near half resolves
+east of the player, its far half (past the ring midpoint) resolves
+west. The seed places a usable base
+(`flags 0x601`, the bits the scan requires) at mapX 0xff00 — deep in
+the band, where the raw delta 0x8100 does not fit `int16`. The
+per-frame nearest-base scan (`egframe.c`) therefore can only answer
+~0x7f00 through the 16-bit ring wrap; a hypothetical unwrapped scan
+would hit the 0x7fff cap instead. Both backends produce the wrapped
+value (fixed 32606, modern 32597 — the fractional trajectory delta),
+the base wins the scan (`g_closestThreatIndex == 4`), the retarget
+block moves `waypoints[3]` to 0xff00,0x4000, and the base's ground
+contacts respawn at seam-adjacent coordinates.
 
 `boundaryRequire` asserts: eastward advance from the seed (post-clamp
 map word `g_viewX_` past 0x7c40), bound contact (`>= 0x7e00`),
 sustained pinning (`>= 60` clamped ticks), the airframe keeps flying
 (`speedUnits(g_velocity) > 0x100` while pinned — the clamp pins
-position, it does not kill the plane), and no leak past the bound
-(`max g_viewX_ <= 0x7e00` across all 660 ticks).
+position, it does not kill the plane), no leak past the bound
+(`max g_viewX_ <= 0x7e00` across all 660 ticks), the band base won
+the scan (index 4), its reported range is the wrapped ring distance
+(`0x7e80..0x7fe0`, not the 0x7fff cap), and `waypoints[3]` retargeted
+to the band coordinates.
 `sortie_wrap_parity_tests` pins `sortie_wrap_parity.trace`;
 `modern_sortie_wrap_tests` pins `sortie_wrap_fields_modern.trace` —
 modern's pinned trace shows the same bound contact with its fractional
@@ -2400,12 +2416,12 @@ kill (the modern run exercises the same code but decorrelates to a
 near-miss). Landing outcome is covered: the `--land` profile flies the
 recovery corridor to "Safe Landing" and `finalizeMission(0)` on both
 backends. Theater-edge contact is covered: the `--wrap` profile holds
-the player pinned against the east bound under power for ~400 ticks on
-both backends. Still missing: real mission-file loads, object/contact
-wrap-seam sortie scenarios, interactive `.bbx` recordings, real-time
-pacing, and multi-platform runs — so modern coverage remains a
-scripted-profile acceptance gate, not a certification of the whole
-game.
+the player pinned against the east bound under power for ~400 ticks
+while the per-frame scan ranges a band base at 0xff00 through the
+16-bit ring wrap on both backends. Still missing: real mission-file
+loads, interactive `.bbx` recordings, real-time pacing, and
+multi-platform runs — so modern coverage remains a scripted-profile
+acceptance gate, not a certification of the whole game.
 
 Reproduce standalone Clang checks from the repository root:
 

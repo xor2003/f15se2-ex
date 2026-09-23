@@ -759,6 +759,9 @@ struct BoundaryCheck {
     bool approached = false;
     bool edgeSeen = false;
     bool speedKept = false;
+    bool seamSeen = false;
+    bool seamRangeKept = false;
+    bool waypointMoved = false;
     int clampedTicks = 0;
     int16 maxX = 0;
 };
@@ -773,6 +776,16 @@ inline void boundaryObserve(BoundaryCheck &b, int) {
         b.edgeSeen = true;
         ++b.clampedTicks;
         if (legacy::speedUnits(g_velocity) > 0x100) b.speedKept = true;
+        /* While pinned at the east bound, the seeded base at mapX 0xff00
+         * is 0x8100 words ahead — past int16 range — so the scan's
+         * ~0x7f00 answer can only come through the 16-bit ring wrap. */
+        if (g_closestThreatIndex == 4) b.seamSeen = true;
+        if (g_closestThreatIndex == 4 &&
+            (int)g_nearestThreatRange >= 0x7e80 &&
+            (int)g_nearestThreatRange <= 0x7fe0)
+            b.seamRangeKept = true;
+        if (waypoints[3].mapX == 0xff00 && waypoints[3].mapY == 0x4000)
+            b.waypointMoved = true;
     }
 }
 inline void boundaryRequire(const BoundaryCheck &b) {
@@ -782,6 +795,13 @@ inline void boundaryRequire(const BoundaryCheck &b) {
     require(b.speedKept, "wrap: velocity died at the bound (clamp killed "
                            "the plane instead of pinning position)");
     require(b.maxX <= 0x7e00, "wrap: position leaked past the clamp bound");
+    require(b.seamSeen, "wrap: nearest-base scan never picked the "
+                        "band base (index 4) at the bound");
+    require(b.seamRangeKept, "wrap: band base range not the wrapped "
+                             "ring distance (expected ~0x7f00, not the "
+                             "0x7fff cap an unwrapped scan would hit)");
+    require(b.waypointMoved, "wrap: waypoints[3] never retargeted to the "
+                             "band base");
 }
 
 /* worldExportToEnd round-trip: run the real EGAME -> END debrief export after
@@ -990,6 +1010,16 @@ inline void runTick(int tick, Profile profile = Profile::kSortie) {
         g_ViewY = legacy::viewY((0x8000 - 0x4000) * 32);
         g_ourHead = legacy::angleFromWord((int16)0x4000);
         rebuildOrientation();
+        /* A usable base deep in the unreachable band at mapX 0xff00: the
+         * raw delta 0x8100 does not fit int16, so the nearest-base scan at
+         * egframe.c:261 can only produce its ~0x7f00 range through the
+         * 16-bit ring wrap — 0x7fff (cap) would prove the wrap never ran.
+         * It then retargets waypoints[3] and respawns the base's ground
+         * contacts at the seam-adjacent coordinates. */
+        g_planeTable.planes[4].mapX = 0xff00;
+        g_planeTable.planes[4].mapY = 0x4000;
+        g_planeTable.planes[4].active = 1;
+        g_planeTable.planes[4].flags = 0x601;
     }
     if (profile == Profile::kLand && tick == 0) {
         /* Pretend both targets were destroyed — the recovery leg is the path
