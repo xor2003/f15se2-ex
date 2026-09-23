@@ -2008,15 +2008,31 @@ waypoints through to the recovery leg. Weapon key presses clear only
 import populated the tables (plane/unit counts, waypoint target, non-empty
 name table), autopilot altitude-hold engaged, at least one AI object moved,
 the threat alert engaged, a weapon left the rail (ammo spend, gun spend,
-or a live projectile), a projectile tracked a live `targetRef` (guided
-pursuit), and some projectile completed its launch-to-ttl-expiry lifecycle
-on a single slot. In practice the run shows locks, launches, gun hits,
-enemy missile pursuit of a maneuvering target, and incoming damage; the
-player's own radar lock never acquires (`g_targetRange` stays 0 — the
-designate never finds a painted contact in cone), so player-launched
-intercept is honestly not yet covered. The profile runs 900 ticks
-(`kCombatTicks`): the extra horizon covers a late alert engagement and the
-long guided-pursuit tail. `sortie_combat_parity_tests` pins per-tick hashes
+or a live projectile), a projectile tracked a target (guided pursuit —
+player missiles guide on `targetLock`, the `g_airTargetLock`/
+`g_groundTargetLock` snapshot at launch; enemy shots carry a nonzero
+`targetRef`), some projectile completed its launch-to-ttl-expiry lifecycle
+on a single slot, and `updateTargetLock` acquired an air contact.
+
+The targeting scan lives in the render path (`renderFrame()` in egsys.c
+calls `updateTargetLock()`), not in `updateFrame()`, so the combat profile
+initializes a real rasterizer (`r3d_init()`, software backend under the
+dummy SDL video driver) and runs `renderFrame()` once per tick — the same
+1:1 render:sim ratio production uses. A patrol plane (`ENEMY_AIR`, no
+`INTERCEPTOR`, so it holds a steady line instead of evading) is seeded
+co-altitude on the outbound track: the player locks it, the AIM-9M launch
+stores the contact in `targetLock`, and the guided shot closes head-on.
+The proximity-kill test needs `(alt gap)>>5 + map range < detR` (~20), so
+engagement geometry matters: the fixed backend pins a verified
+`SIMOBJ_DESTROYED` kill at tick ~267 (`requireKill`), while the modern
+run exercises the identical lock/launch/guidance/proximity code but
+decorrelates to a near-miss (~23 vs detR ~20), so `killSeen` is observed
+there but not required — the kill outcome is pinned on the deterministic
+fixed replay. In practice the run shows locks, launches, gun hits, a
+player-launched guided intercept with a kill, enemy missile pursuit, and
+incoming damage. The profile runs 900 ticks (`kCombatTicks`): the extra
+horizon covers a late alert engagement and the long guided-pursuit tail.
+`sortie_combat_parity_tests` pins per-tick hashes
 (`sortie_combat_parity.trace`, HEAD-recorded — the fixture post-dates
 e28b9a4); `modern_sortie_combat_tests` pins `sortie_combat_fields_modern`
 exactly plus the same assertions, with the fixed-envelope/discrete layers
@@ -2267,11 +2283,13 @@ Current state vs that checklist: the scripted sortie harness now exists and
 both backends run it (fixed exact golden; modern pin + envelope + discrete
 transitions, see the acceptance section). Loaded-mission coverage is
 synthetic-fixture import (`worldImportToEgame`) rather than real mission
-files, which are not committed assets. Missile pursuit is covered through
-lock, guidance and ttl expiry; a verified kill and a landing outcome are
-not — the player's radar never locks in the current fixture and no profile
-flies a corridor approach. Still missing: landing outcome, player-lock
-intercept, real mission-file loads, wrap-boundary scenarios, interactive
+files, which are not committed assets. Missile pursuit is covered end to
+end: the combat profile runs the real render path, `updateTargetLock`
+acquires an air contact, the player-launched missile guides on
+`targetLock`, and the fixed backend pins a verified `SIMOBJ_DESTROYED`
+kill (the modern run exercises the same code but decorrelates to a
+near-miss). Still missing: a landing outcome (no profile flies a corridor
+approach), real mission-file loads, wrap-boundary scenarios, interactive
 `.bbx` recordings, real-time pacing, and multi-platform runs — so modern
 coverage remains a scripted-profile acceptance gate, not a certification
 of the whole game.

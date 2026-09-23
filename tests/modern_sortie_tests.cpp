@@ -225,7 +225,9 @@ int run(bool record, const char *recordPath, Profile profile) {
     if (loop) loopRequire(loopCheck);
     if (stick) stickRequire(stickCheck);
     if (combat) {
-        combatRequire(combatCheck);
+        /* Modern decorrelates from the fixed engagement — killSeen is observed
+         * but not required (the fixed parity run pins the verified kill). */
+        combatRequire(combatCheck, false);
         verifyWorldExport();
     }
     if (record) {

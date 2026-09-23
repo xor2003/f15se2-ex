@@ -46,6 +46,9 @@
 
 void stepFlightModel();
 void updateFrame();
+void renderFrame();
+void r3d_init();
+void r3d_shutdown();
 void rebuildOrientation();
 
 /* ---- START-side mission state (stdata.c). A real mission load fills these;
@@ -549,7 +552,16 @@ inline void seedCombatMission() {
         return u;
     };
     const int kFighter = SIMOBJ_ACTIVE | SIMOBJ_ALIVE | SIMOBJ_ENEMY_AIR | SIMOBJ_INTERCEPTOR;
-    flightUnits[0] = unit(1, 0x2e00, 0x2e00, 2600, (int16)0x8000, 0, kFighter, 450);
+    /* [0] sits on the outbound track (the autopilot leg runs toward
+     * decreasing mapY) at the player's cruise altitude: the player passes
+     * within ~100 map words of it, so updateTargetLock's auto-acquire — and
+     * the A2A missile fired into that lock — has a real lock/pursuit/intercept
+     * to exercise. The proximity kill wants (alt gap)>>5 + map range < ~22:
+     * a low target just gets dove under, and an evading interceptor opens
+     * too much pursuit lag — so it's a co-altitude patrol plane (ENEMY_AIR,
+     * no INTERCEPTOR) holding a steady head-on line. */
+    flightUnits[0] = unit(1, 0x2890, 0x2400, 3780, (int16)0x8000, 0,
+                          SIMOBJ_ACTIVE | SIMOBJ_ALIVE | SIMOBJ_ENEMY_AIR, 280);
     /* [1] is overwritten by the wingman seed in mission init — leave a husk. */
     flightUnits[1] = unit(1, 0x2800, 0x2800, 0, 0, 0, 0, 0);
     flightUnits[2] = unit(3, 0x3a00, 0x2c00, 2800, (int16)0xc000, 2, kFighter, 420);
@@ -603,6 +615,8 @@ struct CombatCheck {
     bool weaponSeen = false;
     bool pursuitSeen = false;   /* a projectile tracked a live targetRef */
     bool lifecycleSeen = false; /* launch -> ttl expiry on one slot */
+    bool airLockSeen = false;   /* updateTargetLock acquired an air contact */
+    bool killSeen = false;      /* a live sim object gained SIMOBJ_DESTROYED */
     bool projLive[12] = {};
     int16 seedX[8] = {};
     int16 seedY[8] = {};
@@ -622,6 +636,7 @@ inline void combatObserve(CombatCheck &c, int tick) {
     if (!g_threatActiveTimer.isZero() || g_activeThreatCount > 0) c.alertSeen = true;
     if (tick > 2) {
         for (int i = 0; i < 8; ++i) {
+            if (g_simObjects[i].flags.w & SIMOBJ_DESTROYED) c.killSeen = true;
             if ((g_simObjects[i].flags.w & SIMOBJ_ALIVE) &&
                 (g_simObjects[i].posX != (uint16)c.seedX[i] ||
                  g_simObjects[i].posY != (uint16)c.seedY[i])) c.aiMoved = true;
@@ -636,11 +651,20 @@ inline void combatObserve(CombatCheck &c, int tick) {
     for (int i = 0; i < 12; ++i) {
         if (!g_projectiles[i].ttl.isZero()) {
             c.projLive[i] = true;
-            if (g_projectiles[i].targetRef != 0) c.pursuitSeen = true;
+            /* Player missiles guide on targetLock (the g_airTargetLock/
+             * g_groundTargetLock snapshot at launch); enemy shots carry a
+             * nonzero targetRef. Either marks a guided pursuit. */
+            if (g_projectiles[i].targetRef != 0 ||
+                g_projectiles[i].targetLock >= 0) c.pursuitSeen = true;
         } else if (c.projLive[i]) c.lifecycleSeen = true;
     }
+    if (g_airTargetLock >= 0 && g_airTargetLock < 0x80) c.airLockSeen = true;
 }
-inline void combatRequire(const CombatCheck &c) {
+/* requireKill: the fixed backend's pinned engagement kills the on-track
+ * interceptor every run. The modern trajectory legitimately decorrelates —
+ * whether its shot connects depends on where the drift lands, so killSeen is
+ * observed but only required where it's deterministic. */
+inline void combatRequire(const CombatCheck &c, bool requireKill = true) {
     require(c.importSeen, "combat: worldxfer import did not populate the tables");
     require(c.autopilotSeen, "combat: autopilot altitude-hold never engaged");
     require(c.aiMoved, "combat: no AI object ever moved");
@@ -648,6 +672,9 @@ inline void combatRequire(const CombatCheck &c) {
     require(c.weaponSeen, "combat: no weapon ever left the rail");
     require(c.pursuitSeen, "combat: no projectile ever tracked a target");
     require(c.lifecycleSeen, "combat: no projectile completed its ttl lifecycle");
+    require(c.airLockSeen, "combat: updateTargetLock never acquired an air contact");
+    if (requireKill)
+        require(c.killSeen, "combat: no air target was destroyed");
 }
 
 /* worldExportToEnd round-trip: run the real EGAME -> END debrief export after
@@ -758,6 +785,10 @@ inline void initSortie(Profile profile = Profile::kSortie) {
         /* The mission import places the player's start (view anchors on
          * planes[targets[0].baseIdx]); don't re-pin g_ViewX/Y here. */
         seedCombatMission();
+        /* Combat runs renderFrame() per tick (updateTargetLock lives in the
+         * render path): register a real rasterizer. Software always claims;
+         * it draws into the dummy video's frame buffer. */
+        r3d_init();
     } else {
         g_ViewX = legacy::viewX(5000);
         g_ViewY = legacy::viewY(-5000);
@@ -811,6 +842,7 @@ inline void teardown() {
     gameData = nullptr;
     commData = nullptr;
     if (vjoyId()) SDL_DetachVirtualJoystick(vjoyId());
+    r3d_shutdown();
     gfx_videoShutdown();
     SDL_Quit();
 }
@@ -826,6 +858,12 @@ inline void runTick(int tick, Profile profile = Profile::kSortie) {
     applyScheduleStick(tick, profile);
     stepFlightModel();
     updateFrame();
+    /* kCombat also runs a render frame per tick: production calls
+     * renderFrame() from gameMainLoop after the sim steps, and
+     * updateTargetLock() — the air-target scan that acquires locks —
+     * lives inside it. Without this the lock path never runs in the
+     * harness (g_targetRange stays 0 the whole sortie). */
+    if (profile == Profile::kCombat) renderFrame();
     /* Mission init ran on tick 0 (deterministic seed via g_inputDisabled);
      * enable the scripted inputs from here on. */
     if (tick == 0) g_inputDisabled = 0;
