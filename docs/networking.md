@@ -614,6 +614,20 @@ Example:
 f15server --mission desert1 --port 27015 --seed 12345
 ```
 
+The game executable itself also carries the server, so a separate binary is
+not required:
+
+```bash
+f15se2-ex --server --game /path/to/f15 --port 27015   # in-process dedicated server
+f15se2-ex --host --port 27015 --name Viper            # spawn local server + join it
+f15se2-ex --connect 10.0.0.5 --name Viper             # joins 10.0.0.5:27015
+```
+
+`--host` forks the same executable with `--server`, waits for its
+"listening on" line, then connects to `127.0.0.1`. The child dies with the
+client (atexit reaper + `PR_SET_PDEATHSIG`), so no orphan servers remain.
+`--connect` without an explicit port defaults to `27015`.
+
 Conceptually:
 
 ```text

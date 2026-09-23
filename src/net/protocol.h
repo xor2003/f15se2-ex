@@ -16,6 +16,7 @@
 /* v3: NetPlayerState gained damageSeq - any layout change MUST bump this or
  * mixed builds pass the handshake then decode incompatible player blocks. */
 #define F15_NET_VERSION 3
+#define F15_NET_DEFAULT_PORT 27015 /* --connect with no :port lands here */
 #define F15_NET_TICKRATE 15 /* legacy sim rate: g_frameRateScaling */
 #define F15_MAX_PLAYERS 8
 #define F15_MAX_COMMANDS 4  /* discrete commands a client can queue per tick */

@@ -251,6 +251,13 @@ static void gatherInput(struct NetInput *in) {
 /* ---- main ---- */
 
 int netClientMain(const char *hostPort, const char *name) {
+    char addrBuf[256];
+    /* a bare host with no ':port' lands on the well-known server port */
+    if (!strchr(hostPort, ':')) {
+        snprintf(addrBuf, sizeof(addrBuf), "%s:%d", hostPort,
+                 F15_NET_DEFAULT_PORT);
+        hostPort = addrBuf;
+    }
     if (!verifyGameAssets()) {
         fprintf(stderr, "netclient: game assets not found\n");
         return 1;

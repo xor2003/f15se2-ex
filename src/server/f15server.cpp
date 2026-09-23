@@ -45,7 +45,7 @@ void fireGroundThreat(int16 planeIdx); /* egthreat.c (file-local decl there) */
 /* server tick on the wire: the sim's frameTick, widened */
 static NetTick srvTick(void) { return (NetTick)(uint16_t)g_missionTick; }
 
-#define DEFAULT_PORT 27015
+#define DEFAULT_PORT F15_NET_DEFAULT_PORT
 
 struct ServerPlayer {
     int used;
@@ -774,7 +774,10 @@ static void usage(void) {
     exit(1);
 }
 
-int main(int argc, char **argv) {
+/* Entry point shared by the standalone f15server binary (server_main.cpp)
+ * and `f15se2-ex --server` (f15.c) - the single game executable can also be
+ * the dedicated server. */
+int f15ServerMain(int argc, char **argv) {
     int port = DEFAULT_PORT;
     int seed = 12345, theater = 0, difficulty = 0;
     const char *gameDir = getenv("F15SE2_DIR");
@@ -826,13 +829,15 @@ int main(int argc, char **argv) {
     /* server player rounds share the whole player pool: free-slot claim,
      * rotating overwrite under saturation; last 4 slots stay enemy tracers */
     g_bulletTrackCount = F15_MAX_PLAYERS * 2;
-    fprintf(stderr, "f15server: world ready, listening on :%d\n", port);
 
     g_net = createGnsTransport();
     if (!g_net || !g_net->listen((uint16_t)port)) {
         fprintf(stderr, "f15server: listen failed\n");
         return 1;
     }
+    /* --host waits on this line for readiness: it must print only once the
+     * socket actually accepts. */
+    fprintf(stderr, "f15server: world ready, listening on :%d\n", port);
 
     {
         uint64_t nextNs = SDL_GetTicksNS();

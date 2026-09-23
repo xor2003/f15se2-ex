@@ -586,12 +586,14 @@ if(F15_NET)
     target_compile_definitions(f15net PUBLIC F15_NET=1)
 
     target_compile_definitions(f15se2_core PUBLIC F15_NET=1)
-    target_sources(f15se2 PRIVATE ${SRC_DIR}/net/netclient.cpp)
+    target_sources(f15se2 PRIVATE ${SRC_DIR}/net/netclient.cpp
+                                  ${SRC_DIR}/server/f15server.cpp)
     # f15net->core back-refs (snapshot.cpp calls egui/egtgt2): repeat core
     # after f15net so the static linker resolves them.
     target_link_libraries(f15se2 PRIVATE f15net f15se2_core)
 
-    add_executable(f15server ${SRC_DIR}/server/f15server.cpp)
+    add_executable(f15server ${SRC_DIR}/server/f15server.cpp
+                             ${SRC_DIR}/server/server_main.cpp)
     target_include_directories(f15server PRIVATE ${SRC_DIR} ${SRC_DIR}/shared)
     target_link_libraries(f15server PRIVATE f15net f15se2_core)
 
