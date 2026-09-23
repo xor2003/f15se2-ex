@@ -1960,9 +1960,27 @@ plus the same assertions; the fixed-envelope/discrete layers are skipped
 because pole-band trajectories decorrelate by design and modern takes the
 analog input path.
 
-Follow-up option: a stick-active variant of the sortie schedule would change
-its trajectory, so its golden would need re-recording at e28b9a4 with a
-compat-shimmed harness (the tag predates several typed globals).
+## Real-stick sortie oracle (kStick)
+
+The follow-up is done: `--stick` replays a 660-tick stick-active sortie whose
+golden `sortie_stick_parity.trace` was recorded on the **pre-migration commit
+e28b9a4** — a detached worktree built with the 6babd68-era harness plus the
+same virtual-joystick injection. Because the tag and HEAD hash identical
+field groupings and the fixed backend makes typed wrappers transparent to
+the hash, equal hashes prove the entire migration series preserved
+fixed-backend behavior under live stick input: climb, banked and counter
+turns, push-over, pull-out, a sustained turn and a descent leg, all inside
+the survivable envelope (full throws spiral into terrain within ~170 ticks).
+
+`stickRequire` asserts non-degeneracy — nonzero `pitchIn`/`rollIn` inside
+every deflection window — so a schedule that silently lands inside the
+joystick deadzone (|raw| < 8000, bytes 0x62..0x9e quantize to centre in
+`axisForByte`) fails loudly instead of pinning level flight. That failure
+mode is real: an early draft used 0x68/0x98/0x78 "gentle" values that all
+quantize to centre, which presented as an apparent SDL axis-event loss until
+`SDL_SendJoystickAxis` tracing showed the axis was being centred exactly as
+programmed. `modern_sortie_stick_tests` pins
+`sortie_stick_fields_modern.trace` exactly plus the same assertions.
 
 ## Combat sortie checkpoint (loaded-mission coverage)
 

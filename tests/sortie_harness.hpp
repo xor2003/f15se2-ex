@@ -113,7 +113,7 @@ inline void pushKey(SDL_Scancode scancode, SDL_Keycode key) {
  * synthetic mission through the real worldxfer import (enemy interceptors,
  * target sites, name pool, waypoints) and flies it under autopilot while the
  * weapon designate/fire keys run. */
-enum class Profile { kSortie, kLoop, kCombat };
+enum class Profile { kSortie, kLoop, kCombat, kStick };
 
 /* Discrete cockpit commands for this tick, pushed before the pump so the
  * translated BIOS word reaches the key ring stepFlightModel drains. */
@@ -193,10 +193,22 @@ inline void applyScheduleStick(int tick, Profile profile) {
         /* Sustained pull (stick back = nose up): through the vertical and
          * over the top — the pole-fold path. */
         if (tick >= 200 && tick < 470) pitch = 0xda;
+    } else if (profile == Profile::kStick) {
+        /* Moderate stick deflections that keep the airframe airborne: full
+         * throws spiral into terrain inside a few dozen ticks. The golden for
+         * this profile was recorded on the pre-migration commit e28b9a4 with
+         * a virtual stick — an oracle for real stick input, not HEAD state. */
+        if (tick >= 60 && tick < 140) pitch = 0xa8;               // climb
+        else if (tick >= 140 && tick < 220) roll = 0xa8;          // banked turn
+        else if (tick >= 220 && tick < 300) roll = 0x58;          // counter-turn
+        else if (tick >= 300 && tick < 360) pitch = 0x58;         // push over
+        else if (tick >= 360 && tick < 430) pitch = 0xa8;         // pull out
+        else if (tick >= 430 && tick < 540) roll = 0xa8;          // sustained turn
+        else if (tick >= 540 && tick < 640) pitch = 0x58;         // descend
     }
     /* kSortie intentionally stays centred: its golden was recorded while
      * byte writes were being absorbed by updateStick — i.e. it pins a
-     * centered-stick sortie. Real stick coverage lives in kLoop. */
+     * centered-stick sortie. Real stick coverage lives in kLoop/kStick. */
     SDL_Joystick *stick = SDL_GetJoystickFromID(vjoyId());
     if (stick) {
         SDL_SetJoystickVirtualAxis(stick, 0, axisForByte(roll));
@@ -459,6 +471,25 @@ inline void loopRequire(const LoopCheck &c) {
     require(c.pitchInputSeen, "loop: stick input never reached the sim");
     require(c.maxPitchMag >= 0x3000, "loop: never entered the pole band");
     require(c.altMax - c.altMin >= 4000, "loop: no climb");
+}
+
+/* The stick profile's deflections must actually reach the sim in both axes —
+ * a schedule that lands inside the joystick deadzone (|raw|<8000, bytes
+ * 0x62..0x9e) records level flight and would pin nothing. */
+struct StickCheck {
+    bool pitchSeen = false, rollSeen = false;
+};
+inline void stickObserve(StickCheck &c, int tick) {
+    const auto f = readFlight();
+    const bool pitchWindow = (tick >= 60 && tick < 140) || (tick >= 300 && tick < 430) ||
+                             (tick >= 540 && tick < 640);
+    const bool rollWindow = (tick >= 140 && tick < 300) || (tick >= 430 && tick < 540);
+    if (pitchWindow && (std::int32_t)f.pitchIn != 0) c.pitchSeen = true;
+    if (rollWindow && (std::int32_t)f.rollIn != 0) c.rollSeen = true;
+}
+inline void stickRequire(const StickCheck &c) {
+    require(c.pitchSeen, "stick: pitch deflection never reached the sim");
+    require(c.rollSeen, "stick: roll deflection never reached the sim");
 }
 
 inline void dumpMission() {
@@ -765,13 +796,15 @@ inline void teardown() {
     SDL_Quit();
 }
 
-/* Runs one scripted tick: scheduled keys + stick axis -> pump -> sim step.
- * The virtual axis is set before the pump so every reader this tick (the
- * pump's updateStick bookkeeping, then the step's own re-pump) sees it. */
+/* Runs one scripted tick: scheduled keys -> pump -> stick axis -> sim step.
+ * The virtual axis is set after the pump, matching the tag-side harness that
+ * recorded the stick oracle; the value persists on the device until the next
+ * set, so every reader (this pump's bookkeeping, the step's own re-pump, and
+ * all later ticks) sees the current schedule position. */
 inline void runTick(int tick, Profile profile = Profile::kSortie) {
     pushScheduleKeys(tick, profile);
-    applyScheduleStick(tick, profile);
     input_pumpEvents();
+    applyScheduleStick(tick, profile);
     stepFlightModel();
     updateFrame();
     /* Mission init ran on tick 0 (deterministic seed via g_inputDisabled);
