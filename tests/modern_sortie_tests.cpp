@@ -111,6 +111,7 @@ int run(bool record, const char *recordPath, Profile profile) {
      * the stick sortie through sustained deflection — all pin against their
      * own modern golden only. */
     const bool pinnedOnly = loop || combat || stick;
+    const int ticks = ticksForProfile(profile);
     std::ofstream modernGolden;
     std::ifstream modernIn, fixedIn;
     const char *goldenName = loop ? "sortie_loop_fields_modern.trace"
@@ -120,7 +121,7 @@ int run(bool record, const char *recordPath, Profile profile) {
     if (record) {
         modernGolden.open(recordPath, std::ios::binary | std::ios::trunc);
         require(modernGolden.good(), "cannot open modern golden output");
-        modernGolden << "sortie_fields_modern 1 seed " << kSeed << " ticks " << kSortieTicks << "\n";
+        modernGolden << "sortie_fields_modern 1 seed " << kSeed << " ticks " << ticks << "\n";
     } else {
         modernIn.open((std::string(F15_GOLDEN_DIR) + "/" + goldenName).c_str(), std::ios::binary);
         require(modernIn.good(), "cannot open modern field golden (record with 'record <file> --loop|--combat|--stick')");
@@ -148,7 +149,7 @@ int run(bool record, const char *recordPath, Profile profile) {
     CombatCheck combatCheck;
     StickCheck stickCheck;
 
-    for (int tick = 0; tick < kSortieTicks; ++tick) {
+    for (int tick = 0; tick < ticks; ++tick) {
         runTick(tick, profile);
         const auto snap = snapFields();
         if (loop) loopObserve(loopCheck, tick);
@@ -229,7 +230,7 @@ int run(bool record, const char *recordPath, Profile profile) {
     }
     if (record) {
         require(modernGolden.good(), "modern golden write failed");
-        std::fprintf(stderr, "recorded %d modern field ticks to %s\n", kSortieTicks, recordPath);
+        std::fprintf(stderr, "recorded %d modern field ticks to %s\n", ticks, recordPath);
         return 0;
     }
     {
@@ -267,22 +268,22 @@ int run(bool record, const char *recordPath, Profile profile) {
     if (loop) {
         std::printf("modern loop: %d ticks pinned; pole band traversed "
                     "(max pitch magnitude %u words, altitude range %u)\n",
-                    kSortieTicks, loopCheck.maxPitchMag,
+                    ticks, loopCheck.maxPitchMag,
                     loopCheck.altMax - loopCheck.altMin);
         return 0;
     }
     if (combat) {
         std::printf("modern combat: %d ticks pinned; mission import, AI "
                     "maneuver, alert and weapon paths all engaged\n",
-                    kSortieTicks);
+                    ticks);
         return 0;
     }
     if (stick) {
         std::printf("modern stick: %d ticks pinned; stick input verified live "
-                    "in both axes\n", kSortieTicks);
+                    "in both axes\n", ticks);
         return 0;
     }
-    std::printf("modern sortie: %d ticks pinned, envelope ok; worst vs fixed:\n", kSortieTicks);
+    std::printf("modern sortie: %d ticks pinned, envelope ok; worst vs fixed:\n", ticks);
     for (const char *k : {"f.fineX", "f.fineY", "f.alt", "f.head", "f.roll", "f.knots"})
         std::printf("  %-8s max %llu (tick %d)\n", k,
                     (unsigned long long)maxDiff[k], maxTick[k]);

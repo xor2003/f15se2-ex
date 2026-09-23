@@ -38,27 +38,29 @@ using namespace sortie;
 /* `fields <file>` records the named per-tick field snapshot that
  * modern_sortie_tests compares against with tolerances. */
 int recordFields(const char *path, Profile profile) {
+    const int ticks = ticksForProfile(profile);
     std::ofstream trace(path, std::ios::binary | std::ios::trunc);
     require(trace.good(), "cannot open field trace output");
-    trace << "sortie_fields_trace 1 seed " << kSeed << " ticks " << kSortieTicks << "\n";
-    for (int tick = 0; tick < kSortieTicks; ++tick) {
+    trace << "sortie_fields_trace 1 seed " << kSeed << " ticks " << ticks << "\n";
+    for (int tick = 0; tick < ticks; ++tick) {
         runTick(tick, profile);
         trace << tick;
         for (const auto &f : snapFields()) trace << ' ' << f.first << '=' << f.second;
         trace << '\n';
         require(trace.good(), "field trace write failed");
     }
-    std::fprintf(stderr, "recorded %d field ticks to %s\n", kSortieTicks, path);
+    std::fprintf(stderr, "recorded %d field ticks to %s\n", ticks, path);
     return 0;
 }
 
 int runSortie(const char *path, bool record, bool dump, Profile profile) {
     std::ifstream golden;
     std::ofstream trace;
+    const int ticks = ticksForProfile(profile);
     if (record) {
         trace.open(path, std::ios::binary | std::ios::trunc);
         require(trace.good(), "cannot open trace output");
-        trace << "sortie_parity_trace 1 seed " << kSeed << " ticks " << kSortieTicks << "\n";
+        trace << "sortie_parity_trace 1 seed " << kSeed << " ticks " << ticks << "\n";
     } else if (!dump) {
         golden.open(path, std::ios::binary);
         require(golden.good(), "cannot open golden trace (regenerate with 'record')");
@@ -72,7 +74,7 @@ int runSortie(const char *path, bool record, bool dump, Profile profile) {
     LoopCheck loop;
     CombatCheck combat;
     StickCheck stick;
-    for (int tick = 0; tick < kSortieTicks; ++tick) {
+    for (int tick = 0; tick < ticks; ++tick) {
         runTick(tick, profile);
         if (profile == Profile::kLoop) loopObserve(loop, tick);
         if (profile == Profile::kCombat) combatObserve(combat, tick);
@@ -123,7 +125,7 @@ int runSortie(const char *path, bool record, bool dump, Profile profile) {
     }
     if (record) {
         require(trace.good(), "trace write failed");
-        std::fprintf(stderr, "recorded %d ticks to %s\n", kSortieTicks, path);
+        std::fprintf(stderr, "recorded %d ticks to %s\n", ticks, path);
     } else if (!dump) {
         require(divergedTick < 0, "sortie state diverged from the golden trace");
         std::string extra;
@@ -163,7 +165,7 @@ int main(int argc, char **argv) {
     teardown();
     if (!record && !fields && !dump)
         std::puts(loop ? "loop parity: 660 ticks match the sortie_loop golden"
-                       : combat ? "combat parity: 660 ticks match the sortie_combat golden"
+                       : combat ? "combat parity: 900 ticks match the sortie_combat golden"
                                 : stick ? "stick parity: 660 ticks match the e28b9a4 stick-oracle golden"
                                         : "sortie parity: 660 ticks match the e28b9a4 golden");
     return result;

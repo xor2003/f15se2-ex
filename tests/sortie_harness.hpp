@@ -91,6 +91,10 @@ namespace sortie {
 using namespace f15::math;
 
 constexpr int kSortieTicks = 660;
+/* The combat profile runs longer: the AGM-65 fired at ~t480 needs ~110 more
+ * ticks to close on the primary target — the intercept outcome is part of
+ * the coverage, not just the launch. */
+constexpr int kCombatTicks = 900;
 constexpr std::uint32_t kSeed = 0x51e7u;
 
 
@@ -114,6 +118,10 @@ inline void pushKey(SDL_Scancode scancode, SDL_Keycode key) {
  * target sites, name pool, waypoints) and flies it under autopilot while the
  * weapon designate/fire keys run. */
 enum class Profile { kSortie, kLoop, kCombat, kStick };
+
+constexpr int ticksForProfile(Profile profile) {
+    return profile == Profile::kCombat ? kCombatTicks : kSortieTicks;
+}
 
 /* Discrete cockpit commands for this tick, pushed before the pump so the
  * translated BIOS word reaches the key ring stepFlightModel drains. */
@@ -593,6 +601,9 @@ struct CombatCheck {
     bool aiMoved = false;
     bool alertSeen = false;
     bool weaponSeen = false;
+    bool pursuitSeen = false;   /* a projectile tracked a live targetRef */
+    bool lifecycleSeen = false; /* launch -> ttl expiry on one slot */
+    bool projLive[12] = {};
     int16 seedX[8] = {};
     int16 seedY[8] = {};
     int16 ammoSeed = -1;
@@ -622,6 +633,12 @@ inline void combatObserve(CombatCheck &c, int tick) {
     }
     if (missleSpec[0].ammo + missleSpec[1].ammo + missleSpec[2].ammo < c.ammoSeed ||
         g_gunAmmo < c.gunSeed || !g_projectiles[0].ttl.isZero()) c.weaponSeen = true;
+    for (int i = 0; i < 12; ++i) {
+        if (!g_projectiles[i].ttl.isZero()) {
+            c.projLive[i] = true;
+            if (g_projectiles[i].targetRef != 0) c.pursuitSeen = true;
+        } else if (c.projLive[i]) c.lifecycleSeen = true;
+    }
 }
 inline void combatRequire(const CombatCheck &c) {
     require(c.importSeen, "combat: worldxfer import did not populate the tables");
@@ -629,6 +646,8 @@ inline void combatRequire(const CombatCheck &c) {
     require(c.aiMoved, "combat: no AI object ever moved");
     require(c.alertSeen, "combat: threat alert never engaged");
     require(c.weaponSeen, "combat: no weapon ever left the rail");
+    require(c.pursuitSeen, "combat: no projectile ever tracked a target");
+    require(c.lifecycleSeen, "combat: no projectile completed its ttl lifecycle");
 }
 
 /* worldExportToEnd round-trip: run the real EGAME -> END debrief export after

@@ -2007,9 +2007,16 @@ waypoints through to the recovery leg. Weapon key presses clear only
 `combatRequire` asserts non-degeneracy so an empty run cannot pin a golden:
 import populated the tables (plane/unit counts, waypoint target, non-empty
 name table), autopilot altitude-hold engaged, at least one AI object moved,
-the threat alert engaged, and a weapon left the rail (ammo spend, gun spend,
-or a live projectile). In practice the run shows locks, launches, gun hits
-and incoming damage. `sortie_combat_parity_tests` pins per-tick hashes
+the threat alert engaged, a weapon left the rail (ammo spend, gun spend,
+or a live projectile), a projectile tracked a live `targetRef` (guided
+pursuit), and some projectile completed its launch-to-ttl-expiry lifecycle
+on a single slot. In practice the run shows locks, launches, gun hits,
+enemy missile pursuit of a maneuvering target, and incoming damage; the
+player's own radar lock never acquires (`g_targetRange` stays 0 — the
+designate never finds a painted contact in cone), so player-launched
+intercept is honestly not yet covered. The profile runs 900 ticks
+(`kCombatTicks`): the extra horizon covers a late alert engagement and the
+long guided-pursuit tail. `sortie_combat_parity_tests` pins per-tick hashes
 (`sortie_combat_parity.trace`, HEAD-recorded — the fixture post-dates
 e28b9a4); `modern_sortie_combat_tests` pins `sortie_combat_fields_modern`
 exactly plus the same assertions, with the fixed-envelope/discrete layers
@@ -2258,11 +2265,16 @@ of matching scalar tests guarantees identical missions.
 
 Current state vs that checklist: the scripted sortie harness now exists and
 both backends run it (fixed exact golden; modern pin + envelope + discrete
-transitions, see the acceptance section). Still missing: loaded mission
-assets, landing and missile-pursuit outcomes, wrap-boundary scenarios,
-interactive `.bbx` recordings, real-time pacing, and multi-platform runs —
-so modern coverage remains a scripted-profile acceptance gate, not a
-certification of the whole game.
+transitions, see the acceptance section). Loaded-mission coverage is
+synthetic-fixture import (`worldImportToEgame`) rather than real mission
+files, which are not committed assets. Missile pursuit is covered through
+lock, guidance and ttl expiry; a verified kill and a landing outcome are
+not — the player's radar never locks in the current fixture and no profile
+flies a corridor approach. Still missing: landing outcome, player-lock
+intercept, real mission-file loads, wrap-boundary scenarios, interactive
+`.bbx` recordings, real-time pacing, and multi-platform runs — so modern
+coverage remains a scripted-profile acceptance gate, not a certification
+of the whole game.
 
 Reproduce standalone Clang checks from the repository root:
 
