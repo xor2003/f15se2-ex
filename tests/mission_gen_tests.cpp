@@ -23,10 +23,14 @@
  * caught byte-for-byte.
  *
  * Scenarios 0-2 run the synthetic world across missionPick 0/-1/1. Scenarios
- * 3-4 re-seed every world table from campaigns/SVN/SVN.WLD.json — the real
- * Vietnam theater objects, flight units, terrain grid, object-type table and
- * names — so the generator also runs on real mission data (impassable
- * terrain retries, real base selection, real object-type dead zones).
+ * 3-4 re-seed every world table from the real SVN theater:
+ * campaigns/SVN/SVN.WLD.json (objects, flight units, terrain grid, type
+ * table, names) plus campaigns/SVN/VN/VN.3DG/.3DT.json (the real sparse
+ * quadtree). Scenario 4 produces a complete real mission; scenario 3 pins
+ * the degenerate path where the fixed pick-0 table coords miss all populated
+ * terrain and targetIdx stays -1 — including runGenerator's unguarded
+ * worldObjects[-1] read into missionTargetX (a genuine production quirk; an
+ * ASAN build will flag it as a real finding, not a test bug).
  *
  *   mission_gen_tests                 compare against the committed golden
  *   mission_gen_tests record <file>   write a fresh trace
@@ -280,12 +284,74 @@ void decodeBase64(const std::string &in, unsigned char *out, size_t outSize) {
     require(n == outSize, "base64 field size mismatch");
 }
 
+/* Flat int array (`"key": [1,2,...]`) into a byte/word buffer. */
+void jsonIntArray(const std::string &json, const char *key, unsigned char *out, size_t count) {
+    size_t p = jsonFieldPos(json, key);
+    require(p != std::string::npos && json[p] == '[', "missing json int array");
+    ++p;
+    for (size_t i = 0; i < count; ++i) {
+        while (p < json.size() && (json[p] == ' ' || json[p] == ',' || json[p] == '\n' || json[p] == '\r' || json[p] == '\t')) ++p;
+        require(p < json.size() && json[p] != ']', "json int array too short");
+        char *end = nullptr;
+        long v = std::strtol(json.c_str() + p, &end, 10);
+        require(end != json.c_str() + p, "json int array parse failure");
+        p = (size_t)(end - json.c_str());
+        out[i] = (unsigned char)v;
+    }
+}
+
 std::string g_svnLabel[0x4B];
 
-/* Seed every world table from the real SVN theater data. The terrain
- * quadtree stays synthetic (SVN.WLD.json carries no .3dG/.3dT data) but its
- * two tile models are real SVN classes: 38 (SAM Radar) and 93 (Supply
- * Dump) — both visible in the real object-type table. */
+/* Real VN.3DG quadtree + VN.3DT tile tables: sparse real coverage — only six
+ * level-1 cells carry placements (SAM Radar / Supply Dump classes), level-2
+ * tiles are invisible to the type-table gate, so placements resolve only
+ * near populated terrain, exactly like production SVN generation. */
+void seedSvnQuadtree() {
+    const std::string base = std::string(F15_CAMPAIGN_DIR) + "/SVN/VN/VN";
+    const std::string gridJson = readTextFile((base + ".3DG.json").c_str());
+    const std::string tileJson = readTextFile((base + ".3DT.json").c_str());
+
+    memset(gridBuf1, 0, 17);
+    memset(gridBuf2, 0, 0x100);
+    memset(gridBuf3, 0, TERRAIN_CHILD_GRID_BYTES);
+    memset(gridBuf4, 0, TERRAIN_CHILD_GRID_BYTES);
+    memset(gridBuf5, 0, TERRAIN_CHILD_GRID_BYTES);
+    jsonIntArray(gridJson, "level4_top_grid", gridBuf1, 16);
+    jsonIntArray(gridJson, "level3_grid", gridBuf2, 0x100);
+    jsonIntArray(gridJson, "level2_subgrid", gridBuf3, LEGACY_TERRAIN_CHILD_GRID_BYTES);
+    jsonIntArray(gridJson, "level1_subgrid", gridBuf4, LEGACY_TERRAIN_CHILD_GRID_BYTES);
+    jsonIntArray(gridJson, "level0_subgrid", gridBuf5, LEGACY_TERRAIN_CHILD_GRID_BYTES);
+
+    memset(terrainTilePtrs, 0, 5 * sizeof(struct TerrainPtrTable));
+    memset(terrainTileCounts, 0, 5 * sizeof(struct TerrainCountTable));
+    memset(terrainTileBlock, 0, 512 * sizeof(struct TerrainTile));
+    const auto levels = jsonObjectArray(tileJson, "levels");
+    require(levels.size() == 5, "VN.3DT levels count mismatch");
+    size_t blockUsed = 0;
+    for (const auto &levelJson : levels) {
+        const int level = (int)jsonInt(levelJson, "level");
+        for (const auto &slot : jsonObjectArray(levelJson, "objects")) {
+            const int tileIndex = (int)jsonInt(slot, "tile_index");
+            const auto objs = jsonObjectArray(slot, "objects");
+            if (objs.empty()) continue;
+            require(tileIndex < (int)TERRAIN_TILE_PATTERN_CAPACITY, "tile_index out of range");
+            require(blockUsed + objs.size() <= 512, "terrainTileBlock overflow");
+            terrainTilePtrs[level].entries[tileIndex] = &terrainTileBlock[blockUsed];
+            terrainTileCounts[level].entries[tileIndex] = (uint16)objs.size();
+            for (const auto &o : objs) {
+                terrainTileBlock[blockUsed].buf3 = (uint16)jsonInt(o, "x");
+                terrainTileBlock[blockUsed].buf4 = (int16)jsonInt(o, "y");
+                terrainTileBlock[blockUsed].buf5 = (int16)jsonInt(o, "z");
+                terrainTileBlock[blockUsed].idx = (uint8)jsonInt(o, "shape_word");
+                ++blockUsed;
+            }
+        }
+    }
+}
+
+/* Seed every world table from the real SVN theater data: objects, airbases,
+ * flight units, terrain grid, object-type table and names from SVN.WLD.json,
+ * plus the real VN.3DG/.3DT quadtree. */
 void seedWorldFromSvn() {
     const std::string path = std::string(F15_CAMPAIGN_DIR) + "/SVN/SVN.WLD.json";
     const std::string json = readTextFile(path.c_str());
@@ -314,32 +380,7 @@ void seedWorldFromSvn() {
     decodeBase64(jsonString(json, "terrain_grid"), (unsigned char *)terrainGrid, sizeof(terrainGrid));
     decodeBase64(jsonString(json, "mission_object_type_table"), (unsigned char *)objectTypeTable, BUF7SIZE);
 
-    /* Same uniform two-tile quadtree as the synthetic fixture, but the tile
-     * models are real SVN target classes. */
-    memset(gridBuf1, 0, 17);
-    memset(gridBuf2, 0, 0x100);
-    memset(gridBuf3, 0, TERRAIN_CHILD_GRID_BYTES);
-    memset(gridBuf4, 0, TERRAIN_CHILD_GRID_BYTES);
-    memset(gridBuf5, 0, TERRAIN_CHILD_GRID_BYTES);
-    for (int i = 0; i < 16; ++i)
-        gridBuf3[i] = i < 8 ? 0 : 1;
-    for (int i = 0; i < 16; ++i) {
-        gridBuf4[i] = 0;
-        gridBuf4[16 + i] = 1;
-    }
-    memset(terrainTilePtrs, 0, 5 * sizeof(struct TerrainPtrTable));
-    memset(terrainTileCounts, 0, 5 * sizeof(struct TerrainCountTable));
-    memset(terrainTileBlock, 0, 64 * sizeof(struct TerrainTile));
-    terrainTilePtrs[1].entries[0] = &terrainTileBlock[0];
-    terrainTilePtrs[1].entries[1] = &terrainTileBlock[1];
-    terrainTileCounts[1].entries[0] = 1;
-    terrainTileCounts[1].entries[1] = 1;
-    terrainTilePtrs[2].entries[0] = &terrainTileBlock[0];
-    terrainTilePtrs[2].entries[1] = &terrainTileBlock[1];
-    terrainTileCounts[2].entries[0] = 1;
-    terrainTileCounts[2].entries[1] = 1;
-    terrainTileBlock[0].idx = 38; /* SAM Radar class: type table -> tensionMask 2 */
-    terrainTileBlock[1].idx = 93; /* Supply Dump class: -> tensionMask 0x13 */
+    seedSvnQuadtree();
 
     memset(targets, 0, 2 * sizeof(struct Target));
     targets[0].targetIdx = targets[1].targetIdx = -1;
