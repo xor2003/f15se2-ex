@@ -165,7 +165,8 @@ struct NetPlayerState {
     int16_t aamSeekerX, aamSeekerY;
     int16_t rollPitchTrim;
     int16_t gees;
-    int16_t damageFlag;       /* g_damageTakenFlag */
+    int16_t damageFlag;       /* g_damageTakenFlag (transient; use damageSeq) */
+    int16_t damageSeq;        /* counts damage events; edge-trigger the HUD */
     uint8_t alive;            /* derived: not ended/ejected-gone */
     uint8_t missionEnded;     /* this player's mission is over */
     int16_t landingType;      /* commData->landingType equivalent */

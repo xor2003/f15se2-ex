@@ -27,6 +27,35 @@
 #include <memory.h>
 
 /* Private helpers for this translation unit. */
+/* One aircraft-identity resolver for every depiction of a sim object:
+ * remote-piloted parked objects are the player F-15 (model 6 gear-down /
+ * 7 gear-up - their spec field is unused/0, so aircraftTypes[spec] would
+ * read "MIG-23"); everything else resolves via its spec's type table.
+ * nearModel selects the close vs far LOD entry for spec-typed objects. */
+int16 simObjectViewModel(int objIdx, int nearModel) {
+    if (g_simObjects[objIdx].flags.b[1] & SIMFLAG_B1_REMOTE_PLAYER)
+        return (g_simObjects[objIdx].flags.b[1] & SIMFLAG_B1_GEAR_DOWN) ? 6 : 7;
+    return (&aircraftTypes[g_simObjects[objIdx].spec].viewModelId)[nearModel ? 0 : 1];
+}
+/* Display name for the same identity (target panel/labels). */
+const char *simObjectTypeName(int objIdx) {
+    if (g_simObjects[objIdx].flags.b[1] & SIMFLAG_B1_REMOTE_PLAYER)
+        return "F-15";
+    return aircraftTypes[g_simObjects[objIdx].spec].name;
+}
+/* projectWorldToHudFine expects map-fine coords (its relY subtracts 0x100000,
+ * i.e. fineY == posY<<5). Ordinary objects store worldY in exactly that
+ * convention, but a parked remote player's worldY is render-space
+ * (0x01000000 - ViewY), 0xF00000 higher - feeding it through unchanged
+ * throws the projected box/label half a map away. Convert explicitly;
+ * the fine precision is preserved, so the box still glides. */
+static int32 simObjectFineY(int objIdx) {
+    int32 y = g_simObjects[objIdx].worldY;
+    if (g_simObjects[objIdx].flags.b[1] & SIMFLAG_B1_REMOTE_PLAYER)
+        y -= 0x01000000L - 0x100000L;
+    return y;
+}
+
 void drawTargetBox(int16, int16, int16, int16);
 void drawTargetBoxF(float centerX, float centerY, int size, int mode);
 void drawMissileLock(void);
@@ -250,15 +279,8 @@ void updateTargetLock(void) {
 
         g_projDepth >>= depthShift;
 
-        /* Remote-piloted parked objects render as the player aircraft (F-15
-         * model 6 gear-down / 7 gear-up); everyone else via aircraftTypes. */
         {
-            int16 vmdl;
-            if (g_simObjects[idx].flags.b[1] & SIMFLAG_B1_REMOTE_PLAYER)
-                vmdl = (g_simObjects[idx].flags.b[1] & SIMFLAG_B1_GEAR_DOWN) ? 6 : 7;
-            else
-                vmdl = (&aircraftTypes[g_simObjects[idx].spec].viewModelId)
-                           [(g_projDepth > planeFineDepth) ? 0 : 1];
+            int16 vmdl = simObjectViewModel(idx, g_projDepth > planeFineDepth);
 
         if (g_projDepth > planeModelDepth) {
             if (g_simObjects[idx].alt < 999 && g_nightMode == 0) {
@@ -786,7 +808,7 @@ void drawHudWorldOverlay(void) {
             if (!(g_airTargetLock & 0x80)) {
 
                 projectWorldToHudFine(g_simObjects[g_airTargetLock].worldX,
-                                      g_simObjects[g_airTargetLock].worldY,
+                                      simObjectFineY(g_airTargetLock),
                                       g_simObjects[g_airTargetLock].alt);
 
                 if (vtxScratch.vproj.x.lo != -1) {
@@ -818,8 +840,10 @@ void drawHudWorldOverlay(void) {
         wpIdx = g_airTargetLock & 0x7f;
 
         /* Fine (integrated) world position, not the coarse posX/posY seed, so the
-         * tracked model doesn't jitter on the ÷32 grid as the view interpolates. */
-        drawTargetView(aircraftTypes[g_simObjects[wpIdx].spec].viewModelId,
+         * tracked model doesn't jitter on the ÷32 grid as the view interpolates.
+         * Same identity resolver as the world loop: a remote pilot previews as
+         * the F-15, not aircraftTypes[0] (MiG-23). */
+        drawTargetView(simObjectViewModel(wpIdx, 1),
                        g_simObjects[wpIdx].worldX,
                        g_simObjects[wpIdx].worldY,
                        g_simObjects[wpIdx].alt,
@@ -833,11 +857,14 @@ void drawHudWorldOverlay(void) {
         drawStringActivePage(strBuf, 244, 170, 0x0f);
 
         idx = g_simObjects[wpIdx].spec;
-        strcpy(strBuf, aircraftTypes[idx].name);
-        strcat(strBuf, aircraftTypes[idx].altName);
+        strcpy(strBuf, simObjectTypeName(wpIdx));
+        if (!(g_simObjects[wpIdx].flags.b[1] & SIMFLAG_B1_REMOTE_PLAYER))
+            strcat(strBuf, aircraftTypes[idx].altName);
         drawStringActivePage(strBuf, 248, 134, 0x0f);
 
-        if (aircraftTypes[idx].modelId == -1 && !(frameTick & 1)) {
+        if (aircraftTypes[idx].modelId == -1 &&
+            !(g_simObjects[wpIdx].flags.b[1] & SIMFLAG_B1_REMOTE_PLAYER) &&
+            !(frameTick & 1)) {
             drawStringActivePage("No Target", 252, 140, 0x0f);
         }
 
@@ -854,9 +881,9 @@ void drawHudWorldOverlay(void) {
     if (g_scopeSweepTimer > 0 && g_threatLabelTarget < 0) {
         idx = -1 - g_threatLabelTarget;
         projectWorldToHudFine(g_simObjects[idx].worldX,
-                              g_simObjects[idx].worldY,
+                              simObjectFineY(idx),
                               g_simObjects[idx].alt);
-        drawTargetLabel(aircraftTypes[g_simObjects[idx].spec].name,
+        drawTargetLabel(simObjectTypeName(idx),
                         g_scopeArcColor, g_frameRateScaling - g_scopeSweepTimer);
     }
 

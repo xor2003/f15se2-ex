@@ -104,10 +104,19 @@ static void test_ctx_hash(void) {
     b = a;
     b.padlockAircraft = 3;
     CHECK(playerCtxHash(&b) != ha);
+    /* display-mode fields that simTargetLock/sim reads must hash too */
+    b = a;
+    b.viewMode = (ViewMode)7;
+    CHECK(playerCtxHash(&b) != ha);
+    b = a;
+    b.activePanelMode = 0x15;
+    CHECK(playerCtxHash(&b) != ha);
+    b = a;
+    b.nightMode = 5;
+    CHECK(playerCtxHash(&b) != ha);
 
     /* and presentation-only scratch still cannot perturb the hash */
     b = a;
-    b.viewMode = (ViewMode)7;
     b.hudMsgTimer = 42;
     b.strBuf[0] = 'x';
     b.tacmapIndicators[5] = 9;

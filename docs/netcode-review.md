@@ -93,6 +93,22 @@ Notes:
 - The staleness gate resets on each MISSION_SETUP apply, so a reconnecting
   client accepts its first snapshot regardless of prior tick values.
 
+## Round 6 findings (post 1ffa9dd)
+
+Sixth-pass review confirmed the round-5 fixes and reported five live
+symptoms plus two re-review items. All fixed and verified; build green,
+34/34 + 31/31 tests pass, ASan/UBSan clean, live probe flow healthy.
+
+| # | Issue | Status |
+|---|-------|--------|
+| 1 | [P2] HUD compass tape jumps by 45 deg: within-sector offset computed into p6 then `p6 >> 8` (always 0) used as the scroll | FIXED - within-sector displacement computed directly: `(head & 0x1fff) * pixPerDeg >> 13`; marker phase shares the same displacement |
+| 2 | [P2] Remote player shown as MiG-23 in target panel/labels (spec=0 -> aircraftTypes[0]) | FIXED - one resolver for every depiction: `simObjectViewModel` (remote -> F-15 model 6/7 incl. gear) + `simObjectTypeName` (remote -> "F-15"); used by the world loop, target panel preview, threat labels and the director's "on patrol" message |
+| 3 | [P2] projectWorldToHudFine fed render-space worldY for remotes (0x01000000 - ViewY) but expects map-fine (posY<<5): target box/label displaced by 0xF00000 | FIXED - `simObjectFineY` converts explicitly at both sim-object call sites (AAM target box, threat label); the 3D model path was already consistent after the round-5 interp fix |
+| 4 | [P1] Cabin shake restarts every snapshot: server latches damageTakenFlag forever (HUD owns the clear) | FIXED - damage events numbered: `damageSeq` ctx counter bumped per tick the flag latches (server releases it each tick - hits AND in-ctx sets like bombTarget), wire-carried; client edge-triggers the shake once per new seq. Persistent damage stays in gunHits/bombDamageMask. Test: seq 1 fires once, same seq on next snap silent, seq 2 fires again |
+| 5 | [P2] F6 (VIEW_EXT_DYNAMIC) empty: camera reads ring slots never written (join) or stale (packet gaps); stationary aircraft seats camera inside it | FIXED - netclient pushes via viewRingPush: seeds all 16 slots on first snapshot, backfills skipped ticks lerping prev->current pose; camera falls back to the follow eye when the delayed pose lands within a quarter of chase distance |
+| 6 | [P2] Saturated-pool cursor advanced by idle/out-of-ammo passes (slot selection preceded eligibility) | FIXED - allocation moved after the trigger/ammo/eject checks; the SP release-sweep computes its rotating slot locally. Test: idle and ammo-empty passes leave g_bulletPoolCursor untouched |
+| 7 | [P2] Hash omitted activePanelMode/viewMode/nightMode although simTargetLock reads them (acquisition gate + range scaling) | FIXED - explicit folds added; classification comment updated to follow actual sim readers. Test: each mutation moves the hash; hudMsgTimer/strBuf/tacmapIndicators still excluded |
+
 ## Round 5 findings (post 02e67b2)
 
 Fifth-pass review (debugger-driven) confirmed the snapshot wire coordinates

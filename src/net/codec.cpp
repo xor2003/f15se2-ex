@@ -120,6 +120,7 @@ void encPlayerState(struct NetWriter *w, const struct NetPlayerState *v) {
     nwI16(w, v->rollPitchTrim);
     nwI16(w, v->gees);
     nwI16(w, v->damageFlag);
+    nwI16(w, v->damageSeq);
     nwU8(w, v->alive);
     nwU8(w, v->missionEnded);
     nwI16(w, v->landingType);
@@ -182,6 +183,7 @@ void decPlayerState(struct NetReader *r, struct NetPlayerState *v) {
     v->rollPitchTrim = nrI16(r);
     v->gees = nrI16(r);
     v->damageFlag = nrI16(r);
+    v->damageSeq = nrI16(r);
     v->alive = nrU8(r);
     v->missionEnded = nrU8(r);
     v->landingType = nrI16(r);

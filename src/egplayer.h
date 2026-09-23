@@ -110,6 +110,10 @@ struct PlayerSim {
     int16 playerPlaneFlags; /* g_playerPlaneFlags: gear/brake/canopy bits */
     int16 attackRangeX, attackRangeY;
     int16 ejectState, ejectPending, damageTakenFlag;
+    /* server-side counter: bumped each tick damageTakenFlag latches on, so a
+     * client can fire the HUD effect exactly once per damage event (the flag
+     * itself is a transient the headless server must release each tick). */
+    int16 damageSeq;
     int16 wreckX, wreckY, wreckAlt, wreckFallVel;
     int16 crashCamX, crashCamY, crashCamZ;
     int16 hitMapX, hitMapY, hitAlt;

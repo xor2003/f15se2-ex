@@ -139,6 +139,7 @@
     X(ejectState, g_ejectState)                       \
     X(ejectPending, g_ejectPending)                   \
     X(damageTakenFlag, g_damageTakenFlag)             \
+    X(damageSeq, g_damageSeq)                         \
     X(wreckX, g_wreckX)                               \
     X(wreckY, g_wreckY)                               \
     X(wreckAlt, g_wreckAlt)                           \
@@ -266,6 +267,9 @@ void playerSwapIn(const struct PlayerSim *p) {
  *   ended             mission-over - gates sim participation
  *   viewHeadingOffset read by simTargetLock's look-away checks (egtarget.c)
  *   padlockAircraft   read by threat targeting/escort spawn (egthreat.c)
+ *   activePanelMode   gates the sim-side AAM/ground acquisition pass
+ *   viewMode          external-view bit skips acquisition (simTargetLock)
+ *   nightMode         scales acquisition ranges (100<<6-night / 0x4b<<6-night)
  * The rest of the trailing block (view/camera/scope string scratch,
  * tacmap indicators, HUD timers) only feeds draw paths. */
 uint32 playerCtxHash(const struct PlayerSim *p) {
@@ -285,6 +289,12 @@ uint32 playerCtxHash(const struct PlayerSim *p) {
     h ^= (uint32)(uint16)p->viewHeadingOffset;
     h *= 16777619u;
     h ^= (uint32)(uint16)p->padlockAircraft;
+    h *= 16777619u;
+    h ^= (uint32)(uint16)p->activePanelMode;
+    h *= 16777619u;
+    h ^= (uint32)(uint16)p->viewMode;
+    h *= 16777619u;
+    h ^= (uint32)(uint16)p->nightMode;
     h *= 16777619u;
     return h;
 }

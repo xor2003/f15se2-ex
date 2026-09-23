@@ -486,16 +486,21 @@ void tryPlayerFire(void) {
     if (!(frameTick & 1)) {
         return;
     }
-    /* Round slot selection:
-     * - SP (resident -1): the original frame-derived rotating slot; a round
-     *   lives ~2*g_bulletTrackCount ticks before the rotation overwrites it.
+    firing = readAxisInput(0);
+    if (!firing) goto no_fire;
+    if (g_gunAmmo <= 0) goto no_fire;
+    if (g_ejectState != 0) goto no_fire;
+    /* Round slot selection - AFTER the eligibility checks: an idle/out-of-ammo
+     * player must not advance the shared cursor (it fixes saturated eviction
+     * order, so a pass here would reshuffle which airborne round a later
+     * shooter loses).
      * - server: claim any FREE slot in the shared player pool (0..count-1)
      *   and stamp the owner. A saturated pool overwrites in round-robin
      *   order via g_bulletPoolCursor: every firing player gets a DIFFERENT
      *   slot within a tick (allocation order can't erase a teammate's new
      *   shot) and each round survives >= count launches globally. The
      *   cursor is unsigned, so it stays valid across the int16 frameTick
-     *   wrap; the SP remainder below is sign-normalized for the same wrap.
+     *   wrap; the SP remainder in no_fire is sign-normalized likewise.
      *   A later shot or a trigger release never deletes an airborne round. */
     if (g_residentPlayer >= 0) {
         for (slot = 0; slot < g_bulletTrackCount; slot++)
@@ -508,10 +513,6 @@ void tryPlayerFire(void) {
         if (slot < 0)
             slot += g_bulletTrackCount;
     }
-    firing = readAxisInput(0);
-    if (!firing) goto no_fire;
-    if (g_gunAmmo <= 0) goto no_fire;
-    if (g_ejectState != 0) goto no_fire;
     g_gunAmmo = clampRange(g_gunAmmo - 40 / g_frameRateScaling, 0, 1000);
     makeSound(4, 2);
     /* Round leaves the barrel along the airframe axis plus the M61's dispersion
@@ -531,9 +532,15 @@ void tryPlayerFire(void) {
     goto done_fire;
 no_fire:
     /* legacy release-sweep, SP only: on the server an airborne round keeps
-     * flying (it dies on a hit or when the shared pool overwrites it). */
-    if (g_residentPlayer < 0)
+     * flying (it dies on a hit or when the shared pool overwrites it). The
+     * rotating slot is the original frame-derived index; a round lives
+     * ~2*g_bulletTrackCount ticks before the rotation overwrites it. */
+    if (g_residentPlayer < 0) {
+        slot = (frameTick >> 1) % g_bulletTrackCount;
+        if (slot < 0)
+            slot += g_bulletTrackCount;
         bulletTracks[slot].posX = 0;
+    }
     g_gunFiredFlag = 0;
 done_fire:
     if (firing) {
@@ -707,7 +714,7 @@ void generateRandomRadioMessage(void) {
         } while (g_simObjects[idx].speed == 0);
         g_viewTargetObj = idx + 0x20;
         g_viewMode = VIEW_MISSILE;
-        strcpy(strBuf, aircraftTypes[g_simObjects[idx].spec].name);
+        strcpy(strBuf, simObjectTypeName(idx));
         strcat(strBuf, " on patrol");
         hudMessage(strBuf);
         break;

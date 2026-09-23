@@ -377,12 +377,16 @@ static void drawInstrumentGauges(void) {
     {
         uint16 head = (uint16)(g_ourHead - 0x2000);
         uint8 head_hi = (uint8)((head >> 8) & 0xff);
-        uint16 s = (uint16)((head & 0x1f80) << 1);
-        uint16 prod = (uint16)((s >> 8) & 0xff) * (uint16)(uint8)g_headingPixPerDeg;
-        uint16 p6 = (uint16)(prod >> 6);
+        /* Within-sector scroll: (head & 0x1fff)/0x2000 of the label spacing.
+         * The old chain truncated to 1/64-sector steps into p6, then used
+         * (p6 >> 8) - always 0 - as the offset, so the tape only moved when
+         * the 45-degree sector changed. The marker phase shares the same
+         * displacement so both track heading continuously. */
+        uint16 disp = (uint16)(((uint32)(head & 0x1fff) *
+                                (uint16)(uint8)g_headingPixPerDeg) >> 13);
         int16 idx;
-        g_compassMarkerPhase = (uint8)(p6 & 0xff);
-        g_compassDrawX = (uint8)((uint8)g_headingBase - (uint8)((p6 >> 8) & 0xff));
+        g_compassMarkerPhase = (uint8)disp;
+        g_compassDrawX = (uint8)((uint8)g_headingBase - (uint8)disp);
         g_tapeText1[4] = g_compassDrawX;
         g_compassScrollIdx = (head_hi >> 2) & 0x38;
 

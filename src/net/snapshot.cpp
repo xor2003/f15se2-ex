@@ -47,6 +47,8 @@ static int16_t s_lastFrameTick;       /* last committed authoritative tick */
 static int s_haveLastTick;            /* 1 once a snapshot has committed -
                                        * frameTick is signed, so "unset"
                                        * needs its own flag, not a sentinel */
+static int16_t s_lastDamageSeq;       /* last damageSeq that fired the HUD
+                                       * shake - edge trigger, not state */
 
 void netSetupBuild(struct NetWriter *w) {
     int i, n;
@@ -139,6 +141,7 @@ int netSetupApply(struct NetReader *r) {
     s_worldPlaneCount = g_planeCount;
     s_parkedMask = s_seenMask = 0;
     s_haveLastTick = 0; /* new world: staleness gate re-arms on first snap */
+    s_lastDamageSeq = 0; /* new ctx starts its damage counter at 0 */
     g_missionStatus = nrI16(r);
     g_unusedSavedWord = nrI16(r);
     g_padlockAircraft = nrI16(r);
@@ -246,6 +249,7 @@ static void encPlayerBlock(struct NetWriter *w, const struct PlayerSim *c) {
     s.rollPitchTrim = c->rollPitchTrim;
     s.gees = (int16_t)c->gees;
     s.damageFlag = c->damageTakenFlag;
+    s.damageSeq = c->damageSeq;
     s.alive = (uint8_t)(c->ejectState == 0);
     s.missionEnded = (uint8_t)c->missionEndedFlag[0];
     s.landingType = c->comm.landingType;
@@ -814,7 +818,14 @@ static void applyPlayerGlobals(const struct NetPlayerState *s) {
     g_aamSeekerY = s->aamSeekerY;
     g_rollPitchTrim = s->rollPitchTrim;
     g_gees = s->gees;
-    g_damageTakenFlag = s->damageFlag;
+    /* Damage events are numbered, not level-triggered: fire the HUD shake
+     * exactly once per new damageSeq. (The server's damageTakenFlag is a
+     * per-tick transient it releases each tick - copying it as state used to
+     * re-fire the shake every snapshot when the flag latched.) */
+    if (s->damageSeq != s_lastDamageSeq) {
+        s_lastDamageSeq = s->damageSeq;
+        g_damageTakenFlag = 1;
+    }
     commData->landingType = s->landingType;
     g_finalThreatScore = s->score;
     /* Sim-driven display state comes back over the wire (view/panel commands

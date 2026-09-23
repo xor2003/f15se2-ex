@@ -50,6 +50,61 @@ static int g_missionOver;
 static int16 g_landingType = 3;
 static uint32_t g_clientSeq;
 
+/* ---- delayed-camera history --------------------------------------------
+ * VIEW_EXT_DYNAMIC reads g_viewSnapshotRing[(frameTick-k)&0xF]: the server
+ * writes one entry per sim tick; here one lands per snapshot. Without care
+ * the camera reads zeroed slots at join and stale slots across packet gaps,
+ * and with a stationary aircraft the delayed pose coincides with the plane
+ * (camera inside it). Push via viewRingPush: seed the whole ring on the
+ * first snapshot, then backfill skipped ticks by lerping the previous pose
+ * toward the current one so every slot holds a plausible sample. */
+static int s_ringHave;
+static int16_t s_ringLastTick;
+static struct ViewSnapshot s_ringPrev;
+
+static void viewRingPush(void) {
+    struct ViewSnapshot cur;
+    cur.heading = g_ourHead;
+    cur.pitch = (int16)g_ourPitch;
+    cur.roll = g_ourRoll;
+    cur.worldX = g_ViewX;
+    cur.worldY = g_ViewY;
+    cur.alt = g_viewZ;
+    if (!s_ringHave) {
+        int k;
+        for (k = 0; k < 16; k++)
+            g_viewSnapshotRing[k] = cur;
+        s_ringHave = 1;
+    } else {
+        int16_t gap = (int16_t)(frameTick - s_ringLastTick);
+        if (gap > 1) {
+            int t, first = s_ringLastTick + 1;
+            if (first < frameTick - 15)
+                first = frameTick - 15;
+            for (t = first; t < frameTick; t++) {
+                int a = (int)(((int32_t)(t - s_ringLastTick) << 12) / gap);
+                int s = t & 0xF;
+                struct ViewSnapshot *e = &g_viewSnapshotRing[s];
+                e->worldX = s_ringPrev.worldX +
+                    (int32_t)(((int64_t)(cur.worldX - s_ringPrev.worldX) * a) >> 12);
+                e->worldY = s_ringPrev.worldY +
+                    (int32_t)(((int64_t)(cur.worldY - s_ringPrev.worldY) * a) >> 12);
+                e->alt = (int16)(s_ringPrev.alt +
+                    (((int32_t)(cur.alt - s_ringPrev.alt) * a) >> 12));
+                e->heading = (int16)(s_ringPrev.heading +
+                    (((int16_t)(cur.heading - s_ringPrev.heading) * a) >> 12));
+                e->pitch = (int16)(s_ringPrev.pitch +
+                    (((int16_t)(cur.pitch - s_ringPrev.pitch) * a) >> 12));
+                e->roll = (int16)(s_ringPrev.roll +
+                    (((int16_t)(cur.roll - s_ringPrev.roll) * a) >> 12));
+            }
+        }
+    }
+    g_viewSnapshotRing[frameTick & 0xF] = cur;
+    s_ringPrev = cur;
+    s_ringLastTick = frameTick;
+}
+
 void debugDumpFrame(void);                /* egsys.c: F15_DUMP_FRAME=<ppm> */
 
 /* ---- baked cockpit-panel elements -------------------------------------
@@ -345,17 +400,9 @@ int netClientMain(const char *hostPort, const char *name) {
                                 snapIntervalNs = d;
                         }
                         snapNs = now;
-                        /* trailing-replay view ring (server writes one entry
-                         * per sim tick; here, one per snapshot). */
-                        {
-                            int idx = frameTick & 0xF;
-                            g_viewSnapshotRing[idx].heading = g_ourHead;
-                            g_viewSnapshotRing[idx].pitch = (int16)g_ourPitch;
-                            g_viewSnapshotRing[idx].roll = g_ourRoll;
-                            g_viewSnapshotRing[idx].worldX = g_ViewX;
-                            g_viewSnapshotRing[idx].worldY = g_ViewY;
-                            g_viewSnapshotRing[idx].alt = g_viewZ;
-                        }
+                        /* trailing-replay view ring: seed/backfill so the
+                         * delayed camera never reads empty or stale slots */
+                        viewRingPush();
                     }
                 } else if (type == NETMSG_EVENT) {
                     struct NetEvent e;

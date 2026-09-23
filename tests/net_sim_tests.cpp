@@ -452,6 +452,19 @@ static void test_bullet_pool_lifetime(void) {
         }
     g_bulletPoolCursor = 0;
     frameTick = 9;
+    /* an IDLE player must not advance the shared cursor - allocation runs
+     * after the trigger/ammo checks, so a passing pass can't reshuffle which
+     * airborne round a later shooter evicts */
+    g_residentPlayer = 4;
+    g_axisInputAccum[0] = 0;
+    tryPlayerFire();
+    CHECK(g_bulletPoolCursor == 0);
+    /* out of ammo: also no allocation */
+    g_gunAmmo = 0;
+    g_axisInputAccum[0] = 1;
+    tryPlayerFire();
+    CHECK(g_bulletPoolCursor == 0);
+    g_gunAmmo = 500;
     g_residentPlayer = 0;
     g_axisInputAccum[0] = 1;
     tryPlayerFire(); /* cursor 0 -> slot 0 */
@@ -576,6 +589,7 @@ static void test_scope_timer_per_player(void) {
 
 /* ---- netSnapApply: atomic decode/validate/commit ------------------------- */
 
+static int16 s_snapDamageSeq;
 static int buildSnap(uint8_t *buf, size_t cap, int16 ft) {
     struct NetWriter w;
     struct PlayerSim ctx;
@@ -585,6 +599,7 @@ static int buildSnap(uint8_t *buf, size_t cap, int16 ft) {
     ctx.ViewX = 0x12345;
     ctx.viewZ = 0x80;
     ctx.ejectState = 0;
+    ctx.damageSeq = s_snapDamageSeq;
     nwInit(&w, buf, cap);
     netSnapBuild(&w, &ctx, ids, 1, 0xABCD);
     return (int)w.len;
@@ -632,6 +647,38 @@ static void test_snap_stale_rejected(void) {
     nrInit(&r, buf, (size_t)len);
     CHECK(netSnapApply(&r, 0) == 1);
     CHECK(frameTick == 501);
+}
+
+/* Damage events are numbered (damageSeq), not level-triggered: the HUD
+ * shake fires exactly once per new count - a repeated seq on a later
+ * snapshot must NOT re-fire it. */
+static void test_damage_seq_edge_trigger(void) {
+    uint8_t buf[8192];
+    struct NetReader r;
+    int len;
+    setupWorld();
+    /* runs after test_snap_negative_ticks: its last commit was -32768, so
+     * modularly-later ticks are -32767 up (the staleness gate is a file
+     * static shared by every snap test in this binary) */
+    s_snapDamageSeq = 1;
+    len = buildSnap(buf, sizeof(buf), -32767);
+    g_damageTakenFlag = 0;
+    nrInit(&r, buf, (size_t)len);
+    CHECK(netSnapApply(&r, 0) == 1);
+    CHECK(g_damageTakenFlag == 1); /* first event fires the shake */
+    /* the HUD consumes the latch; next snapshot at the SAME seq: no refire */
+    g_damageTakenFlag = 0;
+    len = buildSnap(buf, sizeof(buf), -32766);
+    nrInit(&r, buf, (size_t)len);
+    CHECK(netSnapApply(&r, 0) == 1);
+    CHECK(g_damageTakenFlag == 0);
+    /* a second damage event (seq 2) fires once more */
+    s_snapDamageSeq = 2;
+    len = buildSnap(buf, sizeof(buf), -32765);
+    nrInit(&r, buf, (size_t)len);
+    CHECK(netSnapApply(&r, 0) == 1);
+    CHECK(g_damageTakenFlag == 1);
+    s_snapDamageSeq = 0;
 }
 
 /* Structural validation: duplicate player ids / out-of-range entity ids are
@@ -766,6 +813,7 @@ int main(void) {
     test_snap_stale_rejected();
     test_snap_invalid_ids_rejected();
     test_snap_negative_ticks();
+    test_damage_seq_edge_trigger();
     if (fails == 0) {
         printf("net_sim_tests: all pass\n");
         return 0;

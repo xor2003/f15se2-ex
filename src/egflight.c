@@ -847,6 +847,21 @@ void renderFrame() {
         g_camEyeX = s0->worldX + (int32)(((int64)(s1->worldX - s0->worldX) * a) >> 12);
         g_camEyeY = s0->worldY + (int32)(((int64)(s1->worldY - s0->worldY) * a) >> 12);
         g_camEyeZ = s0->alt + (((int32)(s1->alt - s0->alt) * a) >> 12);
+        /* Stationary/slow aircraft, or history filled by seeding/backfill on
+         * the net client: the delayed pose can sit on top of the current one
+         * and seat the camera inside the airframe. If the eye ended up within
+         * a quarter of the follow distance in every axis, fall back to the
+         * follow-camera eye so the plane stays framed. */
+        {
+            int64 ddx = g_camEyeX - g_ViewX, ddy = g_camEyeY - g_ViewY;
+            int64 ddz = g_camEyeZ - g_viewZ;
+            if (ddx * ddx + ddy * ddy < (int64)(0x18 << camDist) * (0x18 << camDist) / 16 &&
+                ddz * ddz < (int64)(4 << camDist) * (4 << camDist) / 16) {
+                g_camEyeX = eyeFromQ8(sinMulQ8(g_ourHead + 0x8000, 0x18 << camDist) + ((long)g_ViewX << 8), &g_camEyeFracX);
+                g_camEyeY = eyeFromQ8(cosMulQ8(g_ourHead + 0x8000, 0x18 << camDist) + ((long)g_ViewY << 8), &g_camEyeFracY);
+                g_camEyeZ = (4 << camDist) + g_viewZ;
+            }
+        }
         break;
     }
     case VIEW_EXT_SIDE:

@@ -228,6 +228,7 @@ static void spawnFromTemplate(struct PlayerSim *dst, int idx) {
     memset(dst->axisInputAccum, 0, sizeof(dst->axisInputAccum));
     dst->ejectState = dst->ejectPending = 0;
     dst->damageTakenFlag = dst->gunFiredFlag = 0;
+    dst->damageSeq = 0;
     dst->wreckX = dst->wreckY = dst->wreckAlt = dst->wreckFallVel = 0;
     dst->crashCamX = dst->crashCamY = dst->crashCamZ = 0;
     dst->hitMapX = dst->hitMapY = dst->hitAlt = 0;
@@ -729,6 +730,20 @@ static void serverTick(void) {
         if (!g_haveTemplate && g_players[i].ctx.initPhase >= 2) {
             g_spawnTemplate = g_players[i].ctx;
             g_haveTemplate = 1;
+        }
+    }
+    /* damageTakenFlag is a transient "you were hit this tick" latch: in SP the
+     * HUD clears it when it fires the 60-tick shake, but the headless server
+     * has no HUD, so it latched forever and every snapshot re-triggered the
+     * client's shake. Number each damage event instead (damageSeq rides the
+     * snapshot), release the latch every tick, and keep the persistent damage
+     * where it belongs - gunHits/bombDamageMask. Catches sets from the hit
+     * hook AND from in-ctx code like bombTarget. */
+    for (i = 0; i < F15_MAX_PLAYERS; i++) {
+        ServerPlayer *p = &g_players[i];
+        if (p->used && p->ctx.damageTakenFlag) {
+            p->ctx.damageTakenFlag = 0;
+            p->ctx.damageSeq++;
         }
     }
     simInputReset();
