@@ -28,9 +28,9 @@
  * table, names) plus campaigns/SVN/VN/VN.3DG/.3DT.json (the real sparse
  * quadtree). Scenario 4 produces a complete real mission; scenario 3 pins
  * the degenerate path where the fixed pick-0 table coords miss all populated
- * terrain and targetIdx stays -1 — including runGenerator's unguarded
- * worldObjects[-1] read into missionTargetX (a genuine production quirk; an
- * ASAN build will flag it as a real finding, not a test bug).
+ * terrain and targetIdx stays -1. runGenerator clamps every -1 object-table
+ * read to slot 0 (DOS read adjacent memory) while the Target record keeps the
+ * -1 sentinel, so the degenerate trace is fully defined.
  *
  *   mission_gen_tests                 compare against the committed golden
  *   mission_gen_tests record <file>   write a fresh trace

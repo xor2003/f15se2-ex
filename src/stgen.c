@@ -55,6 +55,11 @@ void positionUnit(int16, int16);
 void parseWorld(const char *);
 char *formatGridRef(int16, int16, int16);
 
+/* Failed target/base picks stay -1 in the Target records; on DOS the reads
+   below silently indexed adjacent memory. Clamp every table read to slot 0 so
+   the port stays defined while the records keep the -1 sentinel. */
+static int16 objectSlotOrZero(int16 idx) { return idx >= 0 ? idx : 0; }
+
 void missionGenerate() {
     difficultySaved = gameData->difficulty;
     theaterSaved = gameData->theater & 3;
@@ -130,14 +135,14 @@ restart_40a8:
                     targets[1].targetIdx = findOrPlaceItem(randIdx, randY, 2);
                 } while ((targets[1].targetIdx == -1) || ((missionPick == 0 && (worldObjects[targets[1].targetIdx].unitType == 0))));
             }
-        } while ((targets[0].targetIdx == targets[1].targetIdx) || (itemDistance(targets[0].targetIdx, targets[1].targetIdx) >> kMissionRangeShift) > 200);
-    } while ((gameData->theater != THEATER_DS) && (worldObjects[targets[0].targetIdx].objectIdx == worldObjects[targets[1].targetIdx].objectIdx));
+        } while ((targets[0].targetIdx == targets[1].targetIdx) || (itemDistance(objectSlotOrZero(targets[0].targetIdx), objectSlotOrZero(targets[1].targetIdx)) >> kMissionRangeShift) > 200);
+    } while ((gameData->theater != THEATER_DS) && (worldObjects[objectSlotOrZero(targets[0].targetIdx)].objectIdx == worldObjects[objectSlotOrZero(targets[1].targetIdx)].objectIdx));
     for (slot = 0; slot < 2; slot++) {
         baseDist[slot] = 0x7fff;
         for (idx = worldObjectCount; idx < readItemSize; idx++) {
             if (((worldObjects[idx].targetFlags & 0x500) != 0) && ((worldObjects[idx].targetFlags & 0x201) != 0) && ((worldObjects[idx].targetFlags & 0x800) == 0)) {
                 // placed in var_1C in IDA, but this looks like an array, sort out stack layout later
-                baseDist[2] = clampValue(itemDistance(targets[slot].targetIdx, idx) + ((worldObjects[idx].targetFlags & 0x100) != 0 ? randMul(100) * 0x40 + 0xc80 : 0), 0, 0x7fff);
+                baseDist[2] = clampValue(itemDistance(objectSlotOrZero(targets[slot].targetIdx), idx) + ((worldObjects[idx].targetFlags & 0x100) != 0 ? randMul(100) * 0x40 + 0xc80 : 0), 0, 0x7fff);
                 if ((baseDist[2] < 0x7000) && (randMul(0x500) + baseDist[2] < baseDist[slot])) {
                     targets[slot].baseIdx = idx;
                     baseDist[slot] = baseDist[2];
@@ -146,8 +151,8 @@ restart_40a8:
         }
     }
     if (gameData->theater != THEATER_DS) {
-        totalDist = (itemDistance(targets[0].targetIdx, targets[1].targetIdx) >> kMissionRangeShift) + (baseDist[0] >> kMissionRangeShift) + (baseDist[1] >> kMissionRangeShift);
-        if (((attempt + 740 < totalDist) || (totalDist < minDist)) && ((worldObjects[targets[0].baseIdx].targetFlags & 0x200) == 0)) {
+        totalDist = (itemDistance(objectSlotOrZero(targets[0].targetIdx), objectSlotOrZero(targets[1].targetIdx)) >> kMissionRangeShift) + (baseDist[0] >> kMissionRangeShift) + (baseDist[1] >> kMissionRangeShift);
+        if (((attempt + 740 < totalDist) || (totalDist < minDist)) && ((worldObjects[objectSlotOrZero(targets[0].baseIdx)].targetFlags & 0x200) == 0)) {
             minDist -= 5 - difficultySaved;
             goto restart_40a8;
         }
@@ -160,12 +165,12 @@ restart_40a8:
     }
     for (idx = 0; idx < 2; idx++) {
         targets[idx].missionType = 0;
-        const unsigned modelIndex = worldObjects[targets[idx].targetIdx].objectIdx & 0x7f;
+        const unsigned modelIndex = worldObjects[objectSlotOrZero(targets[idx].targetIdx)].objectIdx & 0x7f;
         if (modelIndex >= sizeof(objectTypeTable)) goto restart_40a8;
         for (retryCount = 0; retryCount < 2; retryCount++) {
             matchCount = 0;
             for (slot = 0; slot < 56; slot++) {
-                if (objectTypeTable[modelIndex] == missionTable[slot].tensionMask && strcmp(wldOffsets[targets[idx].targetIdx], "POW Camp") != 0) {
+                if (objectTypeTable[modelIndex] == missionTable[slot].tensionMask && strcmp(wldOffsets[objectSlotOrZero(targets[idx].targetIdx)], "POW Camp") != 0) {
                     if ((retryCount != 0) && (matchCount == randChoice)) {
                         targets[idx].missionType = missionTable[slot].theaterMask;
                         targets[idx].missionNum = slot;
@@ -214,8 +219,8 @@ restart_40a8:
         flightUnits[0].fuel = DEFAULT_FUEL;
     }
     for (idx = 0; idx < 2; idx++) {
-        mystrcpy(targets[idx].coord, getItemCoordStr(targets[idx].targetIdx));
-        if (targets[idx].targetIdx < FIRST_REAL_ITEM) {
+        mystrcpy(targets[idx].coord, getItemCoordStr(objectSlotOrZero(targets[idx].targetIdx)));
+        if (targets[idx].targetIdx >= 0 && targets[idx].targetIdx < FIRST_REAL_ITEM) {
             swapTmp = 0x7fff;
             for (slot = FIRST_REAL_ITEM; slot < readItemSize; slot++) {
                 if ((worldObjects[slot].targetFlags & 0x500) == 0 && itemDistance(slot, targets[idx].targetIdx) < swapTmp && worldObjects[slot].unitRef != 0) {
@@ -227,7 +232,7 @@ restart_40a8:
     }
     targets[0].distance = missionDistAccum >> kDistAccumShift;
 counterMore1k:
-    baseXPrecise = (uint32)(worldObjects[targets[0].baseIdx].x_coord) << WORLD_COORD_SHIFT;
+    baseXPrecise = (uint32)(worldObjects[objectSlotOrZero(targets[0].baseIdx)].x_coord) << WORLD_COORD_SHIFT;
     /*
     Assigns the following values to made-up stack variables:
     var_34 = (int32)((word_1C830 & 0x200) ? 0 : 0x708);
@@ -239,15 +244,15 @@ counterMore1k:
     6) DX:AX = 7:a800 (501760 = 15680 << 5)
     7) DX:AX = 7:a0f8 (499960 = 501760 - 1800)
     */
-    baseYPrecise = ((MAP_Y_MIRROR - (int32)(worldObjects[targets[0].baseIdx].y_coord)) << WORLD_COORD_SHIFT) - (int32)((worldObjects[targets[0].baseIdx].targetFlags & 0x200) ? 0 : kSmallBaseFineYOfs);
-    missionTargetX = worldObjects[targets[0].targetIdx].x_coord;
-    missionTargetY = worldObjects[targets[0].targetIdx].y_coord;
-    missionMidX = (worldObjects[targets[0].baseIdx].x_coord / 2) + (missionTargetX / 2);
-    missionMidY = (worldObjects[targets[0].baseIdx].y_coord / 2) + (missionTargetY / 2);
-    missionBase2X = worldObjects[targets[1].baseIdx].x_coord;
-    missionBase2Y = worldObjects[targets[1].baseIdx].y_coord;
-    missionTarget2X = worldObjects[targets[1].targetIdx].x_coord;
-    missionTarget2Y = worldObjects[targets[1].targetIdx].y_coord;
+    baseYPrecise = ((MAP_Y_MIRROR - (int32)(worldObjects[objectSlotOrZero(targets[0].baseIdx)].y_coord)) << WORLD_COORD_SHIFT) - (int32)((worldObjects[objectSlotOrZero(targets[0].baseIdx)].targetFlags & 0x200) ? 0 : kSmallBaseFineYOfs);
+    missionTargetX = worldObjects[objectSlotOrZero(targets[0].targetIdx)].x_coord;
+    missionTargetY = worldObjects[objectSlotOrZero(targets[0].targetIdx)].y_coord;
+    missionMidX = (worldObjects[objectSlotOrZero(targets[0].baseIdx)].x_coord / 2) + (missionTargetX / 2);
+    missionMidY = (worldObjects[objectSlotOrZero(targets[0].baseIdx)].y_coord / 2) + (missionTargetY / 2);
+    missionBase2X = worldObjects[objectSlotOrZero(targets[1].baseIdx)].x_coord;
+    missionBase2Y = worldObjects[objectSlotOrZero(targets[1].baseIdx)].y_coord;
+    missionTarget2X = worldObjects[objectSlotOrZero(targets[1].targetIdx)].x_coord;
+    missionTarget2Y = worldObjects[objectSlotOrZero(targets[1].targetIdx)].y_coord;
     if (missionPick == 2) {
         missionTarget2X += (gameRand15() & 0x1000) - 0x800;
         missionTarget2Y += (gameRand15() & 0x1000) - 0x800;
@@ -267,7 +272,7 @@ counterMore1k:
             } while ((worldObjects[baseDist[2]].targetFlags & 0x100) || approxDistance(missionMidX - worldObjects[baseDist[2]].x_coord, missionMidY - worldObjects[baseDist[2]].y_coord) > (maxRange += 0x10));
             positionUnit(idx, baseDist[2]);
             maxRange = 0x3000;
-            baseBearing = calcBearing(worldObjects[targets[0].baseIdx].x_coord - flightUnits[idx].x, flightUnits[idx].y - worldObjects[targets[0].baseIdx].y_coord);
+            baseBearing = calcBearing(worldObjects[objectSlotOrZero(targets[0].baseIdx)].x_coord - flightUnits[idx].x, flightUnits[idx].y - worldObjects[objectSlotOrZero(targets[0].baseIdx)].y_coord);
             for (slot = 0; slot < 8; slot++) {
                 waypointIdx = randMul(worldObjectCount) + 1;
                 if ((worldObjects[waypointIdx].targetFlags & 0x400) == 0) {
@@ -460,6 +465,7 @@ void parseWorld(const char *filename) {
 }
 
 char *getItemCoordStr(int16 idx) {
+    idx = objectSlotOrZero(idx);
     return formatGridRef(worldObjects[idx].x_coord, worldObjects[idx].y_coord, gameData->theater);
 }
 
@@ -522,6 +528,7 @@ char *formatGridRef(int16 wx, int16 wy, int16 theater) {
 }
 
 void buildTargetLabel(int16 idx) {
+    idx = objectSlotOrZero(idx);
     mystrcpy(todayMissStrBuf, wldOffsets[worldObjects[idx].objectIdx & 0x7f]);
     if (mystrlen(wldOffsets[worldObjects[idx].unitRef]) != 0) {
         if (mystrlen(wldOffsets[worldObjects[idx].objectIdx & 0x7f]) != 0) {
