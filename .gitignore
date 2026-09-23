@@ -27,3 +27,4 @@ coverage.txt
 build-net/
 build-base/
 build-auto/
+build-*/

@@ -48,6 +48,28 @@ fault injection 20% loss / 5% duplication / reorder window 4 / bursts of 3
 dropped packets; sync-step input timeout 500ms then mark player stale;
 scenario duration 600 ticks; ASan/UBSan enabled build for gates 2-4.
 
+## Verification results (tools/netprobe + tests/net_sim_tests)
+
+| Gate | Result |
+|------|--------|
+| Sync-step consumption | PASS - one input -> exactly one snapshot; withheld input produced zero snapshots over 1.2s; input resumes -> exactly one tick each |
+| Duplicate HELLO | PASS - 3x HELLO on one connection -> 3x HELLO_ACK all id=1, single slot (server log: "joined as player 1" x3, no extra slots) |
+| Join/leave/reconnect | PASS - BYE frees the slot immediately ("player N left"), reconnect gets the lowest free slot with clean state; abrupt disconnect frees via GNS timeout; 9th concurrent client gets HELLO_NAK "server full" |
+| Packet loss | PASS - under 40% send loss + 15% dup + 30ms reorder a reliable command ("Autopilot on") executed exactly once; unreliable axes-only packets may drop without stalling |
+| Remote pause | PASS - NC_PAUSE sent mid-session; subsequent ticks/snapshots continued normally |
+| Headless combat sim | PASS - tests/net_sim_tests (7 checks): authoritative air-target lock on parked remote object, own-object exclusion, stationary exclusion, gun round destroys remote object -> g_playerObjectHitHook -> owner damage, owner-filtered rounds skipped, miss = no damage, projectile targetPlayer filter |
+| Full capacity | PASS - 8 concurrent slots assigned 0..7; parked remote objects verified live in gdb (slots above g_groundUnitCount, g_simObjScanBound covers them); ASan/UBSan soak: 8 clients + dup HELLOs + commands + leaves clean in our code (found+fixed latent strcpy(x,x) UB in findWaypointFeatures; residual reports are GNS-internal misaligned wire reads, upstream-intentional) |
+| AI role path | PASS (plumbing) - NET_ROLE_AI client joins, gets a player slot, inputs and snapshots flow; role-filtered observations remain future work |
+
+New defects found and fixed during gate testing:
+- NETMSG_BYE freed no slot (a locally initiated closePeer produces no
+  NET_EV_DISCONNECTED) - BYE now drops the player directly; closePeer
+  also lingers so a trailing reliable message (HELLO_NAK) is flushed
+  before the socket dies.
+- findWaypointFeatures did strcpy(x,x) into g_stringPool when the tile id
+  aliased the slot's own name entry (latent UB, ASan abort under
+  multi-player state) - self-copy now skipped.
+
 ## 1. [P1] Remote pause freezes the entire server
 
 NC_PAUSE and NC_SCREENSHOT reach waitForKeyPress(), which waits on the

@@ -83,8 +83,10 @@ class GnsTransport final : public NetTransport {
 
     void closePeer(NetPeer peer, int reason) override {
         HSteamNetConnection c = isServer_ ? (HSteamNetConnection)peer : serverConn_;
+        /* linger=true flushes queued reliable messages (e.g. a HELLO_NAK sent
+         * right before the close) before the connection dies */
         if (c != k_HSteamNetConnection_Invalid)
-            iface_->CloseConnection(c, reason, "f15 close", false);
+            iface_->CloseConnection(c, reason, "f15 close", true);
     }
 
     void shutdown() override {
@@ -279,6 +281,30 @@ class GnsTransport final : public NetTransport {
         return t;
     }
 
+    /* gnsSetFakeNet backend: fake loss/dup/reorder/lag on the client conn */
+    void fakeNet(int lossSendPct, int lossRecvPct, int dupSendPct,
+                 int reorderMs, int lagMs) {
+        ISteamNetworkingUtils *u;
+        if (!iface_ || serverConn_ == k_HSteamNetConnection_Invalid)
+            return;
+        u = SteamNetworkingUtils();
+        u->SetConnectionConfigValueInt32(serverConn_,
+            k_ESteamNetworkingConfig_FakePacketLoss_Send, lossSendPct);
+        u->SetConnectionConfigValueInt32(serverConn_,
+            k_ESteamNetworkingConfig_FakePacketLoss_Recv, lossRecvPct);
+        u->SetConnectionConfigValueInt32(serverConn_,
+            k_ESteamNetworkingConfig_FakePacketDup_Send, dupSendPct);
+        u->SetConnectionConfigValueInt32(serverConn_,
+            k_ESteamNetworkingConfig_FakePacketDup_Recv, dupSendPct);
+        u->SetConnectionConfigValueInt32(serverConn_,
+            k_ESteamNetworkingConfig_FakePacketReorder_Send,
+            reorderMs > 0 ? 100 : 0);
+        u->SetConnectionConfigValueInt32(serverConn_,
+            k_ESteamNetworkingConfig_FakePacketReorder_Time, reorderMs);
+        u->SetConnectionConfigValueInt32(serverConn_,
+            k_ESteamNetworkingConfig_FakePacketLag_Send, lagMs);
+    }
+
   private:
     static GnsTransport *instance_;
 };
@@ -289,4 +315,11 @@ GnsTransport *GnsTransport::instance_ = nullptr;
 
 NetTransport *createGnsTransport() {
     return GnsTransport::create();
+}
+
+void gnsSetFakeNet(NetTransport *t, int lossSendPct, int lossRecvPct,
+                   int dupSendPct, int reorderMs, int lagMs) {
+    GnsTransport *g = dynamic_cast<GnsTransport *>(t);
+    if (g)
+        g->fakeNet(lossSendPct, lossRecvPct, dupSendPct, reorderMs, lagMs);
 }

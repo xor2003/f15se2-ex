@@ -459,8 +459,8 @@ static long roundToTargetDist2(int idx, int objIdx) {
  * their own globals), never at render time — hit results no longer depend
  * on screen visibility or render rate. Player rounds are owned (targetPlayer)
  * and only processed in the owner's pass; the 4 enemy tracers are unowned:
- * every player's pass tests them against its own position, the first hit
- * consumes the round. */
+ * every player's pass tests them against its own position, so each player
+ * can be hit by them exactly like single-player's resident was. */
 void simBulletHits(void) {
     int hitFlag, idx, objIdx, pointY, pointX, dist, wpEntry, gunRadius;
     int16 bx, by;

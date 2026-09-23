@@ -213,8 +213,7 @@ struct BulletTrack {
     int32 velZ;
     /* owner of a player round (idx < g_bulletTrackCount): only that player's
      * pass runs its hit test. Enemy tracers (last 4) are unowned - every
-     * player's pass tests them against its own position; the first hit
-     * consumes the round. -1 = single-player. */
+     * player's pass tests them against its own position. -1 = single-player. */
     int16 targetPlayer;
 };
 /* Fine map coords span coarse 0..0xffff << 5; the mask keeps the DOS int16

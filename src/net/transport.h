@@ -63,4 +63,10 @@ class NetTransport {
  * fails (caller should log and abort startup). */
 NetTransport *createGnsTransport();
 
+/* Test/diagnostic: apply GNS fake-network conditions to the transport's
+ * client connection (loss %, dup %, reorder window, extra latency ms).
+ * Server-side transports ignore it. No-op on non-GNS transports. */
+void gnsSetFakeNet(NetTransport *t, int lossSendPct, int lossRecvPct,
+                   int dupSendPct, int reorderMs, int lagMs);
+
 #endif /* F15_NET_TRANSPORT_H */

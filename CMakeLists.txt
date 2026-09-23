@@ -593,8 +593,14 @@ if(F15_NET)
     target_include_directories(f15server PRIVATE ${SRC_DIR} ${SRC_DIR}/shared)
     target_link_libraries(f15server PRIVATE f15se2_core f15net)
 
+    # scripted headless client for the review acceptance gates (not a ctest;
+    # driven by hand/scripts against a live f15server)
+    add_executable(netprobe ${CMAKE_SOURCE_DIR}/tools/netprobe.cpp)
+    target_link_libraries(netprobe PRIVATE f15net)
+
     # net unit tests: serializer + protocol round-trip, cmd mapping
     add_behavior_test(net_codec_tests SOURCES
         ${SRC_DIR}/net/codec.cpp ${SRC_DIR}/net/commands.cpp)
     add_behavior_test(player_ctx_tests LINK_CORE)
+    add_behavior_test(net_sim_tests LINK_CORE)
 endif()

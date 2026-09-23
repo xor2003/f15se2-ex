@@ -677,6 +677,13 @@ int main(int argc, char **argv) {
                         if (type == NETMSG_HELLO) {
                             onHello(ev.peer, &r);
                         } else if (type == NETMSG_BYE) {
+                            /* graceful leave: free the slot now - a locally
+                             * initiated closePeer does not surface a
+                             * NET_EV_DISCONNECTED event back to us. */
+                            for (i = 0; i < F15_MAX_PLAYERS; i++)
+                                if (g_players[i].used &&
+                                    g_players[i].peer == ev.peer)
+                                    dropPlayer(i);
                             g_net->closePeer(ev.peer, 0);
                         } else {
                             for (i = 0; i < F15_MAX_PLAYERS; i++)
