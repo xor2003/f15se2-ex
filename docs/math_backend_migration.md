@@ -1532,14 +1532,20 @@ AND the packed cache; fraction-capable decision reads use the shadow directly.
   `pitchCmd - pitch` difference deliberately does NOT go through
   `Angle::operator-`, which arc-wraps — bounded analysis shows the raw diff
   never reaches the wrap-divergence band for these inputs;
+* the AI pitch-steering `(tgtZ - alt) >> 5` uses `wordShiftDown` — the
+  `>> n` shift on promoted word expressions: integral reps shift exactly,
+  floating reps divide by 2^n, so the fractional `tgtZ` (a render-height
+  word under modern) reaches `aimBearing` without the `(int)` cast
+  truncation. The sweep confirmed the sibling `>>5/>>6` sites sit on
+  integer-only sources or die into int16 out-params — no fraction leaked;
 * packed-word consumers stay packed mirrors: egtarget/egui render reads,
   `aspect`/`relBearing` bucket math, `worldSamTable` serialization.
 
 Verification: fixed 60/60 (sortie parity exercises the AI attitude loop),
 modern smoke, `typed_rotation_tests::attitudeShadow` covers fixed oracles for
-every new op (shiftedDown/dividedBy/wordRep/uwordRep/wordClamp/attitudeStep/
-wordProductQ14) plus the set/advance sync contract and modern fraction
-accumulation.
+every new op (shiftedDown/dividedBy/wordRep/uwordRep/wordClamp/wordShiftDown/
+attitudeStep/wordProductQ14) plus the set/advance sync contract and modern
+fraction accumulation.
 
 ## Simulation clock typed checkpoint
 

@@ -33,6 +33,17 @@ template<class B> struct Boundary;
 template<class B>
 using WordRep = std::conditional_t<std::is_same_v<B, FixedBackend>, std::int16_t, double>;
 
+/* The >> n arithmetic shift the originals spelled on promoted word
+ * expressions — integral reps keep the exact shift (callers pass the
+ * int-promoted difference, so no int16 re-narrowing can creep in), floating
+ * reps divide by 2^n so a modern fraction is not truncated away. Same
+ * contract as Angle::shiftedDown for non-angle word scalars. */
+template<class T>
+constexpr T wordShiftDown(T v, int n) {
+    if constexpr (std::is_integral_v<T>) return static_cast<T>(v >> n);
+    else return v / (1 << n);
+}
+
 // Representation is deliberately absent from the public quantity API.
 template<class B> class Angle {
     using Rep = std::conditional_t<std::is_same_v<B, FixedBackend>, fixed::Angle16, double>;

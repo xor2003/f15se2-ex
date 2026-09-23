@@ -376,7 +376,8 @@ void updateObjects(void) {
                 deltaY = tgtY - g_simObjects[objIdx].posY;
                 bearing = signedAngle(TrackMath::aimBearing(deltaX, -deltaY));
                 range = f15::math::legacy::mapRangeDelta(deltaX, deltaY);
-                pitchCmd = signedAngle(TrackMath::aimBearing((int)(tgtZ - g_simObjectAlt[objIdx]) >> 5, range));
+                pitchCmd = signedAngle(TrackMath::aimBearing(
+                    f15::math::wordShiftDown(tgtZ - g_simObjectAlt[objIdx], 5), range));
                 pitchCmd = clampRange(pitchCmd, -0x2000, 0x1000);
                 if (mode == 1 && range < 0x600) {
                     g_activeThreatCount++;

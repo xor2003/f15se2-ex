@@ -436,6 +436,15 @@ void attitudeShadow() {
             "wordClamp quantized a fractional in-range value");
     require(std::abs(wordClamp(1100.9, -0x400, 0x400) - 0x400) < 1e-12,
             "wordClamp missed a fractional upper bound");
+    /* wordShiftDown: the >> n shift on promoted word expressions — integral
+     * reps shift exactly (including wide diffs that would overflow int16),
+     * floating reps divide by 2^n keeping the fraction. */
+    require(f15::math::wordShiftDown(34000, 5) == 34000 >> 5,
+            "fixed wordShiftDown diverged from int >>");
+    require(f15::math::wordShiftDown(-30000, 5) == -30000 >> 5,
+            "fixed wordShiftDown diverged from negative int >>");
+    require(std::abs(f15::math::wordShiftDown(1199.7, 5) - 1199.7 / 32.0) < 1e-12,
+            "modern wordShiftDown quantized the fraction");
     /* attitudeStep: words / divisor as an Angle — fixed truncates like the
      * int16 divide; modern keeps the quotient fractional. */
     require(FC::angleWord(attitudeStep<F>(-104, 15)) ==
