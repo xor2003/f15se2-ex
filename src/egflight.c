@@ -140,6 +140,8 @@ void applyRotationDelta(const f15::math::Matrix3<f15::math::GameBackend> &matA,
 void computeAttitudeAngles(void);
 void rebuildOrientation();
 uint16 signedRatio16(int16, int16);
+int valueToAngle(int value);
+int complementAngle(int value);
 void renderFrame();
 void drawVectorShape(const int16 *shapeData);
 void waitForKeyPress(void);
@@ -855,9 +857,36 @@ uint16 signedRatio16(int16 numerator, int16 denominator) { /* Original: IntDiv(A
 done:;
 }
 
-/* valueToAngle/complementAngle (the original Iasin/Iacos) had no remaining
- * callers — the typed fixed_math.hpp versions serve the recover path — so
- * the dead wrappers were removed here. */
+#define ASIN_TABLE_SHIFT 9
+#define WORD_DEGREE_STEP 256
+
+/* valueToAngle/complementAngle are the original Iasin/Iacos bodies, kept as
+ * the frozen oracle for original_behavior_tests; production callers moved to
+ * the typed fixed_math.hpp versions on the recover path. */
+
+int valueToAngle(int value) { /* Original: Iasin(A). Return 16-bit word-degree arcsin by table interpolation. */
+    int angle, magnitude, tableIndex, tableSpan;
+
+    if (value == (int)0x8000) return (int)0xc000;
+    magnitude = abs(value);
+    tableIndex = (magnitude >> ASIN_TABLE_SHIFT) + 1;
+    for (; tableIndex >= 0; tableIndex--) {
+        if (g_angleLut[tableIndex] <= magnitude) {
+            tableSpan = g_angleLut[tableIndex + 1] - g_angleLut[tableIndex];
+            angle = (int)((long)(magnitude - g_angleLut[tableIndex]) * WORD_DEGREE_STEP / (long)tableSpan) + tableIndex * WORD_DEGREE_STEP;
+            break;
+        }
+    }
+    if (value < 0) {
+        angle = -angle;
+    }
+    return angle;
+}
+
+int complementAngle(int value) { /* Original: Iacos(A). Return 16-bit word-degree arccos as quarter-turn minus arcsin. */
+    enum { WORD_DEGREES_QUARTER_TURN = 0x4000 };
+    return WORD_DEGREES_QUARTER_TURN - valueToAngle(value);
+}
 
 int16 isqrt(int16 value) { /* Original: Sqrt(N). Return integer square root using Newton iteration. */
     int16 quotient, guess;

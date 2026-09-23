@@ -2041,7 +2041,7 @@ input widths or introduce new flight-model formulas.
 
 | Area | Library coverage | Work remaining before backend replacement |
 | --- | --- | --- |
-| Angles/trigonometry | Typed fixed/double rotation angles and trig; imported inverse trig | Scalar-trig caller sweep complete: every sim-side bearing/offset goes through `TrackMath`/`CamMath`; the surviving `sinMul`/`cosMul` callers are all display-boundary (HUD markers, spark scatter, seeker dial). Dead `valueToAngle`/`complementAngle` wrappers removed from `egflight.c` |
+| Angles/trigonometry | Typed fixed/double rotation angles and trig; imported inverse trig | Scalar-trig caller sweep complete: every sim-side bearing/offset goes through `TrackMath`/`CamMath`; the surviving `sinMul`/`cosMul` callers are all display-boundary (HUD markers, spark scatter, seeker dial). `valueToAngle`/`complementAngle`/`signedRatio16` remain as test-pinned frozen oracles, not production callers |
 | Fixed products | Q15, rounded result, high-word products and carry variants | Audit every caller's rounding and destination narrowing; Q15 inputs are signed words |
 | Long arithmetic | WordPair32, shifts, full/saturated division | Document valid domains, divide-by-zero behavior and overflow policy per operation |
 | Orientation | Typed persistent matrix/Euler state, fixed/double recovery, axis deltas and render pose interpolation | Typed control inputs, legacy scalar consumer removal and modern refresh integration |
