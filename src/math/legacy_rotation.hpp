@@ -15,10 +15,7 @@ using Math = RotationMath<GameBackend>;
 using AircraftAngle = Angle<GameBackend>;
 
 // Read-only adapters for consumers that have not migrated their scalar math yet.
-inline std::int16_t signedAngle(AircraftAngle angle) {
-    const auto bits = Codec::angleWord(angle);
-    return static_cast<std::int16_t>(bits <= 32767 ? bits : static_cast<int>(bits) - 65536);
-}
+inline std::int16_t signedAngle(AircraftAngle angle) { return angle.signedWord(); }
 inline AircraftAngle angleFromWord(int word) {
     return Codec::angleWord(static_cast<std::uint16_t>(word));
 }

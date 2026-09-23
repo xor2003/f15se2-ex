@@ -18,8 +18,6 @@
 #include "egtypes.h"
 #include "egcode.h"
 #include "egdata.h"
-#include "math/legacy_rotation.hpp"
-using f15::math::legacy::signedAngle;
 #include "inttype.h"
 #include "struct.h"
 #include "gfx.h"
@@ -180,8 +178,8 @@ void FAR CDECL hudComplex(int16 bxArg, int16 dxArg, int16 cxArg, int16 siArg) {
  * asm's shl/rcl, the >>1 is `sar DX,1`. `di` is the highest vertex byte offset;
  * walk down to 0 in steps of 2. */
 void FAR CDECL hudRotateLadder(int16 di) {
-    int32 sinR = (int32)nsine((int16)(int16)(0x4000 - signedAngle(g_ourRoll)));
-    int32 cosR = (int32)nsine((int16)(int16)(-signedAngle(g_ourRoll)));
+    int32 sinR = (int32)nsine((int16)(int16)(0x4000 - g_ourRoll.signedWord()));
+    int32 cosR = (int32)nsine((int16)(int16)(-g_ourRoll.signedWord()));
     for (; di >= 0; di -= 2) {
         int32 x = (int32)W16(g_compassTapeBuf + 0xec + di);
         int32 y = (int32)W16(g_compassTapeBuf + 0x15c + di);
@@ -209,8 +207,8 @@ void FAR CDECL hudRotateLadder(int16 di) {
  * The arithmetic mirrors hudRotateLadder ((sinR*x)*2>>16 etc.) without the (int16)
  * truncations, which never wrap for the HUD's small vertex range. */
 void FAR hudRotateLadderF(int16 di, float dyFrac, float *outX, float *outY) {
-    float sinR = (float)nsine((int16)(0x4000 - signedAngle(g_ourRoll)));
-    float cosR = (float)nsine((int16)(-signedAngle(g_ourRoll)));
+    float sinR = (float)nsine((int16)(0x4000 - g_ourRoll.signedWord()));
+    float cosR = (float)nsine((int16)(-g_ourRoll.signedWord()));
     int16 o;
     for (o = 0; o <= di; o += 2) {
         float x = (float)(int16)W16(g_compassTapeBuf + 0xec + o);
@@ -228,8 +226,8 @@ void FAR hudRotateLadderF(int16 di, float dyFrac, float *outX, float *outY) {
  * (and stay parallel to) the lines; ey is its rigid perpendicular, pointing down at
  * roll 0. Normalised so glyph texels keep unit (one-320-pixel) size at any roll. */
 void FAR hudLabelBasis(float *exX, float *exY, float *eyX, float *eyY) {
-    float sinR = (float)nsine((int16)(0x4000 - signedAngle(g_ourRoll)));
-    float cosR = (float)nsine((int16)(-signedAngle(g_ourRoll)));
+    float sinR = (float)nsine((int16)(0x4000 - g_ourRoll.signedWord()));
+    float cosR = (float)nsine((int16)(-g_ourRoll.signedWord()));
     float dx = sinR, dy = LADDER_ASPECT * cosR; /* match the rigid line transform */
     float len = sqrtf(dx * dx + dy * dy);
     if (len < 1e-3f) len = 1.0f;

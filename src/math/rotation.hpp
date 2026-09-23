@@ -124,6 +124,19 @@ public:
         else return Angle(1.57079632679489661923);
     }
     static Angle halfTurn() { return quarterTurn() + quarterTurn(); }
+    /* Signed word view for word-domain render/display consumers (HUD trig
+     * tables, packed render records). Fixed returns the int16 view of the
+     * stored word; modern quantizes radians to the same signed word — the
+     * display path is word-granular on both backends. Matches the legacy
+     * signedAngle() adapter. */
+    std::int16_t signedWord() const {
+        if constexpr (std::is_same_v<B, FixedBackend>) return value_.signedRaw();
+        else {
+            constexpr double pi = 3.141592653589793238462643383279502884;
+            const int w = static_cast<int>(std::round(value_ * 65536 / (2 * pi)));
+            return static_cast<std::int16_t>(static_cast<std::uint16_t>(w));
+        }
+    }
 };
 
 template<class B> struct EulerAngles {

@@ -28,7 +28,7 @@ ALLOWED = {
     # Snapshot interpolation writes the legacy render word through renderWord.
     "src/egsys.c",
     # Temporary Euler consumers; remove each entry as its scalar math is migrated.
-    "src/egtarget.c", "src/egkeys.c", "src/egmath.c", "src/eghudr.c", "src/eghudm.c",
+    "src/egtarget.c", "src/egkeys.c", "src/egmath.c", "src/eghudr.c",
     "src/egtgt2.c", "src/egcombat.c", "src/egframe.c", "src/egtacmap.c", "src/egthreat.c",
     "src/egui.c",
     # The world load/save seam seeds the SimObject fine shadow from packed fields.
