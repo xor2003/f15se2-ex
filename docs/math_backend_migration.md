@@ -2056,6 +2056,73 @@ Correction recorded here: the sortie schedule's "gear" presses use the G key,
 which is actually the Maverick weapon-slot select (L is gear). The labels
 were wrong but harmless — the goldens pinned the real behaviour either way.
 
+## Landing sortie checkpoint (recovery-outcome coverage)
+
+The combat profile ends mid-mission; the recovery corridor, auto-landing and
+`finalizeMission(0)` debrief path had no coverage. The `--land` profile
+reuses the imported synthetic mission with `game.difficulty = 0` (the
+corridor gate requires `g_missionStatus == 0`, and the mission-start block
+also seeds the airborne state: ~2000 altitude, ~8100 speed). The recovery
+base's flags gain `0x601` so `recoveryUsable` holds — the shared
+contact-seed block is gated to combat only, because it reinitializes plane
+flags from mission data and would silently reset the recovery bits (a bug
+found by watchpoint, not by reading: the import is 1:1 but the contact seed
+runs later in `updateFrame`).
+
+Mission state is applied inside `runTick` after tick 0's `updateFrame`,
+because the `g_initPhase == 1` mission-init block resets `g_playerPlaneFlags`
+and `waypointIndex`: the seed sets `g_playerPlaneFlags |= 0x6000` (both
+targets reached — the coverage target is the landing chain, not the kill
+chain that earns those flags) and `waypointIndex = 3` (recovery guidance).
+The land schedule presses P at tick 60, so `g_autopilotAltitude` captures
+the seeded altitude and the `waypointIndex == 3` branch drives
+`recoveryApproach`/`recoveryBank`/`recoveryAttitude`/`recoveryThrust` for
+the ~330-tick final — the guidance block, not a ballistic seed, flies the
+approach (thrust held at its commanded 35 until the corridor, where the
+landing block clears the hold).
+
+The full recovery pattern is a downwind-to-final circuit taking ~3000 ticks;
+under the modern backend the approach leg decorrelated into a terrain strike
+whose `waitFrameSync(120)` stall made the record run hang. The fixture
+therefore starts on final — 0x400 map words up the extended centreline of
+the recovery base at 0x4400,0x2000, heading 0x8000 — which keeps the whole
+guided-approach -> corridor -> "Automatic Landing Engaged" -> "Safe
+Landing" -> `finalizeMission(0)` chain while leaving little room for
+modern's fractional drift to duck under the glide slope. `g_ourHead` alone
+is not authoritative (the flight step derives heading from the orientation
+matrix), so the seed calls `rebuildOrientation()`. The corridor box itself
+is `|dx| <= 8`, `|dy| <= 30` map words around the base; an earlier
+0x800-word start let modern touch down ~60 units short and roll forever
+with `corr=0`/`ended=0` — the short final fixed that without any
+per-backend fixture fork.
+
+The schedule also chops the throttle on touchdown (MINUS presses across
+the expected landing window). "Safe Landing" clears `g_autopilotAltitude`,
+so the recovery block stops writing `g_setThrust` — and its last command
+leaves the engine pushing. Fixed's truncated speed accumulation stays under
+the 1-knot `g_landingTimer` gate long enough for `finalizeMission(0)`, but
+modern's fractional speed creep re-accelerates the airframe off the runway
+and out of the corridor, where the crash path's `waitFrameSync(120)` turns
+the rest of the run into a wall-clock stall (observed: ~2 s per tick for
+~1400 ticks — the fixture was marginal, not env-dependent: the same binary
+landed or stalled run to run). The presses are overridden by
+`recoveryThrust` every tick while the hold is live, then drive
+`g_setThrust` to 0 within four presses once it clears — a player chopping
+throttle on touchdown, expressed through the real key path.
+
+`landingRequire` asserts: the world import ran, `waypointIndex` held 3, the
+aircraft entered the corridor (`g_inLandingCorridor`), auto-landing engaged
+(`g_autoLandingActive`), the aircraft descended from its seeded altitude,
+and the mission ended through the landing path
+(`commData->landingType == 3` + `g_landingDoneFlag` +
+`g_missionEndedFlag[0]`). The profile runs 1600 ticks (`kLandTicks`), about
+2x the ~880 ticks the fixed backend needs to reach `landingType == 3`.
+`sortie_land_parity_tests` pins `sortie_land_parity.trace`;
+`modern_sortie_land_tests` pins `sortie_land_fields_modern.trace` — both
+backends land through the real production path. The profile also closes
+with `verifyWorldExport()`, so the debrief export is checked against a
+mission that actually finalized.
+
 ## Provenance and import corrections
 
 The classes came from `f15se2-re/main`, commit `6cbbec1`, originally introduced
@@ -2295,11 +2362,12 @@ end: the combat profile runs the real render path, `updateTargetLock`
 acquires an air contact, the player-launched missile guides on
 `targetLock`, and the fixed backend pins a verified `SIMOBJ_DESTROYED`
 kill (the modern run exercises the same code but decorrelates to a
-near-miss). Still missing: a landing outcome (no profile flies a corridor
-approach), real mission-file loads, wrap-boundary scenarios, interactive
-`.bbx` recordings, real-time pacing, and multi-platform runs — so modern
-coverage remains a scripted-profile acceptance gate, not a certification
-of the whole game.
+near-miss). Landing outcome is covered: the `--land` profile flies the
+recovery corridor to "Safe Landing" and `finalizeMission(0)` on both
+backends. Still missing: real mission-file loads, wrap-boundary scenarios,
+interactive `.bbx` recordings, real-time pacing, and multi-platform runs —
+so modern coverage remains a scripted-profile acceptance gate, not a
+certification of the whole game.
 
 Reproduce standalone Clang checks from the repository root:
 

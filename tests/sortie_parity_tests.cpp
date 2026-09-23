@@ -23,6 +23,7 @@
  *   sortie_parity_tests dump            print per-tick flight/mission fields
  *   (append --loop for the loop profile: sortie_loop_parity.trace,
  *    --combat for the mission-import profile: sortie_combat_parity.trace,
+ *    --land for the recovery/landing profile: sortie_land_parity.trace,
  *    --stick for the real-stick sortie: sortie_stick_parity.trace — the only
  *    profile whose golden is a true pre-migration oracle for live stick
  *    input, recorded on e28b9a4 via a virtual joystick)
@@ -74,11 +75,13 @@ int runSortie(const char *path, bool record, bool dump, Profile profile) {
     LoopCheck loop;
     CombatCheck combat;
     StickCheck stick;
+    LandingCheck land;
     for (int tick = 0; tick < ticks; ++tick) {
         runTick(tick, profile);
         if (profile == Profile::kLoop) loopObserve(loop, tick);
         if (profile == Profile::kCombat) combatObserve(combat, tick);
         if (profile == Profile::kStick) stickObserve(stick, tick);
+        if (profile == Profile::kLand) landingObserve(land, tick);
 
         const std::uint32_t flight = hashFlight();
         const std::uint32_t camera = hashCamera();
@@ -123,6 +126,10 @@ int runSortie(const char *path, bool record, bool dump, Profile profile) {
         combatRequire(combat);
         verifyWorldExport();
     }
+    if (profile == Profile::kLand) {
+        landingRequire(land);
+        verifyWorldExport();
+    }
     if (record) {
         require(trace.good(), "trace write failed");
         std::fprintf(stderr, "recorded %d ticks to %s\n", ticks, path);
@@ -142,14 +149,17 @@ int main(int argc, char **argv) {
     if (combat) --argc;
     const bool stick = argc >= 2 && std::string(argv[argc - 1]) == "--stick";
     if (stick) --argc;
+    const bool land = argc >= 2 && std::string(argv[argc - 1]) == "--land";
+    if (land) --argc;
     const bool record = argc == 3 && std::string(argv[1]) == "record";
     const bool fields = argc == 3 && std::string(argv[1]) == "fields";
     const bool dump = argc >= 2 && std::string(argv[1]) == "dump";
     require(record || fields || dump || argc == 1,
-            "usage: sortie_parity_tests [record <out.trace> | fields <out.trace> | dump] [--loop | --combat | --stick]");
+            "usage: sortie_parity_tests [record <out.trace> | fields <out.trace> | dump] [--loop | --combat | --stick | --land]");
     const Profile profile = loop ? Profile::kLoop
                                : combat ? Profile::kCombat
-                                        : stick ? Profile::kStick : Profile::kSortie;
+                                        : stick ? Profile::kStick
+                                                : land ? Profile::kLand : Profile::kSortie;
     initSortie(profile);
     int result = 0;
     if (fields) {
@@ -159,14 +169,21 @@ int main(int argc, char **argv) {
             : (loop ? F15_GOLDEN_DIR "/sortie_loop_parity.trace"
                     : combat ? F15_GOLDEN_DIR "/sortie_combat_parity.trace"
                              : stick ? F15_GOLDEN_DIR "/sortie_stick_parity.trace"
-                                     : F15_GOLDEN_DIR "/sortie_parity.trace");
+                                     : land ? F15_GOLDEN_DIR "/sortie_land_parity.trace"
+                                            : F15_GOLDEN_DIR "/sortie_parity.trace");
         result = runSortie(path, record, dump, profile);
     }
     teardown();
-    if (!record && !fields && !dump)
-        std::puts(loop ? "loop parity: 660 ticks match the sortie_loop golden"
-                       : combat ? "combat parity: 900 ticks match the sortie_combat golden"
-                                : stick ? "stick parity: 660 ticks match the e28b9a4 stick-oracle golden"
-                                        : "sortie parity: 660 ticks match the e28b9a4 golden");
+    if (!record && !fields && !dump) {
+        if (land) {
+            std::printf("land parity: %d ticks match the sortie_land golden\n",
+                        ticksForProfile(profile));
+        } else {
+            std::puts(loop ? "loop parity: 660 ticks match the sortie_loop golden"
+                           : combat ? "combat parity: 900 ticks match the sortie_combat golden"
+                                    : stick ? "stick parity: 660 ticks match the e28b9a4 stick-oracle golden"
+                                            : "sortie parity: 660 ticks match the e28b9a4 golden");
+        }
+    }
     return result;
 }

@@ -98,6 +98,12 @@ constexpr int kSortieTicks = 660;
  * ticks to close on the primary target — the intercept outcome is part of
  * the coverage, not just the launch. */
 constexpr int kCombatTicks = 900;
+/* The recovery approach flies a downwind-to-final pattern that takes ~3000
+ * ticks from midfield — so the fixture starts the player on final, 0x400
+ * map words up the extended centerline heading inbound. The corridor ->
+ * auto-land -> Safe Landing chain still runs end to end; ~900 ticks reach
+ * landingType 3 on fixed, 1600 leaves modern drift margin. */
+constexpr int kLandTicks = 1600;
 constexpr std::uint32_t kSeed = 0x51e7u;
 
 
@@ -119,11 +125,15 @@ inline void pushKey(SDL_Scancode scancode, SDL_Keycode key) {
  * regression path — with no weapons or autopilot phases; kCombat loads a
  * synthetic mission through the real worldxfer import (enemy interceptors,
  * target sites, name pool, waypoints) and flies it under autopilot while the
- * weapon designate/fire keys run. */
-enum class Profile { kSortie, kLoop, kCombat, kStick };
+ * weapon designate/fire keys run; kLand reuses that imported mission but
+ * seeds the mission-complete flags and waypointIndex=3 so the recovery
+ * guidance (recoveryApproach/recoveryBank/recoveryAttitude/recoveryThrust)
+ * flies the whole corridor approach into "Safe Landing". */
+enum class Profile { kSortie, kLoop, kCombat, kStick, kLand };
 
 constexpr int ticksForProfile(Profile profile) {
-    return profile == Profile::kCombat ? kCombatTicks : kSortieTicks;
+    return profile == Profile::kLand ? kLandTicks
+         : profile == Profile::kCombat ? kCombatTicks : kSortieTicks;
 }
 
 /* Discrete cockpit commands for this tick, pushed before the pump so the
@@ -157,6 +167,25 @@ inline void pushScheduleKeys(int tick, Profile profile) {
         if (tick == 480 || tick == 485) pushKey(SDL_SCANCODE_RETURN, SDLK_RETURN);
         if (tick == 540) pushKey(SDL_SCANCODE_W, SDLK_W);           // waypoint -> 3
         if (tick == 600) pushKey(SDL_SCANCODE_B, SDLK_B);           // airbrake
+        return;
+    }
+    if (profile == Profile::kLand) {
+        /* Autopilot on, then hands-off: waypointIndex==3 (seeded) routes the
+         * guidance through recoveryApproach — it steers to the recovery base,
+         * manages descent/brakes/thrust, and lands itself. Gear stays down
+         * the whole run (it starts down on the runway). */
+        if (tick == 60) pushKey(SDL_SCANCODE_P, SDLK_P);
+        /* Chop throttle on touchdown, like a player would: when "Safe
+         * Landing" sets g_landingDoneFlag it also clears the altitude hold,
+         * so the recovery block stops writing g_setThrust — and its last
+         * command (35) leaves the engine pushing. Fixed's truncated speed
+         * accumulation stays under the 1-knot timer gate long enough to
+         * finalize, but modern's fractional creep re-accelerates off the
+         * runway and out of the corridor. MINUS presses are overridden every
+         * tick while the hold is live, then drive setThrust to 0 within four
+         * presses once it clears. */
+        if (tick >= 360 && tick <= 640 && (tick & 7) == 0)
+            pushKey(SDL_SCANCODE_MINUS, SDLK_MINUS);
         return;
     }
     if (tick == 280) for (int i = 0; i < 16; ++i)                 // throttle cut
@@ -677,6 +706,42 @@ inline void combatRequire(const CombatCheck &c, bool requireKill = true) {
         require(c.killSeen, "combat: no air target was destroyed");
 }
 
+/* Non-degenerate proof for the landing profile: the recovery guidance
+ * actually flew the corridor — landing checks live in updateFrame, so no
+ * render pass is needed. landed is the outcome: "Safe Landing" ->
+ * finalizeMission(0) -> landingType 3. */
+struct LandingCheck {
+    bool importSeen = false;
+    bool corridorSeen = false;  /* inside the recovery-base corridor */
+    bool autoLandSeen = false;  /* g_autoLandingActive: guidance handed off */
+    bool descentSeen = false;   /* recovery leg actually descended */
+    bool landed = false;
+    int16 altPeak = -1;
+};
+inline void landingObserve(LandingCheck &l, int tick) {
+    if (tick == 1) {
+        l.importSeen = (g_planeCount == 6 && g_groundUnitCount == 7 &&
+                        waypoints[1].mapX == 0x3400 && g_targetNameTable[1][0] != '\0' &&
+                        waypointIndex == 3);
+    }
+    const int16 alt = (int16)legacy::altitudeUnits(g_altitude);
+    if (alt > l.altPeak) l.altPeak = alt;
+    if (g_inLandingCorridor != 0) l.corridorSeen = true;
+    if (g_autoLandingActive != 0) l.autoLandSeen = true;
+    /* The player starts on the runway, so descent means "below the cruise
+     * peak", not below the start. */
+    if (l.altPeak > 500 && alt < l.altPeak - 300) l.descentSeen = true;
+    if (commData && commData->landingType == 3 &&
+        g_landingDoneFlag != 0 && g_missionEndedFlag[0] != 0) l.landed = true;
+}
+inline void landingRequire(const LandingCheck &l) {
+    require(l.importSeen, "land: worldxfer import / recovery leg not seeded");
+    require(l.corridorSeen, "land: never entered the recovery corridor");
+    require(l.autoLandSeen, "land: auto-landing never engaged");
+    require(l.descentSeen, "land: recovery leg never descended");
+    require(l.landed, "land: no Safe Landing / finalizeMission(0)");
+}
+
 /* worldExportToEnd round-trip: run the real EGAME -> END debrief export after
  * the sortie and check every block against the live tables — including the
  * reversed +2-byte unitRef shift (plane i re-exports the lead / previous
@@ -781,14 +846,25 @@ inline void initSortie(Profile profile = Profile::kSortie) {
     g_missionTick = f15::math::TickDuration{};
     g_waypointBearing = legacy::angleFromWord(0);
     waypointIndex = 1;
-    if (profile == Profile::kCombat) {
+    if (profile == Profile::kCombat || profile == Profile::kLand) {
         /* The mission import places the player's start (view anchors on
          * planes[targets[0].baseIdx]); don't re-pin g_ViewX/Y here. */
         seedCombatMission();
-        /* Combat runs renderFrame() per tick (updateTargetLock lives in the
-         * render path): register a real rasterizer. Software always claims;
-         * it draws into the dummy video's frame buffer. */
-        r3d_init();
+        if (profile == Profile::kCombat) {
+            /* Combat runs renderFrame() per tick (updateTargetLock lives in
+             * the render path): register a real rasterizer. Software always
+             * claims; it draws into the dummy video's frame buffer. */
+            r3d_init();
+        } else {
+            /* kLand: difficulty 0 is what the corridor check gates on
+             * (g_missionStatus==0); it also gives the airborne mission start
+             * (altitude 2000, speed 8100) a recovery leg wants. The base
+             * needs flags & 0x500 plus & 0x201 (and not 0x800) to be a usable
+             * landing field. The 0x6000/waypointIndex=3 seeds go in runTick —
+             * the initPhase block on tick 0 resets both. */
+            game.difficulty = 0;
+            g_planeTable.planes[g_targetSlots[1].viewIndex].flags |= 0x601;
+        }
     } else {
         g_ViewX = legacy::viewX(5000);
         g_ViewY = legacy::viewY(-5000);
@@ -801,8 +877,10 @@ inline void initSortie(Profile profile = Profile::kSortie) {
     g_liftForce = g_rollPitchTrim = {};
     g_orientationDirty = g_rotationCounter = g_rollWasNonzero = 0;
 
-    if (profile != Profile::kCombat) {
-        /* A few seeded contacts so threat/targeting/object paths engage. */
+    if (profile != Profile::kCombat && profile != Profile::kLand) {
+        /* A few seeded contacts so threat/targeting/object paths engage.
+         * kCombat/kLand keep the worldxfer-imported tables instead — this
+         * block would overwrite their plane flags/counts. */
         g_planeCount = 12;
         /* No mission assets are loaded: point every name-table slot at an
          * empty string so placeString() (spawnEnemyAircraft, waypoints) stays
@@ -858,6 +936,30 @@ inline void runTick(int tick, Profile profile = Profile::kSortie) {
     applyScheduleStick(tick, profile);
     stepFlightModel();
     updateFrame();
+    if (profile == Profile::kLand && tick == 0) {
+        /* Pretend both targets were destroyed — the recovery leg is the path
+         * under test, not the kill chain that sets these flags. Applied after
+         * tick 0's updateFrame because the g_initPhase mission-init block
+         * resets playerPlaneFlags and waypointIndex. */
+        g_playerPlaneFlags |= 0x6000;
+        waypointIndex = 3;
+        /* Start on final: 0x400 map words up the extended centerline (the
+         * base sits at 0x4400,0x2000; the ns=-1 recovery direction approaches
+         * from lower mapY) heading 0x8000 — the bearing the last verified run
+         * held through the corridor. Skipping the downwind pattern keeps the
+         * profile compact while the corridor -> auto-land -> Safe Landing
+         * chain still runs end to end, and a short final leaves the modern
+         * backend little room to drift below the glide before the corridor
+         * box (|dx|<=8, |dy|<=30 around the base). View coords are fine
+         * units (map x 32), Y mirrored against 0x8000. */
+        g_ViewX = legacy::viewX(0x4400 * 32);
+        g_ViewY = legacy::viewY((0x8000 - 0x1c00) * 32);
+        g_ourHead = legacy::angleFromWord((int16)0x8000);
+        /* The Euler word alone isn't authoritative: the flight step derives
+         * heading from the orientation matrix, which still holds the old
+         * attitude. Rebuild it so the seeded heading actually sticks. */
+        rebuildOrientation();
+    }
     /* kCombat also runs a render frame per tick: production calls
      * renderFrame() from gameMainLoop after the sim steps, and
      * updateTargetLock() — the air-target scan that acquires locks —
