@@ -6,9 +6,11 @@
  * does its own magic/version typing inside each payload.
  */
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include <atomic>
+#include <chrono>
 #include <mutex>
 #include <deque>
 #include <unordered_map>
@@ -62,6 +64,63 @@ static void drainDebugMessages(void) {
     const unsigned dropped = debugDropped.exchange(0, std::memory_order_relaxed);
     if (dropped)
         fprintf(stderr, "GNS: dropped %u debug messages (log queue busy/full)\n", dropped);
+}
+
+/* Optional wall-time profiling, enabled with F15_GNS_PROF=1. GNS "lock held"
+ * warnings measure real time and therefore include any period where the OS
+ * preempted a thread while it held the internal lock; these counters time the
+ * same entry points from our side so our own work can be separated from
+ * external thread starvation. Reported to stderr every PROF_REPORT_NS; maxNs
+ * resets each window so it tracks the worst recent call, not history. */
+static const uint64_t PROF_REPORT_NS = 5000000000ULL;
+
+struct ProfStats {
+    uint64_t calls = 0, bytes = 0, totalNs = 0, maxNs = 0;
+};
+
+static bool g_profOn;
+static ProfStats g_profSendRel, g_profSendUnrel, g_profPoll, g_profRecv;
+static uint64_t g_profWindowStart;
+
+static uint64_t profNowNs(void) {
+    return (uint64_t)std::chrono::duration_cast<std::chrono::nanoseconds>(
+               std::chrono::steady_clock::now().time_since_epoch())
+        .count();
+}
+
+static void profAdd(ProfStats &s, uint64_t ns, uint64_t bytes) {
+    if (!g_profOn)
+        return;
+    s.calls++;
+    s.bytes += bytes;
+    s.totalNs += ns;
+    if (ns > s.maxNs)
+        s.maxNs = ns;
+}
+
+static void profReport(void) {
+    if (!g_profOn)
+        return;
+    const uint64_t now = profNowNs();
+    if (now - g_profWindowStart < PROF_REPORT_NS)
+        return;
+    const double secs = (double)(now - g_profWindowStart) / 1e9;
+    const ProfStats *rows[] = {&g_profSendRel, &g_profSendUnrel, &g_profPoll,
+                               &g_profRecv};
+    const char *names[] = {"send-rel", "send-unrel", "poll", "recv"};
+    for (int i = 0; i < 4; i++) {
+        const ProfStats &s = *rows[i];
+        if (!s.calls)
+            continue;
+        fprintf(stderr,
+                "GNSPROF %s: %llu calls (%.0f/s) %llu B (%.0f B/s) avg %.1fus "
+                "max %.1fms\n",
+                names[i], (unsigned long long)s.calls, s.calls / secs,
+                (unsigned long long)s.bytes, s.bytes / secs,
+                (double)s.totalNs / (double)s.calls / 1e3, s.maxNs / 1e6);
+        const_cast<ProfStats &>(s) = ProfStats{};
+    }
+    g_profWindowStart = now;
 }
 
 struct QueuedMsg {
@@ -155,9 +214,13 @@ class GnsTransport final : public NetTransport {
     }
 
     void poll() override {
-        if (iface_)
+        if (iface_) {
+            const uint64_t t0 = profNowNs();
             iface_->RunCallbacks();
+            profAdd(g_profPoll, profNowNs() - t0, 0);
+        }
         drainDebugMessages();
+        profReport();
     }
 
     bool recv(NetRecv *out) override {
@@ -172,7 +235,9 @@ class GnsTransport final : public NetTransport {
                 return false;
             for (;;) {
                 SteamNetworkingMessage_t *m = nullptr;
+                const uint64_t t0 = profNowNs();
                 int n = iface_->ReceiveMessagesOnPollGroup(pollGroup_, &m, 1);
+                profAdd(g_profRecv, profNowNs() - t0, 0);
                 if (n <= 0 || !m)
                     break;
                 NetRecv ev{};
@@ -191,7 +256,9 @@ class GnsTransport final : public NetTransport {
                 return false;
             for (;;) {
                 SteamNetworkingMessage_t *m = nullptr;
+                const uint64_t t0 = profNowNs();
                 int n = iface_->ReceiveMessagesOnConnection(serverConn_, &m, 1);
+                profAdd(g_profRecv, profNowNs() - t0, 0);
                 if (n <= 0 || !m)
                     break;
                 NetRecv ev{};
@@ -212,14 +279,24 @@ class GnsTransport final : public NetTransport {
     void send(NetPeer peer, const void *data, size_t len, int flags) override {
         if (!iface_)
             return;
-        int st = (flags & NET_SEND_RELIABLE) ? k_nSteamNetworkingSend_Reliable
-                                             : k_nSteamNetworkingSend_Unreliable;
+        /* Tick-state traffic (snapshots, input axes) is superseded every tick,
+         * so it bypasses Nagle and drops rather than queueing when the pipe is
+         * backed up (UnreliableNoDelay) - GNS batches Nagle messages and does
+         * the flush work while holding its internal lock. Reliable control
+         * messages stay ordered but also skip the Nagle timer so commands
+         * leave promptly. */
+        int st = (flags & NET_SEND_RELIABLE)
+                     ? k_nSteamNetworkingSend_ReliableNoNagle
+                     : k_nSteamNetworkingSend_UnreliableNoDelay;
+        const uint64_t t0 = profNowNs();
         if (isServer_) {
             HSteamNetConnection c = (HSteamNetConnection)peer;
             iface_->SendMessageToConnection(c, data, (uint32)len, st, nullptr);
         } else if (serverConn_ != k_HSteamNetConnection_Invalid) {
             iface_->SendMessageToConnection(serverConn_, data, (uint32)len, st, nullptr);
         }
+        profAdd((flags & NET_SEND_RELIABLE) ? g_profSendRel : g_profSendUnrel,
+                profNowNs() - t0, len);
     }
 
     enum NetPeerState peerState(NetPeer peer) const override {
@@ -253,6 +330,8 @@ class GnsTransport final : public NetTransport {
         }
         SteamNetworkingUtils()->SetDebugOutputFunction(
             k_ESteamNetworkingSocketsDebugOutputType_Warning, gnsDebugSpew);
+        g_profOn = getenv("F15_GNS_PROF") && getenv("F15_GNS_PROF")[0] == '1';
+        g_profWindowStart = profNowNs();
         iface_ = SteamNetworkingSockets();
         libUp_ = true;
         return true;

@@ -46,6 +46,9 @@ void fireGroundThreat(int16 planeIdx); /* egthreat.c (file-local decl there) */
 static NetTick srvTick(void) { return (NetTick)(uint16_t)g_missionTick; }
 
 #define DEFAULT_PORT F15_NET_DEFAULT_PORT
+/* Idle-loop poll granularity; see the delay site for the lock-pressure
+ * tradeoff. */
+#define F15_SRV_POLL_NS 4000000ULL
 
 struct ServerPlayer {
     int used;
@@ -917,14 +920,17 @@ int f15ServerMain(int argc, char **argv) {
                 if (!g_syncStep)
                     nextNs = now + stepNs;
             }
-            /* idle pacing: ~1.5ms poll granularity; sleeping before the next
-             * tick when players are live */
+            /* Poll granularity vs. lock pressure: every poll()/recv() pair
+             * acquires GNS's global lock, so a too-fine loop adds contention
+             * points without helping latency (inputs arrive every ~33ms at
+             * 30Hz; the tick itself is 66ms). 4ms stays prompt while roughly
+             * halving lock acquisitions versus the previous 1.5ms. */
             now = SDL_GetTicksNS();
             if (g_syncStep || g_readyCount == 0 || now >= nextNs) {
-                SDL_DelayNS(1500000);
+                SDL_DelayNS(F15_SRV_POLL_NS);
             } else {
                 uint64_t d = nextNs - now;
-                SDL_DelayNS(d > 1500000 ? 1500000 : d);
+                SDL_DelayNS(d > F15_SRV_POLL_NS ? F15_SRV_POLL_NS : d);
             }
         }
     }
