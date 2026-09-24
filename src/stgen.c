@@ -40,7 +40,7 @@ enum {
     kLargeBaseSpawnAlt = 140,
     kBaseSpawnAlt = 12,
     /* Spawned units always face the same heading. */
-    kUnitSpawnHeading = 0xfc00,
+    kUnitSpawnHeading = -0x400, /* 0xFC00 word */
     /* fuel = spec range << 13 / maxSpeed — the range->fuel scale. */
     kFuelRangeShift = 13,
 };
@@ -71,8 +71,8 @@ void missionGenerate() {
 }
 
 void runGenerator() {
-    int16 attempt, totalDist, bearing, missionBits, i, waypointIdx, baseBearing, randChoice;
-    int16 swapTmp, maxRange, minDist, unitType, randIdx;
+    int16 attempt, totalDist, bearing, missionBits, i, waypointIdx, baseBearing, randChoice = 0;
+    int16 swapTmp, maxRange, minDist, unitType, randIdx = 0;
     int16 baseDist[4];
     int16 randY, idx, matchCount, slot, retryCount;
     int16 customPrimaryTarget, customSecondaryTarget, customFallbackTarget;

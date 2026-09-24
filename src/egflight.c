@@ -865,7 +865,7 @@ done:;
  * the typed fixed_math.hpp versions on the recover path. */
 
 int valueToAngle(int value) { /* Original: Iasin(A). Return 16-bit word-degree arcsin by table interpolation. */
-    int angle, magnitude, tableIndex, tableSpan;
+    int angle = 0, magnitude, tableIndex, tableSpan;
 
     if (value == (int)0x8000) return (int)0xc000;
     magnitude = abs(value);
@@ -1283,7 +1283,7 @@ void drawVectorShape(const int16 *shapeData) {
             /* Extend the bottom edge one pixel down so the GL fill closes the seam to
              * the body sprite below (the span fill covers it on software). */
             {
-                int k, maxY = ring[1];
+                int k, maxY = nv > 0 ? ring[1] : 0;
                 for (k = 1; k < nv; k++)
                     if (ring[k * 2 + 1] > maxY) maxY = ring[k * 2 + 1];
                 for (k = 0; k < nv; k++)

@@ -230,7 +230,7 @@ void joy_showSetup(void) {
             state.released = false;
         }
         if (!input_hasFocus()) {
-            controls_beginCapture((RawAction)-1);
+            controls_beginCapture(RAW_ACTION_NONE);
             input_ringReset();
             state.released = false;
             state.stickZone = 0;
@@ -263,7 +263,7 @@ void joy_showSetup(void) {
         drawJoystickSetup(state.selected, state.first, state.keyboard, state.saveFailed);
         SDL_Delay(setupPollMs);
     }
-    controls_beginCapture((RawAction)-1);
+    controls_beginCapture(RAW_ACTION_NONE);
     input_setJoystickSetup(false);
     input_setMode(previousMode);
 #if defined(__ANDROID__)

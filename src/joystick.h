@@ -37,7 +37,7 @@ Sint16 joy_axisRaw(SDL_GamepadAxis a);
 f15::math::AnalogStick joy_physicalStick(void);
 
 /* Raw-stick priority bindings; command polling is once per flight step. */
-enum RawAction { RAW_CANNON, RAW_MISSILE, RAW_COUNTERMEASURE, RAW_WEAPON,
+enum RawAction { RAW_ACTION_NONE = -1, RAW_CANNON, RAW_MISSILE, RAW_COUNTERMEASURE, RAW_WEAPON,
                  RAW_THRUST_UP, RAW_THRUST_DOWN, RAW_GEAR, RAW_AUTOPILOT,
                  RAW_TARGET, RAW_VIEW,
                  RAW_CHAFF, RAW_FLARE, RAW_SIDEWINDER, RAW_AMRAAM, RAW_MAVERICK,

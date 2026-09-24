@@ -59,8 +59,9 @@ static const int MISSILE_PROX_SCALE_Q8 = 176;
 
 void fireAirThreat(int16 objIdx) {
     if (campaignFriendlyAircraft(objIdx, g_groundUnitCount, g_simObjects[objIdx].objType)) return;
-    int16 p, a, b, c, bearing, e, f;
-    uint16 acqRange;
+    int16 p, a, b, c, e, f;
+    int16 bearing = 0;
+    uint16 acqRange = 0;
     int16 h, idx, slot, k, l, range, n;
 
     idx = aircraftTypes[g_threatSpec].modelId;

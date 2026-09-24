@@ -115,6 +115,7 @@ static void camRestore(const CamSnapshot *s) {
 }
 
 static int32 lerpLinear(int32 a, int32 b, int64 num, int64 den) {
+    if (den == 0) return a;
     return a + (int32)(((int64)(b - a) * num) / den);
 }
 

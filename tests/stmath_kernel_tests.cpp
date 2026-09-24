@@ -12,6 +12,11 @@
 #include <cstdlib>
 #include <iostream>
 
+/* egdata.c's regnStr points at this buffer. ELF dead-section linking discards
+ * the reference in normal builds; sanitizer instrumentation keeps it alive,
+ * so the stub is required when ASan/UBSan are enabled. */
+char aRegn_xxx[] = "regn.xxx";
+
 namespace {
 
 enum : int { kTestFailureExitCode = 1 };

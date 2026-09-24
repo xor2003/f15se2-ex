@@ -108,8 +108,8 @@ void updateThreatSites() {
 
 /* ---- merged from egflt.c ---- */
 void fireGroundThreat(int16 planeIdx) {
-    int16 bearing[11];
-    uint16 range[4];
+    int16 bearing[11] = {0};
+    uint16 range[4] = {0};
     int16 clampedRange, threatType, slot, m, n, score;
 
     threatType = g_planeTable.planes[planeIdx].active;
