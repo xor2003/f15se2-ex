@@ -9,6 +9,7 @@
 #include <stddef.h>
 
 typedef struct SDL_IOStream SDL_IOStream;
+typedef struct SDL_Surface SDL_Surface;
 
 /* program teardown - cleanup.c */
 void cleanup(void);
@@ -36,6 +37,9 @@ void mystrcpy(char *dest, const char *source);
 void loadPic(const char *filename, int segment);
 void openShowPic(const char *filename, int page);
 void showPicFile(SDL_IOStream *handle, int pageNum);
+/* Decode a PIC stream into an arbitrary INDEX8 surface (f19 module decodes into
+ * its own seg-backed frame buffers rather than app pages). */
+void picDecodeToSurface(SDL_IOStream *handle, SDL_Surface *dst);
 int loadReplacementPngToPage(const char *filename, int page);
 int loadReplacementPngToHiResTitle(const char *filename);
 

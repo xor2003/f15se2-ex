@@ -1,0 +1,78 @@
+/* F-19 Stealth Fighter — merged module common header.
+ *
+ * The sources in this directory are native adaptations of the verified
+ * f19ru reconstruction C (src_start). The DOS seg:off model is flattened:
+ *   - `far`/`near` are no-ops (compat64/dos.h)
+ *   - "segment" values returned by allocBuffer are int16 handles resolved
+ *     through f19seg.c; resFileReadBlock(path, off, seg) reads into the
+ *     resolved block.
+ *   - the comm/game-data blocks are native buffers; the dseg cells that
+ *     held their far pointers appear as the commData/gameData globals
+ *     (word_2D066 / word_2991C were the DOS cells' flat names).
+ *   - BIOS low-mem pointers (word_2B942 -> 0:0x4F2, word_298EC -> 0:0x4F4)
+ *     become pointers into a small shared-flag area.
+ */
+#ifndef F19_MODULE_H
+#define F19_MODULE_H
+
+#include <dos.h>            /* compat64: far/near + REGS */
+#include "inttype.h"
+#include "shared/common.h"  /* mystrcpy, my_ltoa, file io decls */
+
+extern uint8 timerCounter;
+
+SDL_IOStream *f19_fileIo(int16 h);       /* f19file.c */
+void *f19_pagePixels(int16 n);           /* f19ovl.c: page idx -> pixels
+                                            (0 = app back buffer, >0 = seg) */
+#define gfx_copyRect f19_gfx_copyRect    /* F-19 pages are seg-backed, not app pages */   /* shared/timer.c — 60 Hz tick byte (stdata.c) */
+#include "stcode.h"          /* mystrcat */
+#include "strand.h"          /* randMul, srand/rand (app's own rng) */
+#include "stgen.h"           /* mystrlen */
+#include "f19seg.h"
+#include "f19ovl.h"
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <time.h>
+
+/* dseg-cell aliases for the comm/game pointer slots */
+#define word_2D066 f19_commData
+#define word_2991C f19_gameData
+#define commData f19_commData
+#define gameData f19_gameData
+
+/* The real objects behind the two cells above. Declared void* here;
+ * every user file redeclares them with its own struct view. */
+
+/* the F-19 comm/game shared block (commData at +0, gameData at +0x120E) */
+extern uint8 f19_commBase[];
+
+/* F-19's flat data segment: every word_/byte_/dword_ global is a lvalue
+ * macro into this array (see the per-file #define tables generated from
+ * the extern decls), so aliasing and absolute-offset references behave
+ * exactly like the DOS image. */
+extern uint8 f19_dseg[];
+
+/* shared low-mem flag cells (0:4F2 reload-request, 0:4F4 gfx vector) */
+extern int16 f19_lowFlags[];
+
+/* CRT stdio compat for the reconstructed sources: FILE* calls route
+ * through the app's SDL_IOStream layer so game files resolve via the
+ * bundledRoot/convertedDir search path.  Must come after the sources'
+ * own #include <stdio.h>, and only affects tokens that follow it. */
+#include "shared/common.h"
+#define FILE        SDL_IOStream
+#define fopen(name, mode)   (((mode)[0] == 'w' || (mode)[0] == 'a') ? \
+                             createFile((name), 0) : openFile((name), 0))
+#define fread(p,s,c,f)      fileRead((p),(s),(c),(f))
+#define fwrite(p,s,c,f)     fileWrite((p),(s),(c),(f))
+#define fclose(f)           (fileClose(f), 0)
+#define fseek(f,o,w)        ((int)SDL_SeekIO((f),(o),SDL_IO_SEEK_SET) < 0)
+
+/* entry points wired through GameDesc */
+void f19_dsegInit(void);
+int f19_start_main(void);
+int f19_egame_main(void);
+int f19_end_main(void);
+
+#endif /* F19_MODULE_H */

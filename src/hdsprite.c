@@ -1,4 +1,5 @@
 #include "hdsprite.h"
+#include "game/game.h"
 #include "r2d.h"
 #include "log.h"
 #include "inttype.h"
@@ -13,12 +14,21 @@
  * a missing asset is normal (the game ships with only the sprites drawn so far). */
 static R2DImage *loadHdPng(const char *path) {
     char resolvedPath[1024];
+    char gameBundledPath[1024];
     const int bundledAsset = SDL_strncmp(path, "assets/", 7) == 0;
     SDL_Surface *raw;
     SDL_Surface *rgba;
     if (bundledAsset && findReplacementAssetPath(path + 7, ".png",
                                                 resolvedPath, sizeof(resolvedPath))) {
         path = resolvedPath;
+    } else if (bundledAsset) {
+        /* Bundled HD art lives under the active game's root (assets/ for
+         * F-15, assets/f19/ for F-19) so non-F-15 games never see F-15 art. */
+        const int length = SDL_snprintf(gameBundledPath, sizeof(gameBundledPath),
+                                        "%s/%s", gameBundledRoot(), path + 7);
+        if (length > 0 && (size_t)length < sizeof(gameBundledPath)) {
+            path = gameBundledPath;
+        }
     }
     raw = SDL_LoadPNG(path);
     if (!raw && bundledAsset && path != resolvedPath) {
@@ -81,17 +91,6 @@ static const char *const debriefMapPaths[8] = {
     "assets/end/map/na.png", /* North Africa */
 };
 
-static const char *const debriefMapLegacyNames[8] = {
-    "libya.spr",
-    "persian.spr",
-    "vn.spr",
-    "me.spr",
-    "ncape.spr",
-    "ceurope.spr",
-    "jp.spr",
-    "na.spr",
-};
-
 static R2DImage *debriefMaps[8];
 static int debriefMapsTried[8];
 
@@ -99,8 +98,10 @@ static R2DImage *debriefMap(int theatre) {
     if (theatre < 0 || theatre >= 8 || !r2d_hasNativeOverlay()) return NULL;
     if (!debriefMapsTried[theatre]) {
         debriefMapsTried[theatre] = 1;
-        debriefMaps[theatre] = loadHdReplacementOrPng(debriefMapLegacyNames[theatre],
-                                                       debriefMapPaths[theatre]);
+        /* gameTheaterSprFile gives the per-game legacy sprite sheet; the
+         * bundled assets/ fallback path is re-rooted per game in loadHdPng. */
+        debriefMaps[theatre] = loadHdReplacementOrPng(gameTheaterSprFile(theatre),
+                                                    debriefMapPaths[theatre]);
     }
     return debriefMaps[theatre];
 }

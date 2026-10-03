@@ -155,3 +155,5 @@ Building with MSVC should also work.
 ## Running
 
 After building, either drop the resulting binary into a directory with the game assets, use the `--game` command line option or the `F15SE2_DIR` environmental variable to set the assets' location.
+
+The executable detects which game the assets belong to (F-15 Strike Eagle II or F-19 Stealth Fighter) from signature files; if a directory contains assets for more than one supported game it refuses to guess — pick one with `--game-id` (`f15` or `f19`) or the `F15SE2_GAME_ID` environment variable. F-19 support currently runs on the F-15 engine (its own module is pending); its four theaters — Libya, Persian Gulf, North Cape, Central Europe — work end to end.

@@ -17,6 +17,7 @@
 #include "sttypes.h"
 #include "hdsprite.h"
 #include "r2d.h"
+#include "game/game.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -194,10 +195,26 @@ void showPic640(const char *filename) {
     closeFileWrapper(fileHandle);
 }
 
+/* Build the parallel name/desc arrays missionMenuSelect draws from a
+ * descriptor menu list (fixed 5 rows; NULL-label rows stay masked off). */
+static void menuEntryNames(const GameMenuEntry *entries, int count,
+                           const char *names[5], const char *descs[5]) {
+    int i;
+    for (i = 0; i < 5; i++) {
+        names[i] = (i < count && entries[i].label) ? entries[i].label : "";
+        descs[i] = (i < count && entries[i].desc) ? entries[i].desc : "";
+    }
+}
+
 /* ---- merged from stmissn.c ---- */
 void missionSelect() {
     int index, count;
     int forcedTheater;
+    int menuRow;
+    int16 menuSlot;
+    const GameMenuEntry *theaterMenu, *scenarioMenu;
+    const char *menuNames[5], *menuDescs[5];
+    char probeName[16];
     gfx_setDac(1);
     gfx_setFadeSteps(0);
     openShowPic("Wall.Pic", *page1NumPtr);
@@ -216,17 +233,29 @@ void missionSelect() {
         goto theaterSelected;
     }
 selectTheater:
-    if (gameData->theater > 4)
-        gameData->theater = 4;
+    /* The menu row preselects the last-used theater; scenario-disk slots that
+     * aren't top-level rows land on the submenu entry (F-15 row 4). */
+    menuRow = gameTheaterRowForSlot(gameData->theater);
     checkDiskA();
     nearmemset(scenarioFoundArr, 0, 5);
-    gameData->theater = missionMenuSelect(missTheaNames, missTheaDesc, "THEATER", gameData->theater);
-    if (gameData->theater == THEATER_OTHER) {            // other scenario selected
-        for (count = 4, index = 0; index < 4; index++) { // find extra scenarios
-            plh3d3Ptr[0] = *scenarioCodePtr[index];
-            plh3d3Ptr[1] = *(scenarioCodePtr[index] + 1);
-
-            if ((scenarioFoundArr[index] = ((fileHandle = openFile(plh3d3Ptr, 0)) == NULL))) count--;
+    theaterMenu = gameTheaterMenu();
+    menuEntryNames(theaterMenu, gameTheaterMenuCount(), menuNames, menuDescs);
+    for (index = 0; index < gameTheaterMenuCount() && index < 5; index++) {
+        if (!theaterMenu[index].label) scenarioFoundArr[index] = 1;
+    }
+    menuRow = missionMenuSelect(menuNames, menuDescs, "THEATER", menuRow);
+    menuSlot = theaterMenu[menuRow].slot;
+    if (menuSlot == GAME_MENU_SCENARIOS) {           // other scenario selected
+        scenarioMenu = gameScenarioMenu();
+        menuEntryNames(scenarioMenu, gameScenarioMenuCount(), menuNames, menuDescs);
+        for (count = 0, index = 0; index < gameScenarioMenuCount() && index < 5; index++) { // find extra scenarios
+            if (!scenarioMenu[index].probeStem) {
+                scenarioFoundArr[index] = 0; /* non-probe row (e.g. BACK): always offered */
+                continue;
+            }
+            snprintf(probeName, sizeof(probeName), "%s.3d3", scenarioMenu[index].probeStem);
+            if ((scenarioFoundArr[index] = ((fileHandle = openFile(probeName, 0)) == NULL))) {}
+            else count++;
             fileClose(fileHandle);
         }
         if (count == 0) { // no scenarios found, print message and go back to previous screen
@@ -239,11 +268,13 @@ selectTheater:
             waitJoyKey();
             goto selectTheater;
         }
-        gameData->theater = missionMenuSelect(missScenarioNames, missScenarioDesc, "THEATER", 0) + 4;
-        if (gameData->theater == 8) {
+        menuRow = missionMenuSelect(menuNames, menuDescs, "THEATER", 0);
+        menuSlot = scenarioMenu[menuRow].slot;
+        if (menuSlot == GAME_MENU_BACK) {
             goto selectTheater;
         }
     }
+    gameData->theater = menuSlot;
 
 theaterSelected:
     // show mission type dialog for desert storm
@@ -389,10 +420,12 @@ int16 askRepeatMission() {
 
 void checkDiskA() {
     char replacementPath[512];
+    char diskMsg[64];
     while ((fileHandle = openFile("F15.spr", 0)) == NULL &&
            !findReplacementAssetPath("F15.spr", ".png", replacementPath, sizeof(replacementPath))) {
+        snprintf(diskMsg, sizeof(diskMsg), "Please reinsert %s Disk A", gameDiskLabel());
         clearBriefing();
-        drawStringCentered(page1NumPtr, "Please reinsert F15 Disk A", 113, 61, 185);
+        drawStringCentered(page1NumPtr, diskMsg, 113, 61, 185);
         page1NumPtr[6] = FONT_SMALL; // page1Desc.font?
         drawStringCentered(page1NumPtr, "<Press selector when ready>", 113, 73, 185);
         page1NumPtr[6] = FONT_NORMAL;

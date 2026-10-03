@@ -1,5 +1,6 @@
 .vscode/
 build/
+build-*/
 debug_build/
 bin/
 *.log
@@ -31,3 +32,4 @@ __pycache__/
 
 # Generated replacement asset exports. Keep these out of source commits.
 /converted_assets_all/
+build

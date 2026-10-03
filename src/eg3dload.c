@@ -10,6 +10,7 @@
 #include "slot.h"
 #include "const.h"
 #include "comm.h"
+#include "game/game.h"
 
 #include <dos.h>
 #include <stdio.h>
@@ -33,6 +34,7 @@ void load3DAll() {
 void load3D3(char *fileName) {
     char FAR *objDataEnd;
     char FAR *dstPtr;
+    char diskBMsg[64];
     int16 slot, subCount, sub;
     int16 chunk;
     strcpyFromDot(fileName, ".3D3");
@@ -81,10 +83,11 @@ void load3D3(char *fileName) {
         fileRead(g_modelVertZ, 2, size3d3_6, fileHandle);
     }
     fileClose(fileHandle);
+    snprintf(diskBMsg, sizeof(diskBMsg), "Please insert %s Disk B", gameDiskLabel());
     while ((fileHandle = openFile("photo.3d3", 0)) == NULL) {
         setDrawColor(COLOR_BLACK);
         fillRectBoth(0, 40, 319, 45);
-        drawStringBothPages("Please insert F15 Disk B", 108, 40, 0x0f);
+        drawStringBothPages(diskBMsg, 108, 40, 0x0f);
         gfx_flipPage();
         misc_getKey();
     }
@@ -184,9 +187,11 @@ void load3DG() {
     int16 unused_1, unused_2, unused_3;
     int childGridBytes;
     uint8 campaignTopGrid[16];
+    char diskBMsg[64];
     strcpyFromDot(regnStr, ".3dG");
+    snprintf(diskBMsg, sizeof(diskBMsg), "Please insert %s Disk B", gameDiskLabel());
     while ((fileHandle = openFile(regnStr, 0)) == NULL) {
-        drawStringBothPages("Please insert F15 Disk B", 104, 40, 0x0f);
+        drawStringBothPages(diskBMsg, 104, 40, 0x0f);
         drawStringBothPages("  Press a key when ready", 104, 50, 0x0f);
         gfx_flipPage();
         misc_getKey();

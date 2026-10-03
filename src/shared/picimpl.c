@@ -293,7 +293,7 @@ static void picDecodeNextRow(void) {
     }
 }
 
-static void picDecodeToSurface(SDL_IOStream *handle, SDL_Surface *dst) {
+void picDecodeToSurface(SDL_IOStream *handle, SDL_Surface *dst) {
     uint16 rowCount;
     uint16 rowWidth;
     uint16 row;

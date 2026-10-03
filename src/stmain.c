@@ -15,6 +15,7 @@
 #include "stpilot.h"
 #include "sttypes.h"
 #include "shared/common.h"
+#include "game/game.h"
 
 #include <dos.h>
 
@@ -65,7 +66,7 @@ int start_main(void) {
         /* Ask SDL for the hi-res title resolution; if it takes, show the 640x350
          * title, otherwise fall back to the 320x200 one. Either way we restore
          * the 320x200 game resolution afterwards. */
-        if (video_setHiRes()) {
+        if (gameHasHiResTitle() && video_setHiRes()) {
             showPic640("Title640.Pic");
             titleFadeDac = 2;
         } else {
@@ -99,11 +100,21 @@ int start_main(void) {
 #else
     difficulty = gameData->difficulty;
     theater = gameData->theater;
-    if (commData->trainingFlag == 0 && gameData->campaignProgress == 0 && gameData->theater < NUM_THEATERS &&
-        ++(gameData->theater) == NUM_THEATERS) {
-        gameData->theater = 0;
-        if (gameData->difficulty < MAX_DIFFICULTY) {
-            gameData->difficulty++;
+    /* Campaign theaters advance in the descriptor's order (linear 0..3 for
+     * F-15; 0,1,4,5 for F-19); finishing the last one wraps to the first and
+     * bumps difficulty. Slots outside the order never advance. */
+    {
+        int16 nextTheater = gameCampaignNextTheater(theater);
+        if (commData->trainingFlag == 0 && gameData->campaignProgress == 0 && nextTheater != theater) {
+            if (nextTheater < 0) {
+                const int8 *order = gameCampaignOrder(NULL);
+                gameData->theater = order ? order[0] : 0;
+                if (gameData->difficulty < MAX_DIFFICULTY) {
+                    gameData->difficulty++;
+                }
+            } else {
+                gameData->theater = nextTheater;
+            }
         }
     }
 

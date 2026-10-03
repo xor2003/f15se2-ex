@@ -132,7 +132,7 @@ set(F15SE2_SOURCES
     ${SRC_DIR}/shared/textfmt.c
     ${SRC_DIR}/shared/filepic.c
 
-    # f15 launcher
+    # f15 launcher + multi-game descriptor registry
     ${SRC_DIR}/f15.c
     ${SRC_DIR}/dosfunc.c
     ${SRC_DIR}/log.c
@@ -140,6 +140,37 @@ set(F15SE2_SOURCES
     ${SRC_DIR}/joystick.c
     ${SRC_DIR}/hdsprite.c
     ${SRC_DIR}/cockpit3d.cpp
+    ${SRC_DIR}/game/gamedesc.c
+    ${SRC_DIR}/game/desc_f15.c
+    ${SRC_DIR}/game/desc_f19.c
+
+    # f19 (merged START module — native port of the f19ru reconstruction)
+    ${SRC_DIR}/f19/cleanup.c
+    ${SRC_DIR}/f19/drawstr.c
+    ${SRC_DIR}/f19/eg3dmap.c
+    ${SRC_DIR}/f19/f19crt.c
+    ${SRC_DIR}/f19/f19data.c
+    ${SRC_DIR}/f19/f19file.c
+    ${SRC_DIR}/f19/f19ovl.c
+    ${SRC_DIR}/f19/f19seg.c
+    ${SRC_DIR}/f19/f19segdat.c
+    ${SRC_DIR}/f19/f19stubs.c
+    ${SRC_DIR}/f19/stalloc.c
+    ${SRC_DIR}/f19/starm.c
+    ${SRC_DIR}/f19/stgen.c
+    ${SRC_DIR}/f19/stgrid.c
+    ${SRC_DIR}/f19/stload.c
+    ${SRC_DIR}/f19/stmain.c
+    ${SRC_DIR}/f19/stmap.c
+    ${SRC_DIR}/f19/stmenu.c
+    ${SRC_DIR}/f19/stobjb.c
+    ${SRC_DIR}/f19/stobj.c
+    ${SRC_DIR}/f19/stpanel.c
+    ${SRC_DIR}/f19/stparse.c
+    ${SRC_DIR}/f19/stpilot.c
+    ${SRC_DIR}/f19/stpinp.c
+    ${SRC_DIR}/f19/stterr.c
+    ${SRC_DIR}/f19/stutil.c
 
     # start
     ${SRC_DIR}/stmain.c
@@ -501,6 +532,7 @@ add_behavior_test(end_runtime_behavior_tests LINK_CORE)
 add_behavior_test(geometry_behavior_tests LINK_CORE)
 add_behavior_test(asset_compare_behavior_tests LINK_CORE)
 add_behavior_test(file_io_behavior_tests LINK_CORE)
+add_behavior_test(game_detect_tests LINK_CORE)
 add_behavior_test(gameplay_behavior_tests LINK_CORE)
 add_behavior_test(input_behavior_tests LINK_CORE)
 add_behavior_test(gfx_render_behavior_tests LINK_CORE)
