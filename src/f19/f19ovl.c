@@ -134,6 +134,14 @@ void *f19_pagePixels(int16 n) {
     return f19_segPtr(seg);
 }
 
+/* expose a page's seg handle (allocating lazily) — DOS code passed the page
+ * seg itself as the sprite-sheet buffer (comm+0x20 = page 2's seg) */
+int16 f19_pageSegHandle(int16 n) {
+    if (n <= 0) return 0;
+    (void)f19_pagePixels(n);
+    return f19_pageSegTab[n & 0xF];
+}
+
 int16 far gfx_allocPage(int16 pageNum) {                 /* slot 0x00 */
     int16 h = f19_allocSeg(0x1000);                      /* 64KB page */
     if (pageNum >= 0 && pageNum < 8)
@@ -172,8 +180,15 @@ int16 far gfx_unknown2b(int16 v) {
 void  far gfx_resetBlitOffset2(void) { }                 /* slot 0x23 = nop */
 
 /* slot 0x2a — rect copy; F-19 page indices are seg-backed buffers here */
+void  far f19_gfx_copyRect(int16 src, int16 sx, int16 sy, int16 dst,
+                           int16 dx, int16 dy, int16 w, int16 h);
 void  far f19_gfx_copyRect(int src, uint16 sx, uint16 sy, int dst,
                            uint16 dx, uint16 dy, int w, int h) {
+    f19_gfx_copyRect((int16)src, (int16)sx, (int16)sy, (int16)dst,
+                     (int16)dx, (int16)dy, (int16)w, (int16)h);
+}
+void  far f19_gfx_copyRect(int16 src, int16 sx, int16 sy, int16 dst,
+                           int16 dx, int16 dy, int16 w, int16 h) {
     uint8 *sp = (uint8 *)f19_pagePixels((int16)src);
     uint8 *dp = (uint8 *)f19_pagePixels((int16)dst);
     static int dbg = -1;

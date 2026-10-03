@@ -178,6 +178,14 @@ void f19_sub_10010(void) {
     commData = (struct CommData *)f19_commBase;
     gameData = (struct GameData *)(f19_commBase + 0x120E);
 
+    /* SU.EXE supplied the sprite-sheet seg at comm+0x20 (f20) — in DOS it's
+     * the driver-allocated sprite page, which this port backs with page 2's
+     * seg so the f19_loadSpriteScaled("f19.spr", 2, ...) decode, the
+     * gfx_storeBufPtr(f20, 2) registrations, and EGAME's gfxBufPtr read all
+     * resolve to the same sheet buffer. */
+    if (commData->f20 == 0)
+        commData->f20 = f19_pageSegHandle(2);
+
     if (commData->f70 == 0)
         byte_2C160 = 7;
     else

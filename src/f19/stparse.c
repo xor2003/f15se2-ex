@@ -4,7 +4,7 @@
 #include <stdio.h>
 
 extern FILE *f19_fileHandle;
-extern char *regnPlhPtr;
+#define regnPlhPtr ((char *)(f19_dseg + *(uint16 *)(f19_dseg + 0x4DAC)))
 #define terrainDirtyFlag (*(int16 *)(f19_dseg + 0x3D0E))
 #define terrainSignature (*(int16 *)(f19_dseg + 0x3BBE))
 #define terrainBuf1 ((uint16 *)(f19_dseg + 0x3BC0))

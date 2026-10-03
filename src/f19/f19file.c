@@ -37,27 +37,34 @@ int16 resFileClose(int16 h) {
     return 0;
 }
 
-/* seg000:0x47fc — 4-arg read: (h, off, seg, count); count <0 => to EOF.
- * Original was (h, b, c, d) = (handle, dest-off, dest-seg, count). */
-int16 resFileReadFar(int16 h, int16 b, int16 c, int16 d) {
+int16 resFileReadFar(int16 h, int16 count, int16 off, int16 seg);
+
+/* resFileRead — near read: (h, count, dstoff) into f19_dseg; count <0 => EOF.
+ * (sub_1E1CC -> sub_1E2E2, int21/3Fh DS=dseg). */
+int16 resFileRead(int16 h, int16 count, int16 off) {
+    return resFileReadFar(h, count, off, 0);
+}
+/* seg000:0x47fc/sub_1E1E0 — far read: (h, count, off, seg); count <0 => EOF. */
+int16 resFileReadFar(int16 h, int16 count, int16 off, int16 seg) {
     SDL_IOStream *io = f19_fileIo(h);
-    char *dst = F19_FP(c, b);
+    char *dst = F19_FP(seg, off);
     size_t got;
     if (!io || !dst) return -1;
-    if (d < 0) {
+    if (count < 0) {
         Sint64 avail = SDL_GetIOSize(io) - SDL_TellIO(io);
         if (avail < 0) return -1;
-        d = (int16)avail;
+        count = (int16)avail;
     }
-    got = fileRead(dst, 1, (uint16)d, io);
+    got = fileRead(dst, 1, (uint16)count, io);
     return (int16)got;
 }
-/* seg000:0x4814 — (h, off, seg, size, count): write size*count bytes */
-int16 resFileWrite(int16 h, int16 b, int16 c, int16 d, int16 e) {
+/* sub_1E1F8/sub_1E39D — int21/40h write: (h, count, bufOff, bufSeg, extraOff)
+ * writes count bytes from seg:(bufOff+extraOff). */
+int16 resFileWrite(int16 h, int16 count, int16 bufOff, int16 bufSeg, int16 extra) {
     SDL_IOStream *io = f19_fileIo(h);
-    char *src = F19_FP(c, b);
+    char *src = F19_FP(bufSeg, (uint16)(bufOff + extra));
     if (!io || !src) return -1;
-    return (int16)fileWrite(src, (uint16)d, (uint16)e, io);
+    return (int16)fileWrite(src, 1, (uint16)count, io);
 }
 
 /* seg000:0x4746 — open(path,0) → resFileReadFar(h,b,c,-1) → close
@@ -65,7 +72,7 @@ int16 resFileWrite(int16 h, int16 b, int16 c, int16 d, int16 e) {
 int16 resFileReadBlock(const char *path, int16 b, int16 c) {
     int16 h, r;
     h = resFileOpen(path, 0);
-    r = resFileReadFar(h, b, c, -1);
+    r = resFileReadFar(h, -1, b, c);
     resFileClose(h);
     return r;
 }
@@ -74,7 +81,7 @@ int16 resFileReadBlock(const char *path, int16 b, int16 c) {
 int16 resFileWriteBlock(const char *path, int16 b, int16 c, int16 d, int16 e) {
     int16 h, r;
     h = resFileCreate(path, 0);
-    r = resFileWrite(h, (int16)((uint16)b + (uint16)d), c, e, 1);
+    r = resFileWrite(h, e, b, c, d);
     resFileClose(h);
     return r;
 }

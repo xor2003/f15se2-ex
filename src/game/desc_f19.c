@@ -13,15 +13,15 @@
  *
  * F-19's own START flow (TASS menu state machine, mission generator) lives
  * in src/f19/ - the reconstruction of START.EXE. start_main below is the
- * real F-19 entry; egame/end still fall back to the F-15 module until the
- * EGAME.EXE port lands under src/f19/ (it is intentionally *not* run against
- * F-19 data for gameplay - F-15/F-19 logic stays separate).
+ * real F-19 entry; egame runs the ported EGAME.EXE session under src/f19/
+ * (F-15/F-19 logic stays separate). end still falls back to the F-15 module
+ * until the END.EXE port lands.
  */
 
 #include "game.h"
 
 int f19_start_main(void);
-int egame_main(void);
+int f19_egame_main(void);
 int end_main(void);
 
 static const char *const f19Signatures[] = {
@@ -132,7 +132,7 @@ extern const GameDesc g_gameDescF19 = {
      * F-19's real PICs when the engine dir is the cwd. */
     "converted_assets_f19",
     GAMEENGINE_MPS_CLASSIC,
-    /* start = reconstructed F-19 START.EXE (src/f19/). egame/end still
-     * point at the F-15 module pending the EGAME.EXE port. */
-    f19_start_main, egame_main, end_main,
+    /* start/egame = reconstructed F-19 START.EXE + EGAME.EXE (src/f19/).
+     * end still points at the F-15 module pending the END.EXE port. */
+    f19_start_main, f19_egame_main, end_main,
 };

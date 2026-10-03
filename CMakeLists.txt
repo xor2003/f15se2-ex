@@ -147,7 +147,23 @@ set(F15SE2_SOURCES
     # f19 (merged START module — native port of the f19ru reconstruction)
     ${SRC_DIR}/f19/cleanup.c
     ${SRC_DIR}/f19/drawstr.c
+    ${SRC_DIR}/f19/eg3dload.c
     ${SRC_DIR}/f19/eg3dmap.c
+    ${SRC_DIR}/f19/eg3dview.c
+    ${SRC_DIR}/f19/egcombat.c
+    ${SRC_DIR}/f19/egflight.c
+    ${SRC_DIR}/f19/egframe.c
+    ${SRC_DIR}/f19/egkeys.c
+    ${SRC_DIR}/f19/egmain.c
+    ${SRC_DIR}/f19/egmath.c
+    ${SRC_DIR}/f19/egrender.c
+    ${SRC_DIR}/f19/egtacmap.c
+    ${SRC_DIR}/f19/egtarget.c
+    ${SRC_DIR}/f19/egui.c
+    ${SRC_DIR}/f19/enfile.c
+    ${SRC_DIR}/f19/f19egdata.c
+    ${SRC_DIR}/f19/f19egsvc.c
+    ${SRC_DIR}/f19/f19egsegdat.c
     ${SRC_DIR}/f19/f19crt.c
     ${SRC_DIR}/f19/f19data.c
     ${SRC_DIR}/f19/f19file.c

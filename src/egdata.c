@@ -2185,7 +2185,7 @@ int16 g_ejectPending;
 int16 g_ejectState;
 uint8 g_modelVertY[0x40];
 int16 g_scopeArcRange;
-uint8 g_modelVertZ[0x10];
+uint8 g_modelVertZ[0x40];   /* F-19's modelVertZ region spans 0x12+ bytes */
 ViewMode g_viewMode;
 int16 g_waypointBearing;
 int16 g_viewPitch;

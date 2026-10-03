@@ -592,7 +592,7 @@ void f19_sub_193EE(void) {
         len = sub_13E38((int16 *)(intptr_t)word_256FA, (char *)(f19_dseg + 0xB96A));
         sub_13B76((void *)(intptr_t)word_256FA, (char *)(f19_dseg + 0xB96A), (uint16)(0x140 - len) >> 1, 0xBE);
         sub_10924((char *)(f19_dseg + 0x571A), word_298D2, 0xA, 0x64,
-                  (selw.sel << 3) + 0x60, word_256E2);
+                  (selw.sel << 3) + 0x60, (int16 *)(f19_dseg + word_256E2));
         selw.sel = f19_sub_10AE8((struct SelRow *)(f19_dseg + 0x571A), word_298D2, 0xA, word_2591A,
                         (int16 *)(f19_dseg + word_256E2));
         if (byte_212BA == 0 && byte_2D06B == 0) {

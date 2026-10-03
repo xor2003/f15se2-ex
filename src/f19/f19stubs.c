@@ -304,11 +304,6 @@ static int16 f19_ntrBuf[8];          /* findNearestTerrain result record */
 int16 *f19_findNearestTerrain(int32 wx, int32 wy) { return f19_ntrBuf; }
 
 /* ---- chain entries not yet ported ---------------------------------------- */
-int f19_egame_main(void) {
-    /* TODO: EGAME.EXE port lands next; until then report "mission done" so
-     * the dispatcher proceeds to END (stub) then back to the START menu. */
-    return 1;
-}
 int f19_end_main(void) {
     /* TODO: END.EXE (debrief) port; 0x23 = RET_DEBRIEFING -> back to start */
     return 0x23;
