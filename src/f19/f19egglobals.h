@@ -383,7 +383,9 @@ extern int16 *f19eg_g_targetViewParams;   /* word_346A6 */
 #define g_unusedSavedWord (*(int16 *)(f19_dseg + 0x9656))
 extern int16 g_viewCenterX;
 extern int16 g_viewCenterY;
-#define g_viewCenterY2 (*(int16 *)(f19_dseg + 0x65E4))
+#define g_viewCenterY2 g_viewCenterY   /* word_35454 (0x65E4) — same cell as the
+                                        * shared Y centre: sub_11A7A writes it and
+                                        * sub_1174C/sub_11802 read it. */
 #define g_viewClipBottom (*(int16 *)(f19_dseg + 0x471C))
 #define g_viewHeading (*(int16 *)(f19_dseg + 0x9BA4))
 #define g_viewMode (*(int16 *)(f19_dseg + 0x94FE))
