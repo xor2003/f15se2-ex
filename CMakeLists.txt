@@ -153,6 +153,7 @@ set(F15SE2_SOURCES
     ${SRC_DIR}/f19/egcombat.c
     ${SRC_DIR}/f19/egflight.c
     ${SRC_DIR}/f19/egframe.c
+    ${SRC_DIR}/f19/eginstr.c
     ${SRC_DIR}/f19/egkeys.c
     ${SRC_DIR}/f19/egmain.c
     ${SRC_DIR}/f19/egmath.c

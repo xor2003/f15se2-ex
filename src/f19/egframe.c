@@ -736,14 +736,14 @@ void moveStuff() {
     moveNearFar(g_planeTable, g_planeCount * (int16)sizeof(struct MapTarget));
     moveNearFar(&g_groundUnitCount, 2);
     moveNearFar(g_simObjects, g_groundUnitCount * (int16)sizeof(struct SimObject));
-    moveNearFar(g_shapeTargetCategory, sizeof(g_shapeTargetCategory));
-    moveNearFar(g_tileKillTally, sizeof(g_tileKillTally));
-    moveNearFar(g_stringPool, sizeof(g_stringPool));
-    moveNearFar(g_mapCellFlags, sizeof(g_mapCellFlags));
+    moveNearFar(g_shapeTargetCategory, 0x64);
+    moveNearFar(g_tileKillTally, 0x64);
+    moveNearFar(g_stringPool, 0x2EE);
+    moveNearFar(g_mapCellFlags, 0x100);
     moveNearFar(&g_unusedSavedWord, 2);
     moveNearFar(&g_padlockAircraft, 2);
-    moveNearFar(waypoints, sizeof(waypoints));
-    moveNearFar(g_targetSlots, sizeof(g_targetSlots));
+    moveNearFar(waypoints, 0x10);
+    moveNearFar(g_targetSlots, 0x24);
 }
 
 /* ==== seg000:0x5001 ==== */

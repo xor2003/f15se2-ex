@@ -149,9 +149,14 @@ extern void f19eg_drawNearestTileObject(uint32 c1, uint32 c2, uint32 c3);
 void projectVertex(int32 vx, int32 vy, int32 vz) {
     f19eg_drawNearestTileObject((uint32)vx, (uint32)vy, (uint32)vz);
 }
+/* gfx_drawStatusBox (sub_2F0F7) = driver slot 0x29 gfx_switchColor — recolors
+ * pixels matching `old` to `val` inside the status-cell rect on `page`
+ * (a resolved PageDesc pointer; desc[0] is the page index). This is what
+ * lights the gear/bay/ECM/… panel indicators. */
+extern void FAR CDECL gfx_switchColor(int16 *pageDesc, int x1, int y1, int x2, int y2, int oldColor, int newColor); /* slot.h */
 void FAR gfx_drawStatusBox(int16 *page, int16 x1, int16 y1, int16 x2, int16 y2,
                            int16 old, int16 val) {
-    (void)page; (void)x1; (void)y1; (void)x2; (void)y2; (void)old; (void)val;
+    gfx_switchColor(page, x1, y1, x2, y2, old, val);
 }
 /* ---- setupInstrumentLayoutFar (sub_2208A -> sub_22A14/sub_22A28) ------------
  * F-19's copy of the driver-adjacent layout init. The app's eghudr.c version
@@ -279,9 +284,10 @@ int far audio_setEnginePitch(int16 knots, int16 thrust) {
  * The shared egsys gameMainLoop drives F-15's sim+render suite on F-15
  * globals; F-19's loop calls the F-19 routines on F-19 cells. Original order:
  * render+hud, the view-mode layout slot, then the sim step; exits on
- * g_commEventFlag (mission end) or the app's quit flag. sub_22092 (the
- * viewMode==0 instrument-layout refresh) is not yet ported; the
- * sub_2F106(g_viewClipBottom) driver slot is handled inside the renderer. */
+ * g_commEventFlag (mission end) or the app's quit flag. The viewMode==0
+ * instrument pass is eginstr.c's f19eg_drawInstrumentGaugesFar (sub_22086 ->
+ * sub_22092); sub_2F106 (dacAnimate slot) runs after the sim step. */
+extern void f19eg_drawInstrumentGaugesFar(void); /* eginstr.c sub_22086/22092 */
 extern void f19eg_stepFlightModel(void);   /* egflight.c  sub_1215C */
 extern void f19eg_updateFrame(void);       /* egframe.c   sub_13DC2 */
 extern void f19eg_renderFrame(void);       /* egflight.c  sub_133D9 */
@@ -302,7 +308,8 @@ void f19eg_runGameLoop(void) {
                     (long)g_ViewX, (long)g_ViewY, (long)g_viewZ,
                     (int)g_initPhase, (int)g_frameSyncPending);
         f19eg_renderHudFrame();
-        /* if (g_viewMode == 0) sub_22086(); — instrument layout refresh (TODO) */
+        if (g_viewMode == 0)
+            f19eg_drawInstrumentGaugesFar();   /* sub_22086 -> sub_22092 */
         g_frameSyncPending = 1;              /* byte_32DA3 */
         f19eg_stepFlightModel();
         f19eg_updateFrame();
