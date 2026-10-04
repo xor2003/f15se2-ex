@@ -21,6 +21,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
+#include <thread>
 
 // ---- F-19 flat-model state -------------------------------------------------
 extern uint8 f19_dseg[];                 /* 64 KB flat data segment */
@@ -36,6 +37,17 @@ extern int16 g_viewCenterY;
 extern int16 g_clipMaxX;
 extern int16 g_clipMaxY;
 extern const int16 g_angleLut[];
+
+// ---- F-19 START-side routines under test ----------------------------------
+void f19_dsegInit(void);                  /* install the START data image */
+void f19_printMission(void);              /* stutil.c: briefing -> state 4 */
+int16 far ovlF43_a(int16 v);              /* scenery0.exe image loader */
+void  far ovlF43_10d(int16 seg);          /* string-record -> dseg ptr splat */
+#undef commData
+#undef gameData
+/* f19_commData/f19_gameData (the globals stutil/stmain's commData/gameData
+ * macros resolve to) are already externed above. */
+bool setGamePath(const char *path);       /* shared/file_io.c */
 
 // ---- F-19 EGAME routines (f19egpfx.h renames in-TU refs to f19eg_*) --------
 int16 f19eg_sinMul(int16 angle, int16 value);
@@ -203,6 +215,9 @@ void writeTileEntry(int idx, int lod, int subIndex, int tileX, int tileY,
 int main() {
     test_headless_init();
     f19_egDsegLoad();   /* install the EGAME data image (LOD dims, LUTs) */
+    // Dummy video also brings up the event subsystem the START briefing test
+    // feeds keys through (input_pumpEvents reads SDL events).
+    require(SDL_Init(SDL_INIT_VIDEO), "SDL initializes headless");
 
     // ==== egmath.c: sinMul / cosMul (Q15 sin * value, rounded) ====
     require(f19eg_sinMul(0, 0x4000) == 0 && f19eg_cosMul(0, 0x4000) == 0x4000,
@@ -520,6 +535,49 @@ int main() {
         setDseg16(kCellMissionTimeFlag, 1);
         f19_formatTimeStr(buf, 0);
         require(std::strcmp(buf, "20:00") == 0, "formatTimeStr flag digit");
+    }
+
+    // ==== stutil.c: Mission Targets (briefPage=2) briefing exit ====
+    // Repro of "game stops when exiting Mission targets": the briefing-room
+    // menu select sets byte_2C160=5 + word_2CA6C=2, the dispatcher calls
+    // f19_printMission, and the routine must return with state 4 queued.
+    {
+        setGamePath("/home/xor/games/f19/F19");
+        f19_dsegInit();                      /* START image (not the EGAME one) */
+        f19_commData = f19_commBase;
+        f19_gameData = f19_commBase + 0x120E;
+        // scenery0.exe splats the far-ptr table the flight-plan page reads:
+        // briefTextP at 0x99A, ROE text at 0x99E + roeIdx*4.
+        const int16 gm = ovlF43_a(0x42);
+        require(gm >= 0x10, "scenery0.exe loads for briefing pointer table");
+        ovlF43_10d(gm);
+        require(*reinterpret_cast<uint32 *>(f19_dseg + 0x99A) != 0,
+                "briefTextP cell populated by string-table splat");
+        require(*reinterpret_cast<uint32 *>(f19_dseg + 0x99E) != 0,
+                "ROE text cell populated by string-table splat");
+        // Waypoint indices the FLIGHT PLAN page prints; name table -> a scratch
+        // string so strcat walks known memory.
+        setDseg16(0xB94A, 3);                /* pathWpA */
+        setDseg16(0xB95C, 7);                /* pathWpD */
+        std::strcpy(reinterpret_cast<char *>(f19_dseg + 0xF000), "TEST SITE");
+        for (int i = 0; i < 32; i++) setDseg16(0xCA70 + i * 2, 0xF000);
+        setDseg16(0xCA6C, 2);                /* briefPage=2: "Mission Targets" */
+        f19_dseg[0xC160] = 5;
+        // The entry drain eats queued keys, so feed the exit read from a
+        // delayed poster thread.
+        std::thread poster([] {
+            SDL_Delay(200);
+            SDL_Event ev = {};
+            ev.type = SDL_EVENT_KEY_DOWN;
+            ev.key.type = SDL_EVENT_KEY_DOWN;
+            ev.key.scancode = SDL_SCANCODE_RETURN;
+            ev.key.key = SDLK_RETURN;
+            SDL_PushEvent(&ev);
+        });
+        f19_printMission();
+        poster.join();
+        require(f19_dseg[0xC160] == 4,
+                "printMission(Mission Targets) exits to state 4");
     }
 
     std::cout << "f19_behavior_tests: all checks passed\n";

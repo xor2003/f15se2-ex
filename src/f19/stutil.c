@@ -223,7 +223,7 @@ checkKey:
             sub_146E3();
         sub_1DCAC(0);
     }
-    /* no return stmt — ax already holds the key (garbage on the goto path) */
+    return key;                     /* goto path: uninit — original reads [bp-2] garbage */
 }
 
 void f19_initGraphics(void) {                 /* seg000:0x827 */
