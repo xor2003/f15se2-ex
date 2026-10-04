@@ -32,10 +32,9 @@ static int16 f19_bufTab[64];       /* storeBufPtr slot -> seg handle */
 
 static R2DImage *f19_sprImg[32];
 
-void far gfx_blitSprite(int16 spr) {
+static void f19_submitSprite(struct SpriteParams *p, int opaque) {
     /* SpriteParams.bufPtr is the driver's sprite-buffer slot; F-19 keeps its
      * sheets in allocated segments registered via gfx_storeBufPtr. */
-    struct SpriteParams *p = (struct SpriteParams *)(f19_dseg + (uint16)spr);
     int16 seg;
     void *src;
     R2DImage *img;
@@ -48,8 +47,8 @@ void far gfx_blitSprite(int16 spr) {
         seg = 0;
     src = seg ? f19_segPtr(seg) : f19_segPtr(p->bufPtr);  /* raw seg handle works too */
     if (dbg)
-        fprintf(stderr, "blitSprite spr=0x%x buf=%d seg=%d src=%p dst=%d,%d wh=%d,%d sxy=%d,%d\n",
-                (uint16)spr, p->bufPtr, seg, src, p->dstX, p->dstY, p->width, p->height, p->srcX, p->srcY);
+        fprintf(stderr, "blitSprite buf=%d seg=%d src=%p dst=%d,%d wh=%d,%d sxy=%d,%d opq=%d\n",
+                p->bufPtr, seg, src, p->dstX, p->dstY, p->width, p->height, p->srcX, p->srcY, opaque);
     if (!src) {                                        /* app sprite-buf handle */
         gfx_blitSprite(p);
         return;
@@ -63,7 +62,19 @@ void far gfx_blitSprite(int16 spr) {
     if (!sf) return;
     memcpy(sf->pixels, src, 320 * 200);
     r2d_submitImage(img, p->srcX, p->srcY, p->width, p->height,
-                    p->dstX, p->dstY, 0);
+                    p->dstX, p->dstY, opaque ? -1 : 0);
+}
+
+void far gfx_blitSprite(int16 spr) {
+    struct SpriteParams *p = (struct SpriteParams *)(f19_dseg + (uint16)spr);
+    f19_submitSprite(p, 0);
+}
+
+/* Pointer form for egui.c's blitSprite/blitGaugeSprite — their params.bufPtr
+ * is the f19.spr seg handle, which the shared sprite-buf table can't resolve
+ * (it only knows 1-based gfx_allocSpriteBuf handles). */
+void far f19_blitSpriteParams(void *params, int opaque) {
+    f19_submitSprite((struct SpriteParams *)params, opaque);
 }
 int16 far ovlCall_b4f(int16 spr) { gfx_blitSprite(spr); return 0; }
 

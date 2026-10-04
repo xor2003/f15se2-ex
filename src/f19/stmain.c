@@ -186,6 +186,13 @@ void f19_sub_10010(void) {
     if (commData->f20 == 0)
         commData->f20 = f19_pageSegHandle(2);
 
+    /* SU.EXE's B$SETCLR leaves the driver-reported color-mode flag at comm+0x2A;
+     * the arming-screen tail and this routine's exit path both wipe the four
+     * bay ammo counts (comm+0x40) when it reads zero — a port that never ran
+     * SU must seed it as configured color. */
+    if (commData->f2a == 0)
+        commData->f2a = 1;
+
     if (commData->f70 == 0)
         byte_2C160 = 7;
     else

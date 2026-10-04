@@ -25,6 +25,7 @@ SDL_IOStream *f19_fileIo(int16 h);       /* f19file.c */
 void *f19_pagePixels(int16 n);           /* f19ovl.c: page idx -> pixels
                                             (0 = app back buffer, >0 = seg) */
 int16 f19_pageSegHandle(int16 n);        /* f19ovl.c: page idx -> seg handle */
+void far f19_blitSpriteParams(void *params, int opaque); /* f19ovl.c: SpriteParams* form */
 #define gfx_copyRect f19_gfx_copyRect    /* F-19 pages are seg-backed, not app pages */   /* shared/timer.c — 60 Hz tick byte (stdata.c) */
 #include "stcode.h"          /* mystrcat */
 #include "strand.h"          /* randMul, srand/rand (app's own rng) */

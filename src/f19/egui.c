@@ -48,8 +48,6 @@ struct GaugeParams {
     int16 bufPtr, srcX, srcY, page, dstX, dstY, width, height;
 };
 
-void far gfx_blitSpriteClipped(int16 *params);
-
 /* ==== seg000:0x98bc ==== */
 void blitGaugeSprite(int16 srcCol, int16 srcRow, int16 destX, int16 destY) {
     gaugeSpriteParams.bufPtr = gfxBufPtr;
@@ -60,7 +58,7 @@ void blitGaugeSprite(int16 srcCol, int16 srcRow, int16 destX, int16 destY) {
     gaugeSpriteParams.dstY = destY - 3;
     gaugeSpriteParams.width = 7;
     gaugeSpriteParams.height = 7;
-    gfx_blitSpriteClipped((int16 *)&gaugeSpriteParams);
+    f19_blitSpriteParams(&gaugeSpriteParams, 0);
 }
 
 /* sprite-blit descriptor for blitSprite — dseg 0x5856 */
@@ -85,10 +83,10 @@ void blitSprite(int16 destX, int16 destY, int16 srcX, int16 srcY, int16 width, i
     blitSpriteParams.transparent = transparent;
     if (transparent != 0) {
         blitSpriteParams.flags = 1;
-        gfx_blitSpriteClipped((int16 *)&blitSpriteParams);
+        f19_blitSpriteParams(&blitSpriteParams, 0);
     } else {
         blitSpriteParams.flags = 0x10;
-        gfx_blitSpriteOpaque((int16 *)&blitSpriteParams);
+        f19_blitSpriteParams(&blitSpriteParams, 1);
     }
 }
 
