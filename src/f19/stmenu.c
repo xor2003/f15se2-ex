@@ -232,7 +232,7 @@ extern void sub_146E3(void), sub_1DCAC(int16);
 extern char *f19_pilotNameInput(int16 *page, int16 x, int16 y, int16 maxLen,
                             int16 a5, int16 a6);
 extern void f19_loadSpriteRes(const char *n, int16 sel);
-extern int16 randMul(uint16 n);
+extern int16 f19_randMul(uint16 n);
 extern void f19_selectNextObject(void);
 extern void f19_selectNextUnit(void);
 extern void f19_missionGenerate(void);
@@ -274,7 +274,7 @@ void f19_sub_18F12(void) {
         byte_2C160 = 8;
         return;
     }
-    choice = randMul(0x14);
+    choice = f19_randMul(0x14);
     word_2B386 = 0x992;
     word_2CA46 = 0x98E;
     word_2CA48 = 0x996;
@@ -1190,9 +1190,9 @@ void f19_sub_1B452(void) {
         }
         for (k = 0; k <= objectCount; k++)
             objectActive[k] = 0;
-        k = randMul(3);
+        k = f19_randMul(3);
         while (k != 0) {
-            nn = randMul(objectCount);
+            nn = f19_randMul(objectCount);
             if (nn == word_2B948) continue;
             if (nn == word_2B95A) continue;
             if (f19_worldObjects[nn].pad4 != 0 &&
@@ -1203,7 +1203,7 @@ void f19_sub_1B452(void) {
         }
         for (k = 0; k <= objectCount; k++) {
             if (objectActive[k] == 1) {
-                objectActive[k] = randMul(3) + 1;
+                objectActive[k] = f19_randMul(3) + 1;
                 if (objectActive[k] == 1)
                     f19_worldObjects[k].pad4 = 0;
             }

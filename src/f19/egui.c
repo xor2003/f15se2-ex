@@ -106,7 +106,7 @@ void drawStatusBar(int16 val, int16 color) {
 /* ==== seg000:0x9da3 ==== */
 void formatMissionClock(uint16 time) {
     time += g_missionTick;
-    strcpy(g_nameBuf, ":");
+    strcpy(g_nameBuf, "");
     formatTwoDigit(time / 0x708);
     g_nameBuf[0] += *(char *)&g_nightMode + 1;
     strcat(g_nameBuf, ":");

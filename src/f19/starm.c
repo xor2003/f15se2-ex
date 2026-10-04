@@ -79,7 +79,7 @@ extern void   sub_14EDA(void);
 extern void   sub_15120(char *d, char *s);
 extern void   sub_15189(char *d, char *s);
 extern void   f19_drawScorePanel(void);
-extern int16  randMul(uint16 n);
+extern int16  f19_randMul(uint16 n);
 extern void   mystrcat(char *d, const char *s);
 extern int16  far ovlCall_c7b(void);          /* gfx_getVal2 -> 1 */
 
@@ -272,9 +272,9 @@ void sub_1CE56(void) {
         byte_2C7D6 = 0;
         for (i = 0; i < 0x12; i++)
             bays[i] = 0;
-        n5 = randMul(5);
+        n5 = f19_randMul(5);
         for (i = 0; i < n5; ) {
-            w2 = randMul(0x12);
+            w2 = f19_randMul(0x12);
             if (((int16 *)(f19_dseg + 0x7932))[w2] == 0xFF)
                 continue;
             if (flags[((int16 *)(f19_dseg + 0x7932))[w2]] == 1)
@@ -284,7 +284,7 @@ void sub_1CE56(void) {
                 continue;
             flags[w2] = 1;
             for (;;) {
-                t = randMul(8);
+                t = f19_randMul(8);
                 if (bays[t] == 0) {
                     bays[t] = 1;
                     ((int16 *)(f19_dseg + 0xD2D0))[w2] = t;

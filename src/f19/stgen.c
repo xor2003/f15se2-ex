@@ -237,7 +237,7 @@ struct LinkPair {           /* dseg:0x447e, stride 4 */
 #define f19_targets    ((struct Target *)(f19_dseg + 0xB946))
 #define f19_siteParms  ((struct SiteParm *)(f19_dseg + 0x4B0C))
 #define f19_linkTab    ((struct LinkPair *)(f19_dseg + 0x447E))
-extern int16  randMul(uint16 n);
+extern int16  f19_randMul(uint16 n);
 extern int16  f19_itemDistance(int16 a, int16 b);
 extern char  *f19_getItemCoordStr(int16 idx);
 
@@ -394,21 +394,21 @@ restart_40a8:
     do {
         if (!(gameData->flags3c & 1)) {
             do {
-                randW = randMul(worldObjectCount - 3) + 3;
+                randW = f19_randMul(worldObjectCount - 3) + 3;
             } while ((f19_worldObjects[randW].targetFlags & 0xd01) != 1);
             f19_targets[0].objIdx = randW;
         }
         else {
             do {
-                randW = randMul(0xe0) * 0x80 + 0x840;
-                randY = randMul(0xe0) * 0x80 + 0x840;
+                randW = f19_randMul(0xe0) * 0x80 + 0x840;
+                randY = f19_randMul(0xe0) * 0x80 + 0x840;
             } while ((terrainGrid[(randW >> 0xb) + ((randY >> 0xb) * 0x10)] & 3) != 0 ||
                      (f19_targets[0].objIdx = f19_findOrPlaceItem(randW, randY, 1)) == 0xffff ||
                      (f19_worldObjects[f19_targets[0].objIdx].targetFlags & 0x801) == 1);
         }
         do {
-            randW = randMul(0xe0) * 0x80 + 0x840;
-            randY = randMul(0xe0) * 0x80 + 0x840;
+            randW = f19_randMul(0xe0) * 0x80 + 0x840;
+            randY = f19_randMul(0xe0) * 0x80 + 0x840;
         } while ((terrainGrid[(randW >> 0xb) + ((randY >> 0xb) * 0x10)] & 3) != 0 ||
                  (f19_targets[1].objIdx = f19_findOrPlaceItem(randW, randY, 2)) == 0xffff ||
                  ((gameData->flags3c & 1) &&
@@ -422,9 +422,9 @@ restart_40a8:
             if ((f & 0x500) != 0 && (f & 0x201) != 0) {
                 range[2] = f19_clampValue(f19_itemDistance(f19_targets[sl].objIdx, m2) +
                     ((f & 0x100) != 0 ?
-                     randMul(0x64) * 0x40 + 0xc80 : 0), 0, 0x7fff);
+                     f19_randMul(0x64) * 0x40 + 0xc80 : 0), 0, 0x7fff);
                 if (range[2] < 0x7000 &&
-                    randMul(0x500) + range[2] <
+                    f19_randMul(0x500) + range[2] <
                         ((f19_worldObjects[m2].targetFlags & 0x200) ? 0xc80 : 0) +
                         range[sl]) {
                     f19_targets[sl].siteObj = m2;
@@ -476,7 +476,7 @@ restart_40a8:
                     okCnt++;
                 }
             }
-            pick = randMul(okCnt);
+            pick = f19_randMul(okCnt);
         }
     }
     if ((gameData->flags3c & 2) && theaterSaved == 0) {
@@ -629,7 +629,7 @@ counterMore1k:
             if ((int8)f19_flightUnits[m2].flags & 0x40)
                 rngLim = range[0] << 1;
             do {
-                range[2] = randMul(worldObjectCount - 3) + 3;
+                range[2] = f19_randMul(worldObjectCount - 3) + 3;
             } while ((f19_worldObjects[range[2]].targetFlags & 0x100) ||
                      f19_rangeApprox(missionMidX[0] - f19_worldObjects[range[2]].x_coord,
                                  missionMidX[1] - f19_worldObjects[range[2]].y_coord) >
@@ -640,7 +640,7 @@ counterMore1k:
                 f19_worldObjects[f19_targets[0].siteObj].x_coord - f19_flightUnits[m2].x,
                 f19_flightUnits[m2].y - f19_worldObjects[f19_targets[0].siteObj].y_coord);
             for (sl = 0; sl < 8; sl++) {
-                waypt = randMul(worldObjectCount) + 1;
+                waypt = f19_randMul(worldObjectCount) + 1;
                 if ((f19_worldObjects[waypt].targetFlags & 0x400) == 0) {
                     head = f19_calcBearing(
                         f19_worldObjects[waypt].x_coord - f19_flightUnits[m2].x,
@@ -660,18 +660,18 @@ counterMore1k:
         if (m2 != 0) {
             range[2] = 0;
             do {
-                waypt = randMul(worldObjectCount - 3) + 3;
+                waypt = f19_randMul(worldObjectCount - 3) + 3;
             } while (!((f19_worldObjects[waypt].targetFlags & 0x801) == 1 &&
                        f19_worldObjects[waypt].escortNum == 0) &&
                      range[2]++ < 20);
             f19_worldObjects[waypt].escortType = f19_flightUnits[m2].planeType;
-            f19_worldObjects[waypt].escortNum = randMul(theaterSaved + 1) + 1;
+            f19_worldObjects[waypt].escortNum = f19_randMul(theaterSaved + 1) + 1;
         }
     }
     for (m2 = 0; m2 < groundUnitCount; m2++) {
         grType = f19_worldObjects[m2].unitType;
         if (grType != 0 && grType != 0x15) {
-            switch (randMul(5) + (gameData->isCampaignMission != 0) +
+            switch (f19_randMul(5) + (gameData->isCampaignMission != 0) +
                     difficultySaved) {
             case 0:
             case 1:
@@ -689,19 +689,19 @@ counterMore1k:
             }
             f19_worldObjects[m2].unitType = grType;
             if ((f19_worldObjects[m2].targetFlags & 8) != 0 &&
-                gameData->isCampaignMission + difficultySaved + 2 < randMul(0xa))
+                gameData->isCampaignMission + difficultySaved + 2 < f19_randMul(0xa))
                 f19_worldObjects[m2].unitType = 0;
         }
     }
     for (randW = 0; randW < 0x10; randW++) {
         for (randY = 0; randY < 0x10; randY++) {
             if ((terrainGrid[randY + randW * 0x10] & 0x10) != 0 &&
-                randMul(5) >= difficultySaved)
+                f19_randMul(5) >= difficultySaved)
                 terrainGrid[randY + randW * 0x10] &= 0xef;
         }
     }
     commData->missionKind[0] = 1;
-    commData->missionKind[2] = randMul(2) ? 5 : 9;
+    commData->missionKind[2] = f19_randMul(2) ? 5 : 9;
     commData->missionKind[3] = 0;
     commData->missionKind[1] = 2;
     commData->missionRange = mDist << 4;
@@ -718,7 +718,7 @@ counterMore1k:
             weap = 0x13;
         if (f19_targets[m2].kind == 2) {
             do {
-                weap = randMul(0x10);
+                weap = f19_randMul(0x10);
             } while (loadoutTab[weap * 13 +
                 ((int8)wldReadBuf7[
                     f19_worldObjects[f19_targets[m2].objIdx].objectIdx & 0x7f] &

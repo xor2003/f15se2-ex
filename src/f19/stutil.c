@@ -157,13 +157,27 @@ typedef struct {                          /* f19_worldObjects: stride 0x10 */
 struct GameData { int8 pad[0x38]; int16 theater; int16 roeIdx; };
 
 /* seg000:0xe29e/0xe2b0 — START's own LCG f19_rand/f19_srand (libc-style duplicates
- * of the CRT pair): 32-bit state at dseg:0x7a50, MSVC constants. */
+ * of the CRT pair): 32-bit state at dseg:0x7a50, MSVC constants.
+ * Verified vs the original via dosunit replay (start_util spec). */
+void f19_srand(uint16 seed) {
+    rngState = (uint32)seed;
+}
+
+int16 f19_rand(void) {
+    rngState = rngState * 0x343FDUL + 0x269EC3UL;
+    return (int16)(rngState >> 16) & 0x7FFF;
+}
+
+/* seg000:0x40ae — (rand() * arg) >> 15 via unsigned 32x32 mul + logical shift */
+int16 f19_randMul(uint16 arg) {
+    return (int16)(((uint32)(uint16)f19_rand() * (uint32)arg) >> 0xF);
+}
 
 /* seg000:0x40a3 — seed the LCG from the BIOS tick counter. */
 extern int16 sub_150BA(void);                     /* int 1Ah tick read (asm) */
 
 void f19_seedRng(void) {
-    srand(sub_150BA());
+    f19_srand(sub_150BA());
 }
 
 /* mystrlen (seg000:0x516d) is hand-asm — preloads s into ax pre-loop,
@@ -1331,7 +1345,7 @@ void f19_stepPanelAnim(struct ClipEntry *e) {
                 fidx = f19_evalChoiceExpr((uint16 *)(f19_dseg + 0xBE50), srcof);
                 totx += fidx;
             } while (fidx != 0);
-            totx = randMul(-1) % totx;
+            totx = f19_randMul(-1) % totx;
             word_2BE50 = cur;
             while (totx > 0)
                 totx -= f19_evalChoiceExpr((uint16 *)(f19_dseg + 0xBE50), srcof);

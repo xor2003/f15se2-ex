@@ -124,7 +124,7 @@ extern int16  f19_allocBuffer(uint16 paras);
 extern void   f19_freeBuffer(uint16 segment);
 extern int16  resFileReadBlock(const char *path, int16 b, int16 c);
 extern void   f19_loadSpriteRes(const char *name, int16 sel);
-extern int16  randMul(uint16 n);
+extern int16  f19_randMul(uint16 n);
 extern void   f19_delayTicks(int16 n);
 extern void   sub_1DCAC(int16);                /* exit(code) */
 extern int16  getch(void);
@@ -418,7 +418,7 @@ tier_alloc:
     szn = 0;
     goto Lcond;
 Lrand2:
-    if (randMul(9) > 6)
+    if (f19_randMul(9) > 6)
         goto Linc;
 Lset:
     word_2B38E[szn].pad4 = 0;
@@ -433,7 +433,7 @@ Lcond:
         goto Lrand2;
     if (objectActive[(uint8)szn] != 3)
         goto Linc;
-    if (randMul(9) <= 6)
+    if (f19_randMul(9) <= 6)
         goto Linc;
     goto Lset;
 Ldone:
