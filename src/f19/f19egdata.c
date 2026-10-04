@@ -1,14 +1,15 @@
 /* F-19 EGAME runtime data: the module entry swaps f19_dseg to the EGAME
  * image and wires the far-pointer cells that DOS init code would set. */
 #include "f19eg.h"
+#include "f19egvars.h"
 #include <string.h>
 
 uint8 f19_bda[0x500];         /* fake BIOS data area (0:4xx) */
 int16 f19eg_seg004;           /* handle for the 3D world-data segment */
 
 void f19_movedata(uint16 sseg, uint16 soff, uint16 dseg_, uint16 doff, uint16 n) {
-    memmove((char *)f19_segPtr((int16)dseg_) + doff,
-            (const char *)f19_segPtr((int16)sseg) + soff, n);
+    memmove(f19_segResolve(doff, dseg_),
+            f19_segResolve(soff, sseg), n);
 }
 
 /* complete-type defs needed by the by-value realvars below; identical
@@ -62,17 +63,17 @@ extern struct ReplayLog g_replayLog;   /* app's shared driver global */
 int16 *const f19eg_vertexX = (int16 *)((char *)&g_replayLog + 0x600);
 
 static void f19eg_ptrInit(void) {
-    f19eg_farPointer       = (uint8 *)(f19_dseg + EG_W(0x6356));
-    f19eg_g_mapTerrainMode = (int16 *)(f19_dseg + EG_W(0x581E));
-    f19eg_g_nearestTileObj = (struct TileObject *)(f19_dseg + EG_W(0x6E76));
-    f19eg_g_pageBack       = (int16 *)(f19_dseg + EG_W(0x57EE));
-    f19eg_g_pageFront      = (int16 *)(f19_dseg + EG_W(0x57D6));
-    f19eg_g_pageOffscreen  = (int16 *)(f19_dseg + EG_W(0x5806));
-    f19eg_g_targetViewParams = (int16 *)(f19_dseg + EG_W(0x5836));
-    f19eg_g_viewParams     = (int16 *)(f19_dseg + EG_W(0x3F8));
-    f19eg_g_vpParms        = (struct VpParms *)(f19_dseg + EG_W(0x57D6));
-    f19eg_regnFile         = (char *)(f19_dseg + EG_W(0x78));
-    f19eg_regnName         = (char *)(f19_dseg + EG_W(0x78));
+    f19eg_farPointer       = (uint8 *)f19_dsegAt(EG_W(0x6356));
+    f19eg_g_mapTerrainMode = (int16 *)f19_dsegAt(EG_W(0x581E));
+    f19eg_g_nearestTileObj = (struct TileObject *)f19_dsegAt(EG_W(0x6E76));
+    f19eg_g_pageBack       = (int16 *)f19_dsegAt(EG_W(0x57EE));
+    f19eg_g_pageFront      = (int16 *)f19_dsegAt(EG_W(0x57D6));
+    f19eg_g_pageOffscreen  = (int16 *)f19_dsegAt(EG_W(0x5806));
+    f19eg_g_targetViewParams = (int16 *)f19_dsegAt(EG_W(0x5836));
+    f19eg_g_viewParams     = (int16 *)f19_dsegAt(EG_W(0x3F8));
+    f19eg_g_vpParms        = (struct VpParms *)f19_dsegAt(EG_W(0x57D6));
+    f19eg_regnFile         = (char *)f19_dsegAt(EG_W(0x78));
+    f19eg_regnName         = (char *)f19_dsegAt(EG_W(0x78));
 }
 
 /* EN string graft: the baked-in dseg image came from the RU build, whose
@@ -122,9 +123,10 @@ static const struct { uint16 off; uint8 s[26]; uint8 n; } f19eg_enStrings[] = {
 
 void f19_egDsegLoad(void) {
     int i;
-    memcpy(f19_dseg, f19_egDsegImage, 0x9EC0);
+    f19_segUseWorld(1);
+    f19_egVarsReset();
     for (i = 0; i < (int)(sizeof f19eg_enStrings / sizeof f19eg_enStrings[0]); i++)
-        memcpy(f19_dseg + f19eg_enStrings[i].off, f19eg_enStrings[i].s,
+        memcpy(f19_dsegAt(f19eg_enStrings[i].off), f19eg_enStrings[i].s,
                f19eg_enStrings[i].n);
     /* seg004: the DOS-allocated 3D world-data block (LB.3D3 stream at +0,
      * aircraft models at +0x7530) — 64 KB, persisted across missions. */

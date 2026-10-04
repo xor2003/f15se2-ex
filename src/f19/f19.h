@@ -49,11 +49,8 @@ void far f19_blitSpriteParams(void *params, int opaque); /* f19ovl.c: SpritePara
 /* the F-19 comm/game shared block (commData at +0, gameData at +0x120E) */
 extern uint8 f19_commBase[];
 
-/* F-19's flat data segment: every word_/byte_/dword_ global is a lvalue
- * macro into this array (see the per-file #define tables generated from
- * the extern decls), so aliasing and absolute-offset references behave
- * exactly like the DOS image. */
-extern uint8 f19_dseg[];
+/* DOS dseg globals are real objects now (f19stvars.h / f19egvars.h);
+ * DOS offsets resolve via f19_dsegAt()/f19_dsegOff() in f19seg.c. */
 
 /* shared low-mem flag cells (0:4F2 reload-request, 0:4F4 gfx vector) */
 extern int16 f19_lowFlags[];

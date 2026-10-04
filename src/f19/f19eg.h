@@ -7,25 +7,25 @@
 #include "f19egsyms.h"
 #include "f19egpfx.h"
 
-/* little-endian 16-bit cell read from f19_dseg */
-#define EG_W(off) (*(uint16 *)(f19_dseg + (off)))
+/* little-endian 16-bit cell read through the dseg object resolver */
+#define EG_W(off) (*(uint16 *)f19_dsegAt((off)))
 
 #include "f19egglobals.h"
 
 /* F-19 EGAME.EXE module. The game-data segment image lives in f19egsegdat.c
- * (RU layout — the src_en ports index f19_dseg directly by RU-land dseg
- * offsets). START and EGAME have separate dseg images; which one f19_dseg
- * holds depends on the active module. commBase is shared between START and
- * EGAME exactly like the DOS shared-data block. */
+ * (RU layout — the src_en ports index dseg objects by RU-land dseg offsets
+ * via f19_dsegAt). START and EGAME have separate dseg object sets; which one
+ * f19_dsegAt resolves depends on f19_segUseWorld(). commBase is shared
+ * between START and EGAME exactly like the DOS shared-data block. */
 
 extern const uint8 f19_egDsegImage[];   /* f19egsegdat.c */
-void f19_egDsegLoad(void);              /* copy image -> f19_dseg */
+void f19_egDsegLoad(void);              /* reset EGAME-side objects */
 
 /* ---- flat-model pointer ops (pointers.h equivalents) ----
- * Segments are f19seg handles: 0 = f19_dseg, 1 = f19_commBase, >=0x10 = blocks.
- * FP_OFF/FP_SEG are read-only here; the few lvalue uses in egmain were
- * rewritten to assignments through F19_FP. */
-#define MK_FP(seg, off)   ((void *)((char *)f19_segPtr((int16)(seg)) + (uint16)(off)))
+ * Segments are f19seg handles: 0 = dseg objects, 1 = f19_commBase,
+ * >=0x10 = blocks. FP_OFF/FP_SEG are read-only here; the few lvalue uses in
+ * egmain were rewritten to assignments through F19_FP. */
+#define MK_FP(seg, off)   ((void *)f19_segResolve((uint16)(off), (uint16)(seg)))
 #define FP_OFF(p)         ((uint16)f19_farOf(p))
 #define FP_SEG(p)         ((uint16)(f19_farOf(p) >> 16))
 #define PTR_OFF(p)        FP_OFF(p)
