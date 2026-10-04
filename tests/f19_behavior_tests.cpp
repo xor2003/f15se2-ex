@@ -24,12 +24,12 @@
 #include <thread>
 
 // ---- F-19 flat-model state -------------------------------------------------
-extern uint8 f19_dseg[];                 /* 64 KB flat data segment */
-#include "f19/f19egglobals.h"            /* binding-pin tests: &g_* == true cell */
-extern uint8 f19_commBase[];             /* comm/game shared block */
+extern uint8 f19_dseg[];      /* 64 KB flat data segment */
+#include "f19/f19egglobals.h" /* binding-pin tests: &g_* == true cell */
+extern uint8 f19_commBase[];  /* comm/game shared block */
 extern void *f19_commData;
 extern void *f19_gameData;
-void f19_egDsegLoad(void);               /* install EGAME dseg image */
+void f19_egDsegLoad(void); /* install EGAME dseg image */
 
 // Shared (unprefixed) globals the F-19 routines use.
 extern int16 g_viewCenterX;
@@ -39,15 +39,15 @@ extern int16 g_clipMaxY;
 extern const int16 g_angleLut[];
 
 // ---- F-19 START-side routines under test ----------------------------------
-void f19_dsegInit(void);                  /* install the START data image */
-void f19_printMission(void);              /* stutil.c: briefing -> state 4 */
-int16 far ovlF43_a(int16 v);              /* scenery0.exe image loader */
-void  far ovlF43_10d(int16 seg);          /* string-record -> dseg ptr splat */
+void f19_dsegInit(void);        /* install the START data image */
+void f19_printMission(void);    /* stutil.c: briefing -> state 4 */
+int16 far ovlF43_a(int16 v);    /* scenery0.exe image loader */
+void far ovlF43_10d(int16 seg); /* string-record -> dseg ptr splat */
 #undef commData
 #undef gameData
 /* f19_commData/f19_gameData (the globals stutil/stmain's commData/gameData
  * macros resolve to) are already externed above. */
-bool setGamePath(const char *path);       /* shared/file_io.c */
+bool setGamePath(const char *path); /* shared/file_io.c */
 
 // ---- F-19 EGAME routines (f19egpfx.h renames in-TU refs to f19eg_*) --------
 int16 f19eg_sinMul(int16 angle, int16 value);
@@ -118,38 +118,38 @@ enum F19OriginalConstant : int {
 
     // dseg cells for the tile-map routines (word_35010..word_3501C region and
     // the object-local pair), verified in lst/egame_en_ada.lst.
-    kCellTileEntryIdx = 0x6320,   // word_35010: lookupTileEntry loop index
-    kCellTileWorldSize = 0x6322,  // word_35012: 0x1000 >> tileZoomShift
-    kCellTileGridDim = 0x6324,    // word_35014: 4 << (8 - lod*2)
-    kCellMapOriginX = 0x6326,     // word_35016: drawMapTiles arg0 >> zoom
-    kCellMapOriginY = 0x6328,     // word_35018: drawMapTiles arg1 >> zoom
-    kCellObjLocalX = 0xAA4,       // word_2F794: in-tile object offset X
-    kCellObjLocalY = 0xAA6,       // word_2F796: in-tile object offset Y
+    kCellTileEntryIdx = 0x6320,  // word_35010: lookupTileEntry loop index
+    kCellTileWorldSize = 0x6322, // word_35012: 0x1000 >> tileZoomShift
+    kCellTileGridDim = 0x6324,   // word_35014: 4 << (8 - lod*2)
+    kCellMapOriginX = 0x6326,    // word_35016: drawMapTiles arg0 >> zoom
+    kCellMapOriginY = 0x6328,    // word_35018: drawMapTiles arg1 >> zoom
+    kCellObjLocalX = 0xAA4,      // word_2F794: in-tile object offset X
+    kCellObjLocalY = 0xAA6,      // word_2F796: in-tile object offset Y
 
-    kCellDynTileEntries = 0x8B56, // g_dynTileEntries: 8-byte override records
-    kCellTileEntryCount = 0x664A, // dword_3533A (low word): g_tileEntryCount
-    kCellTopLodGrid = 0x7F6E,     // 8x8 LOD-4 grid
-    kCellBuf1_3dg = 0x6ECC,       // 16x16 LOD-3 grid
-    kCellBuf2_3dg = 0x6C76,       // LOD-2 child grids (512 B)
-    kCellBuf3_3dg = 0x6870,       // LOD-1 child grids (512 B)
-    kCellBuf4_3dg = 0x666C,       // LOD-0 leaf grids (512 B)
-    kCellOrientMatrix = 0x46A6,   // g_orientMatrix: 9 int16 rotation matrix
-    kCellOurHead = 0x4700,        // g_ourHead
-    kCellOurPitch = 0x4702,       // g_ourPitch
-    kCellOurRoll = 0x4704,        // g_ourRoll
-    kCellNameBuf = 0x65E6,        // g_nameBuf: clock string scratch
-    kCellMissionTick = 0x6650,    // g_missionTick
-    kCellNightMode = 0x4F1A,      // g_nightMode
-    kCellBufCoordStr = 0x98CC,    // START grid-ref scratch
-    kCellMissionTimeFlag = 0x44E4,// START missionTimeFlag
-    kOffGameDataTheater = 0x38,   // GD.theater inside the gameData block
+    kCellDynTileEntries = 0x8B56,  // g_dynTileEntries: 8-byte override records
+    kCellTileEntryCount = 0x664A,  // dword_3533A (low word): g_tileEntryCount
+    kCellTopLodGrid = 0x7F6E,      // 8x8 LOD-4 grid
+    kCellBuf1_3dg = 0x6ECC,        // 16x16 LOD-3 grid
+    kCellBuf2_3dg = 0x6C76,        // LOD-2 child grids (512 B)
+    kCellBuf3_3dg = 0x6870,        // LOD-1 child grids (512 B)
+    kCellBuf4_3dg = 0x666C,        // LOD-0 leaf grids (512 B)
+    kCellOrientMatrix = 0x46A6,    // g_orientMatrix: 9 int16 rotation matrix
+    kCellOurHead = 0x4700,         // g_ourHead
+    kCellOurPitch = 0x4702,        // g_ourPitch
+    kCellOurRoll = 0x4704,         // g_ourRoll
+    kCellNameBuf = 0x65E6,         // g_nameBuf: clock string scratch
+    kCellMissionTick = 0x6650,     // g_missionTick
+    kCellNightMode = 0x4F1A,       // g_nightMode
+    kCellBufCoordStr = 0x98CC,     // START grid-ref scratch
+    kCellMissionTimeFlag = 0x44E4, // START missionTimeFlag
+    kOffGameDataTheater = 0x38,    // GD.theater inside the gameData block
 
-    kLodGridDimLod4 = 8,          // top grid is 8x8
-    kLodGridDimLod3 = 16,         // buf1 grid is 16x16
+    kLodGridDimLod4 = 8,  // top grid is 8x8
+    kLodGridDimLod3 = 16, // buf1 grid is 16x16
     kTileEntryValue = 0x2345,
     kTileEntryShape = 0x22,
     kAttitudeMatrixWords = 9,
-    kAttitudeTolerance = 0x40,    // ~1.4 deg of LUT quantization headroom
+    kAttitudeTolerance = 0x40, // ~1.4 deg of LUT quantization headroom
 };
 
 void require(bool condition, const char *message) {
@@ -164,8 +164,8 @@ void setDseg16(int off, int v) { *reinterpret_cast<int16 *>(f19_dseg + off) = v;
 
 int sar32(int32 value, int count) {
     return value >= 0
-        ? static_cast<int>(static_cast<uint32>(value) >> count)
-        : -static_cast<int>((static_cast<uint32>(-value) + ((1u << count) - 1u)) >> count);
+               ? static_cast<int>(static_cast<uint32>(value) >> count)
+               : -static_cast<int>((static_cast<uint32>(-value) + ((1u << count) - 1u)) >> count);
 }
 
 // Independent model of the original bearing curve (seg000:0xd29d).
@@ -180,13 +180,14 @@ int expectedBearing(int deltaX, int deltaY) {
     const int ratio = static_cast<int>(numer / denom);
     const int angle = static_cast<int16>(
         ((0x2800L - (((int32)std::abs(0x1333 - ratio) * 0xB00L) >> 14)) *
-         static_cast<int32>(ratio)) >> 14);
+         static_cast<int32>(ratio)) >>
+        14);
     if (deltaX > 0) {
         return static_cast<int16>(deltaY > 0 ? (swapped ? kAngleQuarterTurn - angle : angle)
-                              : (swapped ? angle + kAngleQuarterTurn : kAngleHalfTurn - angle));
+                                             : (swapped ? angle + kAngleQuarterTurn : kAngleHalfTurn - angle));
     }
     return static_cast<int16>(deltaY > 0 ? (swapped ? angle + kAngleThreeQuarterTurn : -angle)
-                          : (swapped ? kAngleThreeQuarterTurn - angle : angle + kAngleHalfTurn));
+                                         : (swapped ? kAngleThreeQuarterTurn - angle : angle + kAngleHalfTurn));
 }
 
 int expectedRangeApprox(int dx, int dy) {
@@ -214,7 +215,7 @@ void writeTileEntry(int idx, int lod, int subIndex, int tileX, int tileY,
 
 int main() {
     test_headless_init();
-    f19_egDsegLoad();   /* install the EGAME data image (LOD dims, LUTs) */
+    f19_egDsegLoad(); /* install the EGAME data image (LOD dims, LUTs) */
     // Dummy video also brings up the event subsystem the START briefing test
     // feeds keys through (input_pumpEvents reads SDL events).
     require(SDL_Init(SDL_INIT_VIDEO), "SDL initializes headless");
@@ -223,66 +224,65 @@ int main() {
     require(f19eg_sinMul(0, 0x4000) == 0 && f19eg_cosMul(0, 0x4000) == 0x4000,
             "sinMul(0)=0, cosMul(0)=identity");
     require(f19eg_sinMul(kAngleQuarterTurn, 0x4000) == 0x4000 &&
-            f19eg_cosMul(kAngleQuarterTurn, 0x4000) == 0,
+                f19eg_cosMul(kAngleQuarterTurn, 0x4000) == 0,
             "sinMul(90deg) preserves, cosMul(90deg) zeroes");
     require(f19eg_sinMul(0x2000, 0x4000) == 0x2D41 &&
-            f19eg_cosMul(0x2000, 0x4000) == 0x2D41,
+                f19eg_cosMul(0x2000, 0x4000) == 0x2D41,
             "45deg sin/cos goldens");
     require(f19eg_sinMul(0x0800, 0x4000) == 0x0C7D &&
-            f19eg_sinMul(0x1555, 0x4000) == 0x1FFF &&
-            f19eg_sinMul(0x2AAA, 0x4000) == 0x376C,
+                f19eg_sinMul(0x1555, 0x4000) == 0x1FFF &&
+                f19eg_sinMul(0x2AAA, 0x4000) == 0x376C,
             "interpolated sin goldens");
     require(f19eg_cosMul(0x8000, 0x4000) == -0x3FFF &&
-            f19eg_sinMul(0xC000, 0x4000) == -0x3FFF,
+                f19eg_sinMul(0xC000, 0x4000) == -0x3FFF,
             "negative-side sin/cos goldens");
     require(f19eg_sinMul(0x2AAA, 0x1234) == 0x0FC3 &&
-            f19eg_cosMul(0x1555, 0x1234) == 0x0FC4 &&
-            f19eg_cosMul(0x0800, 0x1234) == 0x11DA,
+                f19eg_cosMul(0x1555, 0x1234) == 0x0FC4 &&
+                f19eg_cosMul(0x0800, 0x1234) == 0x11DA,
             "non-unit value scaling goldens");
     require(f19eg_sinMul(0x2AAA, -0x2000) == -0x1BB6,
             "negative value sign propagation");
 
     // ==== egmath.c: computeBearing (approx atan2, curve 0x1333/0xB00) ====
     require(f19eg_computeBearing(0, 5) == 0 &&
-            f19eg_computeBearing(0, -5) == (int16)kAngleHalfTurn &&
-            f19eg_computeBearing(5, 0) == kAngleQuarterTurn &&
-            f19eg_computeBearing(-5, 0) == (int16)kAngleThreeQuarterTurn,
+                f19eg_computeBearing(0, -5) == (int16)kAngleHalfTurn &&
+                f19eg_computeBearing(5, 0) == kAngleQuarterTurn &&
+                f19eg_computeBearing(-5, 0) == (int16)kAngleThreeQuarterTurn,
             "computeBearing axis cases");
-    for (auto d : {std::pair{100, 100}, {100, -100}, {-100, 100}, {-100, -100},
-                   {300, 100}, {100, 300}, {-300, 100}, {1, 1000}, {1000, 1}, {7, 7}}) {
+    for (auto d : {std::pair{100, 100}, {100, -100}, {-100, 100}, {-100, -100}, {300, 100}, {100, 300}, {-300, 100}, {1, 1000}, {1000, 1}, {7, 7}}) {
         require(f19eg_computeBearing(d.first, d.second) ==
                     (int16)expectedBearing(d.first, d.second),
                 "computeBearing matches original curve");
     }
     require(f19eg_computeBearing(100, 100) == 0x204D &&
-            f19eg_computeBearing(300, 100) == 0x32CA &&
-            f19eg_computeBearing(-300, 100) == (int16)0xCD36,
+                f19eg_computeBearing(300, 100) == 0x32CA &&
+                f19eg_computeBearing(-300, 100) == (int16)0xCD36,
             "computeBearing hard goldens");
 
     // ==== egmath.c: rangeApprox / clamps / sign helpers / isqrt / rng ====
     require(f19eg_rangeApprox(3, 4) == 5 && f19eg_rangeApprox(0, 0) == 0 &&
-            f19eg_rangeApprox(-300, -400) == 550 &&
-            f19eg_rangeApprox(0x7000, 0x7000) == kRangeMax,
+                f19eg_rangeApprox(-300, -400) == 550 &&
+                f19eg_rangeApprox(0x7000, 0x7000) == kRangeMax,
             "rangeApprox max+min/2 with 0x7FFF cap");
     require(f19eg_clampRange(5, 0, 10) == 5 && f19eg_clampRange(50, 0, 10) == 10 &&
-            f19eg_clampRange(-1, 0, 10) == 0 &&
-            f19eg_clampRange((int16)0xC001, 0, 10) == 0 &&
-            f19eg_clampRange((int16)0xC000, 0, 10) == 10 &&
-            f19eg_clampRange((int16)0x8000, 0, 10) == 10,
+                f19eg_clampRange(-1, 0, 10) == 0 &&
+                f19eg_clampRange((int16)0xC001, 0, 10) == 0 &&
+                f19eg_clampRange((int16)0xC000, 0, 10) == 10 &&
+                f19eg_clampRange((int16)0x8000, 0, 10) == 10,
             "clampRange incl. 0xC000 wrap-to-high rule");
     require(f19eg_clampValue(5, 0, 10) == 5 && f19eg_clampValue(-1, 0, 10) == 0 &&
-            f19eg_clampValue(50, 0, 10) == 10 &&
-            f19eg_clampValue((int16)0xC000, 0, 10) == 0,
+                f19eg_clampValue(50, 0, 10) == 10 &&
+                f19eg_clampValue((int16)0xC000, 0, 10) == 0,
             "clampValue plain clamp");
     require(f19eg_signExtendByte(0x7F) == 0x7F &&
-            f19eg_signExtendByte(0x80) == -0x80 &&
-            f19eg_signExtendByte(0xFF) == -1 &&
-            f19eg_signExtendByte(0x1FF) == -1,
+                f19eg_signExtendByte(0x80) == -0x80 &&
+                f19eg_signExtendByte(0xFF) == -1 &&
+                f19eg_signExtendByte(0x1FF) == -1,
             "signExtendByte wraps low byte");
     require(f19eg_signOf(0) == 0 && f19eg_signOf(7) == 1 && f19eg_signOf(-7) == -1,
             "signOf");
     require(f19eg_isqrt(0) == 1 && f19eg_isqrt(3) == 1 && f19eg_isqrt(4) == 2 &&
-            f19eg_isqrt(0x4000) == 0x80 && f19eg_isqrt(-0x4000) == 0x80,
+                f19eg_isqrt(0x4000) == 0x80 && f19eg_isqrt(-0x4000) == 0x80,
             "isqrt Newton iteration");
     {
         // randomRange pulls one rand() per call; pre-draw the sequence then
@@ -292,35 +292,35 @@ int main() {
         const int r2 = std::rand();
         std::srand(4242);
         require(f19eg_randomRange(0x100) ==
-                    (int16)((static_cast<int32>(r1) * 0x100) >> 15) &&
-                f19eg_randomRange(0x40) ==
-                    (int16)((static_cast<int32>(r2) * 0x40) >> 15) &&
-                f19eg_randomRange(0) == 0,
+                        (int16)((static_cast<int32>(r1) * 0x100) >> 15) &&
+                    f19eg_randomRange(0x40) ==
+                        (int16)((static_cast<int32>(r2) * 0x40) >> 15) &&
+                    f19eg_randomRange(0) == 0,
                 "randomRange consumes rand() stream, scales to max");
     }
 
     // ==== egflight.c: signedRatio16 / valueToAngle / complementAngle ====
     require((int16)f19eg_signedRatio16(0x2000, 0x7FFF) == 0x2000 &&
-            (int16)f19eg_signedRatio16(0x1000, 0x4000) == 0x2000 &&
-            (int16)f19eg_signedRatio16(-0x1000, 0x4000) == -0x2000 &&
-            (int16)f19eg_signedRatio16(0x1000, -0x4000) == -0x2000 &&
-            (int16)f19eg_signedRatio16(1, 3) == 0x2AAA,
+                (int16)f19eg_signedRatio16(0x1000, 0x4000) == 0x2000 &&
+                (int16)f19eg_signedRatio16(-0x1000, 0x4000) == -0x2000 &&
+                (int16)f19eg_signedRatio16(0x1000, -0x4000) == -0x2000 &&
+                (int16)f19eg_signedRatio16(1, 3) == 0x2AAA,
             "signedRatio16 magnitude+sign");
     require(f19eg_signedRatio16(0x7FFF, 0x7FFF) == 0x8000,
             "signedRatio16 ratio 1.0 wraps to 0x8000 (16-bit limit)");
     require(f19eg_valueToAngle(0) == 0 && f19eg_valueToAngle(0x7FFF) == 0x4000 &&
-            f19eg_valueToAngle(-0x7FFF) == -0x4000 &&
-            f19eg_valueToAngle((int16)0x8000) == (int16)0xC000,
+                f19eg_valueToAngle(-0x7FFF) == -0x4000 &&
+                f19eg_valueToAngle((int16)0x8000) == (int16)0xC000,
             "valueToAngle endpoints");
     require(f19eg_valueToAngle(0x324) == 0x0100 &&
-            f19eg_valueToAngle(0x2000) == 0x0A4B &&
-            f19eg_valueToAngle(0x4000) == 0x1555 &&
-            f19eg_valueToAngle(0x5A82) == 0x2000 &&
-            f19eg_valueToAngle(-0x2000) == -0x0A4B,
+                f19eg_valueToAngle(0x2000) == 0x0A4B &&
+                f19eg_valueToAngle(0x4000) == 0x1555 &&
+                f19eg_valueToAngle(0x5A82) == 0x2000 &&
+                f19eg_valueToAngle(-0x2000) == -0x0A4B,
             "valueToAngle LUT interpolation goldens");
     require(f19eg_complementAngle(0) == 0x4000 &&
-            f19eg_complementAngle(0x7FFF) == 0 &&
-            f19eg_complementAngle(0x5A82) == 0x2000,
+                f19eg_complementAngle(0x7FFF) == 0 &&
+                f19eg_complementAngle(0x5A82) == 0x2000,
             "complementAngle = 90deg - asin");
 
     // ==== egflight.c: attitude round-trip through the rotation matrix ====
@@ -345,10 +345,10 @@ int main() {
 
     // ==== eg3dmap.c: scaleCoordToLod (rounded LOD shifts) ====
     require(f19eg_scaleCoordToLod(4, 0x10000u) == ((0x10000u + 0x20u) >> 6) &&
-            f19eg_scaleCoordToLod(3, 0x10000u) == ((0x10000u + 8u) >> 4) &&
-            f19eg_scaleCoordToLod(2, 0x10000u) == ((0x10000u + 2u) >> 2) &&
-            f19eg_scaleCoordToLod(1, 0x10000u) == 0x10000u &&
-            f19eg_scaleCoordToLod(0, 0x10000u) == 0x20000u,
+                f19eg_scaleCoordToLod(3, 0x10000u) == ((0x10000u + 8u) >> 4) &&
+                f19eg_scaleCoordToLod(2, 0x10000u) == ((0x10000u + 2u) >> 2) &&
+                f19eg_scaleCoordToLod(1, 0x10000u) == 0x10000u &&
+                f19eg_scaleCoordToLod(0, 0x10000u) == 0x20000u,
             "scaleCoordToLod rounded LOD shifts");
 
     // ==== eg3dmap.c: process3dg recursive tile-grid traversal ====
@@ -407,12 +407,12 @@ int main() {
         setDseg16(kCellTileEntryCount, 2);
         f19eg_addTileEntry(&rec, kTileEntryValue, 0x5A);
         require(rec.shapeOff == kTileEntryValue && rec.flag == 0x5A &&
-                dseg16(kCellTileEntryCount) == 3,
+                    dseg16(kCellTileEntryCount) == 3,
                 "addTileEntry fills rec + bumps dword_3533A counter");
         const uint8 *e = f19_dseg + kCellDynTileEntries + 2 * 8;
         require(e[0] == 2 && e[1] == 5 && e[2] == 6 && e[3] == 7 &&
-                *reinterpret_cast<const int16 *>(e + 4) == kTileEntryValue &&
-                e[6] == 0x5A,
+                    *reinterpret_cast<const int16 *>(e + 4) == kTileEntryValue &&
+                    e[6] == 0x5A,
                 "addTileEntry memcpy(&rec->lod,8) into slot 2");
         require(sceneObj.shape == (0x41 | 0x80),
                 "addTileEntry marks entry->shape |= 0x80");
@@ -426,9 +426,9 @@ int main() {
     // but must keep both aliases on the true cells — its old 0x8E48 cell is
     // the original's byte_37B38 trail-record array.
     require(&g_worldX == reinterpret_cast<int32 *>(f19_dseg + 0x8E2A) &&
-            &g_ViewX == reinterpret_cast<int32 *>(f19_dseg + 0x8E2A) &&
-            &g_worldY == reinterpret_cast<int32 *>(f19_dseg + 0x9446) &&
-            &g_ViewY == reinterpret_cast<int32 *>(f19_dseg + 0x9446),
+                &g_ViewX == reinterpret_cast<int32 *>(f19_dseg + 0x8E2A) &&
+                &g_worldY == reinterpret_cast<int32 *>(f19_dseg + 0x9446) &&
+                &g_ViewY == reinterpret_cast<int32 *>(f19_dseg + 0x9446),
             "world/view position aliases bind word_37B1A/word_38136 cells");
 
     // ==== binding pins: view-mode + tile coords in the 0x94E0 block ====
@@ -437,9 +437,9 @@ int main() {
     // 0x94FE = viewY_ (spawn computes 0x8000 - word_381EE). g_camExtFlag is
     // the byte view of viewMode's low byte.
     require(&g_viewMode == reinterpret_cast<int16 *>(f19_dseg + 0x94E0) &&
-            &g_camExtFlag == reinterpret_cast<int8 *>(f19_dseg + 0x94E0) &&
-            &g_viewX_ == reinterpret_cast<uint16 *>(f19_dseg + 0x94EE) &&
-            &g_viewY_ == reinterpret_cast<uint16 *>(f19_dseg + 0x94FE),
+                &g_camExtFlag == reinterpret_cast<int8 *>(f19_dseg + 0x94E0) &&
+                &g_viewX_ == reinterpret_cast<uint16 *>(f19_dseg + 0x94EE) &&
+                &g_viewY_ == reinterpret_cast<uint16 *>(f19_dseg + 0x94FE),
             "viewMode 0x94E0 / viewX_ 0x94EE / viewY_ 0x94FE cells");
 
     // ==== eg3dmap.c: worldToTileIndex — origin cells are DISTINCT ====
@@ -483,34 +483,34 @@ int main() {
 
     // ==== eg3dmap.c: aspectScaleY (5/6 -> 3/4 in F-19) ====
     require(f19eg_aspectScaleY(40) == 30 && f19eg_aspectScaleY(48) == 36 &&
-            f19eg_aspectScaleY(-8) == -6,
+                f19eg_aspectScaleY(-8) == -6,
             "aspectScaleY = y - y/4");
 
     // ==== egui.c: formatMissionClock (":HH:MM:SS" into g_nameBuf) ====
     setDseg16(kCellMissionTick, 0);
     setDseg16(kCellNightMode, 0);
     f19_dseg[kCellNameBuf] = 0;
-    f19eg_formatMissionClock(4515);   // 2h30m + tick*2 sec
+    f19eg_formatMissionClock(4515); // 2h30m + tick*2 sec
     require(std::strcmp(reinterpret_cast<char *>(f19_dseg + kCellNameBuf),
                         ";02:30:30") == 0,
             "formatMissionClock base ':'+night+1 glyph + HH:MM:SS");
     setDseg16(kCellNightMode, 1);
     setDseg16(kCellMissionTick, 10);
-    f19eg_formatMissionClock(0);      // tick adds in; night shifts lead glyph
+    f19eg_formatMissionClock(0); // tick adds in; night shifts lead glyph
     require(std::strcmp(reinterpret_cast<char *>(f19_dseg + kCellNameBuf),
                         "<00:00:20") == 0,
             "formatMissionClock tick add + night glyph");
 
     // ==== stgen.c: START-side math + formatters ====
     require(f19_calcBearing(0, 5) == 0 && f19_calcBearing(5, 0) == 0x4000 &&
-            f19_calcBearing(100, 100) == 0x204D &&
-            f19_calcBearing(300, 100) == 0x32CA &&
-            f19_calcBearing(-100, -100) == (int16)0xA04D,
+                f19_calcBearing(100, 100) == 0x204D &&
+                f19_calcBearing(300, 100) == 0x32CA &&
+                f19_calcBearing(-100, -100) == (int16)0xA04D,
             "f19_calcBearing same curve as EGAME computeBearing");
     require(f19_rangeApprox(3, 4) == 5 && f19_rangeApprox(0x7000, 0x7000) == kRangeMax,
             "f19_rangeApprox");
     require(f19_clampValue(5, 0, 10) == 5 && f19_clampValue(-1, 0, 10) == 0 &&
-            f19_clampValue((int16)0xC000, 0, 10) == 10,
+                f19_clampValue((int16)0xC000, 0, 10) == 10,
             "f19_clampValue bearing-wrap rule");
 
     // formatGridRef writes bufCoordStr (0x98CC) off gameData->theater.
@@ -543,7 +543,7 @@ int main() {
     // f19_printMission, and the routine must return with state 4 queued.
     {
         setGamePath("/home/xor/games/f19/F19");
-        f19_dsegInit();                      /* START image (not the EGAME one) */
+        f19_dsegInit(); /* START image (not the EGAME one) */
         f19_commData = f19_commBase;
         f19_gameData = f19_commBase + 0x120E;
         // scenery0.exe splats the far-ptr table the flight-plan page reads:
@@ -557,11 +557,11 @@ int main() {
                 "ROE text cell populated by string-table splat");
         // Waypoint indices the FLIGHT PLAN page prints; name table -> a scratch
         // string so strcat walks known memory.
-        setDseg16(0xB94A, 3);                /* pathWpA */
-        setDseg16(0xB95C, 7);                /* pathWpD */
+        setDseg16(0xB94A, 3); /* pathWpA */
+        setDseg16(0xB95C, 7); /* pathWpD */
         std::strcpy(reinterpret_cast<char *>(f19_dseg + 0xF000), "TEST SITE");
         for (int i = 0; i < 32; i++) setDseg16(0xCA70 + i * 2, 0xF000);
-        setDseg16(0xCA6C, 2);                /* briefPage=2: "Mission Targets" */
+        setDseg16(0xCA6C, 2); /* briefPage=2: "Mission Targets" */
         f19_dseg[0xC160] = 5;
         // The entry drain eats queued keys, so feed the exit read from a
         // delayed poster thread.

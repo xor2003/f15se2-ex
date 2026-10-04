@@ -223,7 +223,7 @@ checkKey:
             sub_146E3();
         sub_1DCAC(0);
     }
-    return key;                     /* goto path: uninit — original reads [bp-2] garbage */
+    return key; /* goto path: uninit — original reads [bp-2] garbage */
 }
 
 void f19_initGraphics(void) {                 /* seg000:0x827 */

@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [master, main]
+    branches: [master, main, 'feature/**']
   pull_request:
-    branches: [master, main]
+    branches: [master, main, 'feature/**']
 
 jobs:
   build:
@@ -31,6 +31,7 @@ jobs:
             os: macos-latest
             configure: cmake -S . -B build
             build: cmake --build build -j$(sysctl -n hw.ncpu)
+            test: ctest --test-dir build --output-on-failure
 
     steps:
       - name: Checkout repository
@@ -55,6 +56,51 @@ jobs:
 
       - name: Test
         run: ${{ matrix.test }}
+
+  lint:
+    name: Lint (clang-format)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # Full history: the check diffs formatting against a base commit.
+          fetch-depth: 0
+
+      - name: Install clang-format
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-format
+          clang-format --version
+
+      # Only lines changed vs the base are checked — a whole-tree pass would
+      # drown the signal in legacy violations on files nobody touched.
+      - name: Resolve diff base
+        id: base
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+          else
+            BEFORE="${{ github.event.before }}"
+            if [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ]; then
+              BASE="$BEFORE"
+            else
+              # Branch-creation push: diff against the default branch's merge base.
+              git fetch --no-tags origin "${{ github.event.repository.default_branch }}"
+              BASE=$(git merge-base HEAD "origin/${{ github.event.repository.default_branch }}")
+            fi
+          fi
+          echo "base=$BASE" >> "$GITHUB_OUTPUT"
+
+      - name: Check formatting of changed lines
+        run: |
+          set -o pipefail
+          git clang-format --diff "${{ steps.base.outputs.base }}" \
+              --extensions c,h,cpp,hpp | tee /tmp/clang-format.diff
+          if grep -qE '^[+-][^+-]' /tmp/clang-format.diff; then
+            echo "::error title=clang-format::Changed lines violate .clang-format — run 'git clang-format ${{ steps.base.outputs.base }}' and commit the result"
+            exit 1
+          fi
 
   coverage:
     name: Coverage
