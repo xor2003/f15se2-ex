@@ -564,6 +564,7 @@ add_behavior_test(eg_stubs_behavior_tests LINK_CORE)
 add_behavior_test(eg3drast_internal_behavior_tests SOURCES ${SRC_DIR}/egdata.c)
 add_behavior_test(start_behavior_tests LINK_CORE)
 add_behavior_test(log_behavior_tests LINK_CORE)
+add_behavior_test(f19_behavior_tests LINK_CORE)
 add_behavior_test(terrain_capacity_tests LINK_CORE)
 add_behavior_test(vgapal_behavior_tests SOURCES ${SRC_DIR}/vgapal.c DEFS main=vgapal_program_main)
 

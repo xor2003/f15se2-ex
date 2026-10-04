@@ -136,7 +136,7 @@ extern uint8 g_extraScaleShift;
 #define g_geeShakeToggle (*(int16 *)(f19_dseg + 0x66D0))
 #define g_geeStrBuf ((char *)(f19_dseg + 0x6640))
 #define g_geeTable ((int8 *)(f19_dseg + 0x4624))
-#define g_gees (*(int16 *)(f19_dseg + 0x664A))
+#define g_gees (*(int16 *)(f19_dseg + 0x666A))
 #define g_gfxModeUnset (*(int16 *)(f19_dseg + 0x76))
 #define g_gndTargetMark (*(int8 *)(f19_dseg + 0x9670))
 #define g_groundAltitude (*(int16 *)(f19_dseg + 0x950A))
@@ -197,10 +197,10 @@ extern int16 g_lineY2;
 #define g_mapCenterY (*(int16 *)(f19_dseg + 0x587A))
 #define g_mapExtentX (*(int16 *)(f19_dseg + 0x817A))
 #define g_mapExtentY (*(int16 *)(f19_dseg + 0x817C))
-#define g_mapLodIndex (*(int16 *)(f19_dseg + 0x6352))
+#define g_mapLodIndex (*(int16 *)(f19_dseg + 0x632C))
 #define g_mapMode (*(int16 *)(f19_dseg + 0x9694))
-#define g_mapOriginX (*(int16 *)(f19_dseg + 0x6348))
-#define g_mapOriginY (*(int16 *)(f19_dseg + 0x6348))
+#define g_mapOriginX (*(int16 *)(f19_dseg + 0x6326))
+#define g_mapOriginY (*(int16 *)(f19_dseg + 0x6328))
 extern int16 *f19eg_g_mapTerrainMode;   /* word_3468E */
 #define g_mapTerrainMode f19eg_g_mapTerrainMode
 #define g_mapTileLodTable ((const int16 *)(f19_dseg + 0x9D2))
@@ -216,7 +216,7 @@ extern int16 f19eg_g_mapY;   /*  */
 #define g_missionTick (*(int16 *)(f19_dseg + 0x6650))
 #define g_missionTimeLimit (*(int16 *)(f19_dseg + 0x9656))
 extern int16 g_modelEdgeCount;
-#define g_modelEvenOddBit (*(int16 *)(f19_dseg + 0x6350))
+#define g_modelEvenOddBit (*(int16 *)(f19_dseg + 0x632A))
 #define g_modelOffsetTable ((uint16 *)(f19_dseg + 0x818))
 extern char far *g_modelStreamPtr;
 #define g_modelVertX ((uint16 *)f19eg_vertexX)
@@ -237,8 +237,8 @@ extern struct TileObject *f19eg_g_nearestTileObj;   /* word_35CE6 */
 extern int16 g_objColorBase;
 extern int16 g_objDistance;
 extern uint8 g_objHasRotation;
-#define g_objLocalX (*(int16 *)(f19_dseg + 0x6340))
-#define g_objLocalY (*(int16 *)(f19_dseg + 0x6340))
+#define g_objLocalX (*(int16 *)(f19_dseg + 0xAA4))
+#define g_objLocalY (*(int16 *)(f19_dseg + 0xAA6))
 extern int16 g_objRelX;
 extern int16 g_objRelY;
 extern int16 g_objRenderMode;
@@ -359,11 +359,11 @@ extern int16 *f19eg_g_targetViewParams;   /* word_346A6 */
 #define g_threatTimerInit (*(int16 *)(f19_dseg + 0x871A))
 #define g_threatToneLevel (*(int16 *)(f19_dseg + 0x5552))
 #define g_thrust (*(int16 *)(f19_dseg + 0x8616))
-#define g_tileEntryCount (*(int16 *)(f19_dseg + 0x666A))
-#define g_tileEntryIdx (*(int16 *)(f19_dseg + 0x6346))
-#define g_tileGridDim (*(int16 *)(f19_dseg + 0x6346))
+#define g_tileEntryCount (*(int16 *)(f19_dseg + 0x664A))
+#define g_tileEntryIdx (*(int16 *)(f19_dseg + 0x6320))
+#define g_tileGridDim (*(int16 *)(f19_dseg + 0x6324))
 #define g_tileKillTally ((int8 *)(f19_dseg + 0x9524))
-#define g_tileWorldSize (*(int16 *)(f19_dseg + 0x6344))
+#define g_tileWorldSize (*(int16 *)(f19_dseg + 0x6322))
 #define g_tileZoomShift (*(int16 *)(f19_dseg + 0x968A))
 #define g_timeAccelMode (*(uint16 *)(f19_dseg + 0x5560))
 #define g_timerTick (*(int8 *)(f19_dseg + 0x3F62))
