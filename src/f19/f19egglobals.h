@@ -52,8 +52,8 @@ extern uint8 *f19eg_farPointer;   /* word_351C6/351C8 */
 #define flt15_buf1 ((int16 *)(f19_dseg + 0x6378))
 #define flt15_buf2 ((uint8 *)(f19_dseg + 0x238A))
 #define frameTick (*(int16 *)(f19_dseg + 0x5546))
-#define g_ViewX (*(int32 *)(f19_dseg + 0x8E48))
-#define g_ViewY (*(int32 *)(f19_dseg + 0x9464))
+#define g_ViewX (*(int32 *)(f19_dseg + 0x8E2A))
+#define g_ViewY (*(int32 *)(f19_dseg + 0x9446))
 #define g_aamLeadDist (*(int16 *)(f19_dseg + 0x6372))
 #define g_aamSeekerX (*(int16 *)(f19_dseg + 0x9C9E))
 #define g_aamSeekerY (*(int16 *)(f19_dseg + 0x9CA6))
@@ -74,7 +74,7 @@ extern int16 f19eg_g_autopilotEngaged;   /*  */
 #define g_axisInputAccum ((int16 *)(f19_dseg + 0x5C94))
 #define g_bombDamageMask (*(int16 *)(f19_dseg + 0x4EF4))
 #define g_bulletTrackCount (*(int16 *)(f19_dseg + 0x857C))
-#define g_camExtFlag (*(int8 *)(f19_dseg + 0x94FE))
+#define g_camExtFlag (*(int8 *)(f19_dseg + 0x94E0))
 #define g_camEyeX (*(int32 *)(f19_dseg + 0x886C))
 #define g_camEyeY (*(int32 *)(f19_dseg + 0x8B44))
 #define g_camEyeZ (*(int16 *)(f19_dseg + 0x8B4E))
@@ -388,7 +388,7 @@ extern int16 g_viewCenterY;
                                         * sub_1174C/sub_11802 read it. */
 #define g_viewClipBottom (*(int16 *)(f19_dseg + 0x471C))
 #define g_viewHeading (*(int16 *)(f19_dseg + 0x9BA4))
-#define g_viewMode (*(int16 *)(f19_dseg + 0x94FE))
+#define g_viewMode (*(int16 *)(f19_dseg + 0x94E0))
 extern int16 *f19eg_g_viewParams;   /* word_2F268 — ptr to the transform/clip record */
 #define g_viewParams f19eg_g_viewParams
 #define g_viewParamsFar ((uint16 *)(f19_commBase + 0x120E))
@@ -403,8 +403,8 @@ extern int16 g_viewRotMatrix[9];
 #define g_viewTargetObj (*(int16 *)(f19_dseg + 0x9676))
 #define g_viewTargetX (*(int32 *)(f19_dseg + 0x9666))
 #define g_viewTargetY (*(int32 *)(f19_dseg + 0x966C))
-#define g_viewX_ (*(uint16 *)(f19_dseg + 0x950C))
-#define g_viewY_ (*(uint16 *)(f19_dseg + 0x951C))
+#define g_viewX_ (*(uint16 *)(f19_dseg + 0x94EE))
+#define g_viewY_ (*(uint16 *)(f19_dseg + 0x94FE))
 #define g_viewZ (*(int16 *)(f19_dseg + 0x4706))
 extern struct VpParms *f19eg_g_vpParms;   /* word_34646 */
 #define g_vpParms f19eg_g_vpParms
@@ -425,8 +425,8 @@ extern int16 f19eg_g_vtxY;   /*  */
 #define g_weaponCells ((struct CellRect *)(f19_dseg + 0x5768))
 #define g_weaponMask (*(int8 *)(f19_dseg + 0x4EF4))
 #define g_world3dData ((char *)((char *)f19_segPtr(f19eg_seg004) + 0x0))
-#define g_worldX (*(int32 *)(f19_dseg + 0x8E48))
-#define g_worldY (*(int32 *)(f19_dseg + 0x9464))
+#define g_worldX (*(int32 *)(f19_dseg + 0x8E2A))
+#define g_worldY (*(int32 *)(f19_dseg + 0x9446))
 #define g_wpPanelMode (*(int16 *)(f19_dseg + 0x8C46))
 #define g_wpSelectIdx (*(int16 *)(f19_dseg + 0x4892))
 #define g_wpnSlots ((struct WSlot *)(f19_dseg + 0x5236))

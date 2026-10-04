@@ -14,6 +14,7 @@
 // lst/egame_en_ada.lst), so the tests pin the port's data-cell bindings as
 // well as its code: a logical variable bound to the wrong cell fails loudly.
 #include "inttype.h"
+#include "dos.h"
 #include "headless.h"
 
 #include <cstdint>
@@ -23,6 +24,7 @@
 
 // ---- F-19 flat-model state -------------------------------------------------
 extern uint8 f19_dseg[];                 /* 64 KB flat data segment */
+#include "f19/f19egglobals.h"            /* binding-pin tests: &g_* == true cell */
 extern uint8 f19_commBase[];             /* comm/game shared block */
 extern void *f19_commData;
 extern void *f19_gameData;
@@ -400,6 +402,30 @@ int main() {
         require(sceneObj.shape == (0x41 | 0x80),
                 "addTileEntry marks entry->shape |= 0x80");
     }
+
+    // ==== binding pins: the aircraft/view position is ONE dword pair ====
+    // Original: word_37B1A/37B1C dword @ 0x8E2A (X) and word_38136/38138
+    // dword @ 0x9446 (Y) — spawn writes them, the flight model integrates
+    // them (seg000:2C64/2C96), the tacmap-pan keys adjust them, renderFrame
+    // copies them into the camera eye. The port split them across names
+    // but must keep both aliases on the true cells — its old 0x8E48 cell is
+    // the original's byte_37B38 trail-record array.
+    require(&g_worldX == reinterpret_cast<int32 *>(f19_dseg + 0x8E2A) &&
+            &g_ViewX == reinterpret_cast<int32 *>(f19_dseg + 0x8E2A) &&
+            &g_worldY == reinterpret_cast<int32 *>(f19_dseg + 0x9446) &&
+            &g_ViewY == reinterpret_cast<int32 *>(f19_dseg + 0x9446),
+            "world/view position aliases bind word_37B1A/word_38136 cells");
+
+    // ==== binding pins: view-mode + tile coords in the 0x94E0 block ====
+    // Original: word_381D0 @ 0x94E0 = view mode (cmp vs 0/0x88/0x89/0x8B,
+    // test 80h external flag); word_381DE @ 0x94EE = viewX_; word_381EE @
+    // 0x94FE = viewY_ (spawn computes 0x8000 - word_381EE). g_camExtFlag is
+    // the byte view of viewMode's low byte.
+    require(&g_viewMode == reinterpret_cast<int16 *>(f19_dseg + 0x94E0) &&
+            &g_camExtFlag == reinterpret_cast<int8 *>(f19_dseg + 0x94E0) &&
+            &g_viewX_ == reinterpret_cast<uint16 *>(f19_dseg + 0x94EE) &&
+            &g_viewY_ == reinterpret_cast<uint16 *>(f19_dseg + 0x94FE),
+            "viewMode 0x94E0 / viewX_ 0x94EE / viewY_ 0x94FE cells");
 
     // ==== eg3dmap.c: worldToTileIndex — origin cells are DISTINCT ====
     // Original: mapOriginX word_35016 (0x6326), mapOriginY word_35018
