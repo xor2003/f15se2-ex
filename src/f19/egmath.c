@@ -37,17 +37,17 @@ int16 computeBearing(int16 deltaX, int16 deltaY) {
         if (deltaX > 0) return BEARING_EAST;
         return BEARING_WEST;
     }
-    if (abs(deltaX) > abs(deltaY)) {
-        numer = (int32)abs(deltaY) << 0xe;
-        denom = abs(deltaX);
+    if (abs16Compat(deltaX) > abs16Compat(deltaY)) {
+        numer = (int32)abs16Compat(deltaY) << 0xe;
+        denom = abs16Compat(deltaX);
         swapped = 1;
     } else {
-        numer = (int32)abs(deltaX) << 0xe;
-        denom = abs(deltaY);
+        numer = (int32)abs16Compat(deltaX) << 0xe;
+        denom = abs16Compat(deltaY);
         swapped = 0;
     }
     ratio = (int16)(numer / (int32)denom);
-    angle = (int16)(((0x2800L - (((int32)abs(0x1333 - ratio) * 0xB00L) >> 0xe)) * (int32)ratio) >> 0xe);
+    angle = (int16)(((0x2800L - (((int32)abs16Compat(0x1333 - ratio) * 0xB00L) >> 0xe)) * (int32)ratio) >> 0xe);
     if (deltaX > 0) {
         if (deltaY > 0)
             result = swapped ? BEARING_EAST - angle : angle;
@@ -66,8 +66,8 @@ int16 computeBearing(int16 deltaX, int16 deltaY) {
 /* ==== seg000:0xd23b ==== */
 int16 rangeApprox(int16 deltaX, int16 deltaY) {
     int32 dist;
-    deltaX = abs(deltaX);
-    deltaY = abs(deltaY);
+    deltaX = abs16Compat(deltaX);
+    deltaY = abs16Compat(deltaY);
     if (deltaX > deltaY)
         dist = (int32)(deltaY >> 1) + (int32)deltaX;
     else
@@ -143,7 +143,7 @@ int16 randomRange(int16 maxVal) {
 /* ==== seg000:0x3387 ==== */
 int16 isqrt(int16 value) {
     int16 quotient, estimate;
-    value = abs(value);
+    value = abs16Compat(value);
     if (value < 4) {
         return 1;
     }
@@ -151,7 +151,7 @@ int16 isqrt(int16 value) {
     do {
         quotient = value / estimate;
         estimate = (estimate + quotient) >> 1;
-    } while (abs(estimate - quotient) > 1);
+    } while (abs16Compat(estimate - quotient) > 1);
     return estimate;
 }
 

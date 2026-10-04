@@ -103,8 +103,14 @@ void f19eg_addTileEntry(TileObject *rec, int16 value, char tag);
 int16 f19_calcBearing(int16 dx, int16 dy);
 int16 f19_rangeApprox(int16 deltaX, int16 deltaY);
 int16 f19_clampValue(int16 v, int16 lo, int16 hi);
+int16 f19_itemDistance(int16 idx1, int16 idx2);
 char *f19_formatGridRef(int16 wx, int16 wy, int16 theater);
 void f19_formatTimeStr(char *buf, int16 v);
+
+// Shared asm-faithful helpers the F-19 math chains link against.
+int16 sine(int16 angle);          /* eg3dmath.c LUT interp */
+int16 cosine(int16 angle);        /* sine(angle + 0x4000) */
+int16 fixedMulQ14(int16 a, int16 b); /* f19egsvc wrapper -> Q15 rounding */
 
 namespace {
 
@@ -323,6 +329,85 @@ int main() {
                 f19eg_complementAngle(0x5A82) == 0x2000,
             "complementAngle = 90deg - asin");
 
+    // ==== dosunit edge goldens (real16 replay vs original EGAME.EXE) ====
+    // Every constant below is the original binary's observed AX for that
+    // input — including faithful quirks like MSC's 16-bit abs(-0x8000)
+    // staying negative.
+    require(f19eg_isqrt(-1) == 1 && f19eg_isqrt(-4) == 2 &&
+                f19eg_isqrt((int16)0x8000) == 1,
+            "isqrt: 16-bit abs leaves -0x8000 negative -> 1");
+    require(f19eg_isqrt(255) == 0xF && f19eg_isqrt(256) == 0x10 &&
+                f19eg_isqrt(257) == 0x10 && f19eg_isqrt(1024) == 0x20 &&
+                f19eg_isqrt(0x3FFF) == 0x7F && f19eg_isqrt(0x4001) == 0x80 &&
+                f19eg_isqrt(0x7FFF) == 0xB5,
+            "isqrt power-of-two boundaries");
+    require(f19eg_rangeApprox(0x7FFF, (int16)0x8000) == 0x3FFF &&
+                f19eg_rangeApprox((int16)0x8000, 0x7FFF) == 0x3FFF &&
+                f19eg_rangeApprox((int16)0x8000, (int16)0x8000) == 0x4000,
+            "rangeApprox: abs(-0x8000) wraps negative -> signed dist");
+    require(f19eg_rangeApprox(-1, -1) == 1 && f19eg_rangeApprox(-1, 1) == 1 &&
+                f19eg_rangeApprox(1, 0) == 1 && f19eg_rangeApprox(0, 1) == 1,
+            "rangeApprox unit edges");
+    require(f19eg_clampRange(5, 10, 0) == 0 && f19eg_clampRange(0, 0, 0) == 0 &&
+                f19eg_clampRange(5, 5, 5) == 5 &&
+                f19eg_clampRange((int16)0x8000, (int16)0x8000, 0x7FFF) ==
+                    (int16)0x8000 &&
+                f19eg_clampRange(0x7FFF, (int16)0x8000, 0x7FFF) == 0x7FFF,
+            "clampRange lo>hi + full-range edges");
+    require(f19eg_computeBearing(0, 0) == (int16)0x8000 &&
+                f19eg_computeBearing(0, -5) == (int16)0x8000 &&
+                f19eg_computeBearing(-5, 0) == (int16)0xC000 &&
+                f19eg_computeBearing(1, 0) == 0x4000 &&
+                f19eg_computeBearing(0, 1) == 0,
+            "computeBearing axis/zero quadrants");
+    require(f19eg_computeBearing(100, -100) == 0x5FB3 &&
+                f19eg_computeBearing(-100, 100) == (int16)0xDFB3 &&
+                f19eg_computeBearing(-100, -100) == (int16)0xA04D &&
+                f19eg_computeBearing(100, 300) == 0x0D36 &&
+                f19eg_computeBearing(0x7FFF, 1) == 0x4000 &&
+                f19eg_computeBearing(1, 0x7FFF) == 0 &&
+                f19eg_computeBearing((int16)0x8000, (int16)0x8000) ==
+                    (int16)0xA04D,
+            "computeBearing all octants + extremes");
+    require(f19eg_signedRatio16(0, 5) == 0 &&
+                f19eg_signedRatio16(0x4000, 0x7FFF) == 0x4000 &&
+                f19eg_signedRatio16(-0x1000, 0x4000) == (uint16)0xE000 &&
+                f19eg_signedRatio16(0x1000, -0x4000) == (uint16)0xE000 &&
+                f19eg_signedRatio16(0x4000, 0x4000) == 0x8000 &&
+                f19eg_signedRatio16(1, 0x7FFF) == 1 &&
+                f19eg_signedRatio16(0x7FFF, 1) == 0x8000,
+            "signedRatio16 sign + saturate edges");
+    require(f19eg_signedRatio16((int16)0x8000, (int16)0x8000) == 0 &&
+                f19eg_signedRatio16(0x4000, (int16)0x8000) == 0,
+            "signedRatio16: 16-bit -(-0x8000) stays neg -> quotient 0");
+    require(f19eg_signedRatio16(100, 3) == 0xAAAA &&
+                f19eg_signedRatio16(-100, 3) == 0x5556,
+            "signedRatio16 repeating-fraction truncation");
+    require(f19eg_valueToAngle(1) == 0 && f19eg_valueToAngle(-1) == 0 &&
+                f19eg_valueToAngle(0xFF) == 0x51 &&
+                f19eg_valueToAngle(0x100) == 0x51 &&
+                f19eg_valueToAngle(0x7FFE) == 0x3FE3,
+            "valueToAngle quantization edges");
+    require(f19eg_sinMul(0x7FFF, 0x4000) == 2 &&
+                f19eg_sinMul(-1, 0x4000) == -1 &&
+                f19eg_sinMul((int16)0x8000, 0x4000) == 0 &&
+                f19eg_cosMul((int16)0x8000, 0x4000) == (int16)0xC001 &&
+                f19eg_cosMul(0x3FFF, 0x4000) == 2 &&
+                f19eg_cosMul(-1, 0x4000) == 0x4000,
+            "sinMul/cosMul interp-boundary edges");
+    require(sine(1) == 3 && sine(0xFF) == 0x321 && sine(0x100) == 0x324 &&
+                sine(0x4000) == 0x7FFF && sine(-1) == -3 &&
+                sine((int16)0x8000) == 0 && sine(0x4100) == 0x7FF6 &&
+                cosine(0) == 0x7FFF && cosine(0x7FFF) == (int16)0x8001 &&
+                cosine(-1) == 0x7FFF && cosine(0x4000) == 0,
+            "sine/cosine LUT interp edges");
+    require(fixedMulQ14(-1, 0x4000) == 0 &&
+                fixedMulQ14(0x4000, -0x4000) == (int16)0xE000 &&
+                fixedMulQ14((int16)0x8000, (int16)0x8000) == (int16)0x8000 &&
+                fixedMulQ14(0x7FFF, -0x8000) == (int16)0x8001 &&
+                fixedMulQ14(0x4000, 0x4000) == 0x2000,
+            "fixedMulQ14 shl/adc rounding edges");
+
     // ==== egflight.c: attitude round-trip through the rotation matrix ====
     {
         int16 *m = reinterpret_cast<int16 *>(f19_dseg + kCellOrientMatrix);
@@ -535,6 +620,93 @@ int main() {
         setDseg16(kCellMissionTimeFlag, 1);
         f19_formatTimeStr(buf, 0);
         require(std::strcmp(buf, "20:00") == 0, "formatTimeStr flag digit");
+    }
+
+    // ==== dosunit edge goldens (real16 replay vs original START.EXE) ====
+    require(f19_calcBearing(0, 0) == (int16)0x8000 &&
+                f19_calcBearing(0, -5) == (int16)0x8000 &&
+                f19_calcBearing(-5, 0) == (int16)0xC000 &&
+                f19_calcBearing(100, -100) == 0x5FB3 &&
+                f19_calcBearing(0x4000, -0x4000) == 0x5FB3,
+            "f19_calcBearing edge octants");
+    require(f19_rangeApprox(0x7FFF, -0x7FFF) == 0x7FFF &&
+                f19_rangeApprox((int16)0x8000, 0x7FFF) == 0x3FFF &&
+                f19_rangeApprox((int16)0x8000, (int16)0x8000) == 0x4000,
+            "f19_rangeApprox int16-neg wrap edges");
+    require(f19_clampValue(5, 10, 0) == 0 && f19_clampValue(0, 0, 0) == 0 &&
+                f19_clampValue(5, 5, 5) == 5 &&
+                f19_clampValue((int16)0x8000, (int16)0x8000, 0x7FFF) ==
+                    (int16)0x8000,
+            "f19_clampValue lo>hi + full-range edges");
+    {
+        // itemDistance reads worldObjects[] at dseg 0xB390 (stride 0x10,
+        // x@+0 y@+2). Same record set as the dosunit spec patch.
+        static const int16 recs[8][2] = {
+            {100, 200}, {400, 600}, {-50, 50}, {0x1000, 0x2000},
+            {0, 0}, {(int16)0x8000, 0x7FFF}, {0x7FFF, (int16)0x8000}, {7, 7}};
+        for (int i = 0; i < 8; i++) {
+            setDseg16(0xB390 + i * 0x10, recs[i][0]);
+            setDseg16(0xB390 + i * 0x10 + 2, recs[i][1]);
+        }
+        require(f19_itemDistance(0, 1) == 0x226 &&
+                    f19_itemDistance(1, 0) == 0x226 &&
+                    f19_itemDistance(0, 2) == 0xE1 &&
+                    f19_itemDistance(3, 1) == 0x24E0 &&
+                    f19_itemDistance(2, 2) == 0 && f19_itemDistance(4, 4) == 0,
+                "itemDistance normal/self cases");
+        require(f19_itemDistance(5, 6) == 1 && f19_itemDistance(6, 5) == 1 &&
+                    f19_itemDistance(7, 0) == 0xEF &&
+                    f19_itemDistance(0, 7) == 0xEF &&
+                    f19_itemDistance(4, 5) == 0x3FFF,
+                "itemDistance int16-wrap coords");
+    }
+    {
+        // formatGridRef extremes: digits overflow past '9' into ASCII ':'/';'.
+        int16 *th = reinterpret_cast<int16 *>(f19_commBase + 0x120E +
+                                              kOffGameDataTheater);
+        *th = 0;
+        require(std::strcmp(f19_formatGridRef(0, 0, 0), "TD65") == 0 &&
+                    std::strcmp(f19_formatGridRef(0xCCC, 0, 0), "TD75") == 0 &&
+                    std::strcmp(f19_formatGridRef(-1, -1, 0), "TD56") == 0 &&
+                    std::strcmp(f19_formatGridRef(-2048, -2048, 0), "TD47") ==
+                        0,
+                "formatGridRef th0 edges");
+        *th = 1;
+        require(std::strcmp(f19_formatGridRef(-1, -1, 1), "JZ/:") == 0 &&
+                    std::strcmp(f19_formatGridRef(-2048, -2048, 1), "JZ.;") ==
+                        0 &&
+                    std::strcmp(f19_formatGridRef(0x4000, 0x4000, 1), "KY09") ==
+                        0,
+                "formatGridRef th1 digit-overflow quirks");
+        *th = 2;
+        require(std::strcmp(f19_formatGridRef(-1, -1, 2), "WX/:") == 0 &&
+                    std::strcmp(f19_formatGridRef(0x4000, 0x4000, 2), "XW09") ==
+                        0,
+                "formatGridRef th2 edges");
+        *th = 3;
+        require(std::strcmp(f19_formatGridRef(0, 0, 3), "CC34") == 0 &&
+                    std::strcmp(f19_formatGridRef(0x7000, 0x7000, 3), "EA07") ==
+                        0,
+                "formatGridRef th3 edges");
+    }
+    {
+        char buf[8];
+        setDseg16(kCellMissionTimeFlag, 0);
+        f19_formatTimeStr(buf, 59);
+        require(std::strcmp(buf, "10:00") == 0, "formatTimeStr v=59");
+        f19_formatTimeStr(buf, 299);
+        require(std::strcmp(buf, "10:05") == 0, "formatTimeStr v=299");
+        f19_formatTimeStr(buf, 3600);
+        require(std::strcmp(buf, "12:00") == 0, "formatTimeStr hour roll");
+        f19_formatTimeStr(buf, 3599);
+        require(std::strcmp(buf, "11:55") == 0, "formatTimeStr 3599");
+        f19_formatTimeStr(buf, (int16)86399); /* int16-truncates to 20863 */
+        require(std::strcmp(buf, "11:35") == 0, "formatTimeStr large v wraps");
+        f19_formatTimeStr(buf, -1);
+        require(std::strcmp(buf, "10:00") == 0, "formatTimeStr v=-1");
+        setDseg16(kCellMissionTimeFlag, 1);
+        f19_formatTimeStr(buf, 4515);
+        require(std::strcmp(buf, "22:30") == 0, "formatTimeStr flag + PM");
     }
 
     // ==== stutil.c: Mission Targets (briefPage=2) briefing exit ====

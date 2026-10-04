@@ -48,8 +48,8 @@ uint8 *moveDst;   /* ds:0x98c8 — worldBuf write cursor */
 
 int16 f19_rangeApprox(int16 deltaX, int16 deltaY) {
     int32 dist;
-    deltaX = abs(deltaX);
-    deltaY = abs(deltaY);
+    deltaX = abs16Compat(deltaX);
+    deltaY = abs16Compat(deltaY);
     if (deltaX > deltaY)
         dist = (int32)(deltaY >> 1) + (int32)deltaX;
     else
@@ -157,18 +157,18 @@ int16 f19_calcBearing(int16 dx, int16 dy) {   /* seg000:0x8b80 */
     if (dy == 0) {
         return (dx > 0) ? 0x4000 : (int16)0xC000;
     }
-    if (abs(dx) > abs(dy)) {
-        ratio = (int32)abs(dy) << 0xe;
-        divisor = abs(dx);
+    if (abs16Compat(dx) > abs16Compat(dy)) {
+        ratio = (int32)abs16Compat(dy) << 0xe;
+        divisor = abs16Compat(dx);
         swapped = 1;
     }
     else {
-        ratio = (int32)abs(dx) << 0xe;
-        divisor = abs(dy);
+        ratio = (int32)abs16Compat(dx) << 0xe;
+        divisor = abs16Compat(dy);
         swapped = 0;
     }
     quotient = ratio / (int32)divisor;
-    angle = ((0x2800 - (((int32)abs((0x1333 - quotient)) * (int32)0xb00) >> 0xe)) * (int32)quotient) >> 0xe;
+    angle = ((0x2800 - (((int32)abs16Compat((0x1333 - quotient)) * (int32)0xb00) >> 0xe)) * (int32)quotient) >> 0xe;
     if (dx > 0) {
         if (dy > 0) {
             result = swapped != 0 ? 0x4000 - angle : angle;
@@ -532,7 +532,7 @@ restart_40a8:
         tmpW = 0x7fff;
         escortObj = -1;
         for (m2 = 0; m2 < worldObjectCount; m2++) {
-            range[2] = abs(f19_itemDistance(f19_targets[0].objIdx, m2) - range[0]);
+            range[2] = abs16Compat(f19_itemDistance(f19_targets[0].objIdx, m2) - range[0]);
             if (range[2] < tmpW &&
                 (f19_worldObjects[m2].targetFlags & 1) != 0 &&
                 (f19_worldObjects[m2].targetFlags & 0x100) == 0) {
@@ -555,7 +555,7 @@ restart_40a8:
             register int16 f = f19_worldObjects[m2].targetFlags;
             if ((f & 0x500) == 0) continue;
             if ((f & 0xa00) != 0) continue;
-            range[2] = abs(f19_itemDistance(f19_targets[0].objIdx, m2) - range[0]);
+            range[2] = abs16Compat(f19_itemDistance(f19_targets[0].objIdx, m2) - range[0]);
             if (range[2] >= tmpW) continue;
             if (m2 == f19_targets[0].siteObj) continue;
             escortObj = m2;
@@ -645,8 +645,8 @@ counterMore1k:
                     head = f19_calcBearing(
                         f19_worldObjects[waypt].x_coord - f19_flightUnits[m2].x,
                         f19_flightUnits[m2].y - f19_worldObjects[waypt].y_coord);
-                    if (abs(baseBrg - head) < rngLim) {
-                        rngLim = abs(baseBrg - head);
+                    if (abs16Compat(baseBrg - head) < rngLim) {
+                        rngLim = abs16Compat(baseBrg - head);
                         f19_flightUnits[m2].waypointIdx = waypt;
                         break;
                     }

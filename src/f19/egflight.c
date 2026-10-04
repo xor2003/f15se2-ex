@@ -559,8 +559,8 @@ uint16 signedRatio16(int16 numerator, int16 denominator) {
 
     if (numerator < 0) numeratorSign = -1;
     if (denominator < 0) denominatorSign = -1;
-    absNumerator = (int32)(numerator < 0 ? -numerator : numerator);
-    absDenominator = (int32)(denominator < 0 ? -denominator : denominator);
+    absNumerator = (int32)abs16Compat(numerator);
+    absDenominator = (int32)abs16Compat(denominator);
     return (uint16)((uint16)((((uint32)(uint16)absNumerator) << 16) / absDenominator >> 1)) * (uint16)(int16)numeratorSign * (uint16)(int16)denominatorSign;
 }
 

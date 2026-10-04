@@ -225,7 +225,7 @@ struct TileObject *findNearestTileObject(uint32 worldX, uint32 worldY) {
                     if (g_shapeTargetCategory[g_curTileEntry->shape & 0x7f] != 0) {
                         h = o + g_curTileEntry->x;
                         j = g_curTileEntry->y + p;
-                        q = abs(h) + abs(j);
+                        q = abs16Compat(h) + abs16Compat(j);
                         if (c == 1) {
                             q >>= 2;
                         } else {
@@ -292,7 +292,7 @@ void drawNearestTileObject(uint32 coord1, uint32 coord2, uint32 coord3) {
         for (subIdx = 1; subIdx < matrix3dt[lod][cell]; subIdx++) {
             relX = g_curTileEntry->x + xOff;
             relY = g_curTileEntry->y + yOff;
-            g_objDistance = abs(relX) + abs(relY);
+            g_objDistance = abs16Compat(relX) + abs16Compat(relY);
             if (nearestTile.dist > g_objDistance) {
                 nearestTile.entry = g_curTileEntry;
                 nearestTile.dist = g_objDistance;
