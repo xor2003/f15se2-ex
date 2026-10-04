@@ -62,6 +62,7 @@ int16 f19eg_isqrt(int16 value);
 int16 f19eg_randomRange(int16 maxVal);
 int16 f19eg_rand(void);
 void f19eg_srand(uint16 seed);
+extern uint32 f19eg_randState;   /* EGAME CRT LCG state (orig dseg:0x622c) */
 uint16 f19eg_signedRatio16(int16 numerator, int16 denominator);
 int16 f19eg_valueToAngle(int16 value);
 int16 f19eg_complementAngle(int16 value);
@@ -111,6 +112,7 @@ void f19_formatTimeStr(char *buf, int16 v);
 void f19_srand(uint16 seed);
 int16 f19_rand(void);
 int16 f19_randMul(uint16 arg);
+extern uint32 f19_rngState;      /* START LCG state (orig dseg:0x7a50) */
 
 // Shared asm-faithful helpers the F-19 math chains link against.
 int16 sine(int16 angle);          /* eg3dmath.c LUT interp */
@@ -172,8 +174,6 @@ void require(bool condition, const char *message) {
 
 int16 dseg16(int off) { return *reinterpret_cast<int16 *>(f19_dseg + off); }
 void setDseg16(int off, int v) { *reinterpret_cast<int16 *>(f19_dseg + off) = v; }
-void setDseg32(int off, uint32 v) { *reinterpret_cast<uint32 *>(f19_dseg + off) = v; }
-uint32 getDseg32(int off) { return *reinterpret_cast<uint32 *>(f19_dseg + off); }
 
 int sar32(int32 value, int count) {
     return value >= 0
@@ -298,40 +298,37 @@ int main() {
                 f19eg_isqrt(0x4000) == 0x80 && f19eg_isqrt(-0x4000) == 0x80,
             "isqrt Newton iteration");
     {
-        // ==== egmath.c: f19eg_rand/f19eg_srand — the original's MSVC CRT LCG,
-        // state dword at dseg:0x622c. Goldens harvested via dosunit replay
-        // against the real EGAME.EXE (egame_math2 randomRange vectors). ====
-        const int kCellEgRandState = 0x622C;
-        setDseg32(kCellEgRandState, 0x12345678u);
-        require(f19eg_rand() == 0x33E9 &&
-                    getDseg32(kCellEgRandState) == 0xB3E97B5Bu,
+        // ==== egmath.c: f19eg_rand/f19eg_srand — the original's MSVC CRT LCG
+        // (the original's state cell lives at dseg:0x622c). Goldens harvested
+        // via dosunit replay vs the real EGAME.EXE (egame_math2 vectors). ====
+        f19eg_randState = 0x12345678u;
+        require(f19eg_rand() == 0x33E9 && f19eg_randState == 0xB3E97B5Bu,
                 "f19eg_rand MSVC LCG step: state*0x343FD+0x269EC3, ret>>16");
         // randomRange consumes f19eg_rand() per call; signed 32 mul + >>15.
         // (each case re-seeds so values match the oracle single-draw vectors)
-        setDseg32(kCellEgRandState, 0x12345678u);
+        f19eg_randState = 0x12345678u;
         require(f19eg_randomRange(45) == 0x0012 &&
-                    getDseg32(kCellEgRandState) == 0xB3E97B5Bu,
+                    f19eg_randState == 0xB3E97B5Bu,
                 "randomRange scaled draw");
-        setDseg32(kCellEgRandState, 0x12345678u);
+        f19eg_randState = 0x12345678u;
         require(f19eg_randomRange(0x4000) == 0x19F4,
                 "randomRange 0x4000 golden");
-        setDseg32(kCellEgRandState, 0x12345678u);
+        f19eg_randState = 0x12345678u;
         require(f19eg_randomRange(-1) == -1, "randomRange max -1 wraps");
-        setDseg32(kCellEgRandState, 0x12345678u);
+        f19eg_randState = 0x12345678u;
         require(f19eg_randomRange(-0x8000) == (int16)0xCC17,
                 "randomRange max -32768 signed-mul");
-        setDseg32(kCellEgRandState, 1);
+        f19eg_randState = 1;
         require(f19eg_randomRange(0) == 0, "randomRange max 0");
-        setDseg32(kCellEgRandState, 1);
+        f19eg_randState = 1;
         require(f19eg_randomRange(-0x8000) == (int16)0xFFD7,
                 "randomRange seed=1 max -32768");
-        setDseg32(kCellEgRandState, 1);
+        f19eg_randState = 1;
         require(f19eg_randomRange(0x7fff) == 0x0028,
                 "randomRange seed=1 max 0x7fff");
         // srand zero-extends the 16-bit seed into the 32-bit state cell.
         f19eg_srand(0xFFFF);
-        require(getDseg32(kCellEgRandState) == 0x0000FFFFu &&
-                    f19eg_rand() == 0x4420,
+        require(f19eg_randState == 0x0000FFFFu && f19eg_rand() == 0x4420,
                 "f19eg_srand word-store + first draw");
     }
 
@@ -664,27 +661,23 @@ int main() {
         require(std::strcmp(buf, "20:00") == 0, "formatTimeStr flag digit");
     }
 
-    // ==== stutil.c: START-side MSVC LCG (state dword at dseg:0x7a50) ====
-    // Oracle-verified via dosunit vs START.EXE (start_util spec):
+    // ==== stutil.c: START-side MSVC LCG (the original's state cell lives at
+    // dseg:0x7a50).  Oracle-verified via dosunit vs START.EXE (start_util):
     //   srand: state = (uint32)(uint16)seed
     //   rand:  state = state*0x343FD + 0x269EC3;  return (state>>16)&0x7FFF
     //   randMul(n): (uint16)((rand() * (uint32)(uint16)n) >> 15)
     {
-        const int kCellRngState = 0x7A50;
         f19_srand(0xFFFF);
-        require(getDseg32(kCellRngState) == 0x0000FFFFu,
+        require(f19_rngState == 0x0000FFFFu,
                 "f19_srand zero-extends word into state");
-        setDseg32(kCellRngState, 1);
-        require(f19_rand() == 0x0029 &&
-                    getDseg32(kCellRngState) == 0x0029E2C0u,
+        f19_rngState = 1;
+        require(f19_rand() == 0x0029 && f19_rngState == 0x0029E2C0u,
                 "f19_rand LCG step");
-        setDseg32(kCellRngState, 0x12345678u);
-        require(f19_rand() == 0x33E9 &&
-                    getDseg32(kCellRngState) == 0xB3E97B5Bu,
+        f19_rngState = 0x12345678u;
+        require(f19_rand() == 0x33E9 && f19_rngState == 0xB3E97B5Bu,
                 "f19_rand arbitrary seed");
-        setDseg32(kCellRngState, 0xDEADBEEFu);
-        require(f19_rand() == 0x47A1 &&
-                    getDseg32(kCellRngState) == 0xC7A1DDF6u,
+        f19_rngState = 0xDEADBEEFu;
+        require(f19_rand() == 0x47A1 && f19_rngState == 0xC7A1DDF6u,
                 "f19_rand state 0xdeadbeef");
         // randMul: unsigned 32x32 mul of the 15-bit draw by uint16 arg, >>15.
         const struct { uint32 st; uint16 arg; int16 want; } rm[] = {
@@ -695,7 +688,7 @@ int main() {
             {0x7fffffffu, 0x1000, 0x0004},
         };
         for (const auto &v : rm) {
-            setDseg32(kCellRngState, v.st);
+            f19_rngState = v.st;
             require(f19_randMul(v.arg) == v.want, "f19_randMul oracle golden");
         }
     }

@@ -127,17 +127,17 @@ int16 signOf(int16 value) {
 
 int getTimeOfDay(void);             /* sub_11FE2 */
 
-/* EGAME's CRT rand/srand pair: MSVC LCG, 32-bit state at dseg:0x622c.
- * Verified vs the original via dosunit replay (egame_math2 spec). */
-#define egRandState (*(uint32 *)(f19_dseg + 0x622C))
+/* EGAME's CRT rand/srand pair: MSVC LCG, 32-bit state (the original keeps it
+ * at dseg:0x622c).  Verified vs the original via dosunit (egame_math2). */
+uint32 f19eg_randState;
 
 int16 f19eg_rand(void) {
-    egRandState = egRandState * 0x343FDUL + 0x269EC3UL;
-    return (int16)(egRandState >> 16) & 0x7FFF;
+    f19eg_randState = f19eg_randState * 0x343FDUL + 0x269EC3UL;
+    return (int16)(f19eg_randState >> 16) & 0x7FFF;
 }
 
 void f19eg_srand(uint16 seed) {
-    egRandState = (uint32)seed;
+    f19eg_randState = (uint32)seed;
 }
 
 /* ==== seg000:0xd453 ==== */

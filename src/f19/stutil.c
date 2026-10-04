@@ -16,7 +16,6 @@
 #define g_lineY1 (*(int16 *)(f19_dseg + 0xD2B))
 #define g_flagTable2CFE ((uint8 *)(f19_dseg + 0x2CFE))
 #define f19_worldObjects ((WorldObject *)(f19_dseg + 0xB390))
-#define rngState (*(uint32 *)(f19_dseg + 0x7A50))
 #define g_clipMaxX (*(int16 *)(f19_dseg + 0xD25))
 #define g_clipMaxY (*(int16 *)(f19_dseg + 0xD25))
 extern int16 *g_vpParms;
@@ -157,15 +156,17 @@ typedef struct {                          /* f19_worldObjects: stride 0x10 */
 struct GameData { int8 pad[0x38]; int16 theater; int16 roeIdx; };
 
 /* seg000:0xe29e/0xe2b0 — START's own LCG f19_rand/f19_srand (libc-style duplicates
- * of the CRT pair): 32-bit state at dseg:0x7a50, MSVC constants.
- * Verified vs the original via dosunit replay (start_util spec). */
+ * of the CRT pair): 32-bit state (the original keeps it at dseg:0x7a50), MSVC
+ * constants.  Verified vs the original via dosunit replay (start_util spec). */
+uint32 f19_rngState;
+
 void f19_srand(uint16 seed) {
-    rngState = (uint32)seed;
+    f19_rngState = (uint32)seed;
 }
 
 int16 f19_rand(void) {
-    rngState = rngState * 0x343FDUL + 0x269EC3UL;
-    return (int16)(rngState >> 16) & 0x7FFF;
+    f19_rngState = f19_rngState * 0x343FDUL + 0x269EC3UL;
+    return (int16)(f19_rngState >> 16) & 0x7FFF;
 }
 
 /* seg000:0x40ae — (rand() * arg) >> 15 via unsigned 32x32 mul + logical shift */
