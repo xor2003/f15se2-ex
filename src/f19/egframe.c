@@ -10,7 +10,7 @@ void moveStuff(void);                            /* sub_14F18 */
 
 
 /* ==== seg000:0x4ef7 ==== */
-struct FrameRec { int16 tick; int8 y, x, a, b; };      /* packed 6-byte record */
+struct FrameRec { int16 tick; int8 x, y, a, b; };      /* packed 6-byte record */
 struct ReplayLog { struct FrameRec events[0x100]; };
 #undef g_replayLog
 #define g_replayLog (*(struct ReplayLog *)((uint8 *)f19_egSpace.m_g_dynTileEntries + 782))
@@ -649,8 +649,8 @@ void sendSoundCmd(uint8 v) {
 void recordFrame(uint8 a, uint8 b) {
     if (g_replayCount < 0xFF) {
         g_replayLog.events[g_replayCount].tick = g_missionTick;
-        g_replayLog.events[g_replayCount].y = (uint16)g_viewY_ >> 7;
         g_replayLog.events[g_replayCount].x = (uint16)g_viewX_ >> 7;
+        g_replayLog.events[g_replayCount].y = (uint16)g_viewY_ >> 7;
         g_replayLog.events[g_replayCount].a = a;
         g_replayLog.events[g_replayCount].b = b;
         g_replayLog.events[g_replayCount += 1].a = 0;
