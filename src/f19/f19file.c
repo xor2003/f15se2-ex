@@ -3,6 +3,7 @@
  * int16 handle globals in the ported sources still work. (off,seg)
  * destination pairs resolve through the segment-handle table. */
 #include <SDL3/SDL.h>
+#include "f19stvars.h"
 #include "f19.h"
 
 #define F19_MAX_FILES 32
@@ -39,7 +40,7 @@ int16 resFileClose(int16 h) {
 
 int16 resFileReadFar(int16 h, int16 count, int16 off, int16 seg);
 
-/* resFileRead — near read: (h, count, dstoff) into f19_dseg; count <0 => EOF.
+/* resFileRead — near read: (h, count, dstoff) into dseg objects; count <0 => EOF.
  * (sub_1E1CC -> sub_1E2E2, int21/3Fh DS=dseg). */
 int16 resFileRead(int16 h, int16 count, int16 off) {
     return resFileReadFar(h, count, off, 0);
@@ -104,7 +105,7 @@ int16 f19_fdOf(FILE *f) { return (int16)(intptr_t)f; }
  * block, EXEC/4B03-loads the image, shrinks it, then the reloc entries
  * patch the in-image seg words (record +0x18/+0x1A) to the block seg. */
 int16 far ovlF43_a(int16 v) {
-    const char *name = (const char *)(f19_dseg + (uint16)v);
+    const char *name = (const char *)(((uint8 *)f19_dsegAt((uint16)v)));
     uint8 hdr[0x20];
     uint16 pages, lastpg, nrel, reloff, hdrpar;
     int32 imgsz;
@@ -156,8 +157,8 @@ void far ovlF43_10d(int16 seg) {
     dst = 0x7EA + (uint32)*(uint16 *)(rec + 0x1C) * 4;
     cnt = *(uint16 *)(rec + 0x22);
     for (i = 0; i < cnt; i++) {
-        *(uint16 *)(f19_dseg + dst + (uint32)i * 4) =
+        *(uint16 *)(((uint8 *)f19_dsegAt(dst))+ (uint32)i * 4) =
             *(uint16 *)(rec + 0x24 + (uint32)i * 2);
-        *(uint16 *)(f19_dseg + dst + (uint32)i * 4 + 2) = (uint16)seg;
+        *(uint16 *)(((uint8 *)f19_dsegAt(dst))+ (uint32)i * 4 + 2) = (uint16)seg;
     }
 }

@@ -1,13 +1,14 @@
 /* START.EXE — quadtree terrain-grid lookup (linker-tree stterr.c lineage;
  * verified vs EN binary).  /Ot module (inlined case-epilogues). */
 #include "f19.h"
+#include "f19stvars.h"
 
-#define gridBuf1 ((uint8 *)(f19_dseg + 0xB374))
-#define gridBuf2 ((uint8 *)(f19_dseg + 0xA4C8))
-#define gridBuf3 ((uint8 *)(f19_dseg + 0xA2C6))
-#define gridBuf4 ((uint8 *)(f19_dseg + 0x9B54))
-#define gridBuf5 ((uint8 *)(f19_dseg + 0x994E))
-#define gridLevelSize ((int16 *)(f19_dseg + 0x3BB4))
+#define gridBuf1 ((uint8 *)f19_stSpace.m_gridBuf1)
+#define gridBuf2 ((uint8 *)f19_stSpace.m_gridBuf2)
+#define gridBuf3 ((uint8 *)f19_stSpace.m_gridBuf3)
+#define gridBuf4 ((uint8 *)f19_stSpace.m_gridBuf4)
+#define gridBuf5 ((uint8 *)f19_stSpace.m_gridBuf5)
+#define gridLevelSize ((int16 *)f19_stSpace.m_gridLevelSize)
 
 
 /* seg000:0x70e0 — recursive quadtree descent through the 5 grid levels */

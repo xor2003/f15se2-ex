@@ -26,6 +26,7 @@
  *       high byte = index, low byte = fraction)
  */
 #include "f19eg.h"
+#include "f19egvars.h"
 #include "inttype.h"
 #include "struct.h"
 #include "gfx.h"
@@ -41,24 +42,8 @@ extern void far gfx_blitSprite(int16 spr);              /* f19ovl.c — dseg-off
 extern void far drawClipLineGlobal(void);               /* eghudm.c — shared clip line */
 
 /* --- listing-name aliases for the cells this routine uses --- */
-#define tapeText0   ((int16 *)(f19_dseg + 0x417C))   /* word_32FEC base */
-#define tapeText1   ((int16 *)(f19_dseg + 0x4192))   /* word_33002 */
-#define tapeText2   ((int16 *)(f19_dseg + 0x41A8))   /* word_33018 */
-#define tapeText3   ((int16 *)(f19_dseg + 0x41BE))   /* word_3302E */
-#define sprite0     ((int16 *)(f19_dseg + 0x41D4))   /* word_33044 */
-#define sprite1     ((int16 *)(f19_dseg + 0x41F2))   /* word_33062 */
-#define sprite2     ((int16 *)(f19_dseg + 0x4210))   /* word_33080 */
-#define sprite3     ((int16 *)(f19_dseg + 0x422E))   /* word_3309E */
 
-#define speedLabelBuf ((uint8 *)(f19_dseg + 0x4286)) /* word_330F6 writes */
-#define altLabelBuf   ((uint8 *)(f19_dseg + 0x428C)) /* word_330FC */
-#define digitStrip    ((uint8 *)(f19_dseg + 0x4290)) /* byte_33100 base */
-#define compassTape   ((uint8 *)(f19_dseg + 0x4340)) /* strings at +0x84 */
-#define pitchLblTable ((uint8 *)(f19_dseg + 0x454A))
-#define tapeDrawStr   ((uint8 *)(f19_dseg + 0x45A6)) /* word_33416/18 */
-#define sinTable      ((const int16 *)(f19_dseg + 0x3984))   /* sub_11C64's table */
-#define rollOfsBase   ((const uint8 *)(f19_dseg + 0x3F62)) /* +1A/+9A/+11A/+19A */
-#define geeStrBuf     ((char *)(f19_dseg + 0x6640))
+#define digitStrip ((uint8 *)f19_egSpace.m_digitStrip)
 
 /* ladder work areas inside compassTape (buf 0x4340) */
 #define LADDER_X  (compassTape + 0xEC)   /* word_3xx vertex X array @0x442C */
@@ -67,7 +52,7 @@ extern void far drawClipLineGlobal(void);               /* eghudm.c — shared c
 #define LADDER_IDX (compassTape + 0x1E8) /* byte index pairs          @0x4528 */
 #define LADDER_LBL (compassTape + 0x20A) /* pitchLabelTable           @0x454A */
 
-/* byte view of a word cell / unaligned-safe 16-bit ops on f19_dseg */
+/* byte view of a word cell / unaligned-safe 16-bit ops on dseg objects */
 #define LOB(v)  (*(uint8 *)&(v))
 static int16 ldw(const uint8 *p) { return (int16)((uint16)p[0] | ((uint16)p[1] << 8)); }
 static void  stw(uint8 *p, int16 v) { p[0] = (uint8)v; p[1] = (uint8)(v >> 8); }

@@ -1,4 +1,5 @@
 #include "f19eg.h"
+#include "f19egvars.h"
 
 /* seg000 routines — 3D view/terrain render (ported, verified vs original) */
 
@@ -50,8 +51,8 @@ void setupViewport(const int16 *rect) {
     gfx_setBlitOffset(gfx_calcRowAddr(rect[9], rect[7]));
     g_clipMaxX = wx - 1;
     g_clipMaxY = wy - 1;
-    g_overlayCenterX = (int16 *)(f19_dseg + 0xA28);
-    g_overlayCenterY = (int16 *)(f19_dseg + 0xA48);
+    g_overlayCenterX = (int16 *)(((uint8 *)f19_dsegAt(0xA28)));
+    g_overlayCenterY = (int16 *)(((uint8 *)f19_dsegAt(0xA48)));
     if (g_halfScaleRender != 0) {
         g_overlayCenterX += 8;
         g_overlayCenterY += 8;

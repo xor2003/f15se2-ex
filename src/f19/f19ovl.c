@@ -11,6 +11,7 @@
  * modeFlag2 0, const1 1, modeFlag 1, val2 1, val 0.
  */
 #include "f19.h"
+#include "f19stvars.h"
 #include "struct.h"
 #include "gfx.h"
 #include "slot.h"
@@ -66,7 +67,7 @@ static void f19_submitSprite(struct SpriteParams *p, int opaque) {
 }
 
 void far gfx_blitSprite(int16 spr) {
-    struct SpriteParams *p = (struct SpriteParams *)(f19_dseg + (uint16)spr);
+    struct SpriteParams *p = (struct SpriteParams *)(((uint8 *)f19_dsegAt((uint16)spr)));
     f19_submitSprite(p, 0);
 }
 
@@ -215,7 +216,7 @@ void  far f19_gfx_copyRect(int16 src, int16 sx, int16 sy, int16 dst,
 /* drawString via params-pool offset (f19's 2-arg form; the app's takes a
  * record pointer — overloads coexist by signature) */
 void  far gfx_drawString(int16 o, char *s) {
-    gfx_drawString((int16 *)(f19_dseg + (uint16)o), s);
+    gfx_drawString((int16 *)(((uint8 *)f19_dsegAt((uint16)o))), s);
 }
 
 /* ---- misc/input + audio slot aliases ------------------------------------- */

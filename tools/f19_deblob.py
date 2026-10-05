@@ -17,8 +17,23 @@ import re, sys, glob, os
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, 'src/f19')
 
+SRC_REF = None        # git ref to read sources from (pre-rewrite baseline)
+
+def src_text(path):
+    """source text of path: from SRC_REF (git show) or the worktree."""
+    if SRC_REF:
+        import subprocess
+        try:
+            return subprocess.check_output(
+                ['git', 'show', '%s:%s' % (SRC_REF,
+                                         os.path.relpath(path, ROOT))],
+                cwd=ROOT, text=True)
+        except subprocess.CalledProcessError:
+            return ''
+    return open(path).read()
+
 def load_img(path, name):
-    t = open(path).read()
+    t = src_text(path)
     m = re.search(name + r'\[[^\]]*\]\s*=\s*\{(.*?)\};', t, re.S)
     return [int(x, 16) for x in re.findall(r'0x([0-9a-fA-F]{2})', m.group(1))]
 
@@ -74,7 +89,7 @@ def harvest():
     for fn in sorted(glob.glob(SRC + '/*.h') + glob.glob(SRC + '/*.c')):
         if 'vars' in os.path.basename(fn):
             continue
-        for i, line in enumerate(open(fn), 1):
+        for i, line in enumerate(src_text(fn).split('\n'), 1):
             m = re.match(r'#define\s+(\w+)\s+(.*)', line.rstrip())
             if not m or not re.search(r'\bf19_dseg\b', m.group(2)):
                 continue
@@ -130,7 +145,7 @@ def body_size(body, structs, depth=0):
 def size_structs(syms):
     cand = {}
     for fn in glob.glob(SRC + '/*.[ch]') + glob.glob(ROOT + '/src/*.h'):
-        t = open(fn).read()
+        t = src_text(fn)
         for m in re.finditer(r'struct\s+(\w+)\s*\{(.*?)\};', t, re.S):
             cand.setdefault(m.group(1), []).append(m.group(2))
     want = set()
@@ -188,6 +203,10 @@ def build_side(syms, side):
                          name=s['name'], defs=[s], size=size, count=cnt,
                          extra=s['extra'], gap=False))
     aliases = []
+    # secondary defines sharing an object's offset still need visible names
+    for o in objs:
+        for d in o['defs'][1:]:
+            aliases.append((d, o))
     scal = sorted([s for s in syms if s['kind'] not in
                    ('ptrcast', 'arrnd', 'arrcell')], key=lambda s: s['off'])
     for s in scal:
@@ -210,7 +229,15 @@ def build_side(syms, side):
                 aliases.append((d, host))
         else:
             out.append(o)
+    # retarget aliases hosted on swallowed objects to the surviving parent
+    inset = set(id(o) for o in out)
+    aliases = [(s, h if h is None or id(h) in inset else
+                next((p for p in out
+                      if p['off'] <= s['off'] < p['off'] + p['size']), None))
+               for s, h in aliases]
     return out, aliases
+
+BUILTIN_C = set(CSIZE)          # types safe to extern in a public header
 
 def alias_expr(s, host):
     if host is None:
@@ -219,32 +246,36 @@ def alias_expr(s, host):
                    % (s['ctype'], s['off'])
         if s['kind'] == 'addr':
             return '((uint8 *)f19_dsegAt(0x%X))' % s['off']
-        return '((%s *)f19_dsegAt(0))' % s['ctype']
+        if s['kind'] in ('ptrcast', 'arrcell', 'base'):
+            return '((%s *)f19_dsegAt(0x%X))' % (s['ctype'], s['off'])
+        return '(*(%s *)f19_dsegAt(0x%X))' % (s['ctype'], s['off'])
     delta = s['off'] - host['off']
-    base, t = host['name'], s['ctype']
+    base, ht = host['mref'], host['emit_t']
+    # address-of-storage: array members decay, scalar members need &
+    bref = base if host['kind'] in ('ptrcast', 'arrnd', 'arrcell', 'gap') \
+        else '(%s *)&%s' % (ht, base)
+    t = s['ctype']
     if s['kind'] == 'scalar':
-        if delta == 0 and host['kind'] == 'scalar' and \
-                esz(t) == esz(host['ctype']):
-            return '(*(%s *)&%s)' % (t, base)
-        he = esz(host['ctype'])
-        if host['kind'] in ('ptrcast', 'gap') and he and \
-                delta % he == 0 and esz(t) == he:
-            return '%s[%d]' % (base, delta // he)
-        return '(*(%s *)((uint8 *)%s + %d))' % (t, base, delta)
+        # always '(*(T*)...)': at decl-shadow sites ('int16 name;' where the
+        # local shadows the macro) the parenthesized deref still parses as a
+        # C++ functional-cast expression - the exact shape the original had.
+        return '(*(%s *)((uint8 *)%s + %d))' % (t, bref, delta)
     if s['kind'] in ('ptrcast', 'arrcell'):
         if delta == 0 and host['kind'] == 'ptrcast':
             return '((%s *)%s)' % (t, base)
-        return '((%s *)((uint8 *)%s + %d))' % (t, base, delta)
+        return '((%s *)((uint8 *)%s + %d))' % (t, bref, delta)
     if s['kind'] == 'arrnd':
         dims = ''.join('[%d]' % d for d in s['extra'])
-        return '((%s (*)%s)((uint8 *)%s + %d))' % (t, dims, base, delta)
+        return '((%s (*)%s)((uint8 *)%s + %d))' % (t, dims, bref, delta)
     if s['kind'] == 'indirect':
         return '((%s *)f19_dsegAt(*(uint16 *)f19_dsegAt(0x%X)))' \
                % (t, s['off'])
     if s['kind'] == 'addr':
-        return '((uint8 *)%s + %d)' % (base, delta)
+        return '((uint8 *)%s + %d)' % (bref, delta)
+    if s['kind'] == 'base':
+        return '((%s *)((uint8 *)%s + %d))' % (t, bref, delta)
     if s['kind'] == 'ptrscalar':
-        return '(*(%s **)((uint8 *)%s + %d))' % (t, base, delta)
+        return '(*(%s **)((uint8 *)%s + %d))' % (t, bref, delta)
     return None
 
 # ------------------------------------------------------------------- emit
@@ -263,107 +294,112 @@ def arr_init(side, off, ctype, total):
     return '{' + ','.join(litval(side, off + i * e, e, t)
                           for i in range(total)) + '}'
 
-def cdecl(o):
-    t, n, k = o['ctype'], o['name'], o['kind']
-    if k == 'gap':
-        return 'uint8 %s[%d]' % (n, o['size'])
-    if k == 'ptrcast':
-        return '%s%s[%d]' % (t + ' ', n, o['count'])
-    if k == 'arrnd':
-        return '%s%s[%d]%s' % (t + ' ', n, o['count'],
-                               ''.join('[%d]' % d for d in o['extra']))
+def member_decl(o):
+    """packed-struct member decl for the object (byte storage for opaque
+    types; real typed members for builtin scalars/arrays)."""
+    k, n, sz = o['kind'], o['emit'], o['size']
+    t = o['emit_t']
+    if o['gap']:
+        return 'uint8 %s[%d];   /* gap */' % (n, sz)
+    if k == 'arrnd' and t != 'uint8':
+        return '%s %s[%d]%s;' % (t, n, o['count'],
+                                ''.join('[%d]' % d for d in o['extra']))
+    if k in ('ptrcast', 'arrnd'):
+        if t == 'uint8':
+            return 'uint8 %s[%d];' % (n, sz)
+        return '%s %s[%d];' % (t, n, sz // max(1, esz(t)))
     if k == 'arrcell':
-        return 'uint32 %s[%d]' % (n, o['count'])
-    if k in ('ptrscalar', 'indirect'):
-        return '%s *%s' % (t, n)
-    return '%s %s' % (t, n)
+        return 'uint32 %s[%d];   /* far {off,seg} cells */' % \
+               (n, max(1, sz // 4))
+    if k == 'indirect':
+        return 'uint16 %s;   /* offset cell */' % n
+    if k == 'ptrscalar':
+        return 'uint32 %s;   /* far cell */' % n
+    if t == 'uint8' and o['ctype'] != 'uint8':
+        return 'uint8 %s[%d];' % (n, sz)
+    return '%s %s;' % (o['ctype'], n)
+
+def membref(o, side):
+    return 'f19_%sSpace.%s' % (side, o['emit'])
+
+def view_expr(o, side):
+    """typed view over byte storage, for the name's public macro."""
+    t, k, b = o['ctype'], o['kind'], membref(o, side)
+    if k == 'ptrcast':
+        return '((%s *)%s)' % (t, b)
+    if k == 'arrnd':
+        return '((%s (*)%s)%s)' % (t, ''.join('[%d]' % d
+                                             for d in o['extra']), b)
+    if k == 'arrcell':
+        return '((%s **)%s)' % (t, b)
+    return '(*(%s *)&%s)' % (t, b)
 
 def emit_side(side, objs, aliases, gaps):
     tag = 'st' if side == 'st' else 'eg'
     hname = 'f19%svars' % tag
+    space = 'f19_%sSpace' % tag
     im = IMG[side]
-    H = ['/* generated by tools/f19_deblob.py - real globals replacing the',
-         '   f19_dseg offset macros (%s.EXE data segment). */'
+    S = 'F19%sData' % tag.upper()
+    H = [('/* generated by tools/f19_deblob.py - named globals replacing the'
+          '   f19_dseg blob (%s.EXE data segment).  All dseg cells are members'
+          '   of one packed struct at their exact DOS offsets, so indexed and'
+          '   overlapping accesses see contiguous DOS-ordered storage. */')
          % ('START' if side == 'st' else 'EGAME'),
          '#ifndef F19%sVARS_H' % tag.upper(),
          '#define F19%sVARS_H' % tag.upper(),
-         '#include "inttype.h"', '#include "f19seg.h"', '']
+         '#include "inttype.h"', '#include "f19seg.h"', '',
+         '#pragma pack(push, 1)',
+         'struct %s {' % S]
+    # members in DOS-offset order: objs + gaps sorted together
+    allsp = sorted(objs + gaps, key=lambda o: o['off'])
+    for o in allsp:
+        H.append('    %-40s /* 0x%05X */' % (member_decl(o), o['off']))
+    H += ['};', '#pragma pack(pop)', '',
+          'extern struct %s %s;' % (S, space), '']
     C = ['/* generated by tools/f19_deblob.py - see %s.h */' % hname,
          '#include "%s.h"' % hname, '#include <string.h>',
-         'extern const uint8 %s[];' % IMGNAME[side], '']
-    R = ['void f19_%sVarsReset(void) {' % tag]
-    T = []
-    for o in objs + gaps:
-        nm, t, off, k = o['name'], o['ctype'], o['off'], o['kind']
-        init = off < len(im)
-        d = cdecl(o)
-        if o['gap']:
-            C.append('static %s;   /* dseg 0x%X..0x%X */'
-                     % (d, off, off + o['size'] - 1))
-            if init:
-                R.append('    memcpy(%s, %s + 0x%X, %d);'
-                         % (nm, IMGNAME[side], off, o['size']))
-            else:
-                R.append('    memset(%s, 0, %d);' % (nm, o['size']))
-        elif k in ('ptrcast', 'arrnd'):
-            if t.startswith('struct '):
-                H.append('struct %s;' % t.split()[-1])
-            H.append('extern ' + d + ';')
-            if esz(t):
-                C.append('%s = %s;' % (d, arr_init(side, off, t,
-                                                 o['count'] *
-                                                 prod(o['extra'] or [1]))))
-            else:
-                C.append('%s;' % d)
-            if init:
-                R.append('    memcpy(%s, %s + 0x%X, sizeof %s);'
-                         % (nm, IMGNAME[side], off, nm))
-            else:
-                R.append('    memset(%s, 0, sizeof %s);' % (nm, nm))
-        elif k == 'arrcell':
-            H.append('extern ' + d + ';')
-            C.append('%s;' % d)
-            R.append('    memset(%s, 0, sizeof %s);   /* far cells */'
-                     % (nm, nm))
-        elif k == 'ptrscalar':
-            H.append('extern ' + d + ';')
-            C.append('%s;   /* far cell {off=0x%X,seg=0x%X} */'
-                     % (d, imgw(side, off), imgw(side, off + 2)))
-            R.append('    %s = (%s *)f19_segResolve(0x%X, 0x%X);'
-                     % (nm, t, imgw(side, off), imgw(side, off + 2)))
-        elif k == 'indirect':
-            H.append('extern ' + d + ';')
-            C.append('%s;' % d)
-            R.append('    %s = (%s *)f19_dsegAt(0x%X);'
-                     % (nm, t, imgw(side, off)))
-        elif k == 'scalar' and t.startswith('struct '):
-            H.append('struct %s;' % t.split()[-1])
-            H.append('extern ' + d + ';')
-            C.append('%s;' % d)
-            R.append(('    memcpy(&%s, %s + 0x%X, sizeof %s);'
-                      if init else '    memset(&%s, 0, sizeof %s);')
-                     % ((nm, IMGNAME[side], off, nm) if init
-                        else (nm, nm)))
-        elif k == 'scalar':
-            C.append('%s = %s;' % (d, litval(side, off, o['size'], t)))
-            R.append('    %s = %s;' % (nm, litval(side, off, o['size'], t)))
-            H.append('extern ' + d + ';')
-        T.append('    { (void *)%s%s, 0x%X, 0x%X },'
-                 % ('' if k in ('ptrcast', 'arrnd', 'arrcell', 'gap')
-                    else '&', nm, o['size'], off))
-    for s, host in aliases:
-        if s.get('file_local'):
+         'extern const uint8 %s[];' % IMGNAME[side], '',
+         'struct %s %s;' % (S, space), '']
+    R = ['/* image bytes cover [0,0x%X); the rest is DOS BSS (zero). */' % len(im),
+         'void f19_%sVarsReset(void) {' % tag,
+         '    memcpy(&%s, %s, %d);' % (space, IMGNAME[side], len(im)),
+         '    memset((char *)&%s + %d, 0, sizeof %s - %d);'
+         % (space, len(im), space, len(im)),
+         '}',
+         '',
+         'typedef char f19_%sLayoutChk[(sizeof %s) == 0x10000 ? 1 : -1];'
+         % (side, space)]
+    # public names -> member lvalues / typed views / resolver exprs
+    for o in objs:
+        if o['defs'][0].get('file_local'):
             continue
+        k = o['kind']
+        if k == 'ptrscalar':
+            H.append('#define %s (*(%s **)f19_dsegAt(0x%X))'
+                     % (o['name'], o['ctype'], o['off']))
+        elif k == 'indirect':
+            H.append('#define %s ((%s *)f19_dsegAt(*(uint16 *)'
+                     'f19_dsegAt(0x%X)))' % (o['name'], o['ctype'], o['off']))
+        elif o.get('need_view'):
+            H.append('#define %s %s' % (o['name'], view_expr(o, side)))
+        elif k == 'scalar':
+            # parenthesized deref: a 'T name;' decl-shadow site still parses
+            # as a functional cast, exactly like the original blob form did.
+            H.append('#define %s (*(%s *)&%s)'
+                     % (o['name'], o['ctype'], membref(o, side)))
+        else:
+            H.append('#define %s %s' % (o['name'], membref(o, side)))
+    seen = {o['name'] for o in objs if not o['defs'][0].get('file_local')}
+    for s, host in aliases:
+        if s.get('file_local') or s['name'] in seen:
+            continue
+        seen.add(s['name'])
         e = alias_expr(s, host)
-        H.append('#define %s %s' % (s['name'], e) if e else
-                 '/* FIXME %s = %s */' % (s['name'], s['expr']))
-    H += ['', 'extern const struct F19SegObj f19_%sObjs[];' % tag,
-          'extern const int f19_%sObjCount;' % tag,
-          'void f19_%sVarsReset(void);' % tag, '#endif', '']
-    T = ['const struct F19SegObj f19_%sObjs[] = {' % tag] + T + ['};']
-    C += [''] + T + ['',
-        'const int f19_%sObjCount = sizeof f19_%sObjs / sizeof f19_%sObjs[0];'
-        % (tag, tag, tag), ''] + R + ['}', '']
+        if e and not re.search(r'\b%s\b' % s['name'], e):
+            H.append('#define %s %s' % (s['name'], e))
+        # else: name == its own host object; bare name resolves directly
+    H += ['', 'void f19_%sVarsReset(void);' % tag, '#endif', '']
+    C += R + ['']
     open(SRC + '/%s.h' % hname, 'w').write('\n'.join(H))
     open(SRC + '/%s.c' % hname, 'w').write('\n'.join(C))
     print('%s: %d objects, %d gaps, %d aliases' %
@@ -373,14 +409,16 @@ def make_gaps(objs, side):
     gaps, cur = [], 0
     for o in sorted(objs, key=lambda o: o['off']):
         if o['off'] > cur:
+            nm = 'f19_%sgap_%X' % (side, cur)
             gaps.append(dict(off=cur, kind='gap', ctype='uint8',
-                             name='f19_%sgap_%X' % (side, cur),
+                             name=nm, emit=nm, emit_t='uint8',
                              size=o['off'] - cur, count=0, extra=None,
                              gap=True))
         cur = max(cur, o['off'] + o['size'])
     if cur < 0x10000:
+        nm = 'f19_%sgap_%X' % (side, cur)
         gaps.append(dict(off=cur, kind='gap', ctype='uint8',
-                         name='f19_%sgap_%X' % (side, cur),
+                         name=nm, emit=nm, emit_t='uint8',
                          size=0x10000 - cur, count=0, extra=None,
                          gap=True))
     return gaps
@@ -429,19 +467,15 @@ def xlate_dseg(line):
         rm = re.match(r'\s*\+', rest)
         if rest.lstrip().startswith('['):
             k = j + len(rest) - len(rest.lstrip()) + 1
-            e, j2 = capture_expr(line, k)
-            # find matching ]
-            d = 0
-            while j2 < len(line):
+            # match the opening '[': nested brackets tracked, any ops pass
+            d, j2 = 1, k
+            while j2 < len(line) and d:
                 if line[j2] == '[':
                     d += 1
                 elif line[j2] == ']':
                     d -= 1
-                    if d == 0:
-                        j2 += 1
-                        break
                 j2 += 1
-            out.append('(*(uint8 *)f19_dsegAt(%s))' % line[k:j2 - 1])
+            out.append('(*(uint8 *)f19_dsegAt(%s))' % line[k:j2 - 1].strip())
             i = j2
         elif rm:
             k = j + rm.end()
@@ -455,9 +489,48 @@ def xlate_dseg(line):
     out.append(line[i:])
     return ''.join(out), hits
 
-SKIP_BODY = ('f19data.c', 'f19egdata.c', 'f19seg.c')   # hand-edited
+SKIP_BODY = ('f19data.c', 'f19egdata.c', 'f19seg.c', 'f19seg.h',
+             'f19segdat.c', 'f19egsegdat.c')          # hand-edited
 
-def rewrite_files(syms, aliases, objs):
+# pointer<->offset sites the xlator can't infer ('X - f19_dseg' idioms and
+# prose).  Keyed by filename, applied to the post-rewrite text.
+POST_PATCH = {
+    'stmap.c': [(
+        'esTabBase = (uint16)((char *)esTable - (char *)((uint8 *)f19_dsegAt(0)) /*BARE*/);',
+        'esTabBase = f19_dsegOff(esTable);')],
+    'stgen.c': [(
+        'wldOffsets[j++] = (int16)((uint8 *)(wldReadBuf11 + l + 1) - ((uint8 *)f19_dsegAt(0)) /*BARE*/);',
+        'wldOffsets[j++] = (int16)f19_dsegOff(wldReadBuf11 + l + 1);')],
+    'eg3dload.c': [(
+        'matrix3dt_2[cat][tile] = (uint16)((char *)OBJ(byteOff) - (char *)((uint8 *)f19_dsegAt(0)) /*BARE*/);',
+        'matrix3dt_2[cat][tile] = f19_dsegOff(OBJ(byteOff));')],
+    'f19stubs.c': [(
+        '/* resolve a descriptor arg that callers pass either as a bare dseg offset\n'
+        ' * (cast through a pointer type) or as a real ((uint8 *)f19_dsegAt(0)) /*BARE*/-relative pointer. */\n'
+        'static int16 *f19_descPtr(void *o) {\n'
+        '    uintptr_t v = (uintptr_t)o;\n'
+        '    if (v >= (uintptr_t)((uint8 *)f19_dsegAt(0)) /*BARE*/ && v < (uintptr_t)((uint8 *)f19_dsegAt(0x100000)))\n'
+        '        v -= (uintptr_t)((uint8 *)f19_dsegAt(0)) /*BARE*/;\n'
+        '    return (int16 *)(((uint8 *)f19_dsegAt((uint16)v)));\n'
+        '}',
+        '/* resolve a descriptor arg that callers pass either as a bare dseg offset\n'
+        ' * (cast through a pointer type) or as a real dseg-object pointer. */\n'
+        'static int16 *f19_descPtr(void *o) {\n'
+        '    if (f19_dsegOff(o) != 0xFFFF)\n'
+        '        return (int16 *)o;\n'
+        '    return (int16 *)f19_dsegAt((uint16)(uintptr_t)o);\n'
+        '}'), (
+        'f19_wrapUnitText((int16)(uintptr_t)((char *)f19_descPtr(pg) - (char *)((uint8 *)f19_dsegAt(0)) /*BARE*/), s, a, b, c, d);',
+        'f19_wrapUnitText((int16)f19_dsegOff(f19_descPtr(pg)), s, a, b, c, d);')],
+    'eginstr.c': [(
+        '/* byte view of a word cell / unaligned-safe 16-bit ops on ((uint8 *)f19_dsegAt(0)) /*BARE*/ */',
+        '/* byte view of a word cell / unaligned-safe 16-bit ops on dseg objects */')],
+    'f19file.c': [(
+        '/* resFileRead — near read: (h, count, dstoff) into ((uint8 *)f19_dsegAt(0)) /*BARE*/; count <0 => EOF.',
+        '/* resFileRead — near read: (h, count, dstoff) into dseg objects; count <0 => EOF.')],
+}
+
+def rewrite_files(syms, aliases, objs, local_names):
     amap = {id(s): h for s, h in aliases}
     prim = {id(d): o for o in objs for d in o['defs']}
     byname = {s['name'] for s in syms}
@@ -466,12 +539,12 @@ def rewrite_files(syms, aliases, objs):
     for fn in glob.glob(SRC + '/*.[ch]'):
         if 'vars' in os.path.basename(fn):
             continue
-        if re.search(r'\bf19_dseg\b', open(fn).read()):
+        if re.search(r'\bf19_dseg\b', src_text(fn)):
             touched.add(fn)
     touched -= {os.path.join(SRC, b) for b in SKIP_BODY}
     report = []
     for fn in sorted(touched):
-        lines = open(fn).read().split('\n')
+        lines = src_text(fn).split('\n')
         nl, need_inc = [], re.search(r'\bf19_dseg\b', '\n'.join(lines)) != None
         for i, line in enumerate(lines):
             m = re.match(r'#define\s+(\w+)\s+(.*)', line)
@@ -484,21 +557,32 @@ def rewrite_files(syms, aliases, objs):
                         alias_expr(s, amap.get(id(s), prim.get(id(s))))))
                 # else drop the define entirely
                 continue
-            # drop 'extern <T> <name>([..]);' for converted names
+            # drop 'extern <T> <name>([..]);' for converted names — but a
+            # file-local name's extern refers to the app global: keep it
             em = re.match(r'\s*extern\s+[\w \*]+?\b(\w+)\s*(\[[^\]]*\])?\s*;',
                           line)
-            if em and em.group(1) in byname:
+            if em and em.group(1) in byname and \
+                    em.group(1) not in local_names:
                 continue
-            nl.append(xlate_dseg(line)[0])
+            nl.append(line)
+        # body xlation on the joined text: index exprs may span lines
+        text, hits = xlate_dseg('\n'.join(nl))
         if need_inc:
             inc = '#include "f19%svars.h"' % side_of(fn)
-            for k, l in enumerate(nl):
+            nl2 = text.split('\n')
+            for k, l in enumerate(nl2):
                 if l.startswith('#include'):
-                    nl.insert(k + 1, inc)
+                    nl2.insert(k + 1, inc)
                     break
             else:
-                nl.insert(0, inc)
-        open(fn, 'w').write('\n'.join(nl))
+                nl2.insert(0, inc)
+            text = '\n'.join(nl2)
+        for old, new in POST_PATCH.get(os.path.basename(fn), []):
+            if old not in text:
+                print('  PATCH-MISS %s: %.60s' %
+                      (os.path.basename(fn), old.replace('\n', ' ')))
+            text = text.replace(old, new)
+        open(fn, 'w').write(text)
         report.append(fn)
     return report
 
@@ -506,15 +590,35 @@ def extern_globals():
     """names defined (real objects) outside src/f19 - the app/F-15 globals."""
     names = set()
     for fn in glob.glob(ROOT + '/src/*.c') + glob.glob(ROOT + '/src/*.h'):
-        for l in open(fn):
-            if l.lstrip().startswith(('extern', '#', 'typedef')):
+        for l in src_text(fn).split('\n'):
+            s = l.lstrip()
+            if s.startswith(('#', 'typedef')):
                 continue
-            m = re.match(r'[\w \*]+\b(\w+)\s*(\[|=|;)', l)
+            # 'extern int x = {...}' is a definition; a bare extern is not
+            if s.startswith('extern') and '=' not in s:
+                continue
+            m = re.match(r'[\w \*]+\b(\w+)\s*(\[|=|;)', s)
             if m:
                 names.add(m.group(1))
     return names
 
 def emit():
+    global SRC_REF
+    for a in sys.argv[1:]:
+        if a.startswith('--src-ref='):
+            SRC_REF = a.split('=', 1)[1]
+    if SRC_REF is None:
+        # default: harvest the committed baseline so reruns stay stable
+        # even after the worktree has been rewritten
+        import subprocess
+        dirty = subprocess.check_output(
+            ['git', 'status', '--porcelain', 'src/f19/'],
+            cwd=ROOT, text=True).strip()
+        if dirty:
+            print('ERROR: src/f19/ worktree is dirty and no --src-ref given;\n'
+                  '      harvest would read already-converted sources.\n'
+                  '      Use --src-ref=<commit> with a pre-rewrite baseline.')
+            sys.exit(1)
     syms = harvest()
     miss = size_structs(syms)
     if miss:
@@ -540,16 +644,34 @@ def emit():
     allalias, allobjs = [], []
     for side in ('st', 'eg'):
         objs, aliases = build_side(syms, side)
-        # rename primary objects whose name must stay a macro: the emitted
-        # symbol becomes f19d_<name> and each define site keeps its expr.
+        # finalize emitted storage: builtin typed objects keep their name;
+        # local-macro and opaque-type objects get an f19d_ storage symbol
+        # (offset suffix when the name maps to several cells).
+        seen = {}
         for o in objs:
-            if o['name'] in local:
-                o['name'] = 'f19d_' + o['name']
+            bt = o['ctype'].replace('const ', '').strip()
+            if o['kind'] == 'arrcell':
+                bt = 'uint32'
+            builtin = bt in BUILTIN_C
+            o['need_view'] = not builtin and o['kind'] != 'indirect'
+            nm = 'm_' + o['name']
+            if nm in seen:                       # multi-sig dup member
+                nm = '%s_%X' % (nm, o['off'])
+            o['emit'] = nm
+            o['emit_t'] = bt if builtin else 'uint8'
+            o['mref'] = 'f19_%sSpace.%s' % (side, nm)
+            seen[o['emit']] = o
+        # alias hosts that fell back to None resolve via f19_dsegAt
+        for s, h in aliases:
+            if h is not None and 'mref' not in h:
+                h['mref'] = 'f19_%sSpace.m_%s' % (side, h['name'])
+                bt = h['ctype'].replace('const ', '').strip()
+                h['emit_t'] = bt if bt in BUILTIN_C else 'uint8'
         emit_side(side, objs, aliases, make_gaps(objs, side))
         allalias += aliases
         allobjs += objs
     if '--rewrite' in sys.argv:
-        for fn in rewrite_files(syms, allalias, allobjs):
+        for fn in rewrite_files(syms, allalias, allobjs, local):
             print('rewrote', os.path.relpath(fn, ROOT))
 
 if __name__ == '__main__':

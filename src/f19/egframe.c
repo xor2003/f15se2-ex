@@ -1,4 +1,5 @@
 #include "f19eg.h"
+#include "f19egvars.h"
 
 int16 randomRange(int16);
 /* egframe.c — frame/state transfer routines (F19) */
@@ -12,7 +13,7 @@ void moveStuff(void);                            /* sub_14F18 */
 struct FrameRec { int16 tick; int8 y, x, a, b; };      /* packed 6-byte record */
 struct ReplayLog { struct FrameRec events[0x100]; };
 #undef g_replayLog
-#define g_replayLog (*(struct ReplayLog *)(f19_dseg + 0x8E64))
+#define g_replayLog (*(struct ReplayLog *)((uint8 *)f19_egSpace.m_g_dynTileEntries + 782))
 
 void moveDataFar() {
     int16 unused1, unused2;

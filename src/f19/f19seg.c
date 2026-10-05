@@ -42,7 +42,9 @@ int16 f19_freeSeg(int16 seg) {
     return -1;
 }
 
-/* --- dseg object tables --------------------------------------------------*/
+/* --- dseg spaces ---------------------------------------------------------
+   Each world is one packed struct covering DOS offsets [0,0x10000), so an
+   offset resolves as space+off and a pointer as ptr-space. */
 
 static int f19_world;    /* 0 = START objects, 1 = EGAME objects */
 
@@ -50,39 +52,20 @@ void f19_segUseWorld(int world) {
     f19_world = world;
 }
 
-static const struct F19SegObj *f19_worldObjs(int *count) {
-    if (f19_world == 1) {
-        *count = f19_egObjCount;
-        return f19_egObjs;
-    }
-    *count = f19_stObjCount;
-    return f19_stObjs;
-}
-
 void *f19_dsegAt(uint32 off) {
-    const struct F19SegObj *t;
-    int i, n;
-    t = f19_worldObjs(&n);
-    for (i = 0; i < n; i++)
-        if (off >= t[i].off && off < t[i].off + t[i].size)
-            return (char *)t[i].base + (off - t[i].off);
-    return NULL;    /* unreachable: gaps tile [0,0x10000) */
+    if (off >= 0x10000) return NULL;
+    return (char *)(f19_world == 1 ? (void *)&f19_egSpace
+                                  : (void *)&f19_stSpace) + off;
 }
 
 uint16 f19_dsegOff(const void *p) {
-    const struct F19SegObj *tabs[2];
-    int counts[2], w, i;
-    tabs[0] = f19_stObjs; counts[0] = f19_stObjCount;
-    tabs[1] = f19_egObjs; counts[1] = f19_egObjCount;
-    /* pointer membership is world-independent: scan both tables */
-    for (w = 0; w < 2; w++)
-        for (i = 0; i < counts[w]; i++) {
-            const char *b = (const char *)tabs[w][i].base;
-            if ((const char *)p >= b &&
-                (const char *)p < b + tabs[w][i].size)
-                return tabs[w][i].off +
-                       (uint16)((const char *)p - b);
-        }
+    const char *c = (const char *)p;
+    if (c >= (const char *)&f19_stSpace &&
+        c < (const char *)&f19_stSpace + sizeof f19_stSpace)
+        return (uint16)(c - (const char *)&f19_stSpace);
+    if (c >= (const char *)&f19_egSpace &&
+        c < (const char *)&f19_egSpace + sizeof f19_egSpace)
+        return (uint16)(c - (const char *)&f19_egSpace);
     return 0xFFFF;
 }
 

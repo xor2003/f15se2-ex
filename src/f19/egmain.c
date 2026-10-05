@@ -1,4 +1,5 @@
 #include "f19eg.h"
+#include "f19egvars.h"
 
 void setTimerTickHook(void (far *fn)(void));
 void f19eg_advanceFrameTick(void);
@@ -118,7 +119,7 @@ void drawCockpit(void) {
     gfx_copyRect(1, 0, 0x6D, 2, 0, 0x6D, 0x140, 0x5B);
     initStoreData();
     load15Flt3d3();
-    strcpy(regnName, (char *)(f19_dseg + scenarioPlh[g_viewParamsFar[0x1C]]));
+    strcpy(regnName, (char *)(((uint8 *)f19_dsegAt(scenarioPlh[g_viewParamsFar[0x1C]]))));
     initMissionStrings();
 }
 

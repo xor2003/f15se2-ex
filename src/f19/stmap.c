@@ -1,61 +1,17 @@
 /* START.EXE — tactical-map line wrapper (same role as EGAME's f19_drawMapLine) */
 #include "f19.h"
+#include "f19stvars.h"
 
-#define esTabBase (*(uint16 *)(f19_dseg + 0xBB76))
-#define statT1 ((int16 *)(f19_dseg + 0x6B6))
-#define statT2 ((int16 *)(f19_dseg + 0x6B6))
-#define statT3 ((int16 *)(f19_dseg + 0x6B6))
-#define statT4 ((int16 *)(f19_dseg + 0x6B6))
-#define scrStr ((char *)(f19_dseg + 0xB96A))
-#define word_2CA60 (*(uint16 *)(f19_dseg + 0xCA60))
-#define word_2CA64 (*(uint16 *)(f19_dseg + 0xCA64))
 
-#define str7964 ((char *)(f19_dseg + 0x7964))
-#define selRowIdx (*(int16 *)(f19_dseg + 0xC7CC))
-#define flag2CA4C (*(int16 *)(f19_dseg + 0xCA4C))
-#define byte_2C9E0 (*(uint8 *)(f19_dseg + 0xC9E0))
-#define flag2C7CE (*(int16 *)(f19_dseg + 0xC7CE))
-#define selAvailTab ((int16 *)(f19_dseg + 0x9924))
-#define namePtrTab ((uint16 *)(f19_dseg + 0x717E))
-#define typeIdxTab ((int16 *)(f19_dseg + 0xD2D0))
-#define typeNameTab ((uint16 *)(f19_dseg + 0x0256))
-#define strB96A ((char *)(f19_dseg + 0xB96A))
-#define str282 ((char *)(f19_dseg + 0x282))
-extern int16 flag_29948;
-#define word_27E56 (*(int16 *)(f19_dseg + 0x7E56))
-#define byte_27E52 (*(uint8 *)(f19_dseg + 0x7E52))
-#define byte_27E58 (*(uint8 *)(f19_dseg + 0x7E58))
-#define byte_27E5A (*(uint8 *)(f19_dseg + 0x7E5A))
-#define byte_2C970 (*(uint8 *)(f19_dseg + 0xC970))
-#define byte_298F7 (*(uint8 *)(f19_dseg + 0x98F7))
-#define f19_worldObjects ((WorldObject *)(f19_dseg + 0xB390))
+#define f19_worldObjects ((WorldObject *)f19_stSpace.m_f19_worldObjects_B390)
 typedef struct { int16 f0, f1;
                  uint8 flag, padT[9]; } RingType;
-#define ringTypes ((RingType *)(f19_dseg + 0x3E26))
-#define siteTypeParms ((int16 *)(f19_dseg + 0x41C8))
-#define tileMarkMap ((int8 *)(f19_dseg + 0xB842))
-#define objectActive ((int8 *)(f19_dseg + 0xD278))
-#define word_2C968 (*(int16 *)(f19_dseg + 0xC968))
-#define word_2C144 (*(int16 *)(f19_dseg + 0xC144))
-extern uint8 unitMarksOn;
+#define objectActive ((int8 *)f19_stSpace.m_objectActive)
 extern uint8 tileMarksOn;
-extern uint8 siteMarksOn;
-extern uint8 ringMode;
-#define byte_216AA (*(uint8 *)(f19_dseg + 0x16AA))
-#define byte_216AB (*(uint8 *)(f19_dseg + 0x16AB))
-#define byte_27E59 (*(uint8 *)(f19_dseg + 0x7E59))
 #define byte_20A1A timerCounter   /* shared/timer.c 60 Hz tick — was PIT-ISR cell */
-#define byte_20A1D (*(uint8 *)(f19_dseg + 0xA1D))
-#define blinkTimer (*(uint8 *)(f19_dseg + 0xA1C))
-#define byte_212BA (*(uint8 *)(f19_dseg + 0x12BA))
-#define byte_2D06B (*(uint8 *)(f19_dseg + 0xD06B))
-#define word_2B38A (*(int16 *)(f19_dseg + 0xB38A))
-#define word_27E50 (*(uint16 *)(f19_dseg + 0x7E50))
-#define word_27E54 (*(uint16 *)(f19_dseg + 0x7E54))
-#define pathWpA (*(int16 *)(f19_dseg + 0xB94A))
-#define pathWpB (*(int16 *)(f19_dseg + 0xB94A))
-#define pathWpC (*(int16 *)(f19_dseg + 0xB94A))
-#define pathWpD (*(int16 *)(f19_dseg + 0xB94A))
+#define pathWpB (*(int16 *)((uint8 *)f19_stSpace.m_f19_targets + 4))
+#define pathWpC (*(int16 *)((uint8 *)f19_stSpace.m_f19_targets + 4))
+#define pathWpD (*(int16 *)((uint8 *)f19_stSpace.m_f19_targets + 4))
 
 extern void f19_drawClippedLineEx(int16 x1, int16 y1, int16 x2, int16 y2,
                               int16 cx1, int16 cy1, int16 cx2, int16 cy2, int16 flag);
@@ -140,19 +96,17 @@ extern void sub_13B76(void *o, char *s, int16 x, int16 y); /* drawObjString */
 extern void sub_14622(void *o, int16 x0, int16 y0, int16 x1, int16 y1);
 extern void mystrcat(char *d, const char *s);
 struct ObjF04 { int16 pad[2]; int16 f04; int16 f06, f08, f0A; };
-#define objParms ((struct ObjF04 *)(f19_dseg + *(uint16 *)(f19_dseg + 0x70AC)))
 
 extern void *gameData;                       /* dseg 0x991C cell */
 struct CommJoy { int8 pad[0x72]; int16 joyPresent; };
 extern struct CommJoy *commData;             /* dseg 0xD066 cell */
 #define unitRec  ((struct UnitRec38 *)gameData)
 #define scoreRec ((struct UnitRec38 *)(void *)commData)
-#define esTable  ((uint32 *)(f19_dseg + 0x9F2))
 
 void f19_drawRiskPanel(struct ObjF04 *o, int16 type, int16 k) {
     char tmp[10];
     uint16 n;
-    esTabBase = (uint16)((char *)esTable - (char *)f19_dseg);
+    esTabBase = f19_dsegOff(esTable);
     switch (type) {
     case 0:
         n = *(int16 *)f19_farAt((uint16)(esTabBase + 4*unitRec->f38))
@@ -289,8 +243,8 @@ void f19_drawUnitList(struct TileEntry *tab, int16 namesOfs, int16 count,
                           tab[i].pad[0xC], tab[i].pad[0xD]);
                 if (flag2C7CE == 1 && selAvailTab[i] == 1) {
                     mystrcpy(strB96A, str282);
-                    mystrcat(strB96A, (char *)(f19_dseg + namePtrTab[i]));
-                    mystrcat(strB96A, (char *)(f19_dseg + typeNameTab[typeIdxTab[i]]));
+                    mystrcat(strB96A, (char *)(((uint8 *)f19_dsegAt(namePtrTab[i]))));
+                    mystrcat(strB96A, (char *)(((uint8 *)f19_dsegAt(typeNameTab[typeIdxTab[i]]))));
                     f19_wrapUnitText(tab[i].pad[0xF], strB96A,
                                  tab[i].pad[0xC] - tab[i].pad[0xA] - 1,
                                  tab[i].pad[0xA], tab[i].pad[0xB],
@@ -363,7 +317,7 @@ L1d:
         ovlCall_c8a();
         if (!(tab[j].flag.w & 0x100))
             word_27E56 = 1;
-        f19_sub_11366((int16 *)(f19_dseg + a4), &tab[j], pd);
+        f19_sub_11366((int16 *)(((uint8 *)f19_dsegAt(a4))), &tab[j], pd);
         if (byte_27E52 == 0 && byte_2C970 == 0)
             continue;
         if (byte_2C970 != 0) {
@@ -490,7 +444,7 @@ L3d:
         if (tab[j].flag.b & 0x40) {
             sub_14622(pd, tab[j].x0, tab[j].y0, tab[j].x1, tab[j].y1);
             if (flag2C7CE == 1 && selAvailTab[j] == 1) {
-                sub_15120(strB96A, (char *)(f19_dseg + typeNameTab[typeIdxTab[j]]));
+                sub_15120(strB96A, (char *)(((uint8 *)f19_dsegAt(typeNameTab[typeIdxTab[j]]))));
                 f19_wrapUnitText(tab[j].spr2, strB96A,
                              tab[j].x1 - tab[j].x0 - 1, tab[j].x0,
                              tab[j].y0 + (j == 0xC ? 0x28 : 0), tab[j].spr1);
@@ -609,40 +563,40 @@ void f19_sub_11366(int16 *view, struct SelRow *row, int16 *pd) {
                 f19_drawLine(row->rx0 - 1, row->ry1 + 1, row->rx0 - 1,
                          row->ry0, l);
             } else {
-                b = ((uint16 *)(f19_dseg + word_27E50))[word_27E54 + 1] >> 4;
-                a = ((uint16 *)(f19_dseg + word_27E50))[word_27E54 + 1] & 0xF;
+                b = ((uint16 *)(((uint8 *)f19_dsegAt(word_27E50))))[word_27E54 + 1] >> 4;
+                a = ((uint16 *)(((uint8 *)f19_dsegAt(word_27E50))))[word_27E54 + 1] & 0xF;
                 ovlCall_bc7(pd, row->rx0, row->ry0, row->rx1, row->ry1, b, a);
                 word_27E54++;
-                word_27E54 = (uint16)word_27E54 % *(uint16 *)(f19_dseg + word_27E50);
+                word_27E54 = (uint16)word_27E54 % *(uint16 *)(((uint8 *)f19_dsegAt(word_27E50)));
             }
         }
         if ((row->flag.b & 0x10) && byte_20A1D > 0x12) {
             byte_20A1D = 0;
             if ((row->flag.b & 7) == 4 && unitMarksOn == 1) {
                 if (byte_27E59 != 0) {
-                    ((int16 *)(f19_dseg + row->sprB))[4] = f19_mapToScreenX(f19_worldObjects[word_2C144].x_coord)
+                    ((int16 *)(((uint8 *)f19_dsegAt(row->sprB))))[4] = f19_mapToScreenX(f19_worldObjects[word_2C144].x_coord)
                                    + mapClipX1 - 2;
-                    ((int16 *)(f19_dseg + row->sprB))[5] = f19_mapToScreenY(f19_worldObjects[word_2C144].y_coord)
+                    ((int16 *)(((uint8 *)f19_dsegAt(row->sprB))))[5] = f19_mapToScreenY(f19_worldObjects[word_2C144].y_coord)
                                    + mapClipY1 - 2;
                     ovlCall_b4f(row->sprB);
                 } else {
-                    ((int16 *)(f19_dseg + row->sprA))[4] = f19_mapToScreenX(f19_worldObjects[word_2C144].x_coord)
+                    ((int16 *)(((uint8 *)f19_dsegAt(row->sprA))))[4] = f19_mapToScreenX(f19_worldObjects[word_2C144].x_coord)
                                    + mapClipX1 - 2;
-                    ((int16 *)(f19_dseg + row->sprA))[5] = f19_mapToScreenY(f19_worldObjects[word_2C144].y_coord)
+                    ((int16 *)(((uint8 *)f19_dsegAt(row->sprA))))[5] = f19_mapToScreenY(f19_worldObjects[word_2C144].y_coord)
                                    + mapClipY1 - 2;
                     ovlCall_b4f(row->sprA);
                 }
             }
             if ((row->flag.b & 7) == 2 && ringMode != 0) {
                 if (byte_27E59 != 0) {
-                    ((int16 *)(f19_dseg + row->sprB))[4] = f19_mapToScreenX(f19_worldObjects[word_2C968].x_coord)
+                    ((int16 *)(((uint8 *)f19_dsegAt(row->sprB))))[4] = f19_mapToScreenX(f19_worldObjects[word_2C968].x_coord)
                                    + mapClipX1 - 2;
-                    ((int16 *)(f19_dseg + row->sprB))[5] = f19_mapToScreenY(f19_worldObjects[word_2C968].y_coord)
+                    ((int16 *)(((uint8 *)f19_dsegAt(row->sprB))))[5] = f19_mapToScreenY(f19_worldObjects[word_2C968].y_coord)
                                    + mapClipY1 - 2;
                     if (f19_worldObjects[word_2C968].targetFlags & 8)
-                        ((int16 *)(f19_dseg + row->sprB))[1] = 0x11E;
+                        ((int16 *)(((uint8 *)f19_dsegAt(row->sprB))))[1] = 0x11E;
                     else
-                        ((int16 *)(f19_dseg + row->sprB))[1] = 0x12D;
+                        ((int16 *)(((uint8 *)f19_dsegAt(row->sprB))))[1] = 0x12D;
                     ovlCall_b4f(row->sprB);
                     if (ringTypes[f19_worldObjects[word_2C968].pad4].flag & 1) {
                         if (ringMode == 1)
@@ -670,14 +624,14 @@ void f19_sub_11366(int16 *view, struct SelRow *row, int16 *pd) {
                                 0xF, 0, 0, 0x100);
                     }
                 } else {
-                    ((int16 *)(f19_dseg + row->sprA))[4] = f19_mapToScreenX(f19_worldObjects[word_2C968].x_coord)
+                    ((int16 *)(((uint8 *)f19_dsegAt(row->sprA))))[4] = f19_mapToScreenX(f19_worldObjects[word_2C968].x_coord)
                                    + mapClipX1 - 2;
-                    ((int16 *)(f19_dseg + row->sprA))[5] = f19_mapToScreenY(f19_worldObjects[word_2C968].y_coord)
+                    ((int16 *)(((uint8 *)f19_dsegAt(row->sprA))))[5] = f19_mapToScreenY(f19_worldObjects[word_2C968].y_coord)
                                    + mapClipY1 - 2;
                     if (f19_worldObjects[word_2C968].targetFlags & 8)
-                        ((int16 *)(f19_dseg + row->sprA))[1] = 0x11E;
+                        ((int16 *)(((uint8 *)f19_dsegAt(row->sprA))))[1] = 0x11E;
                     else
-                        ((int16 *)(f19_dseg + row->sprA))[1] = 0x12D;
+                        ((int16 *)(((uint8 *)f19_dsegAt(row->sprA))))[1] = 0x12D;
                     ovlCall_b4f(row->sprA);
                     if (ringTypes[f19_worldObjects[word_2C968].pad4].flag & 1) {
                         if (ringMode == 1)
@@ -708,28 +662,28 @@ void f19_sub_11366(int16 *view, struct SelRow *row, int16 *pd) {
             }
             if ((row->flag.b & 7) == 3 && siteMarksOn == 1) {
                 if (byte_27E59 != 0) {
-                    ((int16 *)(f19_dseg + row->sprB))[4] = f19_mapToScreenX(f19_worldObjects[word_2C968].x_coord)
+                    ((int16 *)(((uint8 *)f19_dsegAt(row->sprB))))[4] = f19_mapToScreenX(f19_worldObjects[word_2C968].x_coord)
                                    + mapClipX1 - 2;
-                    ((int16 *)(f19_dseg + row->sprB))[5] = f19_mapToScreenY(f19_worldObjects[word_2C968].y_coord)
+                    ((int16 *)(((uint8 *)f19_dsegAt(row->sprB))))[5] = f19_mapToScreenY(f19_worldObjects[word_2C968].y_coord)
                                    + mapClipY1 - 2;
                     if (f19_worldObjects[word_2C968].targetFlags & 8)
-                        ((int16 *)(f19_dseg + row->sprB))[1] = 0x11E;
+                        ((int16 *)(((uint8 *)f19_dsegAt(row->sprB))))[1] = 0x11E;
                     else
-                        ((int16 *)(f19_dseg + row->sprB))[1] = 0x12D;
+                        ((int16 *)(((uint8 *)f19_dsegAt(row->sprB))))[1] = 0x12D;
                     ovlCall_b4f(row->sprB);
                     f19_drawMapArc(f19_worldObjects[word_2C968].x_coord,
                                f19_worldObjects[word_2C968].y_coord,
                                siteTypeParms[f19_worldObjects[word_2C968].pad4 * 9]
                                << 6, 0xF, 1, 0, 0x100);
                 } else {
-                    ((int16 *)(f19_dseg + row->sprA))[4] = f19_mapToScreenX(f19_worldObjects[word_2C968].x_coord)
+                    ((int16 *)(((uint8 *)f19_dsegAt(row->sprA))))[4] = f19_mapToScreenX(f19_worldObjects[word_2C968].x_coord)
                                    + mapClipX1 - 2;
-                    ((int16 *)(f19_dseg + row->sprA))[5] = f19_mapToScreenY(f19_worldObjects[word_2C968].y_coord)
+                    ((int16 *)(((uint8 *)f19_dsegAt(row->sprA))))[5] = f19_mapToScreenY(f19_worldObjects[word_2C968].y_coord)
                                    + mapClipY1 - 2;
                     if (f19_worldObjects[word_2C968].targetFlags & 8)
-                        ((int16 *)(f19_dseg + row->sprA))[1] = 0x11E;
+                        ((int16 *)(((uint8 *)f19_dsegAt(row->sprA))))[1] = 0x11E;
                     else
-                        ((int16 *)(f19_dseg + row->sprA))[1] = 0x12D;
+                        ((int16 *)(((uint8 *)f19_dsegAt(row->sprA))))[1] = 0x12D;
                     ovlCall_b4f(row->sprA);
                     f19_drawMapArc(f19_worldObjects[word_2C968].x_coord,
                                f19_worldObjects[word_2C968].y_coord,
@@ -742,9 +696,9 @@ void f19_sub_11366(int16 *view, struct SelRow *row, int16 *pd) {
                     for (f = 0; f < 16; f++)
                         for (g = 0; g < 16; g++)
                             if (tileMarkMap[f + g * 16] & 0x10) {
-                                ((int16 *)(f19_dseg + row->sprB))[4] = f19_mapToScreenX(f * 0x7FF)
+                                ((int16 *)(((uint8 *)f19_dsegAt(row->sprB))))[4] = f19_mapToScreenX(f * 0x7FF)
                                                + mapClipX1;
-                                ((int16 *)(f19_dseg + row->sprB))[5] = f19_mapToScreenY(g * 0x7FF)
+                                ((int16 *)(((uint8 *)f19_dsegAt(row->sprB))))[5] = f19_mapToScreenY(g * 0x7FF)
                                                + mapClipY1;
                                 ovlCall_b4f(row->sprB);
                             }
@@ -752,9 +706,9 @@ void f19_sub_11366(int16 *view, struct SelRow *row, int16 *pd) {
                     for (f = 0; f < 16; f++)
                         for (g = 0; g < 16; g++)
                             if (tileMarkMap[f + g * 16] & 0x10) {
-                                ((int16 *)(f19_dseg + row->sprA))[4] = f19_mapToScreenX(f * 0x7FF)
+                                ((int16 *)(((uint8 *)f19_dsegAt(row->sprA))))[4] = f19_mapToScreenX(f * 0x7FF)
                                                + mapClipX1;
-                                ((int16 *)(f19_dseg + row->sprA))[5] = f19_mapToScreenY(g * 0x7FF)
+                                ((int16 *)(((uint8 *)f19_dsegAt(row->sprA))))[5] = f19_mapToScreenY(g * 0x7FF)
                                                + mapClipY1;
                                 ovlCall_b4f(row->sprA);
                             }
@@ -933,21 +887,21 @@ void f19_sub_11366(int16 *view, struct SelRow *row, int16 *pd) {
     }
     if (row->flag.b & 0x10) {
         if ((row->flag.b & 7) == 4 && unitMarksOn == 1) {
-            ((int16 *)(f19_dseg + row->sprA))[4] = f19_mapToScreenX(f19_worldObjects[m].x_coord)
+            ((int16 *)(((uint8 *)f19_dsegAt(row->sprA))))[4] = f19_mapToScreenX(f19_worldObjects[m].x_coord)
                            + mapClipX1 - 2;
-            ((int16 *)(f19_dseg + row->sprA))[5] = f19_mapToScreenY(f19_worldObjects[m].y_coord)
+            ((int16 *)(((uint8 *)f19_dsegAt(row->sprA))))[5] = f19_mapToScreenY(f19_worldObjects[m].y_coord)
                            + mapClipY1 - 2;
             ovlCall_b4f(row->sprA);
         }
         if ((row->flag.b & 7) == 2 && ringMode != 0) {
-            ((int16 *)(f19_dseg + row->sprA))[4] = f19_mapToScreenX(f19_worldObjects[j].x_coord)
+            ((int16 *)(((uint8 *)f19_dsegAt(row->sprA))))[4] = f19_mapToScreenX(f19_worldObjects[j].x_coord)
                            + mapClipX1 - 2;
-            ((int16 *)(f19_dseg + row->sprA))[5] = f19_mapToScreenY(f19_worldObjects[j].y_coord)
+            ((int16 *)(((uint8 *)f19_dsegAt(row->sprA))))[5] = f19_mapToScreenY(f19_worldObjects[j].y_coord)
                            + mapClipY1 - 2;
             if (f19_worldObjects[j].targetFlags & 8)
-                ((int16 *)(f19_dseg + row->sprA))[1] = 0x11E;
+                ((int16 *)(((uint8 *)f19_dsegAt(row->sprA))))[1] = 0x11E;
             else
-                ((int16 *)(f19_dseg + row->sprA))[1] = 0x12D;
+                ((int16 *)(((uint8 *)f19_dsegAt(row->sprA))))[1] = 0x12D;
             ovlCall_b4f(row->sprA);
             if (ringTypes[f19_worldObjects[j].pad4].flag & 1) {
                 if ((uint8)objectActive[j] > 1)
@@ -984,14 +938,14 @@ void f19_sub_11366(int16 *view, struct SelRow *row, int16 *pd) {
             }
         }
         if ((row->flag.b & 7) == 3 && siteMarksOn == 1) {
-            ((int16 *)(f19_dseg + row->sprA))[4] = f19_mapToScreenX(f19_worldObjects[j].x_coord)
+            ((int16 *)(((uint8 *)f19_dsegAt(row->sprA))))[4] = f19_mapToScreenX(f19_worldObjects[j].x_coord)
                            + mapClipX1 - 2;
-            ((int16 *)(f19_dseg + row->sprA))[5] = f19_mapToScreenY(f19_worldObjects[j].y_coord)
+            ((int16 *)(((uint8 *)f19_dsegAt(row->sprA))))[5] = f19_mapToScreenY(f19_worldObjects[j].y_coord)
                            + mapClipY1 - 2;
             if (f19_worldObjects[j].targetFlags & 8)
-                ((int16 *)(f19_dseg + row->sprA))[1] = 0x11E;
+                ((int16 *)(((uint8 *)f19_dsegAt(row->sprA))))[1] = 0x11E;
             else
-                ((int16 *)(f19_dseg + row->sprA))[1] = 0x12D;
+                ((int16 *)(((uint8 *)f19_dsegAt(row->sprA))))[1] = 0x12D;
             ovlCall_b4f(row->sprA);
             f19_drawMapArc(f19_worldObjects[j].x_coord, f19_worldObjects[j].y_coord,
                        siteTypeParms[f19_worldObjects[j].pad4 * 9] << 6,
@@ -1010,8 +964,8 @@ void f19_sub_11366(int16 *view, struct SelRow *row, int16 *pd) {
             for (f = 0; f < 16; f++)
                 for (g = 0; g < 16; g++)
                     if (tileMarkMap[f + g * 16] & 0x10) {
-                        ((int16 *)(f19_dseg + row->sprA))[4] = f19_mapToScreenX(f * 0x7FF) + mapClipX1;
-                        ((int16 *)(f19_dseg + row->sprA))[5] = f19_mapToScreenY(g * 0x7FF) + mapClipY1;
+                        ((int16 *)(((uint8 *)f19_dsegAt(row->sprA))))[4] = f19_mapToScreenX(f * 0x7FF) + mapClipX1;
+                        ((int16 *)(((uint8 *)f19_dsegAt(row->sprA))))[5] = f19_mapToScreenY(g * 0x7FF) + mapClipY1;
                         ovlCall_b4f(row->sprA);
                     }
         }

@@ -1,6 +1,7 @@
 /* F-19 CRT/environment shims — the DOS routines' libc and int21 helpers
  * re-based on the app's services. */
 #include <SDL3/SDL.h>
+#include "f19stvars.h"
 #include "f19.h"
 #include "slot.h"
 
@@ -26,7 +27,7 @@ int16 sub_14980(int16 h, int16 b, int16 c, int16 d) { (void)h;(void)b;(void)c;(v
  * dseg pointer or a raw offset cast depending on call site. */
 void  sub_14622(void *o, int16 x0, int16 y0, int16 x1, int16 y1) {
     int16 *d = ((uintptr_t)o < 0x10000)
-             ? (int16 *)(f19_dseg + (uintptr_t)o) : (int16 *)o;
+             ? (int16 *)(((uint8 *)f19_dsegAt((uintptr_t)o))) : (int16 *)o;
     int16 pg = d ? d[0] : 0;
     uint8 col = d ? ((uint8 *)d)[6] : 0;
     uint8 *px = (uint8 *)f19_pagePixels(pg);

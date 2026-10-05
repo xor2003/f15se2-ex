@@ -171,6 +171,8 @@ set(F15SE2_SOURCES
     ${SRC_DIR}/f19/f19ovl.c
     ${SRC_DIR}/f19/f19seg.c
     ${SRC_DIR}/f19/f19segdat.c
+    ${SRC_DIR}/f19/f19stvars.c
+    ${SRC_DIR}/f19/f19egvars.c
     ${SRC_DIR}/f19/f19stubs.c
     ${SRC_DIR}/f19/stalloc.c
     ${SRC_DIR}/f19/starm.c

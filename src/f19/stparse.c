@@ -1,16 +1,17 @@
 /* START.EXE — grid/terrain entry point + .3DT tile reader
  * (linker stparse.c; EN seg000:0x71f8 f19_parseGridTerrain, 0x720c f19_parseTerrain) */
 #include "f19.h"
+#include "f19stvars.h"
 #include <stdio.h>
 
 extern FILE *f19_fileHandle;
-#define regnPlhPtr ((char *)(f19_dseg + *(uint16 *)(f19_dseg + 0x4DAC)))
-#define terrainDirtyFlag (*(int16 *)(f19_dseg + 0x3D0E))
-#define terrainSignature (*(int16 *)(f19_dseg + 0x3BBE))
-#define terrainBuf1 ((uint16 *)(f19_dseg + 0x3BC0))
-#define terrainTileCounts ((struct TerrainPtrTable *)(f19_dseg + 0x3BCA))
-#define terrainTilePtrs ((struct TerrainPtrTable *)(f19_dseg + 0xCE28))
-#define terrainTileBlock ((uint8 *)(f19_dseg + 0xA5C8))
+#define regnPlhPtr ((char *)f19_dsegAt(*(uint16 *)f19_dsegAt(0x4DAC)))
+#define terrainDirtyFlag (*(int16 *)((uint8 *)f19_stSpace.m_terrainTileCounts + 324))
+#define terrainSignature (*(int16 *)((uint8 *)f19_stSpace.m_gridLevelSize + 10))
+#define terrainBuf1 ((uint16 *)f19_stSpace.m_terrainBuf1)
+#define terrainTileCounts ((struct TerrainPtrTable *)f19_stSpace.m_terrainTileCounts)
+#define terrainTilePtrs ((struct TerrainPtrTable *)f19_stSpace.m_terrainTilePtrs)
+#define terrainTileBlock ((uint8 *)f19_stSpace.m_terrainTileBlock)
 
 extern void f19_parseGrid(void);                /* seg000:0x73df */
 extern void f19_replaceExtension(char *path, char *ext);             /* seg000:0x7534 */

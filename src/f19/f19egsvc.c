@@ -2,6 +2,7 @@
  * helpers the ported sources declare, plus no-op stubs for routines the
  * reconstruction left unported (f19ru src/stubs.c has the same status). */
 #include "f19eg.h"
+#include "f19egvars.h"
 #include <stdio.h>
 
 /* ---- CRT helpers ------------------------------------------------------- */
@@ -63,7 +64,7 @@ void showPicFile(SDL_IOStream *handle, int pageNum);
 void openBlitClosePic(int16 nameOff, int16 page) {
     int pitch, y;
     uint8 *src, *dst;
-    SDL_IOStream *h = openFileWrapper((const char *)(f19_dseg + nameOff), 0);
+    SDL_IOStream *h = openFileWrapper((const char *)(((uint8 *)f19_dsegAt(nameOff))), 0);
     showPicFile(h, page);
     closeFileWrapper(h);
     src = gfx_pagePixels(0, &pitch);
@@ -100,13 +101,13 @@ void far gfx_drawString(int16 *page, const char *str, int16 len) {
  * which only writes 0x10-0xFF from F-15's tables. */
 extern void gfx_setDacRange(uint16 start, uint16 count, const uint8 *triples);
 void f19eg_setupDac(void) {
-    gfx_setDacRange(0, 0x100, f19_dseg + 0x3482);
+    gfx_setDacRange(0, 0x100, ((uint8 *)f19_dsegAt(0x3482)));
 }
 
 void FAR CDECL gfx_dacCycle(void);
 void f19eg_advanceFrameTick(void) {
     g_frameSyncPending = 0;               /* byte_32DA3 — ISR clears before 120B0 */
-    *(int16 *)(f19_dseg + 0x3F60) += 1;   /* word_32DD0 — frame-timing accum */
+    *(int16 *)(((uint8 *)f19_dsegAt(0x3F60))) += 1;   /* word_32DD0 — frame-timing accum */
     g_timerTick++;                        /* byte_32DD2 — waitFrameSync byte */
     gfx_dacCycle();
 }
@@ -173,8 +174,8 @@ extern int  FAR CDECL gfx_getPresetOffset2(void);   /* slot 0x1d = sub_2F0BB */
 extern int  FAR CDECL gfx_getPresetOffset1(void);   /* slot 0x1c = sub_2F0B6 */
 /* gfxBufPtr: f19eg macro bound to dseg 0x9EAC (= word_38D1C) */
 
-#define EW(o)   (*(int16 *)(f19_dseg + (o) + 0x1190))
-#define EB(o)   (*(uint8 *)(f19_dseg + (o) + 0x1190))
+#define EW(o)   (*(int16 *)(((uint8 *)f19_dsegAt((o)))+ 0x1190))
+#define EB(o)   (*(uint8 *)(((uint8 *)f19_dsegAt((o)))+ 0x1190))
 
 /* sub_22A28 body: the layout-table write branch. Also called standalone as
  * applyViewScaleMode (sub_2208E trampoline) after byte_330EA toggles. */

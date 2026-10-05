@@ -1,4 +1,5 @@
 #include "f19eg.h"
+#include "f19egvars.h"
 
 int16 sinMul(int16, int16);
 int16 cosMul(int16, int16);
@@ -867,12 +868,12 @@ void drawLoadoutPanel(void) {
         if (sp < 4) {
             hi = -(x * 0x15 / sp - 0x15);
             if (hi > 0)
-                fillSpanRect((const int16 *)(f19_dseg + *g_pageFront), ty + 0xB1, tz + 0x89, ty + 0xE1, tz + 0x88 + hi);
+                fillSpanRect((const int16 *)(((uint8 *)f19_dsegAt(*g_pageFront))), ty + 0xB1, tz + 0x89, ty + 0xE1, tz + 0x88 + hi);
         } else if (x < 4) {
             for (w = 0; w < 4 - x; w++) {
                 rx = (w & 1) * 0x18 + lx * 4 + 0xB1;
                 gy = (w & 2) * 5 + ly * 6 + 0x89;
-                fillSpanRect((const int16 *)(f19_dseg + *g_pageFront), rx, gy, rx + 0x18, gy + 0xA);
+                fillSpanRect((const int16 *)(((uint8 *)f19_dsegAt(*g_pageFront))), rx, gy, rx + 0x18, gy + 0xA);
             }
         }
     }

@@ -3,9 +3,8 @@
  * object file through f19_sub_15460. This module compiles /Os — the original
  * emits the shared-epilogue tail (jmp over sub ax,ax) that /Ot inlines. */
 #include "f19.h"
+#include "f19stvars.h"
 
-#define word_2CA4E (*(int16 *)(f19_dseg + 0xCA4E))
-#define word_2CA50 (*(int16 *)(f19_dseg + 0xCA50))
 
 extern int16 f19_sub_15460(const char *name, int16 pad);   /* seg000:0x5460 */
 

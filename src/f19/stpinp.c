@@ -2,19 +2,16 @@
  * the disk write-protected, draws the warning and waits for a key/joy release
  * instead of writing the file. */
 #include "f19.h"
+#include "f19stvars.h"
 #include <stdio.h>
 
 extern struct GD0 *gameData;
 extern struct CommJoy *commData;
 
-#define hallfameCount (*(int16 *)(f19_dseg + 0x9B52))
-#define hallfameBuf ((HallfameEntry *)(f19_dseg + 0x9D54))
+#define hallfameBuf ((HallfameEntry *)f19_stSpace.m_word_29D54)
 extern int16 *uiPage;
-#define scrStrBuf ((char *)(f19_dseg + 0xB96A))
-#define savedPage (*(int16 *)(f19_dseg + 0xD06C))
 extern int16 *page1Num;
-#define blinkColors ((int16 *)(f19_dseg + 0x5930))
-#define blinkTimer (*(uint8 *)(f19_dseg + 0xA1C))
+#define blinkColors ((int16 *)f19_stSpace.m_blinkColors)
 
 struct GD0 { int16 pilotIdx; };
 typedef struct { char data[0x50]; } HallfameEntry;

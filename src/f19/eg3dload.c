@@ -1,4 +1,5 @@
 #include "f19eg.h"
+#include "f19egvars.h"
 
 /* eg3dload.c — 3D3 model file loader (F19) */
 
@@ -136,7 +137,7 @@ void load3DT(char *fileName) {
     byteOff = 0;
     for (cat = 0; cat < 5; cat++) {
         for (tile = 0; sizes3dt[cat] > tile; tile++) {
-            matrix3dt_2[cat][tile] = (uint16)((char *)OBJ(byteOff) - (char *)f19_dseg);
+            matrix3dt_2[cat][tile] = f19_dsegOff(OBJ(byteOff));
             for (obj = 0; matrix3dt[cat][tile] > obj; obj++) {
                 fread(&OBJ(byteOff)->x, 2, 1, fileHandle);
                 fread(&OBJ(byteOff)->y, 2, 1, fileHandle);

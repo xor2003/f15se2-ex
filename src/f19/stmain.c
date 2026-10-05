@@ -5,49 +5,12 @@
  * seg000:0x0810-0x08c7: the quit-path tail (f19_sub_10810), the overlay
  * settle-poll (f19_sub_108B7) and two empty stubs (f19_sub_108B5/f19_sub_108B6). */
 #include "f19.h"
+#include "f19stvars.h"
 #include <setjmp.h>
 
-#define byte_212BA (*(uint8 *)(f19_dseg + 0x12BA))
-#define byte_2C160 (*(uint8 *)(f19_dseg + 0xC160))
 #define byte_20A1A timerCounter   /* shared/timer.c 60 Hz tick — was PIT-ISR cell */
-#define byte_216AA (*(uint8 *)(f19_dseg + 0x16AA))
-#define byte_216AB (*(uint8 *)(f19_dseg + 0x16AB))
-#define byte_2BE4E (*(uint8 *)(f19_dseg + 0xBE4E))
-#define byte_29B50 (*(uint8 *)(f19_dseg + 0x9B50))
-#define byte_2CA6A (*(uint8 *)(f19_dseg + 0xCA6A))
-#define byte_298F6 (*(uint8 *)(f19_dseg + 0x98F6))
-#define byte_298F7 (*(uint8 *)(f19_dseg + 0x98F7))
-#define byte_2B384 (*(uint8 *)(f19_dseg + 0xB384))
-#define byte_2B388 (*(uint8 *)(f19_dseg + 0xB388))
-#define byte_2C7D6 (*(uint8 *)(f19_dseg + 0xC7D6))
-#define byte_2C7D7 (*(uint8 *)(f19_dseg + 0xC7D7))
-#define byte_2CE26 (*(uint8 *)(f19_dseg + 0xCE26))
-#define byte_2D06A (*(uint8 *)(f19_dseg + 0xD06A))
-#define word_200E6 (*(int16 *)(f19_dseg + 0xE6))
-#define word_22324 (*(int16 *)(f19_dseg + 0x2324))
-#define word_298E0 (*(int16 *)(f19_dseg + 0x98E0))
-#define word_2B38A (*(int16 *)(f19_dseg + 0xB38A))
-#define word_2B394 ((int16 *)(f19_dseg + 0xB394))
-#define word_2BB74 (*(int16 *)(f19_dseg + 0xBB74))
-#define word_2C7D4 (*(int16 *)(f19_dseg + 0xC7D4))
-#define word_2C972 (*(int16 *)(f19_dseg + 0xC972))
-#define word_2C974 (*(int16 *)(f19_dseg + 0xC974))
-#define word_2D064 (*(int16 *)(f19_dseg + 0xD064))
-#define word_2D06C (*(int16 *)(f19_dseg + 0xD06C))
-#define word_2D26E (*(int16 *)(f19_dseg + 0xD26E))
-#define word_2D270 (*(int16 *)(f19_dseg + 0xD270))
-#define word_2D272 (*(int16 *)(f19_dseg + 0xD272))
-#define word_2D2C4 (*(int16 *)(f19_dseg + 0xD2C4))
-#define word_2D2C6 (*(int16 *)(f19_dseg + 0xD2C6))
-#define word_2D2C8 (*(int16 *)(f19_dseg + 0xD2C8))
-#define word_2D2CA (*(int16 *)(f19_dseg + 0xD2CA))
-#define word_2D2CC (*(int16 *)(f19_dseg + 0xD2CC))
-#define word_2D2CE (*(int16 *)(f19_dseg + 0xD2CE))
-#define word_2D2F6 (*(int16 *)(f19_dseg + 0xD2F6))
-#define word_2D2F8 (*(int16 *)(f19_dseg + 0xD2F8))
-#define objectCount (*(int16 *)(f19_dseg + 0xC978))
-#define objectActive ((uint8 *)(f19_dseg + 0xD278))
-#define word_2B38E ((struct ObjD *)(f19_dseg + 0xB38E))
+#define byte_2B388 (*(uint8 *)((uint8 *)f19_stSpace.m_gridBuf1 + 20))
+#define objectActive ((uint8 *)f19_stSpace.m_objectActive)
 
 
 #define FP_OFF(p) (*(uint16 *)&(p))

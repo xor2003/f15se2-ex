@@ -10,6 +10,7 @@
  * sub_13D15/sub_13E38 (text), sub_14622 (clearRect), sub_1CBD8/sub_1CE56
  * (undiscovered ~500B menu screens at seg000:0xcbd8/0xce56). */
 #include "f19.h"
+#include "f19stvars.h"
 #include "f19seg.h"
 #include <stdarg.h>
 #include <SDL3/SDL.h>
@@ -28,7 +29,7 @@ int16 sub_16828(int16 paras) {
     int16 seg = f19_allocSeg((uint16)paras);
     if (seg < 0x10) {
         sub_10882();
-        dos_printstring((char *)(f19_dseg + 0x3682));
+        dos_printstring((char *)(((uint8 *)f19_dsegAt(0x3682))));
         sub_1DCAC(0);
     }
     return seg;
@@ -86,12 +87,11 @@ void  sub_13B50(int16 *p, struct MenuRow r, int16 c, int16 d) {
     f19_drawStringFar(p, (const char far *)F19_FP(r.yoff, r.name));
 }
 /* resolve a descriptor arg that callers pass either as a bare dseg offset
- * (cast through a pointer type) or as a real f19_dseg-relative pointer. */
+ * (cast through a pointer type) or as a real dseg-object pointer. */
 static int16 *f19_descPtr(void *o) {
-    uintptr_t v = (uintptr_t)o;
-    if (v >= (uintptr_t)f19_dseg && v < (uintptr_t)f19_dseg + 0x100000)
-        v -= (uintptr_t)f19_dseg;
-    return (int16 *)(f19_dseg + (uint16)v);
+    if (f19_dsegOff(o) != 0xFFFF)
+        return (int16 *)o;
+    return (int16 *)f19_dsegAt((uint16)(uintptr_t)o);
 }
 void  sub_13B76(void *o, char *s, int16 x, int16 y) {
     /* seg000:0x3b76 — drawStringAt over a page-descriptor cell (shared engine
@@ -105,7 +105,7 @@ extern void f19_drawUnitList(struct TileEntry *tab, int16 namesOfs, int16 count,
 void  sub_13D15(int16 *pg, char *s, int16 a, int16 b, int16 c, int16 d) {
     /* seg000:0x3d15 — near-string wrap draw; = f19_wrapUnitText. Callers
      * pass the descriptor as a bare dseg offset OR a resolved pointer. */
-    f19_wrapUnitText((int16)(uintptr_t)((char *)f19_descPtr(pg) - (char *)f19_dseg), s, a, b, c, d);
+    f19_wrapUnitText((int16)f19_dsegOff(f19_descPtr(pg)), s, a, b, c, d);
 }
 extern int16 f19_stringWidth(int16 *page, const uint8 *str);
 int16 sub_13E38(int16 *p, char *s) {                       /* seg000:0x3e38 stringWidth */
@@ -219,7 +219,7 @@ void  sub_1685C(int16 v) {
     extern void sub_1DCAC(int16);
     if (f19_freeSeg(v) != 0) {
         sub_10882();
-        dos_printstring((char *)(f19_dseg + 0x36AC));
+        dos_printstring((char *)(((uint8 *)f19_dsegAt(0x36AC))));
         sub_1DCAC(0);
     }
 }
@@ -234,10 +234,10 @@ static int f19_pitRun(void *unused) {
     for (;;) {
         SDL_Delay(16);
         if (!f19_pitArmed) continue;
-        ++*(uint8 *)(f19_dseg + 0xA1A);
-        ++*(uint8 *)(f19_dseg + 0xA1B);
-        ++*(uint8 *)(f19_dseg + 0xA1C);
-        ++*(uint8 *)(f19_dseg + 0xA1D);
+        ++*(uint8 *)(((uint8 *)f19_dsegAt(0xA1A)));
+        ++*(uint8 *)(((uint8 *)f19_dsegAt(0xA1B)));
+        ++*(uint8 *)(((uint8 *)f19_dsegAt(0xA1C)));
+        ++*(uint8 *)(((uint8 *)f19_dsegAt(0xA1D)));
     }
 }
 void  sub_14E9C(void) {

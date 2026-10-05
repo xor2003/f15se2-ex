@@ -3,92 +3,32 @@
  * Driver slots: far calls into the patched jump table at para 0x1000,
  * offset = 0xAFA + 5*slot (misc 5a..5e, gfx 0..0x59, audio 0x64+). */
 #include "f19.h"
+#include "f19stvars.h"
 
-#define g_cntA (*(uint8 *)(f19_dseg + 0xA1A))
-#define g_cntB (*(uint8 *)(f19_dseg + 0xA1A))
-#define g_cntC (*(uint8 *)(f19_dseg + 0xA1A))
-#define g_cntD (*(uint8 *)(f19_dseg + 0xA1A))
-#define cbreakHit (*(uint8 *)(f19_dseg + 0x12BA))
-#define g_gfxModeNum (*(int16 *)(f19_dseg + 0xB83E))
-#define g_lineX0 (*(int16 *)(f19_dseg + 0xD2B))
-#define g_lineX1 (*(int16 *)(f19_dseg + 0xD2B))
-#define g_lineY0 (*(int16 *)(f19_dseg + 0xD2B))
-#define g_lineY1 (*(int16 *)(f19_dseg + 0xD2B))
-#define g_flagTable2CFE ((uint8 *)(f19_dseg + 0x2CFE))
-#define f19_worldObjects ((WorldObject *)(f19_dseg + 0xB390))
-#define g_clipMaxX (*(int16 *)(f19_dseg + 0xD25))
-#define g_clipMaxY (*(int16 *)(f19_dseg + 0xD25))
+#define cbreakHit (*(uint8 *)((uint8 *)f19_stSpace.m_esTable + 2248))
+#define g_lineX1 (*(int16 *)((uint8 *)f19_stSpace.m_esTable + 825))
+#define g_lineY1 (*(int16 *)((uint8 *)f19_stSpace.m_esTable + 825))
+#define f19_worldObjects ((WorldObject *)f19_stSpace.m_f19_worldObjects_B390)
+#define g_clipMaxX (*(int16 *)((uint8 *)f19_stSpace.m_esTable + 819))
+#define g_clipMaxY (*(int16 *)((uint8 *)f19_stSpace.m_esTable + 819))
 extern int16 *g_vpParms;
-#define flag_29948 (*(int16 *)(f19_dseg + 0x9948))
-#define selCursor (*(int16 *)(f19_dseg + 0xC144))
-#define objCursor (*(int16 *)(f19_dseg + 0xC968))
-#define objectCount (*(int16 *)(f19_dseg + 0xC978))
-#define objectActive ((int8 *)(f19_dseg + 0xD278))
-#define unitMarksOn (*(uint8 *)(f19_dseg + 0x98E8))
-#define tileMarksOn (*(uint8 *)(f19_dseg + 0xBE48))
-#define tileMarkMap ((int8 *)(f19_dseg + 0xB842))
-#define unitSprOff (*(int16 *)(f19_dseg + 0x6612))
-#define gridSprOff (*(int16 *)(f19_dseg + 0x6612))
-#define sprParmsTab ((int8 *)f19_dseg)
+#define objectActive ((int8 *)f19_stSpace.m_objectActive)
+#define tileMarksOn (*(uint8 *)((uint8 *)f19_stSpace.m_f19_flightUnits + 720))
 extern int16 mapClipX1;
 extern int16 mapClipY1;
-#define siteTypeParms ((int16 *)(f19_dseg + 0x41C8))
-#define siteMarksOn (*(uint8 *)(f19_dseg + 0xC977))
-#define siteMarkCount (*(int16 *)(f19_dseg + 0xC978))
-#define siteSprOff1 (*(int16 *)(f19_dseg + 0x65D2))
-#define siteSprOff2 (*(int16 *)(f19_dseg + 0x65D2))
-#define ringMode (*(uint8 *)(f19_dseg + 0x9922))
-#define ringTypes ((RingType *)(f19_dseg + 0x3E26))
-#define rtcEnabled (*(int16 *)(f19_dseg + 0xBB74))
-#define rtcFlagByte (*(int8 *)(f19_dseg + 0x3E1F))
-#define rtcTickBuf (*(int16 *)(f19_dseg + 0x3E24))
-#define rtcTickSaved (*(int16 *)(f19_dseg + 0x9920))
-#define viewOriginX (*(int16 *)(f19_dseg + 0xCA4E))
-#define viewOriginY (*(int16 *)(f19_dseg + 0xCA50))
-#define clipEntryCount (*(int16 *)(f19_dseg + 0x367C))
-#define clipTable ((struct ClipEntry *)(f19_dseg + 0x2326))
-#define word_22322 (*(int16 *)(f19_dseg + 0x2322))
-#define byte_20A1B (*(uint8 *)(f19_dseg + 0xA1B))
-#define word_22324 (*(int16 *)(f19_dseg + 0x2324))
+#define word_22322 (*(int16 *)((uint8 *)f19_stSpace.m_word_21718 + 3082))
 #define byte_20A1A timerCounter   /* shared/timer.c 60 Hz tick — was PIT-ISR cell */
-#define word_21714 (*(int16 *)(f19_dseg + 0x1714))
-#define byte_212C2 ((int8 *)(f19_dseg + 0x12C2))
-#define byte_22326 ((int8 *)(f19_dseg + 0x2326))
-#define word_2367C (*(int16 *)(f19_dseg + 0x367C))
-#define drawModeSel (*(uint8 *)(f19_dseg + 0xB83E))
-#define pathWpB (*(int16 *)(f19_dseg + 0xB948))
-#define pathWpA (*(int16 *)(f19_dseg + 0xB94A))
-#define pathWpC (*(int16 *)(f19_dseg + 0xB95A))
-#define pathWpD (*(int16 *)(f19_dseg + 0xB95C))
+#define pathWpB (*(int16 *)((uint8 *)f19_stSpace.m_f19_targets + 2))
+#define pathWpC (*(int16 *)f19_dsegAt(0xB95A))
+#define pathWpD (*(int16 *)f19_dsegAt(0xB95C))
 extern char str682E[];
 extern char str6832[];
 extern char str6834[];
 extern char str6836[];
 extern char str6838[];
-#define briefParms (*(int16 *)(f19_dseg + 0x69D8))
-#define titleParms (*(int16 *)(f19_dseg + 0x69C0))
-#define briefPage (*(int16 *)(f19_dseg + 0xCA6C))
-#define briefActive (*(uint8 *)(f19_dseg + 0xCA62))
-#define gamePhase (*(int8 *)(f19_dseg + 0xC160))
-extern char *wldNameTab;
-#define f19_targets ((int16 *)(f19_dseg + 0xB94E))
-#define siteNameData ((uint8 *)(f19_dseg + 0xB38E))
-#define siteObjData ((uint8 *)(f19_dseg + 0xB39C))
-#define scrStr ((char *)(f19_dseg + 0xB96A))
+#define f19_targets ((int16 *)((uint8 *)f19_stSpace.m_f19_targets + 8))
 extern struct BriefTarget briefTargs[];
 extern struct MissionKind missionKinds[];
-#define briefDepartSite (*(int16 *)(f19_dseg + 0xBB72))
-#define briefPatrolType (*(int16 *)(f19_dseg + 0xBB8E))
-#define unitNameTab ((char (*)[0x20])(f19_dseg + 0x3F60))
-#define briefTimeA ((char *)(f19_dseg + 0x4DB6))
-#define briefTimeB ((char *)(f19_dseg + 0x4DBC))
-#define briefCoord2 ((char *)(f19_dseg + 0x4DC8))
-#define word_298E6 (*(int16 *)(f19_dseg + 0x98E6))
-#define word_27990 ((int16 *)(f19_dseg + 0x7990))
-#define word_27998 ((int16 *)(f19_dseg + 0x7998))
-#define word_2170A (*(uint16 *)(f19_dseg + 0x170A))
-#define word_2170C (*(uint16 *)(f19_dseg + 0x170C))
-#define word_2BE50 (*(uint16 *)(f19_dseg + 0xBE50))
 
 extern int16 f19_rangeApprox(int16, int16);
 struct CommData;   /* TU-local opaque view */
@@ -97,11 +37,7 @@ extern struct CommData *commData;
 extern struct GameData *gameData;
 extern int16 sub_16261(int16 e);
 extern void f19_wrapUnitTextFar(void *page, const char *s, int16 a, int16 b, int16 c, int16 d);
-#define briefTab    (*(uint16 *)(f19_dseg + 0xCA48))
 #define briefTextP  ((char *)f19_farAt(0x99A))
-#define wldNameTab  ((uint16 *)(f19_dseg + 0xCA70))
-#define siteNameData ((uint8 *)(f19_dseg + 0xB38E))
-#define siteObjData  ((uint8 *)(f19_dseg + 0xB39C))
 
 /* ---- driver-slot callees ---- */
 extern void far gfx_setColor(int color);            /* slot 0x21 */
@@ -260,7 +196,7 @@ int16 f19_stringWidth(int16 *page, const uint8 *str) {   /* seg000:0x3e38 */
     l = str;
     /* callers pass the descriptor as a bare dseg offset or a resolved pointer */
     if ((uintptr_t)page < 0x10000)
-        page = (int16 *)(f19_dseg + (uintptr_t)page);
+        page = (int16 *)(((uint8 *)f19_dsegAt((uintptr_t)page)));
     j = page[6];
     n = 0;
     while (*l != 0)
@@ -532,7 +468,7 @@ void f19_rtcSync(void) {
     if (rtcEnabled == 1) {
         sub_167FD();
         rtcFlagByte = 0;
-        intDispatch(0x1a, (uint8*)(f19_dseg + 0x3e1e), (uint8*)(f19_dseg + 0x3e1e));
+        intDispatch(0x1a, (uint8*)(((uint8 *)f19_dsegAt(0x3e1e))), (uint8*)(((uint8 *)f19_dsegAt(0x3e1e))));
         rtcTickSaved = rtcTickBuf;
         sub_16208();
         i = 0;
@@ -547,7 +483,7 @@ void f19_rtcSync(void) {
  * routine advances) at fixed index; ')'→0, '|'→1, ':N'→N-1, '('→skip to the
  * matching ')'.  Called by the briefing-choice interpreter sub_16261. */
 int16 f19_evalChoiceExpr(uint16 *cellp, int16 idx) {
-#define pp_deref(i) (f19_dseg + *cellp)[i]
+#define pp_deref(i) (((uint8 *)f19_dsegAt(*cellp)))[i]
 
     int8  a, uz;                  /* ch -> [bp-2], digit ch -> [bp-0a] */
     int16 f, i, res;              /* n -> [bp-4], paren depth -> [bp-6] */
@@ -1026,7 +962,7 @@ void f19_printMission(void) {
         {
             register int16 v;    /* si: site unitRef, register-held         */
             v = *(int16 *)(siteNameData + (pathWpA << 4));
-            mystrcat(scrStr, (char *)(f19_dseg + wldNameTab[v ? v : siteObjData[pathWpA << 4]]));
+            mystrcat(scrStr, (char *)(((uint8 *)f19_dsegAt(wldNameTab[v ? v : siteObjData[pathWpA << 4]]))));
         }
         mystrcat(scrStr, ", ONC ");
         mystrcat(scrStr, f19_getItemCoordStr(pathWpA));
@@ -1038,7 +974,7 @@ void f19_printMission(void) {
         {
             register int16 v;
             v = *(int16 *)(siteNameData + (pathWpD << 4));
-            mystrcat(scrStr, (char *)(f19_dseg + wldNameTab[v ? v : siteObjData[pathWpD << 4]]));
+            mystrcat(scrStr, (char *)(((uint8 *)f19_dsegAt(wldNameTab[v ? v : siteObjData[pathWpD << 4]]))));
         }
         mystrcat(scrStr, ", ONC ");
         mystrcat(scrStr, f19_getItemCoordStr(pathWpD));
@@ -1100,10 +1036,10 @@ void f19_printObjective(uint16 n) {
     switch (missionKinds[briefTargs[n].missionNum].kind) {
     case 1:
         mystrcat(scrStr, "to \x89photograph the ");
-        mystrcat(scrStr, (char *)(f19_dseg + wldNameTab[siteObjData[briefTargs[n].targetIdx << 4]]));
-        if (mystrlen((char *)(f19_dseg + wldNameTab[*(int16 *)(siteNameData + (briefTargs[n].targetIdx << 4))]))) {
+        mystrcat(scrStr, (char *)(((uint8 *)f19_dsegAt(wldNameTab[siteObjData[briefTargs[n].targetIdx << 4]]))));
+        if (mystrlen((char *)(((uint8 *)f19_dsegAt(wldNameTab[*(int16 *)(siteNameData + (briefTargs[n].targetIdx << 4))]))))) {
             mystrcat(scrStr, " at ");
-            mystrcat(scrStr, (char *)(f19_dseg + wldNameTab[*(int16 *)(siteNameData + (briefTargs[n].targetIdx << 4))]));
+            mystrcat(scrStr, (char *)(((uint8 *)f19_dsegAt(wldNameTab[*(int16 *)(siteNameData + (briefTargs[n].targetIdx << 4))]))));
         }
         mystrcat(scrStr, "\x80, ONC ");
         mystrcat(scrStr, briefTargs[n].coord);
@@ -1116,10 +1052,10 @@ void f19_printObjective(uint16 n) {
         break;
     case 2:
         mystrcat(scrStr, "to \x89destroy the ");
-        mystrcat(scrStr, (char *)(f19_dseg + wldNameTab[siteObjData[briefTargs[n].targetIdx << 4]]));
-        if (mystrlen((char *)(f19_dseg + wldNameTab[*(int16 *)(siteNameData + (briefTargs[n].targetIdx << 4))]))) {
+        mystrcat(scrStr, (char *)(((uint8 *)f19_dsegAt(wldNameTab[siteObjData[briefTargs[n].targetIdx << 4]]))));
+        if (mystrlen((char *)(((uint8 *)f19_dsegAt(wldNameTab[*(int16 *)(siteNameData + (briefTargs[n].targetIdx << 4))]))))) {
             mystrcat(scrStr, " at ");
-            mystrcat(scrStr, (char *)(f19_dseg + wldNameTab[*(int16 *)(siteNameData + (briefTargs[n].targetIdx << 4))]));
+            mystrcat(scrStr, (char *)(((uint8 *)f19_dsegAt(wldNameTab[*(int16 *)(siteNameData + (briefTargs[n].targetIdx << 4))]))));
         }
         mystrcat(scrStr, "\x80, ONC ");
         mystrcat(scrStr, briefTargs[n].coord);
@@ -1151,13 +1087,13 @@ void f19_printObjective(uint16 n) {
         break;
     case 5:
         mystrcat(scrStr, "to \x89intercept and destroy\x80 the \x89AN-72 Coaler transport\x80 departing from ");
-        mystrcat(scrStr, (char *)(f19_dseg + wldNameTab[*(int16 *)(siteNameData + (briefDepartSite << 4))]));
+        mystrcat(scrStr, (char *)(((uint8 *)f19_dsegAt(wldNameTab[*(int16 *)(siteNameData + (briefDepartSite << 4))]))));
         mystrcat(scrStr, " airbase, ONC ");
         mystrcat(scrStr, briefCoord2);
         mystrcat(scrStr, ", at ");
         mystrcat(scrStr, briefTimeA);
         mystrcat(scrStr, " hours.  It is expected to arrive at ");
-        mystrcat(scrStr, (char *)(f19_dseg + wldNameTab[*(int16 *)(siteNameData + (briefTargs[n].targetIdx << 4))]));
+        mystrcat(scrStr, (char *)(((uint8 *)f19_dsegAt(wldNameTab[*(int16 *)(siteNameData + (briefTargs[n].targetIdx << 4))]))));
         mystrcat(scrStr, " airbase, ONC ");
         mystrcat(scrStr, briefTargs[n].coord);
         mystrcat(scrStr, ", at ");
@@ -1166,7 +1102,7 @@ void f19_printObjective(uint16 n) {
         break;
     case 7:
         mystrcat(scrStr, "to \x89intercept and destroy\x80 the \x89AN-72 Coaler transport\x80 leaving from ");
-        mystrcat(scrStr, (char *)(f19_dseg + wldNameTab[*(int16 *)(siteNameData + (briefTargs[n].targetIdx << 4))]));
+        mystrcat(scrStr, (char *)(((uint8 *)f19_dsegAt(wldNameTab[*(int16 *)(siteNameData + (briefTargs[n].targetIdx << 4))]))));
         mystrcat(scrStr, " airbase, ONC ");
         mystrcat(scrStr, briefTargs[n].coord);
         mystrcat(scrStr, ", at ");
@@ -1179,7 +1115,7 @@ void f19_printObjective(uint16 n) {
         mystrcat(scrStr, " at ");
         mystrcat(scrStr, briefTimeA);
         mystrcat(scrStr, " hours.  Based on past experience it is probably heading for");
-        mystrcat(scrStr, (char *)(f19_dseg + wldNameTab[*(int16 *)(siteNameData + (briefTargs[n].targetIdx << 4))]));
+        mystrcat(scrStr, (char *)(((uint8 *)f19_dsegAt(wldNameTab[*(int16 *)(siteNameData + (briefTargs[n].targetIdx << 4))]))));
         mystrcat(scrStr, " airbase.  If so, its estimated arrival time is ");
         mystrcat(scrStr, briefTimeB);
         mystrcat(scrStr, " hours.");
@@ -1273,14 +1209,14 @@ void f19_stepPanelAnim(struct ClipEntry *e) {
     } else
         cur = e->save[i] + 1;
     while (dflag == 0) {
-        c = f19_dseg[srcof + cur++];
+        c = (*(uint8 *)f19_dsegAt(srcof + cur++));
         if (c >= 0x30 && c <= 0x39) {
             num = c - 0x30;
-            while ((peekz = f19_dseg[srcof + cur]) >= 0x30 && peekz <= 0x39)
-                num = num * 10 + f19_dseg[srcof + cur++] - 0x30;
+            while ((peekz = (*(uint8 *)f19_dsegAt(srcof + cur))) >= 0x30 && peekz <= 0x39)
+                num = num * 10 + (*(uint8 *)f19_dsegAt(srcof + cur++)) - 0x30;
             e->timer[i] = num - 1;
         } else if (c == 0x3A) {
-            while ((peekz = f19_dseg[srcof + cur]) >= 0x30 && peekz <= 0x39)
+            while ((peekz = (*(uint8 *)f19_dsegAt(srcof + cur))) >= 0x30 && peekz <= 0x39)
                 cur++;
         } else if (c == 0x3C || c == 0x3E || c == 0x5E || c == 0x5F) {
             switch (c) {
@@ -1312,27 +1248,27 @@ void f19_stepPanelAnim(struct ClipEntry *e) {
         } else if (c >= 0x41 && c <= 0x5A) {
             fidx = (c & 0x1F) - 1;
             if ((e->col | e->row) == 0) {
-                f19_dispatchDrawMode((int16 *)(f19_dseg + word_2170C), e->sprX[fidx], e->sprY[fidx],
-                                 (int16 *)(f19_dseg + word_2170A), e->x0 + viewOriginX,
+                f19_dispatchDrawMode((int16 *)(((uint8 *)f19_dsegAt(word_2170C))), e->sprX[fidx], e->sprY[fidx],
+                                 (int16 *)(((uint8 *)f19_dsegAt(word_2170A))), e->x0 + viewOriginX,
                                  e->y0 + viewOriginY, e->w, e->h);
             } else {
-                f19_dispatchDrawMode((int16 *)(f19_dseg + word_2170C), e->sprX[fidx], e->sprY[fidx],
-                                 (int16 *)(f19_dseg + word_2170A),
+                f19_dispatchDrawMode((int16 *)(((uint8 *)f19_dsegAt(word_2170C))), e->sprX[fidx], e->sprY[fidx],
+                                 (int16 *)(((uint8 *)f19_dsegAt(word_2170A))),
                                  e->x0 + e->w + viewOriginX - e->col,
                                  e->y0 + e->h + viewOriginY - e->row,
                                  e->col, e->row);
-                f19_dispatchDrawMode((int16 *)(f19_dseg + word_2170C), e->sprX[fidx] + e->col,
-                                 e->sprY[fidx], (int16 *)(f19_dseg + word_2170A),
+                f19_dispatchDrawMode((int16 *)(((uint8 *)f19_dsegAt(word_2170C))), e->sprX[fidx] + e->col,
+                                 e->sprY[fidx], (int16 *)(((uint8 *)f19_dsegAt(word_2170A))),
                                  e->x0 + viewOriginX,
                                  e->y0 + e->h + viewOriginY - e->row,
                                  e->w - e->col, e->row);
-                f19_dispatchDrawMode((int16 *)(f19_dseg + word_2170C), e->sprX[fidx],
-                                 e->sprY[fidx] + e->row, (int16 *)(f19_dseg + word_2170A),
+                f19_dispatchDrawMode((int16 *)(((uint8 *)f19_dsegAt(word_2170C))), e->sprX[fidx],
+                                 e->sprY[fidx] + e->row, (int16 *)(((uint8 *)f19_dsegAt(word_2170A))),
                                  e->x0 + e->w + viewOriginX - e->col,
                                  e->y0 + viewOriginY,
                                  e->col, e->h - e->row);
-                f19_dispatchDrawMode((int16 *)(f19_dseg + word_2170C), e->sprX[fidx] + e->col,
-                                 e->sprY[fidx] + e->row, (int16 *)(f19_dseg + word_2170A),
+                f19_dispatchDrawMode((int16 *)(((uint8 *)f19_dsegAt(word_2170C))), e->sprX[fidx] + e->col,
+                                 e->sprY[fidx] + e->row, (int16 *)(((uint8 *)f19_dsegAt(word_2170A))),
                                  e->x0 + viewOriginX, e->y0 + viewOriginY,
                                  e->w - e->col, e->h - e->row);
             }
@@ -1343,13 +1279,13 @@ void f19_stepPanelAnim(struct ClipEntry *e) {
             totx = 1;
             word_2BE50 = cur;
             do {
-                fidx = f19_evalChoiceExpr((uint16 *)(f19_dseg + 0xBE50), srcof);
+                fidx = f19_evalChoiceExpr((uint16 *)(((uint8 *)f19_dsegAt(0xBE50))), srcof);
                 totx += fidx;
             } while (fidx != 0);
             totx = f19_randMul(-1) % totx;
             word_2BE50 = cur;
             while (totx > 0)
-                totx -= f19_evalChoiceExpr((uint16 *)(f19_dseg + 0xBE50), srcof);
+                totx -= f19_evalChoiceExpr((uint16 *)(((uint8 *)f19_dsegAt(0xBE50))), srcof);
             cur = word_2BE50;
         } else if (c == 0x7C || c == 0x29) {
             i--;
@@ -1357,8 +1293,8 @@ void f19_stepPanelAnim(struct ClipEntry *e) {
                 cur = e->save[i] + 1;
                 nlvl = 1;
                 do {
-                    nlvl += (f19_dseg[srcof + cur] == 0x28) ? 1 : 0;
-                    nlvl -= (f19_dseg[srcof + cur] == 0x29) ? 1 : 0;
+                    nlvl += ((*(uint8 *)f19_dsegAt(srcof + cur)) == 0x28) ? 1 : 0;
+                    nlvl -= ((*(uint8 *)f19_dsegAt(srcof + cur)) == 0x29) ? 1 : 0;
                     cur++;
                 } while (nlvl > 0);
             } else {

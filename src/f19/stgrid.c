@@ -1,17 +1,18 @@
 /* START.EXE — grid-file parsing (linker-tree stgrid.c lineage;
  * verified vs EN binary). */
 #include "f19.h"
+#include "f19stvars.h"
 #include <stdio.h>
 
 extern FILE *f19_fileHandle;
-#define regnPlhPtr ((char *)(f19_dseg + *(uint16 *)(f19_dseg + 0x4DAC)))
-#define gridSignature (*(uint16 *)(f19_dseg + 0x3D0A))
-#define gridValidFlag (*(int16 *)(f19_dseg + 0x3D10))
-#define gridBuf1 ((uint8 *)(f19_dseg + 0xB374))
-#define gridBuf2 ((uint8 *)(f19_dseg + 0xA4C8))
-#define gridBuf3 ((uint8 *)(f19_dseg + 0xA2C6))
-#define gridBuf4 ((uint8 *)(f19_dseg + 0x9B54))
-#define gridBuf5 ((uint8 *)(f19_dseg + 0x994E))
+#define regnPlhPtr ((char *)f19_dsegAt(*(uint16 *)f19_dsegAt(0x4DAC)))
+#define gridSignature (*(uint16 *)((uint8 *)f19_stSpace.m_terrainTileCounts + 320))
+#define gridValidFlag (*(int16 *)((uint8 *)f19_stSpace.m_terrainTileCounts + 326))
+#define gridBuf1 ((uint8 *)f19_stSpace.m_gridBuf1)
+#define gridBuf2 ((uint8 *)f19_stSpace.m_gridBuf2)
+#define gridBuf3 ((uint8 *)f19_stSpace.m_gridBuf3)
+#define gridBuf4 ((uint8 *)f19_stSpace.m_gridBuf4)
+#define gridBuf5 ((uint8 *)f19_stSpace.m_gridBuf5)
 
 extern void mystrcpy(char *d, const char *s);      /* seg000:0x5120 */
 extern int16 f19_showMsgWaitKey(const char *m);        /* seg000:0x7518 */

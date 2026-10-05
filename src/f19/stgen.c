@@ -1,44 +1,35 @@
 /* START.EXE — mission-generator helpers (f15se2 stgen.c lineage; F19 field
  * offsets differ from F15's, verified against START.EXE disasm) */
 #include <stdlib.h>
+#include "f19stvars.h"
 #include <stdio.h>
 #include "f19.h"
 #include <dos.h>
 
 
 extern int16 *f19_nearestTerrainResult;
-#define readItemSize (*(int16 *)(f19_dseg + 0xC978))
+#define readItemSize (*(int16 *)((uint8 *)f19_stSpace.m_word_2C7D8 + 416))
 extern FILE *f19_fileHandle;
-#define groundUnitCount (*(int16 *)(f19_dseg + 0x994A))
-#define worldObjectCount (*(int16 *)(f19_dseg + 0xD05E))
-#define flightUnitCount (*(int16 *)(f19_dseg + 0xCA66))
-#define wldReadBuf1 ((uint8 *)(f19_dseg + 0xCA52))
-#define wldReadBuf7 ((uint8 *)(f19_dseg + 0xC9E2))
-#define wldReadBuf8 ((uint8 *)(f19_dseg + 0xC97A))
-#define objectTypeTable ((uint8 *)(f19_dseg + 0xC162))
-#define terrainGrid ((uint8 *)(f19_dseg + 0xB842))
-#define wldReadBuf11 ((int8 *)(f19_dseg + 0xCB38))
-#define wldOffsets ((int16 *)(f19_dseg + 0xCA70))
-#define missionDistAccum (*(int16 *)(f19_dseg + 0xCA4A))
-#define escortMissionFlag (*(int16 *)(f19_dseg + 0x98EA))
-#define missionMidX ((uint16 *)(f19_dseg + 0x3E0A))
+#define groundUnitCount (*(int16 *)((uint8 *)f19_stSpace.m_selAvailTab + 38))
+#define worldObjectCount (*(int16 *)((uint8 *)f19_stSpace.m_terrainTilePtrs + 566))
+#define flightUnitCount (*(int16 *)((uint8 *)f19_stSpace.m_wldReadBuf1 + 20))
+#define wldReadBuf1 ((uint8 *)f19_stSpace.m_wldReadBuf1)
+#define wldReadBuf7 ((uint8 *)f19_stSpace.m_wldReadBuf7)
+#define wldReadBuf8 ((uint8 *)f19_stSpace.m_wldReadBuf8)
+#define objectTypeTable ((uint8 *)f19_stSpace.m_objectTypeTable)
+#define terrainGrid ((uint8 *)f19_stSpace.m_terrainGrid)
+#define wldReadBuf11 ((int8 *)f19_stSpace.m_wldReadBuf11)
+#define wldOffsets ((int16 *)f19_stSpace.m_wldOffsets)
+#define missionDistAccum (*(int16 *)((uint8 *)f19_stSpace.m_wldReadBuf7 + 104))
+#define escortMissionFlag (*(int16 *)((uint8 *)f19_stSpace.m_bufCoordStr + 30))
+#define missionMidX ((uint16 *)f19_stSpace.m_missionMidX)
 
-#define escortObj (*(int16 *)(f19_dseg + 0xBB72))
-#define tgtPreciseX (*(int32 *)(f19_dseg + 0xC146))
-#define tgtPreciseY (*(int32 *)(f19_dseg + 0xC146))
-#define loadoutTab ((uint8 *)(f19_dseg + 0x46F6))
-#define missionSpeedTab ((int16 *)(f19_dseg + 0x4506))
-#define briefTimeA ((char *)(f19_dseg + 0x4DB6))
-#define briefTimeB ((char *)(f19_dseg + 0x4DBC))
-#define briefTimeC ((char *)(f19_dseg + 0x4DC2))
-#define briefCoord2 ((char *)(f19_dseg + 0x4DC8))
-#define bufCoordStr ((char *)(f19_dseg + 0x98CC))
-#define missionTimeFlag (*(int16 *)(f19_dseg + 0x44E4))
-#define difficultySaved (*(int16 *)(f19_dseg + 0x44E0))
-#define theaterSaved (*(int16 *)(f19_dseg + 0x98C6))
-#define flag4Saved (*(int16 *)(f19_dseg + 0x98C4))
-#define regnPlhPtr   (*(uint16 *)(f19_dseg + 0x4DAC))
-#define plhFiles ((uint16 *)(f19_dseg + 0x4DAE))
+#define bufCoordStr ((char *)f19_stSpace.m_bufCoordStr)
+#define difficultySaved (*(int16 *)((uint8 *)f19_stSpace.m_f19_linkTab + 98))
+#define theaterSaved (*(int16 *)((uint8 *)f19_stSpace.m_byte_27D67 + 7007))
+#define flag4Saved (*(int16 *)((uint8 *)f19_stSpace.m_byte_27D67 + 7005))
+#define regnPlhPtr (*(uint16 *)((uint8 *)(uint16 *)&f19_stSpace.m_regnPlhPtr + 0))
+#define plhFiles ((uint16 *)f19_stSpace.m_plhFiles)
 
 extern void movedata(int16 srcSeg, int16 srcOff, int16 dstSeg, int16 dstOff, int16 len);
 
@@ -123,9 +114,8 @@ typedef struct {
     int16 pad4[14];         /* 0x04 */
 } PlaneEntry;
 
-#define f19_flightUnits   ((FlightUnit *)(f19_dseg + 0xBB78))
-#define f19_worldObjects  ((WorldObject *)(f19_dseg + 0xB38E))
-#define planes        ((PlaneEntry *)(f19_dseg + 0x3F72))
+#define f19_worldObjects ((WorldObject *)f19_stSpace.m_f19_worldObjects)
+#define planes ((PlaneEntry *)((uint8 *)f19_stSpace.m_strTab32 + 18))
 
 /* f19_worldObjects is the object table at dseg 0xB38E — aliased by the menu
  * modules as struct ObjD word_2B38E[]. */
@@ -234,9 +224,7 @@ struct LinkPair {           /* dseg:0x447e, stride 4 */
     int16 nextB;            /* +2 */
 };
 
-#define f19_targets    ((struct Target *)(f19_dseg + 0xB946))
-#define f19_siteParms  ((struct SiteParm *)(f19_dseg + 0x4B0C))
-#define f19_linkTab    ((struct LinkPair *)(f19_dseg + 0x447E))
+#define f19_targets ((struct Target *)f19_stSpace.m_f19_targets)
 extern int16  f19_randMul(uint16 n);
 extern int16  f19_itemDistance(int16 a, int16 b);
 extern char  *f19_getItemCoordStr(int16 idx);
@@ -261,7 +249,7 @@ void f19_parseWorld(const char *filename) {
     j = 1;
     for (l = 0; l < 0x2ee; l++) {
         if (wldReadBuf11[l] == 0 && j < 0x64)
-            wldOffsets[j++] = (int16)((uint8 *)(wldReadBuf11 + l + 1) - f19_dseg);
+            wldOffsets[j++] = (int16)f19_dsegOff(wldReadBuf11 + l + 1);
     }
 }
 
@@ -353,7 +341,7 @@ void f19_missionGenerate() {
     case 2: f19_parseWorld("nc.wld"); break;
     case 3: f19_parseWorld("ce.wld"); break;
     }
-    mystrcpy((char *)(f19_dseg + regnPlhPtr), (char *)(f19_dseg + plhFiles[gameData->theater]));
+    mystrcpy((char *)(((uint8 *)f19_dsegAt(regnPlhPtr))), (char *)(((uint8 *)f19_dsegAt(plhFiles[gameData->theater]))));
     f19_parseGridTerrain();
     f19_runGenerator();
 }

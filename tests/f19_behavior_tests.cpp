@@ -9,8 +9,8 @@
 // mission-generator helpers (calcBearing/rangeApprox/clampValue/
 // formatGridRef/formatTimeStr).
 //
-// Globals the routines read through f19_dseg are poked at the ORIGINAL DOS
-// dseg cells (verified against the dseg: offset column in
+// Globals the routines read are poked at the ORIGINAL DOS
+// dseg offsets via f19_dsegAt (verified against the dseg: column in
 // lst/egame_en_ada.lst), so the tests pin the port's data-cell bindings as
 // well as its code: a logical variable bound to the wrong cell fails loudly.
 #include "inttype.h"
@@ -24,7 +24,7 @@
 #include <thread>
 
 // ---- F-19 flat-model state -------------------------------------------------
-extern uint8 f19_dseg[];      /* 64 KB flat data segment */
+#include "f19/f19seg.h"       /* f19_dsegAt/f19_dsegOff object resolver */
 #include "f19/f19egglobals.h" /* binding-pin tests: &g_* == true cell */
 extern uint8 f19_commBase[];  /* comm/game shared block */
 extern void *f19_commData;
@@ -172,8 +172,8 @@ void require(bool condition, const char *message) {
     }
 }
 
-int16 dseg16(int off) { return *reinterpret_cast<int16 *>(f19_dseg + off); }
-void setDseg16(int off, int v) { *reinterpret_cast<int16 *>(f19_dseg + off) = v; }
+int16 dseg16(int off) { return *reinterpret_cast<int16 *>(((uint8 *)f19_dsegAt(off))); }
+void setDseg16(int off, int v) { *reinterpret_cast<int16 *>(((uint8 *)f19_dsegAt(off))) = v; }
 
 int sar32(int32 value, int count) {
     return value >= 0
@@ -211,10 +211,10 @@ int expectedRangeApprox(int dx, int dy) {
     return dist > kRangeMax ? kRangeMax : static_cast<int>(dist);
 }
 
-// 8-byte override record at f19_dseg + 0x8B56 (struct DynTileOverride).
+// 8-byte override record at dseg 0x8B56 (struct DynTileOverride).
 void writeTileEntry(int idx, int lod, int subIndex, int tileX, int tileY,
                     int16 value, int shape) {
-    uint8 *e = f19_dseg + kCellDynTileEntries + idx * 8;
+    uint8 *e = (uint8 *)f19_dsegAt(kCellDynTileEntries + idx * 8);
     e[0] = static_cast<uint8>(lod);
     e[1] = static_cast<uint8>(subIndex);
     e[2] = static_cast<uint8>(tileX);
@@ -437,7 +437,7 @@ int main() {
 
     // ==== egflight.c: attitude round-trip through the rotation matrix ====
     {
-        int16 *m = reinterpret_cast<int16 *>(f19_dseg + kCellOrientMatrix);
+        int16 *m = reinterpret_cast<int16 *>(((uint8 *)f19_dsegAt(kCellOrientMatrix)));
         for (auto [h, p, r] : {std::tuple{0x4000, 0x0000, 0x0000},
                                std::tuple{0x8400, 0x0000, 0x0000},
                                std::tuple{0x1234, 0x0400, 0x0000},
@@ -464,18 +464,18 @@ int main() {
             "scaleCoordToLod rounded LOD shifts");
 
     // ==== eg3dmap.c: process3dg recursive tile-grid traversal ====
-    for (int i = 0; i < 0x40; ++i) f19_dseg[kCellTopLodGrid + i] = 0;
-    for (int i = 0; i < 0x100; ++i) f19_dseg[kCellBuf1_3dg + i] = 0;
+    for (int i = 0; i < 0x40; ++i) (*(uint8 *)f19_dsegAt(kCellTopLodGrid + i)) = 0;
+    for (int i = 0; i < 0x100; ++i) (*(uint8 *)f19_dsegAt(kCellBuf1_3dg + i)) = 0;
     for (int i = 0; i < 0x200; ++i) {
-        f19_dseg[kCellBuf2_3dg + i] = 0;
-        f19_dseg[kCellBuf3_3dg + i] = 0;
-        f19_dseg[kCellBuf4_3dg + i] = 0;
+        (*(uint8 *)f19_dsegAt(kCellBuf2_3dg + i)) = 0;
+        (*(uint8 *)f19_dsegAt(kCellBuf3_3dg + i)) = 0;
+        (*(uint8 *)f19_dsegAt(kCellBuf4_3dg + i)) = 0;
     }
-    f19_dseg[kCellTopLodGrid + (1 + 2) + ((-1 + 2) << 3)] = 3;
-    f19_dseg[kCellBuf1_3dg + 6 + (7 << 4)] = 3;
-    f19_dseg[kCellBuf2_3dg + 1 + ((2 << 2) + (3 << 4))] = 3;
-    f19_dseg[kCellBuf3_3dg + 3 + ((1 << 2) + (3 << 4))] = 3;
-    f19_dseg[kCellBuf4_3dg + 2 + ((3 << 2) + (3 << 4))] = 9;
+    (*(uint8 *)f19_dsegAt(kCellTopLodGrid + (1 + 2) + ((-1 + 2) << 3))) = 3;
+    (*(uint8 *)f19_dsegAt(kCellBuf1_3dg + 6 + (7 << 4))) = 3;
+    (*(uint8 *)f19_dsegAt(kCellBuf2_3dg + 1 + ((2 << 2) + (3 << 4)))) = 3;
+    (*(uint8 *)f19_dsegAt(kCellBuf3_3dg + 3 + ((1 << 2) + (3 << 4)))) = 3;
+    (*(uint8 *)f19_dsegAt(kCellBuf4_3dg + 2 + ((3 << 2) + (3 << 4)))) = 9;
     require(f19eg_process3dg(4, 1, -1) == 3,
             "process3dg LOD 4 applies +2 top-grid offset");
     require(f19eg_process3dg(3, 6, 7) == 3, "process3dg LOD 3 reads buf1 grid");
@@ -521,7 +521,7 @@ int main() {
         require(rec.shapeOff == kTileEntryValue && rec.flag == 0x5A &&
                     dseg16(kCellTileEntryCount) == 3,
                 "addTileEntry fills rec + bumps dword_3533A counter");
-        const uint8 *e = f19_dseg + kCellDynTileEntries + 2 * 8;
+        const uint8 *e = ((uint8 *)f19_dsegAt(kCellDynTileEntries + 2 * 8));
         require(e[0] == 2 && e[1] == 5 && e[2] == 6 && e[3] == 7 &&
                     *reinterpret_cast<const int16 *>(e + 4) == kTileEntryValue &&
                     e[6] == 0x5A,
@@ -537,10 +537,10 @@ int main() {
     // copies them into the camera eye. The port split them across names
     // but must keep both aliases on the true cells — its old 0x8E48 cell is
     // the original's byte_37B38 trail-record array.
-    require(&g_worldX == reinterpret_cast<int32 *>(f19_dseg + 0x8E2A) &&
-                &g_ViewX == reinterpret_cast<int32 *>(f19_dseg + 0x8E2A) &&
-                &g_worldY == reinterpret_cast<int32 *>(f19_dseg + 0x9446) &&
-                &g_ViewY == reinterpret_cast<int32 *>(f19_dseg + 0x9446),
+    require(&g_worldX == reinterpret_cast<int32 *>(((uint8 *)f19_dsegAt(0x8E2A))) &&
+                &g_ViewX == reinterpret_cast<int32 *>(((uint8 *)f19_dsegAt(0x8E2A))) &&
+                &g_worldY == reinterpret_cast<int32 *>(((uint8 *)f19_dsegAt(0x9446))) &&
+                &g_ViewY == reinterpret_cast<int32 *>(((uint8 *)f19_dsegAt(0x9446))),
             "world/view position aliases bind word_37B1A/word_38136 cells");
 
     // ==== binding pins: view-mode + tile coords in the 0x94E0 block ====
@@ -548,10 +548,10 @@ int main() {
     // test 80h external flag); word_381DE @ 0x94EE = viewX_; word_381EE @
     // 0x94FE = viewY_ (spawn computes 0x8000 - word_381EE). g_camExtFlag is
     // the byte view of viewMode's low byte.
-    require(&g_viewMode == reinterpret_cast<int16 *>(f19_dseg + 0x94E0) &&
-                &g_camExtFlag == reinterpret_cast<int8 *>(f19_dseg + 0x94E0) &&
-                &g_viewX_ == reinterpret_cast<uint16 *>(f19_dseg + 0x94EE) &&
-                &g_viewY_ == reinterpret_cast<uint16 *>(f19_dseg + 0x94FE),
+    require(&g_viewMode == reinterpret_cast<int16 *>(((uint8 *)f19_dsegAt(0x94E0))) &&
+                &g_camExtFlag == reinterpret_cast<int8 *>(((uint8 *)f19_dsegAt(0x94E0))) &&
+                &g_viewX_ == reinterpret_cast<uint16 *>(((uint8 *)f19_dsegAt(0x94EE))) &&
+                &g_viewY_ == reinterpret_cast<uint16 *>(((uint8 *)f19_dsegAt(0x94FE))),
             "viewMode 0x94E0 / viewX_ 0x94EE / viewY_ 0x94FE cells");
 
     // ==== eg3dmap.c: worldToTileIndex — origin cells are DISTINCT ====
@@ -617,15 +617,16 @@ int main() {
         for (const auto &c : clk) {
             setDseg16(kCellMissionTick, (int16)c.tick);
             setDseg16(kCellNightMode, (int16)c.night);
-            memset(f19_dseg + kCellNameBuf, 0, 12);
+            memset(((uint8 *)f19_dsegAt(kCellNameBuf)), 0, 12);
             f19eg_formatMissionClock(c.t);
-            require(std::strcmp(reinterpret_cast<char *>(f19_dseg + kCellNameBuf),
+            require(std::strcmp(reinterpret_cast<char *>(((uint8 *)f19_dsegAt(kCellNameBuf))),
                                 c.want) == 0,
                     "formatMissionClock oracle golden");
         }
     }
 
     // ==== stgen.c: START-side math + formatters ====
+    f19_dsegInit(); /* START image + world select for START routines */
     require(f19_calcBearing(0, 5) == 0 && f19_calcBearing(5, 0) == 0x4000 &&
                 f19_calcBearing(100, 100) == 0x204D &&
                 f19_calcBearing(300, 100) == 0x32CA &&
@@ -647,7 +648,7 @@ int main() {
     *reinterpret_cast<int16 *>(f19_commBase + 0x120E + kOffGameDataTheater) = 1;
     require(std::strcmp(f19_formatGridRef(0, 0, 1), "JZ09") == 0,
             "formatGridRef Persian Gulf prefix");
-    require(f19_formatGridRef(0, 0, 1) == reinterpret_cast<char *>(f19_dseg + kCellBufCoordStr),
+    require(f19_formatGridRef(0, 0, 1) == reinterpret_cast<char *>(((uint8 *)f19_dsegAt(kCellBufCoordStr))),
             "formatGridRef returns bufCoordStr");
 
     // formatTimeStr: "HH:MM", minutes floored to 5, hours+flag digit.
@@ -794,18 +795,18 @@ int main() {
         const int16 gm = ovlF43_a(0x42);
         require(gm >= 0x10, "scenery0.exe loads for briefing pointer table");
         ovlF43_10d(gm);
-        require(*reinterpret_cast<uint32 *>(f19_dseg + 0x99A) != 0,
+        require(*reinterpret_cast<uint32 *>(((uint8 *)f19_dsegAt(0x99A))) != 0,
                 "briefTextP cell populated by string-table splat");
-        require(*reinterpret_cast<uint32 *>(f19_dseg + 0x99E) != 0,
+        require(*reinterpret_cast<uint32 *>(((uint8 *)f19_dsegAt(0x99E))) != 0,
                 "ROE text cell populated by string-table splat");
         // Waypoint indices the FLIGHT PLAN page prints; name table -> a scratch
         // string so strcat walks known memory.
         setDseg16(0xB94A, 3); /* pathWpA */
         setDseg16(0xB95C, 7); /* pathWpD */
-        std::strcpy(reinterpret_cast<char *>(f19_dseg + 0xF000), "TEST SITE");
+        std::strcpy(reinterpret_cast<char *>(((uint8 *)f19_dsegAt(0xF000))), "TEST SITE");
         for (int i = 0; i < 32; i++) setDseg16(0xCA70 + i * 2, 0xF000);
         setDseg16(0xCA6C, 2); /* briefPage=2: "Mission Targets" */
-        f19_dseg[0xC160] = 5;
+        (*(uint8 *)f19_dsegAt(0xC160)) = 5;
         // The entry drain eats queued keys, so feed the exit read from a
         // delayed poster thread.
         std::thread poster([] {
@@ -819,7 +820,7 @@ int main() {
         });
         f19_printMission();
         poster.join();
-        require(f19_dseg[0xC160] == 4,
+        require((*(uint8 *)f19_dsegAt(0xC160)) == 4,
                 "printMission(Mission Targets) exits to state 4");
     }
 

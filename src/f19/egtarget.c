@@ -1,4 +1,5 @@
 #include "f19eg.h"
+#include "f19egvars.h"
 
 /* egtarget.c — target bearing/label routines (F19) */
 
@@ -24,7 +25,7 @@ struct MapTarget {                 /* F19 layout, 16 bytes */
 };
 struct PlaneTable { int16 lead[3]; struct MapTarget planes[74]; };
 #undef g_planeTable
-#define g_planeTable (*(struct PlaneTable *)(f19_dseg + 0x80C2))
+#define g_planeTable (*(struct PlaneTable *)((uint8 *)f19_egSpace.m_g_camRotMatrix + 12))
 
 /* ==== seg000:0xb2ca ==== */
 int16 isqrt(int16 value);                                /* sub_13387 */
