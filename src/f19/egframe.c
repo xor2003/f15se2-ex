@@ -617,11 +617,11 @@ struct CommSnap {
     int16 type;                     /* +0x26 */
     int16 arg;                      /* +0x28 */
     int8  pad_2a[0x0A];
-    int16 gunHits;                  /* +0x34 */
-    int16 dmgMask;                  /* +0x36 */
+    int16 dmgMask;                  /* +0x34 */
+    int16 gunHits;                  /* +0x36 */
     int8  pad_38[0x3C];
-    int16 viewY;                    /* +0x74 */
-    int16 viewX;                    /* +0x76 */
+    int16 viewX;                    /* +0x74 */
+    int16 viewY;                    /* +0x76 */
 };
 struct CommData;
 void recordFrame(uint8 a, uint8 b);
@@ -631,10 +631,10 @@ void commitCommSnapshot(int16 arg) {
         ((struct CommSnap FAR *)commData)->arg = arg;
         if (arg == 0 && g_ejectState == 0)
             ((struct CommSnap FAR *)commData)->type = 3;
-        ((struct CommSnap FAR *)commData)->viewY = g_viewY_;
         ((struct CommSnap FAR *)commData)->viewX = g_viewX_;
-        ((struct CommSnap FAR *)commData)->gunHits = g_gunHits;
+        ((struct CommSnap FAR *)commData)->viewY = g_viewY_;
         ((struct CommSnap FAR *)commData)->dmgMask = g_bombDamageMask;
+        ((struct CommSnap FAR *)commData)->gunHits = g_gunHits;
         recordFrame(8, 0);
     }
 }
@@ -676,11 +676,11 @@ void initStoreData(void) {
     setCommWorldbufPtr();
     flagFarToNear = 1;
     moveStuff();
-    g_nameTab[0] = g_strpool;
+    g_nameTab[0] = (char *)g_stringPool;
     n = 1;
     for (i = 0; i < 0x2EE; i++) {
-        if (g_strpool[i] == 0 && n < 0x64)
-            g_nameTab[n++] = &g_strpool[i + 1];
+        if (g_stringPool[i] == 0 && n < 0x64)
+            g_nameTab[n++] = (char *)&g_stringPool[i + 1];
     }
     g_worldX = ((uint32)g_storeDefs[g_selStoreIdx].coordX << 5) + 2;
     g_worldY = ((int32)0x8000 - g_storeDefs[g_selStoreIdx].coordY) << 5;
