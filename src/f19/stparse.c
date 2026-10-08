@@ -5,7 +5,7 @@
 #include <stdio.h>
 
 extern FILE *f19_fileHandle;
-#define regnPlhPtr ((char *)f19_dsegAt(*(uint16 *)f19_dsegAt(0x4DAC)))
+#define regnPlhPtr ((char *)f19_dsegAt(f19_stSpace.m_regnPlhPtr))
 #define terrainDirtyFlag (*(int16 *)((uint8 *)f19_stSpace.m_terrainTileCounts + 324))
 #define terrainSignature (*(int16 *)((uint8 *)f19_stSpace.m_gridLevelSize + 10))
 #define terrainBuf1 ((uint16 *)f19_stSpace.m_terrainBuf1)

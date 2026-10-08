@@ -19,8 +19,8 @@ extern int16 mapClipY1;
 #define word_22322 (*(int16 *)((uint8 *)f19_stSpace.m_word_21718 + 3082))
 #define byte_20A1A timerCounter   /* shared/timer.c 60 Hz tick — was PIT-ISR cell */
 #define pathWpB (*(int16 *)((uint8 *)f19_stSpace.m_f19_targets + 2))
-#define pathWpC (*(int16 *)f19_dsegAt(0xB95A))
-#define pathWpD (*(int16 *)f19_dsegAt(0xB95C))
+#define pathWpC (*(int16 *)((uint8 *)&f19_stSpace.f19_stgap_B958 + 0x2))
+#define pathWpD (*(int16 *)((uint8 *)&f19_stSpace.f19_stgap_B958 + 0x4))
 extern char str682E[];
 extern char str6832[];
 extern char str6834[];
@@ -37,7 +37,7 @@ extern struct CommData *commData;
 extern struct GameData *gameData;
 extern int16 sub_16261(int16 e);
 extern void f19_wrapUnitTextFar(void *page, const char *s, int16 a, int16 b, int16 c, int16 d);
-#define briefTextP  ((char *)f19_farAt(0x99A))
+#define briefTextP ((char *)f19_farAt(f19_dsegOff((f19_stSpace.m_statT1 + 0x172))))
 
 /* ---- driver-slot callees ---- */
 extern void far gfx_setColor(int color);            /* slot 0x21 */
@@ -182,9 +182,9 @@ void f19_initGraphics(void) {                 /* seg000:0x827 */
     sub_140A3();                          /* seedRandom */
     gfx_setPageN(0);
     gfx_allocPage(0);
-    if (*(uint16 *)f19_farAt(0x98EC) == 0) {
+    if (*(uint16 *)f19_farAt(f19_dsegOff((f19_stSpace.m_bufCoordStr + 0x20))) == 0) {
         gfx_setMode13(commData->setupMono);
-        *(uint16 *)f19_farAt(0x98EC) = 1;
+        *(uint16 *)f19_farAt(f19_dsegOff((f19_stSpace.m_bufCoordStr + 0x20))) = 1;
     }
     commData->gfxModeNum = g_gfxModeNum = gfx_getModecode();
     misc_jump_5e_clearKeyFlags();
@@ -468,7 +468,7 @@ void f19_rtcSync(void) {
     if (rtcEnabled == 1) {
         sub_167FD();
         rtcFlagByte = 0;
-        intDispatch(0x1a, (uint8*)(((uint8 *)f19_dsegAt(0x3e1e))), (uint8*)(((uint8 *)f19_dsegAt(0x3e1e))));
+        intDispatch(0x1a, (uint8 *)(((uint8 *)f19_stSpace.m_strTab14)), (uint8 *)(((uint8 *)f19_stSpace.m_strTab14)));
         rtcTickSaved = rtcTickBuf;
         sub_16208();
         i = 0;
@@ -1279,13 +1279,13 @@ void f19_stepPanelAnim(struct ClipEntry *e) {
             totx = 1;
             word_2BE50 = cur;
             do {
-                fidx = f19_evalChoiceExpr((uint16 *)(((uint8 *)f19_dsegAt(0xBE50))), srcof);
+                fidx = f19_evalChoiceExpr((uint16 *)(((uint8 *)(f19_stSpace.m_f19_flightUnits + 0x2D8))), srcof);
                 totx += fidx;
             } while (fidx != 0);
             totx = f19_randMul(-1) % totx;
             word_2BE50 = cur;
             while (totx > 0)
-                totx -= f19_evalChoiceExpr((uint16 *)(((uint8 *)f19_dsegAt(0xBE50))), srcof);
+                totx -= f19_evalChoiceExpr((uint16 *)(((uint8 *)(f19_stSpace.m_f19_flightUnits + 0x2D8))), srcof);
             cur = word_2BE50;
         } else if (c == 0x7C || c == 0x29) {
             i--;

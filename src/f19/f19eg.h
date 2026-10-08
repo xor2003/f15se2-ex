@@ -12,13 +12,13 @@
 
 #include "f19egglobals.h"
 
-/* F-19 EGAME.EXE module. The game-data segment image lives in f19egsegdat.c
- * (RU layout — the src_en ports index dseg objects by RU-land dseg offsets
- * via f19_dsegAt). START and EGAME have separate dseg object sets; which one
- * f19_dsegAt resolves depends on f19_segUseWorld(). commBase is shared
- * between START and EGAME exactly like the DOS shared-data block. */
+/* F-19 EGAME.EXE module. The game-data segment lives in f19egvars.c as
+ * per-member initializers on f19_egSpace (RU layout — the src_en ports
+ * index dseg objects by RU-land dseg offsets via f19_dsegAt). START and
+ * EGAME have separate dseg object sets; which one f19_dsegAt resolves
+ * depends on f19_segUseWorld(). commBase is shared between START and
+ * EGAME exactly like the DOS shared-data block. */
 
-extern const uint8 f19_egDsegImage[];   /* f19egsegdat.c */
 void f19_egDsegLoad(void);              /* reset EGAME-side objects */
 
 /* ---- flat-model pointer ops (pointers.h equivalents) ----

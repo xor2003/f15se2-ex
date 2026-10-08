@@ -63,17 +63,17 @@ extern struct ReplayLog g_replayLog;   /* app's shared driver global */
 int16 *const f19eg_vertexX = (int16 *)((char *)&g_replayLog + 0x600);
 
 static void f19eg_ptrInit(void) {
-    f19eg_farPointer       = (uint8 *)f19_dsegAt(EG_W(0x6356));
-    f19eg_g_mapTerrainMode = (int16 *)f19_dsegAt(EG_W(0x581E));
-    f19eg_g_nearestTileObj = (struct TileObject *)f19_dsegAt(EG_W(0x6E76));
-    f19eg_g_pageBack       = (int16 *)f19_dsegAt(EG_W(0x57EE));
-    f19eg_g_pageFront      = (int16 *)f19_dsegAt(EG_W(0x57D6));
-    f19eg_g_pageOffscreen  = (int16 *)f19_dsegAt(EG_W(0x5806));
-    f19eg_g_targetViewParams = (int16 *)f19_dsegAt(EG_W(0x5836));
-    f19eg_g_viewParams     = (int16 *)f19_dsegAt(EG_W(0x3F8));
-    f19eg_g_vpParms        = (struct VpParms *)f19_dsegAt(EG_W(0x57D6));
-    f19eg_regnFile         = (char *)f19_dsegAt(EG_W(0x78));
-    f19eg_regnName         = (char *)f19_dsegAt(EG_W(0x78));
+    f19eg_farPointer = (uint8 *)f19_dsegAt(*(uint16 *)((uint8 *)&f19_egSpace.m_g_axisInputAccum + 0x6C2));
+    f19eg_g_mapTerrainMode = (int16 *)f19_dsegAt(*(uint16 *)((uint8 *)&f19_egSpace.m_g_weaponCells + 0xB6));
+    f19eg_g_nearestTileObj = (struct TileObject *)f19_dsegAt(*(uint16 *)((uint8 *)&f19_egSpace.m_buf2_3dg + 0x200));
+    f19eg_g_pageBack = (int16 *)f19_dsegAt(*(uint16 *)((uint8 *)&f19_egSpace.m_g_weaponCells + 0x86));
+    f19eg_g_pageFront = (int16 *)f19_dsegAt(*(uint16 *)((uint8 *)&f19_egSpace.m_g_weaponCells + 0x6E));
+    f19eg_g_pageOffscreen = (int16 *)f19_dsegAt(*(uint16 *)((uint8 *)&f19_egSpace.m_g_weaponCells + 0x9E));
+    f19eg_g_targetViewParams = (int16 *)f19_dsegAt(*(uint16 *)((uint8 *)&f19_egSpace.m_g_weaponCells + 0xCE));
+    f19eg_g_viewParams = (int16 *)f19_dsegAt(*(uint16 *)((uint8 *)&f19_egSpace.f19_eggap_7C + 0x37C));
+    f19eg_g_vpParms = (struct VpParms *)f19_dsegAt(*(uint16 *)((uint8 *)&f19_egSpace.m_g_weaponCells + 0x6E));
+    f19eg_regnFile = (char *)f19_dsegAt(*(uint16 *)(uint8 *)&f19_egSpace.m_off_2EEE8);
+    f19eg_regnName = (char *)f19_dsegAt(*(uint16 *)(uint8 *)&f19_egSpace.m_off_2EEE8);
 }
 
 /* EN string graft: the baked-in dseg image came from the RU build, whose
@@ -134,8 +134,8 @@ void f19_egDsegLoad(void) {
         f19eg_seg004 = f19_allocSeg(0x1000);
     /* far cells DOS init would fill: commData at +0, gameData at +0x120E,
      * g_viewParamsFar at +0x120E, the BDA motor byte at 0:0x440. */
-    f19_setFar(0x9CA0, f19_commBase);                 /* dword_38B10 */
-    f19_setFar(0x6660, f19_commBase + 0x120E);        /* dword_354D0 */
-    f19_setFar(0x6652, f19_bda + 0x440);              /* dword_354C2 */
+    f19_setFar(f19_dsegOff((f19_egSpace.m_bulletTracks + 0xFA)), f19_commBase);       /* dword_38B10 */
+    f19_setFar(f19_dsegOff((f19_egSpace.m_geeStrBuf + 0x20)), f19_commBase + 0x120E); /* dword_354D0 */
+    f19_setFar(f19_dsegOff((f19_egSpace.m_geeStrBuf + 0x12)), f19_bda + 0x440);       /* dword_354C2 */
     f19eg_ptrInit();
 }

@@ -50,7 +50,7 @@ void sub_1CBD8(void) {
     word_2CA46 = 0x8D6;
     word_2CA48 = 0x802;
     word_29948 = 0;
-    (*(uint8 *)f19_dsegAt(0x6F2C)) = (COMMW(0x11) == 1) ? 8 : 7;
+    (*(uint8 *)((uint8 *)&f19_stSpace.m_word_26820 + 0x70C)) = (COMMW(0x11) == 1) ? 8 : 7;
     switch (word_2C7D4) {
     case 0:
         if (word_2BB74 == 1) {
@@ -110,7 +110,7 @@ void sub_1CBD8(void) {
     if (word_2BB74 == 1)
         sub_1685C(word_2A0C4);
     word_22324 = 0;
-    byte_2C160 = (*(uint8 *)f19_dsegAt(0x6F2C + res));
+    byte_2C160 = (*(uint8 *)((uint8 *)&f19_stSpace.m_word_26820 + 0x70c + res));
 }
 
 /* seg000:0xce56 — the arming screen. Draws arming.pic + arming.spr sheets,
@@ -170,13 +170,13 @@ void sub_1CE56(void) {
      * 0x71A4+i*0x1E (i != 19 is the empty-bay sprite) and the four bay
      * records at 0x70AE+i*0x1E. */
     for (i = 0; i < 19; i++)
-        *(int16 *)(((uint8 *)f19_dsegAt(0x71A4))+ i * 0x1E) = w;
-    *(int16 *)(((uint8 *)f19_dsegAt(0x73FC))) = w;
-    *(int16 *)(((uint8 *)f19_dsegAt(0x741C))) = w;
+        *(int16 *)(((uint8 *)(f19_stSpace.m_namePtrTab + 0x13)) + i * 0x1E) = w;
+    *(int16 *)(((uint8 *)(f19_stSpace.m_namePtrTab + 0x13F))) = w;
+    *(int16 *)(((uint8 *)(f19_stSpace.m_namePtrTab + 0x14F))) = w;
     for (i = 0; i < 4; i++)
-        *(int16 *)(((uint8 *)f19_dsegAt(0x70AE))+ i * 0x1E) = w;
-    if (*(int16 *)(((uint8 *)f19_dsegAt(0x4B10))+ word_2B94E * 0xC) == 3 ||
-        *(int16 *)(((uint8 *)f19_dsegAt(0x4B10))+ word_2B94E * 0xC) == 4) {
+        *(int16 *)(((uint8 *)(f19_stSpace.m_word_26820 + 0x447)) + i * 0x1E) = w;
+    if (*(int16 *)(((uint8 *)(f19_stSpace.m_f19_siteParms + 0x4)) + word_2B94E * 0xC) == 3 ||
+        *(int16 *)(((uint8 *)(f19_stSpace.m_f19_siteParms + 0x4)) + word_2B94E * 0xC) == 4) {
         word_27B3A = 0x73DE;
         byte_298F7 = 1;
     } else {
@@ -221,8 +221,8 @@ void sub_1CE56(void) {
     sub_13B76(PDESC(word_270AC), DSTR(0x7020), 0x64, 0xB3);
     PDESC(word_27094)[2] = 0;
     if (byte_2C7D6 == 1) {
-        int16 *flags = (int16 *)(((uint8 *)f19_dsegAt(0x9924)));
-        int16 *bays  = (int16 *)(((uint8 *)f19_dsegAt(0x98F8)));
+        int16 *flags = (int16 *)(((uint8 *)f19_stSpace.m_selAvailTab));
+        int16 *bays = (int16 *)(((uint8 *)(f19_stSpace.m_bufCoordStr + 0x2C)));
         for (i = 0; i < 0x12; i++)
             flags[i] = 0;
         byte_2C7D6 = 0;
@@ -231,9 +231,9 @@ void sub_1CE56(void) {
         n5 = f19_randMul(5);
         for (i = 0; i < n5; ) {
             w2 = f19_randMul(0x12);
-            if (((int16 *)(((uint8 *)f19_dsegAt(0x7932))))[w2] == 0xFF)
+            if (((int16 *)(((uint8 *)(f19_stSpace.m_namePtrTab + 0x3DA))))[w2] == 0xFF)
                 continue;
-            if (flags[((int16 *)(((uint8 *)f19_dsegAt(0x7932))))[w2]] == 1)
+            if (flags[((int16 *)(((uint8 *)(f19_stSpace.m_namePtrTab + 0x3DA))))[w2]] == 1)
                 continue;
             if (w2 == COMMW(0x1C) || w2 == COMMW(0x1D) ||
                 w2 == COMMW(0x1E) || w2 == COMMW(0x1F))
@@ -243,7 +243,7 @@ void sub_1CE56(void) {
                 t = f19_randMul(8);
                 if (bays[t] == 0) {
                     bays[t] = 1;
-                    ((int16 *)(((uint8 *)f19_dsegAt(0xD2D0))))[w2] = t;
+                    ((int16 *)(((uint8 *)f19_stSpace.m_typeIdxTab)))[w2] = t;
                     break;
                 }
             }
@@ -252,21 +252,21 @@ void sub_1CE56(void) {
     }
     PDESC(word_270AC)[2] = 7;
     for (i = 0; i < 0x12; i++) {
-        if (((int16 *)(((uint8 *)f19_dsegAt(0x9924))))[i] == 1) {
+        if (((int16 *)(((uint8 *)f19_stSpace.m_selAvailTab)))[i] == 1) {
             int16 *rec;
             word_2BE4C = 0x743C + i * 0x32;
             rec = (int16 *)(((uint8 *)f19_dsegAt(word_2BE4C)));
             sub_13B50(PDESC(word_270AC), NAMEROW(i), rec[0], rec[1]);
-            *(int16 *)(((uint8 *)f19_dsegAt(0x744C))+ i * 0x32) = 1;
+            *(int16 *)(((uint8 *)(f19_stSpace.m_namePtrTab + 0x167)) + i * 0x32) = 1;
         }
     }
     st = 0;
     if (word_2C9E0 == 1)
         ovlCall_bc7(PDESC(word_27094),
-                    ((int16 *)(((uint8 *)f19_dsegAt(0x7136))))[0],
-                    ((int16 *)(((uint8 *)f19_dsegAt(0x713E))))[0],
-                    ((int16 *)(((uint8 *)f19_dsegAt(0x7146))))[0],
-                    ((int16 *)(((uint8 *)f19_dsegAt(0x714E))))[0], 5, 9);
+                    ((int16 *)(((uint8 *)(f19_stSpace.m_word_26820 + 0x48B))))[0],
+                    ((int16 *)(((uint8 *)(f19_stSpace.m_word_26820 + 0x48F))))[0],
+                    ((int16 *)(((uint8 *)(f19_stSpace.m_word_26820 + 0x493))))[0],
+                    ((int16 *)(((uint8 *)(f19_stSpace.m_word_26820 + 0x497))))[0], 5, 9);
     PDESC(word_270AC)[2] = 0xF;
     for (i = 0; i < 4; i++) {
         word_298D4 = 0x70AE + i * 0x1E;
@@ -281,7 +281,7 @@ void sub_1CE56(void) {
         }
         ovlCall_b4f(word_298D4);
         COMMW(0x20 + i) =
-            ((int16 *)(((uint8 *)f19_dsegAt(0x7156))))[COMMW(0x1C + i)];
+            ((int16 *)(((uint8 *)(f19_stSpace.m_word_26820 + 0x49B))))[COMMW(0x1C + i)];
     }
     f19_sub_108B7();
     ovlCall_c58();
@@ -305,17 +305,17 @@ void sub_1CE56(void) {
             }
             sub_10924(DSTR(0x743C), word_2CA48,
                       *(uint8 *)f19_farAt(word_2CA46),
-                      ((int16 *)(((uint8 *)f19_dsegAt(0x78D6))))[sel],
-                      ((int16 *)(((uint8 *)f19_dsegAt(0x78FC))))[sel],
+                      ((int16 *)(((uint8 *)(f19_stSpace.m_namePtrTab + 0x3AC))))[sel],
+                      ((int16 *)(((uint8 *)(f19_stSpace.m_namePtrTab + 0x3BF))))[sel],
                       PDESC(word_27094));
             sel = f19_sub_10AE8((struct SelRow *)DSTR(0x743C), word_2CA48,
                                 *(uint8 *)f19_farAt(word_2CA46), word_278D4,
                                 PDESC(word_27094), 0);
-            if (sel < 0 || ((int16 *)(((uint8 *)f19_dsegAt(0x9924))))[sel] == 0 ||
+            if (sel < 0 || ((int16 *)(((uint8 *)f19_stSpace.m_selAvailTab)))[sel] == 0 ||
                 sel == 0x12)
                 ok = 0;
             else
-                *(int16 *)(((uint8 *)f19_dsegAt(0x746A))+ sel * 0x32) = 2;
+                *(int16 *)(((uint8 *)(f19_stSpace.m_namePtrTab + 0x176)) + sel * 0x32) = 2;
         } while (ok);
         word_2C7CE = 0;
         if (sel == 0x12) {
@@ -333,14 +333,14 @@ void sub_1CE56(void) {
                 sub_13B50(PDESC(word_270AC), NAMEROW(sel),
                           rec[0], rec[1]);
         }
-        ovlCall_b4f(*(int16 *)(((uint8 *)f19_dsegAt(0x741A))));
+        ovlCall_b4f(*(int16 *)(((uint8 *)(f19_stSpace.m_namePtrTab + 0x14E))));
         sub_15120(strB96A, DSTR(0x7044));
         if (sel == 0x10 && byte_298F7 == 1)
             sub_15189(strB96A,
-                      DSTR(*(uint16 *)(((uint8 *)f19_dsegAt(0x71A2)))));
+                      DSTR(*(uint16 *)(((uint8 *)(f19_stSpace.m_namePtrTab + 0x12)))));
         else
             sub_15189(strB96A,
-                      DSTR(((uint16 *)(((uint8 *)f19_dsegAt(0x717E))))[sel]));
+                      DSTR(((uint16 *)(((uint8 *)f19_stSpace.m_namePtrTab)))[sel]));
         sub_15189(strB96A, DSTR(0x704B));
         sub_13D15(PDESC(word_27094), strB96A, 0x64, 0xD0, 2, 8);
         sub_13B76(PDESC(word_270AC), DSTR(0x705C), 0xC1, 0x18);
@@ -353,11 +353,11 @@ void sub_1CE56(void) {
             while (ovlCall_ccb(0) != 0)
                 ;
         }
-        *(int16 *)(((uint8 *)f19_dsegAt(0x7820))+ st * 0x32) = 2;
+        *(int16 *)(((uint8 *)(f19_stSpace.m_namePtrTab + 0x351)) + st * 0x32) = 2;
         word_2CA4C = 1;
         sub_10924(DSTR(0x77F2), word_2CA48, 4,
-                  ((int16 *)(((uint8 *)f19_dsegAt(0x7922))))[st],
-                  ((int16 *)(((uint8 *)f19_dsegAt(0x792A))))[st],
+                  ((int16 *)(((uint8 *)(f19_stSpace.m_namePtrTab + 0x3D2))))[st],
+                  ((int16 *)(((uint8 *)(f19_stSpace.m_namePtrTab + 0x3D6))))[st],
                   PDESC(word_27094));
         res2 = f19_sub_10AE8((struct SelRow *)DSTR(0x77F2), word_2CA48, 4,
                              word_278C6, PDESC(word_27094), 0);
@@ -366,21 +366,21 @@ void sub_1CE56(void) {
             st = res2;
             PDESC(word_27094)[3] = (word_2C9E0 == 1) ? 9 : 0;
             sub_14622(PDESC(word_27094),
-                      ((int16 *)(((uint8 *)f19_dsegAt(0x7136))))[st],
-                      ((int16 *)(((uint8 *)f19_dsegAt(0x713E))))[st],
-                      ((int16 *)(((uint8 *)f19_dsegAt(0x7146))))[st],
-                      ((int16 *)(((uint8 *)f19_dsegAt(0x714E))))[st]);
+                      ((int16 *)(((uint8 *)(f19_stSpace.m_word_26820 + 0x48B))))[st],
+                      ((int16 *)(((uint8 *)(f19_stSpace.m_word_26820 + 0x48F))))[st],
+                      ((int16 *)(((uint8 *)(f19_stSpace.m_word_26820 + 0x493))))[st],
+                      ((int16 *)(((uint8 *)(f19_stSpace.m_word_26820 + 0x497))))[st]);
             PDESC(word_27094)[3] = 0xF;
             word_298D4 = 0x70AE + st * 0x1E;
             if (sel == 0x10 && byte_298F7 == 1) {
                 COMMW(0x1C + st) = 0x13;
-                COMMW(0x20 + st) = *(int16 *)(((uint8 *)f19_dsegAt(0x717C)));
+                COMMW(0x20 + st) = *(int16 *)(((uint8 *)(f19_stSpace.m_word_26820 + 0x4AE)));
                 *(int16 *)(((uint8 *)f19_dsegAt(word_298D4))+ 2) = 1;
                 *(int16 *)(((uint8 *)f19_dsegAt(word_298D4))+ 4) = 0xA4;
             } else {
                 COMMW(0x1C + st) = sel;
                 COMMW(0x20 + st) =
-                    ((int16 *)(((uint8 *)f19_dsegAt(0x7156))))[sel];
+                    ((int16 *)(((uint8 *)(f19_stSpace.m_word_26820 + 0x49B))))[sel];
                 *(int16 *)(((uint8 *)f19_dsegAt(word_298D4))+ 2) =
                     (COMMW(0x1C + st) % 6) * 0x33 + 1;
                 *(int16 *)(((uint8 *)f19_dsegAt(word_298D4))+ 4) =
@@ -390,21 +390,21 @@ void sub_1CE56(void) {
             PDESC(word_270AC)[2] = 0xF;
             f19_drawScorePanel();
         }
-        ovlCall_b4f(*(int16 *)(((uint8 *)f19_dsegAt(0x743A))));
+        ovlCall_b4f(*(int16 *)(((uint8 *)(f19_stSpace.m_namePtrTab + 0x15E))));
         if (word_2C9E0 == 1)
             ovlCall_bc7(PDESC(word_27094),
-                        ((int16 *)(((uint8 *)f19_dsegAt(0x7136))))[st],
-                        ((int16 *)(((uint8 *)f19_dsegAt(0x713E))))[st],
-                        ((int16 *)(((uint8 *)f19_dsegAt(0x7146))))[st],
-                        ((int16 *)(((uint8 *)f19_dsegAt(0x714E))))[st], 9, 5);
+                        ((int16 *)(((uint8 *)(f19_stSpace.m_word_26820 + 0x48B))))[st],
+                        ((int16 *)(((uint8 *)(f19_stSpace.m_word_26820 + 0x48F))))[st],
+                        ((int16 *)(((uint8 *)(f19_stSpace.m_word_26820 + 0x493))))[st],
+                        ((int16 *)(((uint8 *)(f19_stSpace.m_word_26820 + 0x497))))[st], 9, 5);
         if (res2 >= 0 && res2 <= 3)
             st = (st + 1) & 3;
         if (word_2C9E0 == 1)
             ovlCall_bc7(PDESC(word_27094),
-                        ((int16 *)(((uint8 *)f19_dsegAt(0x7136))))[st],
-                        ((int16 *)(((uint8 *)f19_dsegAt(0x713E))))[st],
-                        ((int16 *)(((uint8 *)f19_dsegAt(0x7146))))[st],
-                        ((int16 *)(((uint8 *)f19_dsegAt(0x714E))))[st], 5, 9);
+                        ((int16 *)(((uint8 *)(f19_stSpace.m_word_26820 + 0x48B))))[st],
+                        ((int16 *)(((uint8 *)(f19_stSpace.m_word_26820 + 0x48F))))[st],
+                        ((int16 *)(((uint8 *)(f19_stSpace.m_word_26820 + 0x493))))[st],
+                        ((int16 *)(((uint8 *)(f19_stSpace.m_word_26820 + 0x497))))[st], 5, 9);
         ovlCall_bc7(PDESC(word_27094), 0x12, 0x8D, 0x131, 0xB0, 9, 6);
     }
     sub_14EDA();

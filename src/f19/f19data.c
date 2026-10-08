@@ -37,9 +37,9 @@ void f19_dsegInit(void) {
     f19_segUseWorld(0);
     f19_stVarsReset();
     /* cells whose content is a dseg offset to the real table */
-    g_vpParms = (int16 *)f19_dsegAt(*(uint16 *)f19_dsegAt(0x6572));
-    uiPage   = (int16 *)f19_dsegAt(*(uint16 *)f19_dsegAt(0x56E2));
-    page1Num = (int16 *)f19_dsegAt(*(uint16 *)f19_dsegAt(0x56FA));
+    g_vpParms = (int16 *)f19_dsegAt(f19_stSpace.m_word_26572);
+    uiPage = (int16 *)f19_dsegAt(*(uint16 *)((uint8 *)&f19_stSpace.m_word_25480 + 0x262));
+    page1Num = (int16 *)f19_dsegAt(*(uint16 *)((uint8 *)&f19_stSpace.m_word_25480 + 0x27A));
     /* The BSS far-ptr tables at dseg 0x7EA+ (menu name/count cells,
      * theater .spr table at 0x9B6, ...) are filled at runtime by
      * ovlF43_a+ovlF43_10d from the scenery0.exe string resource —

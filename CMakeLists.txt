@@ -164,13 +164,11 @@ set(F15SE2_SOURCES
     ${SRC_DIR}/f19/enfile.c
     ${SRC_DIR}/f19/f19egdata.c
     ${SRC_DIR}/f19/f19egsvc.c
-    ${SRC_DIR}/f19/f19egsegdat.c
     ${SRC_DIR}/f19/f19crt.c
     ${SRC_DIR}/f19/f19data.c
     ${SRC_DIR}/f19/f19file.c
     ${SRC_DIR}/f19/f19ovl.c
     ${SRC_DIR}/f19/f19seg.c
-    ${SRC_DIR}/f19/f19segdat.c
     ${SRC_DIR}/f19/f19stvars.c
     ${SRC_DIR}/f19/f19egvars.c
     ${SRC_DIR}/f19/f19stubs.c

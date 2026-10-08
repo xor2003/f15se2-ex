@@ -101,13 +101,13 @@ void far gfx_drawString(int16 *page, const char *str, int16 len) {
  * which only writes 0x10-0xFF from F-15's tables. */
 extern void gfx_setDacRange(uint16 start, uint16 count, const uint8 *triples);
 void f19eg_setupDac(void) {
-    gfx_setDacRange(0, 0x100, ((uint8 *)f19_dsegAt(0x3482)));
+    gfx_setDacRange(0, 0x100, ((uint8 *)(f19_egSpace.m_flt15_buf2 + 0x10F8)));
 }
 
 void FAR CDECL gfx_dacCycle(void);
 void f19eg_advanceFrameTick(void) {
     g_frameSyncPending = 0;               /* byte_32DA3 — ISR clears before 120B0 */
-    *(int16 *)(((uint8 *)f19_dsegAt(0x3F60))) += 1;   /* word_32DD0 — frame-timing accum */
+    *(int16 *)(((uint8 *)(f19_egSpace.m_sinTable + 0x2EE))) += 1; /* word_32DD0 — frame-timing accum */
     g_timerTick++;                        /* byte_32DD2 — waitFrameSync byte */
     gfx_dacCycle();
 }

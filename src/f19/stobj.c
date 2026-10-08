@@ -91,8 +91,8 @@ int16 f19_sub_15460(const char *name, int16 unused)
 
     /* object records: 11-byte attr + per-index 7-byte chunks */
     for (i = 0; i < word_2367C; i++) {
-        at = (uint8 *)(((uint8 *)f19_dsegAt(0x2326))) + i * 0x5C;
-        nm = (uint8 *)(((uint8 *)f19_dsegAt(0x2DEE))) + i * 0x49;
+        at = (uint8 *)(((uint8 *)f19_stSpace.m_clipTable)) + i * 0x5C;
+        nm = (uint8 *)(((uint8 *)(f19_stSpace.m_g_flagTable2CFE + 0xF0))) + i * 0x49;
         f19_bufReadFile((uint8 *)(((uint8 *)f19_dsegAt(word_22320))), 0x0B, word_2D05C);
         *(int16 *)at       = (((uint8 *)(((uint8 *)f19_dsegAt(word_22320))))[0] << 8) + ((uint8 *)(((uint8 *)f19_dsegAt(word_22320))))[1];
         ((int16 *)at)[1]   = (((uint8 *)(((uint8 *)f19_dsegAt(word_22320))))[2] << 8) + ((uint8 *)(((uint8 *)f19_dsegAt(word_22320))))[3];
@@ -148,7 +148,7 @@ int16 f19_sub_15460(const char *name, int16 unused)
 
     /* per-record base icon blit */
     for (i = 0; i < word_2367C; i++) {
-        at = (uint8 *)(((uint8 *)f19_dsegAt(0x2326))) + i * 0x5C;
+        at = (uint8 *)(((uint8 *)f19_stSpace.m_clipTable)) + i * 0x5C;
         sub_168C8(word_21706, *(int16 *)at + word_2CA4E,
                   ((int16 *)at)[1] + word_2CA50, word_21708,
                   ((int16 *)at)[0x11], at[0x46],
@@ -157,8 +157,8 @@ int16 f19_sub_15460(const char *name, int16 unused)
 
     /* per-record per-index marker blits */
     for (i = 0; i < word_2367C; i++) {
-        at = (uint8 *)(((uint8 *)f19_dsegAt(0x2326))) + i * 0x5C;
-        nm = (uint8 *)(((uint8 *)f19_dsegAt(0x2DEE))) + i * 0x49;
+        at = (uint8 *)(((uint8 *)f19_stSpace.m_clipTable)) + i * 0x5C;
+        nm = (uint8 *)(((uint8 *)(f19_stSpace.m_g_flagTable2CFE + 0xF0))) + i * 0x49;
         for (j = 1; j < *nm; j++) {
             sub_168C8(word_21708, ((int16 *)at)[0x10 + j],
                       at[0x45 + j], word_21708,
@@ -263,8 +263,8 @@ int16 f19_sub_15B68(int16 seg)
 
     /* object records: 11-byte attr + per-index 7-byte chunks */
     for (i = 0; i < word_2367C; i++) {
-        at = (uint8 *)(((uint8 *)f19_dsegAt(0x2326))) + i * 0x5C;
-        nm = (uint8 *)(((uint8 *)f19_dsegAt(0x2DEE))) + i * 0x49;
+        at = (uint8 *)(((uint8 *)f19_stSpace.m_clipTable)) + i * 0x5C;
+        nm = (uint8 *)(((uint8 *)(f19_stSpace.m_g_flagTable2CFE + 0xF0))) + i * 0x49;
         sub_15B22((int16)word_22320, 0x0B);
         *(int16 *)at       = (((uint8 *)(((uint8 *)f19_dsegAt(word_22320))))[0] << 8) + ((uint8 *)(((uint8 *)f19_dsegAt(word_22320))))[1];
         ((int16 *)at)[1]   = (((uint8 *)(((uint8 *)f19_dsegAt(word_22320))))[2] << 8) + ((uint8 *)(((uint8 *)f19_dsegAt(word_22320))))[3];
@@ -320,7 +320,7 @@ int16 f19_sub_15B68(int16 seg)
 
     /* per-record base icon blit */
     for (i = 0; i < word_2367C; i++) {
-        at = (uint8 *)(((uint8 *)f19_dsegAt(0x2326))) + i * 0x5C;
+        at = (uint8 *)(((uint8 *)f19_stSpace.m_clipTable)) + i * 0x5C;
         sub_168C8(word_21706, *(int16 *)at + word_2CA4E,
                   ((int16 *)at)[1] + word_2CA50, word_21708,
                   ((int16 *)at)[0x11], at[0x46],
@@ -329,8 +329,8 @@ int16 f19_sub_15B68(int16 seg)
 
     /* per-record per-index marker blits */
     for (i = 0; i < word_2367C; i++) {
-        at = (uint8 *)(((uint8 *)f19_dsegAt(0x2326))) + i * 0x5C;
-        nm = (uint8 *)(((uint8 *)f19_dsegAt(0x2DEE))) + i * 0x49;
+        at = (uint8 *)(((uint8 *)f19_stSpace.m_clipTable)) + i * 0x5C;
+        nm = (uint8 *)(((uint8 *)(f19_stSpace.m_g_flagTable2CFE + 0xF0))) + i * 0x49;
         for (j = 1; j < *nm; j++) {
             sub_168C8(word_21708, ((int16 *)at)[0x10 + j],
                       at[0x45 + j], word_21708,

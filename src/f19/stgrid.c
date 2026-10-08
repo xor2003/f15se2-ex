@@ -5,7 +5,7 @@
 #include <stdio.h>
 
 extern FILE *f19_fileHandle;
-#define regnPlhPtr ((char *)f19_dsegAt(*(uint16 *)f19_dsegAt(0x4DAC)))
+#define regnPlhPtr ((char *)f19_dsegAt(f19_stSpace.m_regnPlhPtr))
 #define gridSignature (*(uint16 *)((uint8 *)f19_stSpace.m_terrainTileCounts + 320))
 #define gridValidFlag (*(int16 *)((uint8 *)f19_stSpace.m_terrainTileCounts + 326))
 #define gridBuf1 ((uint8 *)f19_stSpace.m_gridBuf1)

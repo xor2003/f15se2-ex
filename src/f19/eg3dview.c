@@ -51,8 +51,8 @@ void setupViewport(const int16 *rect) {
     gfx_setBlitOffset(gfx_calcRowAddr(rect[9], rect[7]));
     g_clipMaxX = wx - 1;
     g_clipMaxY = wy - 1;
-    g_overlayCenterX = (int16 *)(((uint8 *)f19_dsegAt(0xA28)));
-    g_overlayCenterY = (int16 *)(((uint8 *)f19_dsegAt(0xA48)));
+    g_overlayCenterX = (int16 *)(((uint8 *)(f19_egSpace.m_colorLut + 0x40)));
+    g_overlayCenterY = (int16 *)(((uint8 *)(f19_egSpace.m_colorLut + 0x60)));
     if (g_halfScaleRender != 0) {
         g_overlayCenterX += 8;
         g_overlayCenterY += 8;

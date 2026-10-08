@@ -37,8 +37,18 @@ def load_img(path, name):
     m = re.search(name + r'\[[^\]]*\]\s*=\s*\{(.*?)\};', t, re.S)
     return [int(x, 16) for x in re.findall(r'0x([0-9a-fA-F]{2})', m.group(1))]
 
-IMG = {'st': load_img(SRC + '/f19segdat.c', 'f19_dseg_img'),
-       'eg': load_img(SRC + '/f19egsegdat.c', 'f19_egDsegImage')}
+# The flat image blobs were superseded by per-member initializers emitted
+# by tools/f19_imginit.py (f19stvars.c / f19egvars.c); the segdat.c files
+# are gone, so IMG degrades to empty and emit_side is no longer runnable.
+def _img_or_empty(path, name):
+    try:
+        return load_img(path, name)
+    except (IOError, AttributeError):
+        return []
+
+
+IMG = {'st': _img_or_empty(SRC + '/f19segdat.c', 'f19_dseg_img'),
+       'eg': _img_or_empty(SRC + '/f19egsegdat.c', 'f19_egDsegImage')}
 IMGNAME = {'st': 'f19_dseg_img', 'eg': 'f19_egDsegImage'}
 
 CSIZE = {'int8': 1, 'uint8': 1, 'char': 1, 'int16': 2, 'uint16': 2,
