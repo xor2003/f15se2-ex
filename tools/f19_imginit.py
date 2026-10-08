@@ -36,6 +36,156 @@ def load_img(fn, name):
     return [int(x, 16) for x in re.findall(r'0x([0-9A-Fa-f]{2})', m.group(1))]
 
 
+def _strbytes(body):
+    """Decode emitted literal text — may be several adjacent "..." parts
+    (line-wrapped). Octal \\ooo escapes and printable chars; delimiter
+    quotes and inter-literal whitespace are skipped."""
+    out, i, instr = [], 0, False
+    while i < len(body):
+        ch = body[i]
+        if not instr:
+            if ch == '"':
+                instr = True
+            i += 1
+            continue
+        if ch == '"':
+            instr = False
+            i += 1
+            continue
+        if ch == '\\':
+            out.append(int(body[i + 1:i + 4], 8))
+            i += 4
+            continue
+        out.append(ord(ch))
+        i += 1
+    return out
+
+
+def _charlit(tok):
+    """Decode an emitted char element: 'x', escapes, \\ooo, or number."""
+    if tok.startswith("'"):
+        inner = tok[1:-1]
+        if inner.startswith('\\'):
+            if inner[1] in '01234567':
+                return int(inner[1:], 8)
+            return ord(inner[1])
+        return ord(inner)
+    if tok.startswith('0x') or tok.startswith('-0x'):
+        return int(tok, 16)
+    return int(tok)
+
+
+def _elems(body):
+    """Flatten an emitted init body into leaf tokens: top-level commas
+    only — skips brace nesting, "..." string literals and 'x'/'\\ooo'
+    char literals (emitted '"' data is \\042 so every '"' is a
+    delimiter; commas inside char literals like ',' stay quoted)."""
+    toks, depth, cur, instr, inch, esc = [], 0, '', False, False, False
+    for ch in body:
+        if instr:
+            cur += ch
+            if ch == '"':
+                instr = False
+            continue
+        if inch:
+            cur += ch
+            if esc:
+                esc = False
+            elif ch == '\\':
+                esc = True
+            elif ch == "'":
+                inch = False
+            continue
+        if ch == '"':
+            instr = True
+            cur += ch
+        elif ch == "'":
+            inch = True
+            cur += ch
+        elif ch == '{':
+            depth += 1
+            if depth > 1:
+                cur += ch
+        elif ch == '}':
+            depth -= 1
+            if depth:
+                cur += ch
+            else:
+                if cur.strip():
+                    toks.append(cur)
+                cur = ''
+        elif ch == ',' and depth == 1:
+            toks.append(cur)
+            cur = ''
+        else:
+            cur += ch
+    if cur.strip():
+        toks.append(cur)
+    return [t for t in toks if t.strip()]
+
+
+def member_bytes(init_body, m):
+    """Decode an emitted initializer back to the member's image bytes."""
+    ct, esz = m['ctype'], CSIZE[m['ctype']]
+    n = m['size']
+    body = init_body.strip()
+    if body.startswith('"'):
+        return (_strbytes(body) + [0] * n)[:n]
+    if not body.startswith('{'):
+        v = int(body, 0)
+        return [(v >> (8 * i)) & 0xFF for i in range(esz)]
+    out = []
+
+    def leaves(t):
+        t = t.strip()
+        if t.startswith('{'):
+            for st in _elems(t):
+                yield from leaves(st)
+        else:
+            yield t
+
+    for t in _elems(body):
+        for st in leaves(t):
+            v = _charlit(st) if ct == 'char' else int(st, 0)
+            out += [(v >> (8 * i)) & 0xFF for i in range(esz)]
+    return (out + [0] * n)[:n]
+
+
+def img_from_vars(hdrfn, cfn):
+    """Rebuild the DOS image bytes from the emitted vars.c initializers
+    — segdat.c no longer exists, so vars.c is the image source of truth."""
+    decls = []
+    for line in open(hdrfn):
+        mm = re.match(
+            r'\s*(\w+)\s+(m_\w+|f19_(?:st|eg)gap_\w+)'
+            r'((?:\s*\[[^\]]*\])+)?\s*;.*?/\*\s*(0x[0-9A-Fa-f]+)\s*\*/',
+            line)
+        if mm and mm.group(1) in CSIZE:
+            dims = [int(x) for x in re.findall(r'\[(\d+)\]',
+                                               mm.group(3) or '')]
+            cnt = 1
+            for d in dims:
+                cnt *= d
+            decls.append(dict(name=mm.group(2), off=int(mm.group(4), 16),
+                              ctype=mm.group(1), arr=mm.group(3) or '',
+                              array=bool(mm.group(3)),
+                              size=CSIZE[mm.group(1)] * cnt))
+    decls.sort(key=lambda m: m['off'])
+    txt = open(cfn).read()
+    body = re.search(r'=\s*\{(.*?)\n\};', txt, re.S).group(1)
+    inits = [t for t in _elems('{' + body + '}')
+             if re.sub(r'/\*.*?\*/', '', t).strip()]
+    if len(inits) != len(decls):
+        raise ValueError('%s: %d init entries vs %d members'
+                         % (cfn, len(inits), len(decls)))
+    img = []
+    for m, ib in zip(decls, inits):
+        ib = re.sub(r'/\*.*?\*/', '', ib)           # strip comments
+        ib = re.sub(r'^\s*\.\w+\s*=\s*', '', ib)    # strip designator
+        img += member_bytes(ib.strip(), m)
+    return img, decls
+
+
 def sval(ct, v):
     """Scalar value string — signed decimal for signed types (avoids
     C++ narrowing complaints on things like int16 0xFFFF)."""
@@ -152,26 +302,32 @@ def init(m, img):
 def emit_side(side):
     segfn, imgname, hdr, cfile, stname, spname, initname, resetfn = \
         IMGS[side]
-    img = load_img(segfn, imgname)
-    decls = []
-    for line in open(SRC + '/' + hdr):
-        mm = re.match(
-            r'\s*(\w+)\s+(m_\w+|f19_(?:st|eg)gap_\w+)'
-            r'((?:\s*\[[^\]]*\])+)?\s*;.*?/\*\s*(0x[0-9A-Fa-f]+)'
-            r'\s*\*/', line)
-        if mm and mm.group(1) in CSIZE:
-            decls.append(dict(name=mm.group(2), off=int(mm.group(4), 16),
-                              ctype=mm.group(1), arr=mm.group(3) or '',
-                              array=bool(mm.group(3))))
-    decls.sort(key=lambda m: m['off'])
+    if os.path.exists(segfn):
+        img = load_img(segfn, imgname)
+        decls = []
+        for line in open(SRC + '/' + hdr):
+            mm = re.match(
+                r'\s*(\w+)\s+(m_\w+|f19_(?:st|eg)gap_\w+)'
+                r'((?:\s*\[[^\]]*\])+)?\s*;.*?/\*\s*(0x[0-9A-Fa-f]+)'
+                r'\s*\*/', line)
+            if mm and mm.group(1) in CSIZE:
+                decls.append(dict(name=mm.group(2),
+                                  off=int(mm.group(4), 16),
+                                  ctype=mm.group(1),
+                                  arr=mm.group(3) or '',
+                                  array=bool(mm.group(3))))
+        decls.sort(key=lambda m: m['off'])
+    else:
+        # segdat.c is gone — vars.c holds the image as initializers
+        img, decls = img_from_vars(SRC + '/' + hdr, SRC + '/' + cfile)
 
     lines = ['/* generated by tools/f19_imginit.py - see %s */' % hdr,
              '/* per-member initializers replace the flat dseg image */',
              '#include "%s"' % hdr, '',
              'static const struct %s %s = {' % (stname, initname)]
     for m in decls:
-        lines.append('    %s,  /* %s @0x%05X */'
-                     % (wrap(init(m, img)), m['name'], m['off']))
+        lines.append('    .%s = %s,  /* @0x%05X */'
+                     % (m['name'], wrap(init(m, img)), m['off']))
     lines += ['};', '',
               'struct %s %s;' % (stname, spname), '',
               'void %s(void) { %s = %s; }' % (resetfn, spname, initname),
