@@ -299,7 +299,7 @@ void sub_1CE56(void) {
                     ;
                 byte_20A1A = 0;
                 while (byte_20A1A <= 5)
-                    ;
+                    timerYield();   /* PIT-ISR countdown on bare spin */
                 while (ovlCall_ccb(0) != 0)
                     ;
             }
@@ -349,7 +349,7 @@ void sub_1CE56(void) {
                 ;
             byte_20A1A = 0;
             while (byte_20A1A <= 8)
-                ;
+                timerYield();   /* PIT-ISR countdown on bare spin */
             while (ovlCall_ccb(0) != 0)
                 ;
         }

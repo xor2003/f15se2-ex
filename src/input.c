@@ -748,9 +748,11 @@ static void pollGamepadMenu(void) {
  * CI test drives. */
 static uint16 s_keyScript[256];
 static int s_keyScriptLen = -1, s_keyScriptIdx;
+static uint32 s_keyScriptLastMs;
 
 static void pumpScriptedKeys(void) {
     const char *s;
+    uint32 now;
     if (s_keyScriptLen < 0) {
         s_keyScriptLen = 0;
         s = getenv("F19_KEYS");
@@ -761,8 +763,15 @@ static void pumpScriptedKeys(void) {
             if (s) s++;
         }
     }
-    if (s_keyScriptIdx < s_keyScriptLen && ringHead == ringTail)
+    /* Pace the feed: screens that clearKeybuf between transitions would eat a
+     * key queued during a previous screen's tail, so only push once the ring
+     * has been empty for a beat (the target screen is then actively polling). */
+    now = SDL_GetTicks();
+    if (s_keyScriptIdx < s_keyScriptLen && ringHead == ringTail
+        && now - s_keyScriptLastMs >= 300) {
         ringPush(s_keyScript[s_keyScriptIdx++]);
+        s_keyScriptLastMs = now;
+    }
 }
 
 void input_pumpEvents(void) {

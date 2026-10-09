@@ -225,8 +225,10 @@ ACCEPT:
     word_2D066->f22 = 1;
     t2 = 0;
     while (t2 < 8) {
-        if (blinkTimer <= 8)
+        if (blinkTimer <= 8) {
+            timerYield();   /* PIT-ISR countdown on bare spin: yield so the tick lands */
             continue;
+        }
         blinkTimer = 0;
         {
             register int16 sv = word_2547C[fl];
@@ -281,7 +283,8 @@ NEXT:
             ovlCall_bc7((int16 *)(((uint8 *)f19_dsegAt(word_25014))), 0x46, 0xC1, 0x12C, 0xC6, hn, low);
             fl = (fl + 1) & 1;
             t2++;
-        }
+        } else
+            timerYield();   /* PIT-ISR countdown on bare spin */
     } while (t2 < 8);
     sub_14EDA();
 }
@@ -487,7 +490,7 @@ void f19_sub_193EE(void) {
                               0x28, 8);
                     word_25722[selw.sel][0x13] = 2;
                     blinkTimer = 0;
-                    while (blinkTimer < 0xC8) ;
+                    while (blinkTimer < 0xC8) timerYield();   /* PIT-ISR countdown on bare spin */
                     sub_14622((void *)(intptr_t)word_256FA, 0x2C, 0x1A, 0x113, 0x4F);
                     break;
                 case 2:
@@ -499,7 +502,7 @@ void f19_sub_193EE(void) {
                               0x28, 8);
                     word_25722[selw.sel][0x13] = 2;
                     blinkTimer = 0;
-                    while (blinkTimer < 0xF0) ;
+                    while (blinkTimer < 0xF0) timerYield();   /* PIT-ISR countdown on bare spin */
                     sub_14622((void *)(intptr_t)word_256FA, 0x2C, 0x1A, 0x113, 0x4F);
                     break;
                 }
