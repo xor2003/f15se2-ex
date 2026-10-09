@@ -941,6 +941,20 @@ static const uint8 *g_fontWidthTables[8] = {
 static uint8 g_fontHeightsArr[8] = {5, 8, 7, 6, 7, 6, 4, 0};
 static uint8 g_fontMaxWidths[8] = {4, 8, 6, 6, 8, 6, 0, 0};
 
+/* Legacy bitmap-font advance for a single glyph — the MGRAPHIC charWidth
+ * slot's semantics (width table entry, max-width fallback). */
+int gfx_charWidthLegacy(int ch, int font) {
+    const uint8 *widths;
+    int w;
+    if (font < 0 || font >= 8) return 8;
+    widths = g_fontWidthTables[font];
+    if (ch >= 0x20 && ch < 0x80 && widths) {
+        w = widths[ch - 0x20];
+        if (w > 0) return w;
+    }
+    return g_fontMaxWidths[font] > 0 ? g_fontMaxWidths[font] : 8;
+}
+
 /* Bitmap pointers per font index — NULL means no bitmap available */
 static uint8 *g_fontBitmapPtrs[8] = {
     (uint8 *)g_font0_bitmaps, (uint8 *)g_font1_bitmaps, NULL, (uint8 *)g_font3_bitmaps,

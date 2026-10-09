@@ -46,7 +46,7 @@ int16 sub_153F2(int16 a, int16 fd) { return 0; }
 /* The three seg000:0x4b14/4b86/4c62 routines are the same row-by-row PIC
  * decoder writing into a caller-selected destination (page index or seg).
  * Natively: app picDecodeToSurface into a wrapped INDEX8 view of the block. */
-static void f19_decodeTo(int16 fd, void *dst) {
+void f19_decodeTo(int16 fd, void *dst) {
     static int dbg = -1;
     SDL_IOStream *io;
     SDL_Surface *sf;
@@ -303,8 +303,3 @@ void far ovl_A65(int16 w1,int16 w2,int16 w3,int16 w4,
 static int16 f19_ntrBuf[8];          /* findNearestTerrain result record */
 int16 *f19_findNearestTerrain(int32 wx, int32 wy) { return f19_ntrBuf; }
 
-/* ---- chain entries not yet ported ---------------------------------------- */
-int f19_end_main(void) {
-    /* TODO: END.EXE (debrief) port; 0x23 = RET_DEBRIEFING -> back to start */
-    return 0x23;
-}

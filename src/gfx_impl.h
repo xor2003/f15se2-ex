@@ -124,4 +124,7 @@ typedef struct {
     int16 flags;  /* [8] blit flags (0x10 = transparent) */
 } SpriteBlitParams;
 
+/* Legacy bitmap-font advance for one glyph (F-19 charWidth slot). */
+int gfx_charWidthLegacy(int ch, int font);
+
 #endif /* GFX_IMPL_H */

@@ -58,6 +58,18 @@ void  far ovlCall_cee(void);                        /* audio slot0      */
 void  far ovlCall_cf3(void);                        /* audio slot1      */
 void  far ovlCall_cfd(void);                        /* audio slot3      */
 
+/* page/misc slots defined natively in f19ovl.c */
+void  far gfx_setMode13(int16 mono);
+void  far gfx_setPageN(uint16 n);
+int16 far gfx_allocPage(int16 pageNum);
+void  far gfx_blitToCurrent(int16 seg);
+void  far gfx_storeBufPtr(int16 p, int16 n);
+void  far gfx_drawString(int16 o, char *s);
+int16 far misc_jump_5a_keybuf(void);
+int16 far misc_jump_5b_getkey(void);
+int16 far misc_jump_5d_readJoy(int16 n);
+void  far misc_jump_5e_clearKeyFlags(void);
+
 /* cross-overlay far calls (0f43 = config/misc overlay, 0fee = DS selector) */
 int16 far ovlF43_a(int16 v);
 void  far ovlF43_10d(int16 v);

@@ -25,7 +25,6 @@ extern void drawStringAt(int16 *page, const char *s, int16 x, int16 y);
 extern int16 far misc_jump_5a_keybuf(void);
 extern int16 far misc_jump_5b_getkey(void);
 extern int16 far misc_jump_5d_readJoy(int16 n);
-extern int16 far gfx_blitToCurrent(int16 pagePtr);
 
 void f19_saveHallfame(void) {
     FILE *file;

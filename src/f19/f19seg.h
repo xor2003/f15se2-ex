@@ -16,6 +16,7 @@
 
 int16  f19_allocSeg(uint16 paras);   /* paragraphs -> handle (>=0x10) */
 int16  f19_freeSeg(int16 seg);
+int16  f19_segAlias(int16 base, uint32 byteoff); /* DOS seg+N: alias handle into base block */
 void  *f19_segPtr(int16 seg);        /* handle -> native block, NULL-safe */
 /* resolve a (off,seg) pair to a native pointer */
 #define F19_FP(seg, off) ((char *)f19_segResolve((uint16)(off), (uint16)(seg)))

@@ -26,6 +26,7 @@
 // ---- F-19 flat-model state -------------------------------------------------
 #include "f19/f19seg.h"       /* f19_dsegAt/f19_dsegOff object resolver */
 #include "f19/f19egglobals.h" /* binding-pin tests: &g_* == true cell */
+#include "game/game.h"        /* GameDesc — f19 descriptor routing pins */
 extern uint8 f19_commBase[];  /* comm/game shared block */
 extern void *f19_commData;
 extern void *f19_gameData;
@@ -77,6 +78,21 @@ void f19eg_formatMissionClock(uint16 time);
 
 // Shared, unprefixed.
 int buildRotationMatrixFar(int16 *matrix, int angleX, int angleY, int angleZ);
+
+// ---- F-19 END module (world 2; f19enpfx.h renames in-TU refs to f19en_*) ----
+int   f19_end_main(void);
+int   f19_start_main(void);
+int   f19_egame_main(void);
+void  f19_enVarsReset(void);
+void  f19_enInitPtrs(void);
+extern void   *f19en_spriteAir;       /* BlinkSprite* — cell 0x5934 -> 0x5916 */
+extern void   *f19en_spriteSam;       /* cell 0x5938 -> 0x5996 */
+extern void   *f19en_spriteWaypoint;  /* cell -> 0x5A16 */
+extern int16  *word_1BAD0;            /* page cell -> 0x1D0E (unprefixed) */
+void  f19en_mystrcpy(char *dst, const char *src);
+void  f19en_mystrcat(char *d, const char *s);
+int16 f19en_mystrlen(const char *s);
+int16 f19en_randomRange(int16 maxVal);
 
 #pragma pack(push, 1)
 // Tag names must match eg3dmap.c and stay at global scope — C++
@@ -822,6 +838,103 @@ int main() {
         poster.join();
         require((*(uint8 *)f19_dsegAt(0xC160)) == 4,
                 "printMission(Mission Targets) exits to state 4");
+    }
+
+    // ==== END module (src/f19/en*.c): descriptor routing + world-2 space ====
+    {
+        extern const GameDesc g_gameDescF19; /* desc_f19.c */
+        require(reinterpret_cast<void *>(g_gameDescF19.end) ==
+                    reinterpret_cast<void *>(&f19_end_main),
+                "desc_f19 routes END to f19_end_main, not F-15 end_main");
+        require(reinterpret_cast<void *>(g_gameDescF19.start) ==
+                    reinterpret_cast<void *>(&f19_start_main) &&
+                reinterpret_cast<void *>(g_gameDescF19.egame) ==
+                    reinterpret_cast<void *>(&f19_egame_main),
+                "desc_f19 routes START/EGAME to the F-19 entries");
+
+        /* world 2 binds dseg offsets to the END space image */
+        f19_segUseWorld(2);
+        void *enBase = f19_dsegAt(0);
+        f19_segUseWorld(0);
+        require(enBase != f19_dsegAt(0), "world 2 selects a distinct END space");
+        f19_segUseWorld(2);
+
+        /* vars reset restores the DOS image; init materializes near-offset
+         * pointer cells into the END space */
+        uint8 img = *(uint8 *)f19_dsegAt(0x1A14); /* word_1B944 pic fd cell */
+        *(uint8 *)f19_dsegAt(0x1A14) = (uint8)(img ^ 0xFF);
+        f19_enVarsReset();
+        require(*(uint8 *)f19_dsegAt(0x1A14) == img,
+                "f19_enVarsReset restores the END image");
+        f19_enInitPtrs();
+        require(f19_dsegOff(f19en_spriteAir) == 0x5916 &&
+                f19_dsegOff(f19en_spriteSam) == 0x5996 &&
+                f19_dsegOff(f19en_spriteWaypoint) == 0x5A16 &&
+                f19_dsegOff(word_1BAD0) == 0x1D0E,
+                "f19_enInitPtrs materializes image near-offsets");
+
+        /* enstr.c helpers */
+        {
+            char b[32];
+            f19en_mystrcpy(b, "F-19");
+            f19en_mystrcat(b, " stealth");
+            require(std::strcmp(b, "F-19 stealth") == 0 &&
+                    f19en_mystrlen(b) == 12, "mystrcpy/mystrcat/mystrlen");
+        }
+        /* randomRange stays inside [0,max) over a stretch of draws */
+        for (int i = 0; i < 256; i++) {
+            int16 r = f19en_randomRange(0x40);
+            require(r >= 0 && r < 0x40, "randomRange bound");
+        }
+        f19_segUseWorld(0); /* leave the space selection in START state */
+    }
+
+    // ==== END module: full debrief drive — sub_10010 over the four screens ====
+    // Requires the real F-19 assets (pics/world strings); skipped where absent.
+    if (setGamePath("/home/xor/games/f19/F19")) {
+        /* comm handoff: normal landing, no training, keyboard input */
+        std::memset(f19_commBase, 0, 0x8000);
+        *reinterpret_cast<int16 *>(f19_commBase + 0x26) = 2; /* landingType */
+        *reinterpret_cast<int16 *>(f19_commBase + 0x30) = 0; /* trainingFlag */
+        *reinterpret_cast<int16 *>(f19_commBase + 0x72) = 0; /* setupUseJoy  */
+        *reinterpret_cast<int16 *>(f19_commBase + 0x28) = 0; /* bailout      */
+        *reinterpret_cast<int16 *>(f19_commBase + 0x24) = 0; /* setupMono    */
+
+        std::atomic<bool> stop{false};
+        /* END must run on the main thread (SDL_PumpEvents is main-only);
+         * the poster feeds RETURN keys, then Alt+Q after ~60s so a wedged
+         * screen unwinds through waitForKeyOrJoy's quit path instead of
+         * hanging the suite. */
+        std::thread poster([&] {
+            const auto quitAt = std::chrono::steady_clock::now() +
+                                std::chrono::seconds(60);
+            bool down = false;
+            while (!stop.load()) {
+                SDL_Event ev = {};
+                ev.type = SDL_EVENT_KEY_DOWN;
+                ev.key.type = SDL_EVENT_KEY_DOWN;
+                if (std::chrono::steady_clock::now() >= quitAt) {
+                    ev.key.scancode = SDL_SCANCODE_Q;
+                    ev.key.key = SDLK_Q;
+                    ev.key.mod = SDL_KMOD_LALT;
+                } else if (down) {
+                    /* some debrief menus put "continue" on a later item;
+                     * alternate arrows so the cursor reaches it */
+                    ev.key.scancode = SDL_SCANCODE_DOWN;
+                    ev.key.key = SDLK_DOWN;
+                } else {
+                    ev.key.scancode = SDL_SCANCODE_RETURN;
+                    ev.key.key = SDLK_RETURN;
+                }
+                down = !down;
+                SDL_PushEvent(&ev);
+                SDL_Delay(80);
+            }
+        });
+        int rc = f19_end_main();
+        stop = true;
+        poster.join();
+        require(rc == 0x23, "f19_end_main returns RET_DEBRIEFING (0x23)");
     }
 
     std::cout << "f19_behavior_tests: all checks passed\n";
