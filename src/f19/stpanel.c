@@ -7,7 +7,6 @@
 #include "f19.h"
 #include "f19stvars.h"
 
-#define tileMarksOn (*(uint8 *)((uint8 *)f19_stSpace.m_bufCoordStr + 28))
 #define objectActive ((uint8 *)f19_stSpace.m_objectActive)
 
 extern void sub_14622(void *o, int16 a, int16 b, int16 c, int16 d); /* clearRect */

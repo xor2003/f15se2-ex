@@ -7,7 +7,6 @@
 
 #define byte_2B388 (*(int8 *)((uint8 *)f19_stSpace.m_gridBuf1 + 20))
 #define byte_20A1A timerCounter   /* shared/timer.c 60 Hz tick — was PIT-ISR cell */
-#define tileMarksOn (*(uint8 *)((uint8 *)f19_stSpace.m_bufCoordStr + 28))
 #define objectActive ((uint8 *)f19_stSpace.m_objectActive)
 #define f19_worldObjects ((WorldObject *)f19_stSpace.m_f19_worldObjects_B390)
 extern struct GD *gameData;                 /* far ptr dseg:0x991c */
@@ -1153,7 +1152,7 @@ void f19_sub_1B452(void) {
             word_2CA6C = 1;
             break;
         case 2:
-            ringMode = ++ringMode % 3;
+            ringMode = (ringMode + 1) % 3;
             break;
         case 3:
             byte_2C977 = (byte_2C977 == 0);

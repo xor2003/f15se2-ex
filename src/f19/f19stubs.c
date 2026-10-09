@@ -27,6 +27,7 @@ int16 sub_16828(int16 paras) {
     extern void dos_printstring(const char *s);
     extern void sub_1DCAC(int16);
     int16 seg = f19_allocSeg((uint16)paras);
+    if (getenv("F19_DBG")) fprintf(stderr, "[ALLOC] paras=%x -> %d\n", paras, seg);
     if (seg < 0x10) {
         sub_10882();
         dos_printstring((char *)(((uint8 *)f19_dsegAt(0x3682))));
@@ -217,6 +218,7 @@ void  sub_1685C(int16 v) {
     extern void sub_10882(void);
     extern void dos_printstring(const char *s);
     extern void sub_1DCAC(int16);
+    if (getenv("F19_DBG")) fprintf(stderr, "[FREE] h=%d\n", v);
     if (f19_freeSeg(v) != 0) {
         sub_10882();
         dos_printstring((char *)(((uint8 *)f19_dsegAt(0x36AC))));
@@ -265,7 +267,32 @@ void  sub_18B7E(const char *s, int16 a, int16 b, int16 c) { }
 void  sub_10882(void) { }
 void  sub_14089(int16 n) { }
 void  sub_140A3(void) { }
-void  sub_141A3(void) { }                                  /* reg-ABI tramp */
+/* sub_141AF — clip the (lineX0,lineY0)-(lineX1,lineY1) segment to the blit
+ * window [0..clipMaxX]x[0..clipMaxY] (Cohen-Sutherland outcodes) and emit
+ * through the driver line slot (far 1000h:0B95h = gfx_drawLine). The stub
+ * swallowed every START line; window-relative coords, blitOffset adds the
+ * viewport origin. */
+extern void far gfx_drawLine(uint16 x1, uint16 y1, uint16 x2, uint16 y2);
+void  sub_141A3(void) {
+    int32 x0 = g_lineX0, y0 = g_lineY0, x1 = g_lineX1, y1 = g_lineY1;
+    int32 cx = g_clipMaxX, cy = g_clipMaxY;
+    for (;;) {
+        int c0 = (x0 < 0) | ((x0 > cx) << 1) | ((y0 < 0) << 2) | ((y0 > cy) << 3);
+        int c1 = (x1 < 0) | ((x1 > cx) << 1) | ((y1 < 0) << 2) | ((y1 > cy) << 3);
+        if (!(c0 | c1)) { gfx_drawLine((uint16)x0, (uint16)y0, (uint16)x1, (uint16)y1); return; }
+        if (c0 & c1) return;
+        {
+            int c = c0 ? c0 : c1;
+            int64 x, y;
+            if (c & 8)      { x = x0 + (x1 - x0) * (int64)(cy - y0) / (y1 - y0); y = cy; }
+            else if (c & 4) { x = x0 + (x1 - x0) * (int64)(0  - y0) / (y1 - y0); y = 0;  }
+            else if (c & 2) { y = y0 + (y1 - y0) * (int64)(cx - x0) / (x1 - x0); x = cx; }
+            else            { y = y0 + (y1 - y0) * (int64)(0  - x0) / (x1 - x0); x = 0;  }
+            if (c == c0) { x0 = (int32)x; y0 = (int32)y; }
+            else         { x1 = (int32)x; y1 = (int32)y; }
+        }
+    }
+}
 int16 sub_150BA(void) { return 0; }                        /* int 1Ah tick read */
 int16 sub_16261(int16 e) { return e; }
 void  sub_16208(void) { }

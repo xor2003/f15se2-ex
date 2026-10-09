@@ -135,7 +135,7 @@ int FAR CDECL gfx_getRowOffset(int y);                                          
 /* dseg:0xbe4 */
 void FAR CDECL gfx_setMode13(void);          /* slot 0x3c: switch to 320x200 (lo-res) */
 void FAR CDECL gfx_setFadeSteps(int steps);  /* slot 0x3d: setFadeSteps */
-int FAR CDECL gfx_calcRowAddr(int y, int x); /* slot 0x3e: calcRowAddr */
+int FAR CDECL gfx_calcRowAddr(int col, int row); /* slot 0x3e: calcRowAddr → row*320+col */
 /* dseg:0xbf3 */
 int FAR CDECL gfx_getModecode();                                              /* slot 0x3f: returns 3 (MCGA) */
 void FAR CDECL gfx_setOvlVal1(int val);                                       /* slot 0x40: writes ds:0xcc */

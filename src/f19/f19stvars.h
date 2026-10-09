@@ -207,8 +207,15 @@ extern struct F19STData f19_stSpace;
 #define byte_20A1B (*(uint8 *)((uint8 *)f19_stSpace.m_esTable + 41))
 #define blinkTimer (*(uint8 *)((uint8 *)f19_stSpace.m_esTable + 42))
 #define byte_20A1D (*(uint8 *)((uint8 *)f19_stSpace.m_esTable + 43))
+/* drawLine/clipper cells (START dseg): clipMaxX=0xD25 clipMaxY=0xD27,
+ * lineX0=0xD2B lineX1=0xD2D lineY0=0xD2F lineY1=0xD31 — verified vs
+ * lst/start_en_ada.lst drawLine (sub_1C083) store order. */
+#define g_clipMaxX (*(int16 *)((uint8 *)f19_stSpace.m_esTable + 819))
+#define g_clipMaxY (*(int16 *)((uint8 *)f19_stSpace.m_esTable + 821))
 #define g_lineX0 (*(int16 *)((uint8 *)f19_stSpace.m_esTable + 825))
-#define g_lineY0 (*(int16 *)((uint8 *)f19_stSpace.m_esTable + 825))
+#define g_lineX1 (*(int16 *)((uint8 *)f19_stSpace.m_esTable + 827))
+#define g_lineY0 (*(int16 *)((uint8 *)f19_stSpace.m_esTable + 829))
+#define g_lineY1 (*(int16 *)((uint8 *)f19_stSpace.m_esTable + 831))
 #define byte_212BA (*(uint8 *)((uint8 *)f19_stSpace.m_esTable + 2248))
 #define byte_216AA (*(uint8 *)((uint8 *)f19_stSpace.m_byte_212C2 + 1000))
 #define byte_216AB (*(uint8 *)((uint8 *)f19_stSpace.m_byte_212C2 + 1001))
@@ -315,6 +322,13 @@ extern struct F19STData f19_stSpace;
 #define byte_298F7 (*(uint8 *)((uint8 *)f19_stSpace.m_bufCoordStr + 43))
 #define rtcTickSaved (*(int16 *)((uint8 *)f19_stSpace.m_bufCoordStr + 84))
 #define ringMode (*(uint8 *)((uint8 *)f19_stSpace.m_bufCoordStr + 86))
+#define tileMarksOn (*(uint8 *)((uint8 *)f19_stSpace.m_f19_flightUnits + 720))  /* dseg:0xBE48 */
+/* map clip window (init image: X1=8 Y1=10 X2=232 Y2=178 — the 224x168
+ * theater-map viewport; original cells at 0x653C/0x653E/0x6540/0x6542) */
+#define mapClipX1 (*(int16 *)((uint8 *)f19_stSpace.m_menuSelTab5 + 0x130))
+#define mapClipY1 (*(int16 *)((uint8 *)f19_stSpace.m_menuSelTab5 + 0x132))
+#define mapClipX2 (*(int16 *)((uint8 *)f19_stSpace.m_menuSelTab5 + 0x134))
+#define mapClipY2 (*(int16 *)((uint8 *)f19_stSpace.m_menuSelTab5 + 0x136))
 #define word_29948 (*(int16 *)((uint8 *)f19_stSpace.m_selAvailTab + 36))
 #define flag_29948 (*(int16 *)((uint8 *)f19_stSpace.m_selAvailTab + 36))
 #define byte_29B50 (*(uint8 *)((uint8 *)f19_stSpace.m_gridBuf5 + 514))

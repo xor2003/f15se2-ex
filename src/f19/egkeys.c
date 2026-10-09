@@ -182,7 +182,7 @@ void keyDispatch(uint16 scanCode) {
         }
         break;
     case 0x2F00:                                    /* Alt-V — sound level */
-        g_soundPriorityFloor = ++g_soundPriorityFloor & 3;
+        g_soundPriorityFloor = (g_soundPriorityFloor + 1) & 3;
         strcpy(strBuf, "Sounds ");
         strcat(strBuf, itoa(3 - g_soundPriorityFloor, g_itoaScratch, 10));
         hudMessage(strBuf);
@@ -194,7 +194,7 @@ void keyDispatch(uint16 scanCode) {
             commData->trainingFlag |= 1;
         break;
     case 0x3920:                                    /* space — weapon spec cycle */
-        missileSpecIndex = ++missileSpecIndex & 3;
+        missileSpecIndex = (missileSpecIndex + 1) & 3;
         if (g_curPanelMode == 0x15)
             drawLoadoutPanel();
         break;

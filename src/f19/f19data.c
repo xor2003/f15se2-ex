@@ -23,10 +23,6 @@ char str6836[0x400];                                     /* stutil.c */
 char str6838[0x400];                                     /* stutil.c */
 uint8 briefTargs[0x400];                                 /* stutil.c */
 uint8 missionKinds[0x400];                               /* stutil.c */
-/* compat storage for names that are dseg cells in some TUs but bound via
- * a bare extern here (stmap.c tileMarksOn reads the dseg:0x98E8 cell in
- * stmenu/stpanel while its own copy is this plain global). */
-uint8 tileMarksOn;                                       /* stmap.c */
 FILE *f19_fileHandle;                                    /* stgrid.c */
 int16 g_viewCenterY2;                                    /* eg3dmap.c */
 int16 *f19_nearestTerrainResult;                         /* stgen.c */

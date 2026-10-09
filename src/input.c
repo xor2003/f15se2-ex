@@ -451,6 +451,15 @@ static uint16 biosWord(SDL_Scancode sc, SDL_Keymod mod) {
         return 0;
     }
 
+    /* BIOS extended codes for modified F-keys: Shift+Fx bumps the scan by
+     * 0x19 (0x54-0x5D), Ctrl+Fx by 0x23 (0x5E-0x67), Alt+Fx by 0x2D
+     * (0x68-0x71). The game switches on the full word for external views. */
+    if (scan >= 0x3B && scan <= 0x44) {
+        if (mod & SDL_KMOD_SHIFT) scan += 0x19;
+        else if (mod & SDL_KMOD_CTRL) scan += 0x23;
+        else if (mod & SDL_KMOD_ALT)  scan += 0x2D;
+    }
+
     /* Alt forces AL = 0 (BIOS reports the scan code alone for Alt combos). */
     if (mod & SDL_KMOD_ALT)
         return (uint16)scan << 8;

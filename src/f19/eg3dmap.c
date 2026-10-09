@@ -450,6 +450,9 @@ uint32 scaleCoordToLod(int16 level, uint32 coord) {
     case 0:
         return coord << 1;
     }
+    /* original: out-of-range level falls to the epilogue with ax=level,
+     * dx=caller's leftover — callers only pass 0..4 by construction. */
+    return (uint32)(uint16)level;
 }
 
 /* ==== seg000:0x99a ==== */
@@ -474,6 +477,8 @@ int16 process3dg(int16 lod, int16 col, int16 row) {
     case 0:
         return buf4_3dg[(col & 3) + ((row & 3) << 2) + (process3dg(1, col >> 2, row >> 2) << 4)];
     }
+    /* original: out-of-range lod hits loc_10ABA -> retn with ax=lod. */
+    return lod;
 }
 
 /* ==== seg000:0x131e ==== */

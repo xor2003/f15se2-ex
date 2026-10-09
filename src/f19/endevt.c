@@ -117,9 +117,8 @@ void sub_17334(void)
         if (commData->setupUseJoy == 1) {
             while (misc_jump_5d_readJoy(0) != 0)
                 ;
-            byte_1DF6A = 0;
-            while (byte_1DF6A <= 5)
-                ;
+            timerCounter = 0;
+            while (timerCounter <= 5) timerYield();
             while (misc_jump_5d_readJoy(0) != 0)
                 ;
         }

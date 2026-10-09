@@ -12,6 +12,7 @@ extern uint8 f19_commBase[];
 static void  *f19_blocks[F19_MAX_SEGS];
 static size_t f19_blocksz[F19_MAX_SEGS];
 static uint8 f19_blockalias[F19_MAX_SEGS]; /* alias slots never own the block */
+static uint8 f19_blockfreed[F19_MAX_SEGS]; /* tombstone: slot was alloc'd then freed */
 static int16 f19_nextSeg = 0x10;  /* DOS segs were >= 0x10; keep that floor */
 
 int16 f19_allocSeg(uint16 paras) {
@@ -20,6 +21,7 @@ int16 f19_allocSeg(uint16 paras) {
         if (f19_blocks[i] == NULL) {
             f19_blocks[i] = calloc(1, (size_t)paras << 4);
             f19_blocksz[i] = (size_t)paras << 4;
+            f19_blockfreed[i] = 0;
             f19_nextSeg = i + 1;
             return i;
         }
@@ -28,6 +30,7 @@ int16 f19_allocSeg(uint16 paras) {
         if (f19_blocks[i] == NULL) {
             f19_blocks[i] = calloc(1, (size_t)paras << 4);
             f19_blocksz[i] = (size_t)paras << 4;
+            f19_blockfreed[i] = 0;
             return i;
         }
     }
@@ -39,9 +42,18 @@ int16 f19_freeSeg(int16 seg) {
         if (!f19_blockalias[seg]) free(f19_blocks[seg]);
         f19_blocks[seg] = NULL;
         f19_blockalias[seg] = 0;
+        f19_blockfreed[seg] = 1;
         if (seg < f19_nextSeg) f19_nextSeg = seg;
         return 0;
     }
+    /* DOS freemem on an already-free MCB still succeeds (the 'M'/'Z'
+     * signature is intact — the block just gets marked free again).
+     * The original relies on this: screen exits free word_2A0C4 without
+     * clearing the cell, so the next screen exit refrees the stale handle.
+     * Refree of an ever-allocated handle is an idempotent no-op; a handle
+     * that was never allocated still fails like a bad-MCB free. */
+    if (seg >= 0x10 && seg < F19_MAX_SEGS && f19_blockfreed[seg])
+        return 0;
     return -1;
 }
 
@@ -58,6 +70,7 @@ int16 f19_segAlias(int16 base, uint32 byteoff) {
             f19_blocksz[i] = f19_blocksz[base] > byteoff
                              ? f19_blocksz[base] - byteoff : 0;
             f19_blockalias[i] = 1;
+            f19_blockfreed[i] = 0;
             f19_nextSeg = i + 1;
             return i;
         }
@@ -68,6 +81,7 @@ int16 f19_segAlias(int16 base, uint32 byteoff) {
             f19_blocksz[i] = f19_blocksz[base] > byteoff
                              ? f19_blocksz[base] - byteoff : 0;
             f19_blockalias[i] = 1;
+            f19_blockfreed[i] = 0;
             return i;
         }
     }

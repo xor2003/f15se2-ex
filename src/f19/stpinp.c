@@ -92,7 +92,10 @@ char *f19_pilotNameInput(int16 *page, int16 x, int16 y, int16 maxLen,
                      int16 unused, int16 h) {
     uint8 keyCode;
     int16 blinkIdx;
-    char  buf[0x50];
+    /* original returns a near ptr into its own stack frame; the caller copies
+     * it immediately, before the frame is reused.  static gives the same
+     * post-return lifetime on the host without the dangling local. */
+    static char buf[0x50];
     int16 cursor;
     int16 len;
 
@@ -134,7 +137,7 @@ char *f19_pilotNameInput(int16 *page, int16 x, int16 y, int16 maxLen,
                 blinkTimer = 0;
                 page[2] = blinkColors[blinkIdx];
                 drawStringAt(page, "_", cursor, y);
-                blinkIdx = ++blinkIdx % 6;
+                blinkIdx = (blinkIdx + 1) % 6;
             }
         }
         page[2] = blinkColors[0];

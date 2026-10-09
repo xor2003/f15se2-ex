@@ -247,6 +247,7 @@ int16  mapToScreenX(int16 mapCoord);
 int16  mapToScreenY(int16 mapCoord);
 void   drawMapPixel(int16 x, int16 y, int16 color);
 void   timerWait(uint16 ticks);
+void   timerYield(void);                       /* shared/timer.c — pump+yield */
 void   processMenuItems(MenuItem *items, int16 unused, int16 itemCount,
                         int16 cursorStartX, int16 cursorStartY, int16 *gfxPage);
 int16  selectMenuItem(MenuItem *items, int16 unused, int16 itemCount,

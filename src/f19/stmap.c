@@ -7,7 +7,7 @@
 typedef struct { int16 f0, f1;
                  uint8 flag, padT[9]; } RingType;
 #define objectActive ((int8 *)f19_stSpace.m_objectActive)
-extern uint8 tileMarksOn;
+/* tileMarksOn -> f19stvars.h dseg:0xBE48 */
 #define byte_20A1A timerCounter   /* shared/timer.c 60 Hz tick — was PIT-ISR cell */
 #define pathWpB (*(int16 *)((uint8 *)f19_stSpace.m_f19_targets + 4))
 #define pathWpC (*(int16 *)((uint8 *)f19_stSpace.m_f19_targets + 4))
@@ -16,7 +16,7 @@ extern uint8 tileMarksOn;
 extern void f19_drawClippedLineEx(int16 x1, int16 y1, int16 x2, int16 y2,
                               int16 cx1, int16 cy1, int16 cx2, int16 cy2, int16 flag);
 
-int16 mapClipX1, mapClipX2, mapClipY1, mapClipY2;  /* ds:0x653c/0x6540/0x653e/0x6542 */
+/* mapClipX1/Y1/X2/Y2 -> f19stvars.h (dseg:0x653C/0x653E/0x6540/0x6542) */
 
 /* ==== seg000:0xbe8a / 0xbe99 — world-coord → map-cell scalers ==== */
 int16 f19_mapToScreenX(int16 v) { return ((uint16)v) / 0x92; }
@@ -172,6 +172,8 @@ uint32 f19_shiftByMode(int16 mode, uint32 v) {
     case 1: return v;
     case 0: return v << 1;
     }
+    /* original: out-of-range mode -> epilogue with ax=mode. */
+    return (uint32)(uint16)mode;
 }
 
 /* seg000:0xd8aa — score panel: count scoreRec->f38[]==0x11, print total score */
@@ -505,7 +507,7 @@ void f19_sub_11366(int16 *view, struct SelRow *row, int16 *pd) {
     uint16 f;                               /* -0x0E radar outer */
     uint16 g;                               /* -0x10 radar inner */
     int16 h;                                /* -0x12 */
-    int16 i;                                /* -0x14 key */
+    int16 i = 0;                            /* -0x14 key; e-timeout exits with it unset — original read stack garbage */
     int16 j;                                /* -0x16 objCursor */
     int16 k;                                /* -0x18 */
     int16 l;                                /* -0x1A border color */

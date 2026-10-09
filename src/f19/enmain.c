@@ -69,7 +69,7 @@ void clearKeybuf(void) {
 
 /* seg000:0x067b — f15 eninput.c waitForKeyOrJoy (END drops the quitFlag arm) */
 void waitForKeyOrJoy(void) {
-    int16 key;
+    int16 key = 0;  /* joystick-exit path leaves it unset; original read stack garbage */
 
     if (commData->setupUseJoy == 1) {
         while (misc_jump_5a_keybuf() != 0 && misc_jump_5d_readJoy(0) == 0) {
@@ -91,7 +91,7 @@ void waitForKeyOrJoy(void) {
 
 /* seg000:0x0702 — F19 variant: serviceTick() pumped while polling */
 void waitForKeyOrJoy2(void) {
-    int16 key;
+    int16 key = 0;  /* joystick-exit path leaves it unset; original read stack garbage */
 
     if (commData->setupUseJoy == 1) {
         while (misc_jump_5a_keybuf() != 0 && misc_jump_5d_readJoy(0) == 0) {

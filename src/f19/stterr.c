@@ -31,4 +31,6 @@ int16 f19_lookupGridCell(int16 level, int16 col, int16 row) {
         return gridBuf5[(col & 3) + (((row & 3) << 2) +
             (f19_lookupGridCell(1, col >> 2, row >> 2) << 4))];
     }
+    /* original: out-of-range level -> loc_171F4 retn with ax=level. */
+    return level;
 }

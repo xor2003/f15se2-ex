@@ -152,6 +152,10 @@ void load3DT(char *fileName) {
 }
 
 /* ==== seg000:0xcb8c ==== */
+/* Aircraft model loader: the binary stores the shape-offset table at
+ * dseg:0x6352 (flt15_buf1, read by shapeDataOffset/sub_1D0A8) and the model
+ * stream at seg004:0x7530 (g_aircraftModels). Terrain objects live at
+ * seg004:0 with offsets in buf3d3 @dseg:0x5f6. */
 void load15Flt3d3(void) {
     char FAR *dst;
     struct SREGS sregs;
@@ -165,10 +169,10 @@ void load15Flt3d3(void) {
     }
     fread(&sign3d3, 2, 1, fileHandle);
     fread(&size3d3, 2, 1, fileHandle);
-    fread(buf3d3, 2, size3d3, fileHandle);
+    fread(flt15_buf1, 2, size3d3, fileHandle);
     fread(&size3d3_2, 2, 1, fileHandle);
     segread(&sregs);
-    for (dst = g_world3dData; size3d3_2 > 0; size3d3_2 -= 0x800, dst += 0x800) {
+    for (dst = (char FAR *)g_aircraftModels; size3d3_2 > 0; size3d3_2 -= 0x800, dst += 0x800) {
         chunk = (size3d3_2 > 0x800) ? 0x800 : size3d3_2;
         fread(flt15_buf2, 1, chunk, fileHandle);
         movedata(sregs.ds, PTR_OFF(flt15_buf2), FP_SEG(dst), FP_OFF(dst), chunk);

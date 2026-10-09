@@ -6,16 +6,12 @@
 #include "f19stvars.h"
 
 #define cbreakHit (*(uint8 *)((uint8 *)f19_stSpace.m_esTable + 2248))
-#define g_lineX1 (*(int16 *)((uint8 *)f19_stSpace.m_esTable + 825))
-#define g_lineY1 (*(int16 *)((uint8 *)f19_stSpace.m_esTable + 825))
+
 #define f19_worldObjects ((WorldObject *)f19_stSpace.m_f19_worldObjects_B390)
-#define g_clipMaxX (*(int16 *)((uint8 *)f19_stSpace.m_esTable + 819))
-#define g_clipMaxY (*(int16 *)((uint8 *)f19_stSpace.m_esTable + 819))
+
 extern int16 *g_vpParms;
 #define objectActive ((int8 *)f19_stSpace.m_objectActive)
-#define tileMarksOn (*(uint8 *)((uint8 *)f19_stSpace.m_f19_flightUnits + 720))
-extern int16 mapClipX1;
-extern int16 mapClipY1;
+/* mapClipX1/Y1/X2/Y2 -> f19stvars.h */
 #define word_22322 (*(int16 *)((uint8 *)f19_stSpace.m_word_21718 + 3082))
 #define byte_20A1A timerCounter   /* shared/timer.c 60 Hz tick — was PIT-ISR cell */
 #define pathWpB (*(int16 *)((uint8 *)f19_stSpace.m_f19_targets + 2))

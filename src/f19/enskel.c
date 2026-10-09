@@ -149,7 +149,7 @@ void f19en_dos_printstring(const char *s) { fprintf(stderr, "%s\n", s); }
 int16 f19en_misc_jump_5a_keybuf(void) { return misc_checkKeyBuf(); }
 int16 f19en_misc_jump_5b_getkey(void) { return misc_getKey(); }
 int16 f19en_misc_jump_5d_readJoy(int16 a) { return misc_readJoystick(a); }
-void  f19en_misc_jump_5e_clearKeyFlags(void) { (void)misc_getKey(); }
+void  f19en_misc_jump_5e_clearKeyFlags(void) { misc_clearKeyFlags(); }
 void far f19en_joyTableSetup(char *p) {
     /* the driver calibration leaves the axis cells centred; with no joystick
      * attached they must sit inside the menu deadzone (0x4e..0xb2) */

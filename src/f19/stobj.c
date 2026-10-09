@@ -59,7 +59,8 @@ int16 f19_sub_15460(const char *name, int16 unused)
     sub_149A1(word_2D05C);
     word_21714 = 0;
     word_2A0C4 = sub_15AD2(0xFFFFL);
-    word_2D2F4 = word_2A0C4 + 0x800;
+    if (getenv("F19_DBG")) fprintf(stderr, "[2A0C4] store %d\n", word_2A0C4);
+    word_2D2F4 = f19_segAlias(word_2A0C4, 0x8000);
     if (word_2B83E == 2)
         ovlCall_ba9();
     word_216D6 = word_2A0C4;
@@ -112,7 +113,7 @@ int16 f19_sub_15460(const char *name, int16 unused)
         at[0x5A] = 1;
         for (j = 0; j < *nm; j++) {
             f19_bufReadFile((uint8 *)(((uint8 *)f19_dsegAt(word_22320))), 7, word_2D05C);
-            ((int16 *)at)[0x11 + j] = *(int16 *)word_22320;
+            ((int16 *)at)[0x11 + j] = *(int16 *)(((uint8 *)f19_dsegAt(word_22320)));
             at[0x46 + j] = ((uint8 *)(((uint8 *)f19_dsegAt(word_22320))))[2];
             nm[1 + j]    = ((uint8 *)(((uint8 *)f19_dsegAt(word_22320))))[3];
             nm[0x13 + j] = ((uint8 *)(((uint8 *)f19_dsegAt(word_22320))))[4];
@@ -231,7 +232,8 @@ int16 f19_sub_15B68(int16 seg)
     sub_16C0E();
     word_21714 = 0;
     word_2A0C4 = sub_15AD2(0xFFFFL);
-    word_2D2F4 = word_2A0C4 + 0x800;
+    if (getenv("F19_DBG")) fprintf(stderr, "[2A0C4] store %d\n", word_2A0C4);
+    word_2D2F4 = f19_segAlias(word_2A0C4, 0x8000);
     if (word_2B83E == 2)
         ovlCall_ba9();
     word_216D6 = word_2A0C4;
@@ -284,7 +286,7 @@ int16 f19_sub_15B68(int16 seg)
         at[0x5A] = 1;
         for (j = 0; j < *nm; j++) {
             sub_15B22((int16)word_22320, 7);
-            ((int16 *)at)[0x11 + j] = *(int16 *)word_22320;
+            ((int16 *)at)[0x11 + j] = *(int16 *)(((uint8 *)f19_dsegAt(word_22320)));
             at[0x46 + j] = ((uint8 *)(((uint8 *)f19_dsegAt(word_22320))))[2];
             nm[1 + j]    = ((uint8 *)(((uint8 *)f19_dsegAt(word_22320))))[3];
             nm[0x13 + j] = ((uint8 *)(((uint8 *)f19_dsegAt(word_22320))))[4];
