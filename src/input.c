@@ -742,8 +742,32 @@ static void pollGamepadMenu(void) {
 
 /* --- the single event pump ------------------------------------------------- */
 
+/* F19_KEYS / F15_KEYS: comma-separated BIOS key words pushed one-per-pump once
+ * the BIOS ring drains — a scripted-input hook for headless driving (the
+ * offscreen/dummy video drivers deliver no keyboard events) and deterministic
+ * CI test drives. */
+static uint16 s_keyScript[256];
+static int s_keyScriptLen = -1, s_keyScriptIdx;
+
+static void pumpScriptedKeys(void) {
+    const char *s;
+    if (s_keyScriptLen < 0) {
+        s_keyScriptLen = 0;
+        s = getenv("F19_KEYS");
+        if (!s) s = getenv("F15_KEYS");
+        while (s && *s && s_keyScriptLen < 256) {
+            s_keyScript[s_keyScriptLen++] = (uint16)strtol(s, NULL, 0);
+            s = strchr(s, ',');
+            if (s) s++;
+        }
+    }
+    if (s_keyScriptIdx < s_keyScriptLen && ringHead == ringTail)
+        ringPush(s_keyScript[s_keyScriptIdx++]);
+}
+
 void input_pumpEvents(void) {
     SDL_Event ev;
+    pumpScriptedKeys();
     /* Every key-polling wait loop funnels through here, so advance the game
      * clock too: this is what drives the tick counters those loops spin on, and
      * what keeps the window responsive on a poll-only frame. */
