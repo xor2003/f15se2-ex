@@ -239,7 +239,9 @@ void drawWorldObject(int16 shapeId, int32 worldX, int32 worldY, int16 altitude, 
         if ((int16)labs(ox) < 0x7FFF) {
             setViewPosition(0, 0, -sh);
             g_curLod = 1;
-            projectSceneObject((char *)(g_world3dData + dataOff), -objYaw, objPitch, objRoll, (int16)pg, -(int16)ox, altitude != 0);
+            /* dataOff is a 16-bit word offset into seg004 — modular unsigned,
+             * not signed (buf3d3 tail entries legitimately exceed 0x7FFF). */
+            projectSceneObject((char *)(g_world3dData + (uint16)dataOff), -objYaw, objPitch, objRoll, (int16)pg, -(int16)ox, altitude != 0);
         }
     }
 }

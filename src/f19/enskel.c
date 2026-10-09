@@ -220,7 +220,11 @@ void f19en_picStreamRead(int16 fd) {
 
 /* seg000:0x3238 — copy the next 0x200 bytes of the staged resource seg
  * into picStreamBuf.  DOS kept the staged cursor at ss:word_2DB50. */
-static int16 f19en_stagePos;
+/* DOS word_2DB50 is a plain word: +0x200 wraps mod 0x10000 and si reads stay
+ * inside the seg window (0..0xFFFF) — the tail slack covers reads past the
+ * staged resource's own extent.  int16 here would wrap to -32768 and read
+ * wild below the block. */
+static uint16 f19en_stagePos;
 void f19en_picStageRefill(void) {
     const uint8 *src = (const uint8 *)f19_segPtr(word_23C74);
     if (src) memcpy(picStreamBuf, src + f19en_stagePos, 0x200);
@@ -423,12 +427,19 @@ void f19en_sub_13436(int16 w, int16 h, int16 sseg, int16 soff,
  * the chunky build. */
 static void f19en_textOp(int16 sseg, int16 sx, int16 sy, int16 dseg,
                          int16 dx, int16 dy, int16 w, int16 h) {
-    const uint8 *s = f19en_pagePx(sseg) + sy * 320 + sx;
-    uint8 *d = f19en_pagePx(dseg) + dy * 320 + dx;
+    const uint8 *sbase = f19en_pagePx(sseg);
+    uint8 *dbase = f19en_pagePx(dseg);
     int16 y;
     if (w <= 0 || h <= 0) return;
+    if (getenv("F19_DBG"))
+        fprintf(stderr, "[textOp] sseg=%d sx=%d sy=%d dseg=%d dx=%d dy=%d w=%d h=%d\n",
+                sseg, sx, sy, dseg, dx, dy, w, h);
     for (y = 0; y < h; y++)
-        memcpy(d + y * 320, s + y * 320, (size_t)w);
+        /* di/si are 16-bit in the original: offsets wrap mod 0x10000
+         * within the seg's 64KB window (slack in f19_allocSeg covers the
+         * tail for alias bases). */
+        memcpy(dbase + (((dy + y) * 320 + dx) & 0xFFFF),
+               sbase + (((sy + y) * 320 + sx) & 0xFFFF), (size_t)w);
 }
 
 void far f19en_textOp_165(int16 p1, int16 a2, int16 a3, int16 p4,

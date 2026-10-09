@@ -835,7 +835,7 @@ void drawTargetView(int16 shapeId, int16 worldX, int16 worldY, int16 altitude, i
 
     g_offscreenRender = 1;
     setup3DTransform(g_targetViewParams, -g_trkBearing, g_trkPitch, g_trkRoll, 0, 0, 0, 0);
-    projectSceneObject((char *)(g_world3dData + doffh), -objYaw, objPitch, objRoll, relX, -relY, relZ);
+    projectSceneObject((char *)(g_world3dData + (uint16)doffh), -objYaw, objPitch, objRoll, relX, -relY, relZ);
     rasterize3DWorld();
     g_offscreenRender = 0;
 

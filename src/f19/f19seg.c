@@ -7,6 +7,14 @@
 
 #define F19_MAX_SEGS 512
 
+/* Real-mode seg:off addressing gives every handle a 64KB window: an alias
+ * created at base+K can legally address bytes up to base+K+0xFFFF, i.e. past
+ * the MCB end into whatever followed in the DOS heap.  The originals rely on
+ * this (END's map view copies through word_23C7C = word_2244C+0x800 paras and
+ * writes ~18KB past the 64KB allocation into the next MCB).  A fixed tail
+ * keeps those writes inside emulated memory instead of ASan redzone. */
+#define F19_SEG_TAIL 0x10000
+
 extern uint8 f19_commBase[];
 
 static void  *f19_blocks[F19_MAX_SEGS];
@@ -19,7 +27,7 @@ int16 f19_allocSeg(uint16 paras) {
     int i;
     for (i = f19_nextSeg; i < F19_MAX_SEGS; i++) {
         if (f19_blocks[i] == NULL) {
-            f19_blocks[i] = calloc(1, (size_t)paras << 4);
+            f19_blocks[i] = calloc(1, ((size_t)paras << 4) + F19_SEG_TAIL);
             f19_blocksz[i] = (size_t)paras << 4;
             f19_blockfreed[i] = 0;
             f19_nextSeg = i + 1;
@@ -28,7 +36,7 @@ int16 f19_allocSeg(uint16 paras) {
     }
     for (i = 0x10; i < F19_MAX_SEGS; i++) {
         if (f19_blocks[i] == NULL) {
-            f19_blocks[i] = calloc(1, (size_t)paras << 4);
+            f19_blocks[i] = calloc(1, ((size_t)paras << 4) + F19_SEG_TAIL);
             f19_blocksz[i] = (size_t)paras << 4;
             f19_blockfreed[i] = 0;
             return i;

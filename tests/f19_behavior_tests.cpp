@@ -71,6 +71,7 @@ void f19eg_computeAttitudeAngles(void);
 uint32 f19eg_scaleCoordToLod(int16 level, uint32 coord);
 int16 f19eg_process3dg(int16 lod, int16 col, int16 row);
 int16 f19eg_lookupTileEntry(int16 lod, int16 subIndex, int16 tileX, int16 tileY);
+int16 f19eg_shapeDataOffset(int16 shapeId);
 void f19eg_worldToTileIndex(int16 worldX, int16 worldY, int16 *outCol, int16 *outRow);
 void f19eg_computeTileBounds(int16 *minTileX, int16 *maxTileX, int16 *minTileY, int16 *maxTileY);
 int16 f19eg_aspectScaleY(int16 y);
@@ -544,6 +545,44 @@ int main() {
                 "addTileEntry memcpy(&rec->lod,8) into slot 2");
         require(sceneObj.shape == (0x41 | 0x80),
                 "addTileEntry marks entry->shape |= 0x80");
+    }
+
+    // ==== egtarget.c/egmath.c/eg3dmap.c: model offsets are 16-bit WORDS ====
+    // buf3d3[] entries are unsigned word offsets into the 64KB seg004 block;
+    // tail entries (photo.3d3 appends at buf3d3[size3d3+1]) legitimately
+    // exceed 0x7FFF.  Consumers must widen via (uint16) — sign-extending the
+    // int16 produced a negative offset and a heap UAF in
+    // projectSceneObjectImpl (model = g_world3dData - 0x64F7 for 0x9B09).
+    {
+        extern int16 f19eg_seg004;
+        if (f19eg_seg004 == 0)
+            f19eg_seg004 = f19_allocSeg(0x1000);
+        char *seg004 = (char *)f19_segPtr(f19eg_seg004);
+        buf3d3[0x21] = 0x9B09;
+        int16 dataOff = f19eg_shapeDataOffset(0x121);
+        require(dataOff == (int16)0x9B09,
+                "shapeDataOffset preserves the raw word bit pattern");
+        require(seg004 + (uint16)dataOff == seg004 + 0x9B09,
+                "(uint16) widening keeps large model offsets inside seg004");
+    }
+
+    // ==== f19seg.c: alias handles keep the full real-mode 64KB window ====
+    // seg:off addressing lets an alias at base+K legally address through
+    // base+K+0xFFFF — past its MCB end into following heap.  END's map view
+    // (loadMapView: word_23C7C = word_2244C+0x800 paras) writes ~18KB past
+    // the 64KB compose buffer this way.  f19_allocSeg's tail slack keeps
+    // those accesses inside emulated memory.
+    {
+        int16 base = f19_allocSeg(0x1000);
+        int16 alias = f19_segAlias(base, 0x8000);
+        uint8 *bp = (uint8 *)f19_segPtr(base);
+        uint8 *ap = (uint8 *)f19_segPtr(alias);
+        ap[0x8000] = 0x5A;                      /* alias:0x8000 = base:0x10000 */
+        ap[0xFFFF] = 0xA5;                      /* real-mode window edge */
+        require(bp[0x10000] == 0x5A && bp[0x17FFF] == (uint8)0xA5,
+                "alias addressing reaches into the base block's tail");
+        f19_freeSeg(alias);
+        f19_freeSeg(base);
     }
 
     // ==== binding pins: the aircraft/view position is ONE dword pair ====

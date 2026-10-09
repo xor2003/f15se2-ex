@@ -405,7 +405,7 @@ void projectObjects(int16 heading, int16 rangeGate, int32 worldX, int32 worldY, 
                     g_curTileEntry = (struct TileSceneObject *)(((uint8 *)f19_dsegAt(matrix3dt_2[g_curLod][cell])));
                     for (subIdx = 0; matrix3dt[g_curLod][cell] > subIdx; subIdx++) {
                         if (g_curTileEntry->shape & 0x80) {
-                            g_modelStreamPtr = (char FAR *)(g_world3dData + lookupTileEntry(g_curLod, subIdx, tileX + gridX, tileY + gridY));
+                            g_modelStreamPtr = (char FAR *)(g_world3dData + (uint16)lookupTileEntry(g_curLod, subIdx, tileX + gridX, tileY + gridY));
                             if (g_modelStreamPtr == (char FAR *)g_world3dData) {
                                 g_modelStreamPtr = (char FAR *)(g_world3dData + buf3d3[g_curTileEntry->shape & 0x7f]);
                             }
