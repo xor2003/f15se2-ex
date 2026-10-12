@@ -95,6 +95,7 @@ void makeSound(int16 id, int16 pri);     /* sub_1DEF2 */
 void setDrawColor(int16 color);          /* sub_18E7D */
 void fillRectBoth(int16 x1, int16 y1, int16 x2, int16 y2); /* sub_18E93 */
 void far gfx_flipPage(void);        /* sub_2F17E */
+void far gfx_setDac(int16 pal);          /* sub_2F186 — slot 0x302: UI palette record */
 void far gfx_waitRetrace(void);          /* sub_2F183 */
 #define gfx_waitRetrace2 gfx_waitRetrace
 void far gfx_waitRetrace(void);         /* sub_2F188 */
@@ -162,6 +163,7 @@ void updateFrame(void) {
             missleSpec[i].ammo = fpw[0x20];
         }
         g_initPhase = 2;
+        gfx_setDac(1);              /* word_381EA=2 arm: palette-1 blacks DAC[5] (tape marker) */
         gfx_flipPage();
         gfx_waitRetrace2();
     }
@@ -176,6 +178,17 @@ void updateFrame(void) {
         g_viewY_ = v;
         g_worldY = (int32)(uint16)(0x8000 - g_viewY_) << 5;
     }
+
+    { const char *px, *py, *pa, *pp, *pk, *ph;
+      px = getenv("F19_POSX"); py = getenv("F19_POSY"); pa = getenv("F19_ALT");
+      pp = getenv("F19_PITCH"); pk = getenv("F19_KNOTS"); ph = getenv("F19_HEAD");
+      if (px) { g_viewX_ = (int16)strtol(px,0,0); g_worldX = (int32)(uint16)g_viewX_ << 5; }
+      if (py) { g_viewY_ = (int16)strtol(py,0,0); g_worldY = (int32)(uint16)(0x8000 - g_viewY_) << 5; }
+      if (pa) { g_viewZ = g_altitude = (int16)strtol(pa,0,0); }
+      if (pp) g_ourPitch = (int16)strtol(pp,0,0);
+      if (pk) g_knots = (int16)strtol(pk,0,0);
+      if (ph) g_ourHead = (int16)strtol(ph,0,0);
+      { const char *vm = getenv("F19_VM"); if (vm) g_viewMode = (int16)strtol(vm,0,0); } }
 
     plotMapObject(g_markerPosX, g_markerPosY, g_trackedEnemyIdx, 1);
     g_trackedEnemyIdx = readMapPixelColor(g_viewX_, g_viewY_);
@@ -586,6 +599,7 @@ void initFrameRandom(void) {
     if (g_setupSlots[0] == 4 || g_setupSlots[9] == 4) {
         g_nightMode = 1;
     }
+    { const char *fd = getenv("F19_DAY"); if (fd) g_nightMode = strtol(fd,0,0) ? 0 : 1; }
     g_unusedFrameVal = (seedSum & 0xF) << 8;
     g_missionTick = 0;
 }
@@ -684,6 +698,9 @@ void initStoreData(void) {
     }
     g_worldX = ((uint32)g_storeDefs[g_selStoreIdx].coordX << 5) + 2;
     g_worldY = ((int32)0x8000 - g_storeDefs[g_selStoreIdx].coordY) << 5;
+    { const char *px = getenv("F19_POSX"), *py = getenv("F19_POSY");
+      if (px) g_worldX = ((int32)(int16)strtol(px, 0, 0)) << 5;
+      if (py) g_worldY = ((int32)(uint16)(0x8000 - (int16)strtol(py, 0, 0))) << 5; }
 }
 
 /* ==== seg000:0x4e09 ==== */

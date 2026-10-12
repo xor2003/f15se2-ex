@@ -112,7 +112,31 @@ extern int16 f19_stringWidth(int16 *page, const uint8 *str);
 int16 sub_13E38(int16 *p, char *s) {                       /* seg000:0x3e38 stringWidth */
     return f19_stringWidth(f19_descPtr(p), (uint8 *)s);
 }
-void  sub_13E7C(long v, char *buf) { }
+void  sub_13E7C(long v, char *buf) {
+    /* seg000:0x3e7c — my_ltoa with a thousands comma (verified port from
+     * f19ru src_start/textfmt.c). */
+    int8 i, k;
+    char *p;
+    int8 n[6];
+    p = buf;
+    if (v < 0) { v = -v; *p++ = '-'; }
+    n[0] = v % 0xa; v /= 0xa;
+    n[1] = v % 0xa; v /= 0xa;
+    n[2] = v % 0xa; v /= 0xa;
+    n[3] = v % 0xa; v /= 0xa;
+    n[4] = v % 0xa; v /= 0xa;
+    n[5] = v % 0xa;
+    i = 0;
+    for (k = 5; k > 0; k--) {
+        if (n[k] != 0) break;
+    }
+    do {
+        if (k == 2 && i == 1) *p++ = ',';
+        *p++ = n[k] + '0';
+        i = 1;
+    } while (--k >= 0);
+    *p = 0;
+}
 void  sub_13FB3(int16 n, char *b) {
     /* seg000:0x3fb3 — itoa with a thousands comma: digits extracted LSD→MSD,
      * emitted MSD-first; ',' inserted before the hundreds digit only once at
@@ -260,13 +284,128 @@ void  sub_151D4(void *d, int8 v, int16 n) { memset(d, v, (uint16)n); }
 void  sub_151E8(char *d, int16 v, int16 n) { memset(d, v, (uint16)n); } /* far memset */
 void  sub_151FE(char *d, uint8 *s, int16 n) { memcpy(d, s, (uint16)n); }
 void  sub_1521C(char *d, char *s, int16 n) { memcpy(d, s, (uint16)n); }
-char *sub_17558(int16 n, char *b, int16 t) { return b; }   /* briefing line */
+/* ---- seg000:0x7558-0x76c7 — briefing.txt LZW decoder ---------------------
+ * The compressed stream lives in an f19seg block (arg t = seg handle);
+ * records are NUL-terminated: record n is inflated into near buffer b.
+ * Decoder state + the 0x800-entry {u16 prefix, u8 ch} dictionary occupy
+ * real dseg cells 0x8074..0x98C2 (m_byte_27D67 + 0x30D / + 0x1B0D..). */
+#define lzwDict   ((uint8 *)f19_stSpace.m_byte_27D67 + 0x30D)   /* dseg:0x8074 */
+#define byte_29874 (*(uint8  *)(f19_stSpace.m_byte_27D67 + 0x1B0D))
+#define byte_29875 (*(uint8  *)(f19_stSpace.m_byte_27D67 + 0x1B0E))
+#define word_29876 (*(int16  *)(f19_stSpace.m_byte_27D67 + 0x1B0F))
+#define word_29878 (*(int16  *)(f19_stSpace.m_byte_27D67 + 0x1B11))
+#define byte_2987A (*(uint8  *)(f19_stSpace.m_byte_27D67 + 0x1B13))
+#define byte_2987B (*(uint8  *)(f19_stSpace.m_byte_27D67 + 0x1B14))
+#define byte_2987C ((uint8  *)(f19_stSpace.m_byte_27D67 + 0x1B15)) /* 0x40 stack */
+#define word_298BC (*(int16  *)(f19_stSpace.m_byte_27D67 + 0x1B55))
+#define word_298BE (*(int16  *)(f19_stSpace.m_byte_27D67 + 0x1B57))
+#define word_298C0 (*(int16  *)(f19_stSpace.m_byte_27D67 + 0x1B59))
+#define byte_298C2 (*(uint8  *)(f19_stSpace.m_byte_27D67 + 0x1B5B))
+
+static const uint8 *lzwSrc;                 /* es:di stream */
+static uint16       lzwPos;
+
+static void lzw_dictInit(void) {            /* sub_175A4 */
+    int16 i;
+    byte_29874 = 9;
+    word_29876 = 0x1FF;
+    word_29878 = 0x100;
+    for (i = 0; i < 0x800; i++)
+        *(int16 *)(lzwDict + i * 3) = -1;
+    for (i = 0; i < 0x100; i++)
+        lzwDict[i * 3 + 2] = (uint8)i;
+}
+
+static int16 lzw_readCode(void) {           /* sub_1768F -> cx */
+    uint16 dx; int16 bl; int16 ax;
+    dx = (uint16)(byte_2987A >> (8 - byte_2987B));
+    bl = byte_2987B;
+    while (bl < byte_29874) {
+        byte_2987A = lzwSrc[lzwPos++];
+        ax = (int16)byte_2987A;
+        ax = (int16)(ax << bl);
+        dx |= (uint16)ax;
+        bl += 8;
+    }
+    bl -= byte_29874;
+    byte_2987B = (uint8)bl;
+    return (int16)(dx & (uint16)word_29876);
+}
+
+static void lzw_decodeCode(void) {          /* sub_175F0 */
+    int16 cx, bx; uint8 al;
+    cx = lzw_readCode();
+    word_298C0 = cx;
+    if (cx >= word_29878) {                 /* KwKwK: decode prev + first ch */
+        byte_2987C[word_298BC] = byte_298C2;
+        word_298BC++;
+        cx = word_298BE;
+        word_298C0 = word_29878;
+    }
+    for (;;) {
+        bx = cx * 3;
+        if (*(int16 *)(lzwDict + bx) == -1)
+            break;
+        cx = *(int16 *)(lzwDict + bx);
+        al = lzwDict[bx + 2];
+        if (word_298BC < 0x40)
+            byte_2987C[word_298BC] = al;
+        word_298BC++;
+    }
+    al = lzwDict[bx + 2];
+    byte_298C2 = al;
+    byte_2987C[word_298BC] = al;
+    word_298BC++;
+    bx = word_29878 * 3;
+    lzwDict[bx + 2] = al;
+    *(int16 *)(lzwDict + bx) = word_298BE;
+    word_29878++;
+    if (word_29878 > word_29876) {
+        byte_29874++;
+        word_29876 = (int16)((word_29876 << 1) | 1);
+    }
+    if (byte_29874 > byte_29875)
+        lzw_dictInit();
+    word_298BE = word_298C0;
+}
+
+static uint8 lzw_popByte(void) {            /* sub_175D8 -> al */
+    if (word_298BC == 0)
+        lzw_decodeCode();
+    word_298BC--;
+    return byte_2987C[word_298BC];
+}
+
+char *sub_17558(int16 n, char *b, int16 t) {  /* briefing line -> b */
+    char  *ret = b;
+    int16  cx;
+    uint8  al;
+    lzwSrc = (const uint8 *)f19_segPtr(t);
+    lzwPos = 0;
+    lzw_dictInit();                          /* sub_1758E body */
+    word_298BC = 0;
+    byte_2987B = 0;
+    byte_29875 = lzwSrc[lzwPos++];
+    cx = n;
+    if (cx) {
+        do {
+            do { al = lzw_popByte(); } while (al != 0);
+        } while (--cx);
+    }
+    cx = 0x200;
+    do {
+        al = lzw_popByte();
+        *b++ = (char)al;
+    } while (al != 0 && --cx);
+    return ret;
+}
 void  sub_18B7E(const char *s, int16 a, int16 b, int16 c) { }
 
 /* ---- input/poll/anim helpers -------------------------------------------- */
 void  sub_10882(void) { }
 void  sub_14089(int16 n) { }
-void  sub_140A3(void) { }
+extern void f19_seedRng(void);          /* seg000:0x40a3 — ported in stutil.c */
+void  sub_140A3(void) { f19_seedRng(); }
 /* sub_141AF — clip the (lineX0,lineY0)-(lineX1,lineY1) segment to the blit
  * window [0..clipMaxX]x[0..clipMaxY] (Cohen-Sutherland outcodes) and emit
  * through the driver line slot (far 1000h:0B95h = gfx_drawLine). The stub
@@ -293,7 +432,12 @@ void  sub_141A3(void) {
         }
     }
 }
-int16 sub_150BA(void) { return 0; }                        /* int 1Ah tick read */
+int16 sub_150BA(void) {                /* int 1Ah AH=0 — DX low tick word */
+    /* Deterministic parity with the original under DOSBOX_DETERMINISTIC:
+     * START's seedRng read tick-low=0x59 there; F19_SEED overrides. */
+    const char *s = getenv("F19_SEED");
+    return (int16)(s ? (int)strtol(s, 0, 0) : 0x59);
+}
 int16 sub_16261(int16 e) { return e; }
 void  sub_16208(void) { }
 void  sub_167FD(void) { }
@@ -308,12 +452,17 @@ void  sub_169BE(int16 a,int16 b,int16 c,int16 d) { }
 void  sub_16AE7(int16 a,int16 b,int16 c,int16 d) { }
 
 /* ---- tile/object redraw -------------------------------------------------- */
-void  sub_13218(void *t, int16 i, int16 *pd) { }
+/* sub_13218 (pilot detail panel, seg000:0x3218) ported in stpanel.c. */
 
 /* ---- mode/settle screens ------------------------------------------------ */
 void  sub_125EA(void) { }
-void  sub_1A376(void) { }
-void  sub_1A4FB(void) { }
+/* seg000:0xa376 — Roster.Fil save (fopen "wb" + record write; write-protect
+ * banner arm) is ported as f19_saveHallfame in stpinp.c. seg000:0xa4fb is
+ * the matching load (fopen "rb") = f19_loadHallfame. */
+extern void f19_saveHallfame(void);
+extern void f19_loadHallfame(void);
+void  sub_1A376(void) { f19_saveHallfame(); }
+void  sub_1A4FB(void) { f19_loadHallfame(); }
 /* sub_1CBD8/sub_1CE56 ported in starm.c (notepad + arming screens). */
 
 /* ---- theater-specific draw procs (byte_2B83E selects 0..3) --------------- */
@@ -326,7 +475,5 @@ void far ovl_169(int16 w1,int16 w2,int16 w3,int16 w4,
 void far ovl_A65(int16 w1,int16 w2,int16 w3,int16 w4,
                  int16 w5,int16 w6,int16 w7,int16 w8) { }
 
-/* ---- terrain query (seg000:0x6e8c — skeleton) ---------------------------- */
-static int16 f19_ntrBuf[8];          /* findNearestTerrain result record */
-int16 *f19_findNearestTerrain(int32 wx, int32 wy) { return f19_ntrBuf; }
+/* ---- terrain query (seg000:0x6e8c) — real port lives in stgen.c ------------ */
 

@@ -5,6 +5,7 @@
 
 void strcpyFromDot(char *dst, const char *src); /* sub_11068 */
 void drawStringBothPages(const char *text, int16 x, int16 y, int16 color); /* sub_191B4 */
+void f19_setSharedVertCounts(size_t nRefs, size_t nX, size_t nY, size_t nZ); /* egdata.c */
 void load3DG(void);
 void load3D3(char *fileName);
 void load3DT(char *fileName);
@@ -76,6 +77,11 @@ void load3D3(char *fileName) {
         fread(g_modelVertY, 2, size3d3_5, fileHandle);
         fread(&size3d3_6, 1, 1, fileHandle);
         fread(g_modelVertZ, 2, size3d3_6, fileHandle);
+        /* mirror the counts into the shared renderer globals (egdata.c):
+         * transformModelVerticesFar and the mesh decoders read those, not the
+         * F-19 dseg cells the size3d3_* macros above bind to. */
+        f19_setSharedVertCounts((size_t)size3d3_3, (size_t)size3d3_4,
+                                (size_t)size3d3_5, (size_t)size3d3_6);
     }
     fclose(fileHandle);
     for (slot = 0; slot < 2; slot++) {

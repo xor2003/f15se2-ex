@@ -17,14 +17,18 @@ extern int16 *g_vpParms;
 #define pathWpB (*(int16 *)((uint8 *)f19_stSpace.m_f19_targets + 2))
 #define pathWpC (*(int16 *)((uint8 *)&f19_stSpace.f19_stgap_B958 + 0x2))
 #define pathWpD (*(int16 *)((uint8 *)&f19_stSpace.f19_stgap_B958 + 0x4))
-extern char str682E[];
-extern char str6832[];
-extern char str6834[];
-extern char str6836[];
-extern char str6838[];
+/* dseg-resident labels, not standalone buffers: the map waypoint letters at
+ * 0x682E.. sit inside the word_26820 table (0x6820), briefTargs is the
+ * 0xB946 record pair (m_f19_targets + stgap_B958), missionKinds is the
+ * SiteParm table viewed at +4 (0x4B10 = m_f19_siteParms + 4). */
+#define str682E ((char *)((uint8 *)f19_stSpace.m_word_26820 + 0xE))
+#define str6832 ((char *)((uint8 *)f19_stSpace.m_word_26820 + 0x12))
+#define str6834 ((char *)((uint8 *)f19_stSpace.m_word_26820 + 0x14))
+#define str6836 ((char *)((uint8 *)f19_stSpace.m_word_26820 + 0x16))
+#define str6838 ((char *)((uint8 *)f19_stSpace.m_word_26820 + 0x18))
 #define f19_targets ((int16 *)((uint8 *)f19_stSpace.m_f19_targets + 8))
-extern struct BriefTarget briefTargs[];
-extern struct MissionKind missionKinds[];
+#define briefTargs ((struct BriefTarget *)f19_stSpace.m_f19_targets)
+#define missionKinds ((struct MissionKind *)((uint8 *)f19_stSpace.m_f19_siteParms + 4))
 
 extern int16 f19_rangeApprox(int16, int16);
 struct CommData;   /* TU-local opaque view */
@@ -951,7 +955,7 @@ void f19_printMission(void) {
         f19_wrapUnitText(briefParms, scrStr, 0x12C, 0x0A,
                      *(int16 *)(sprParmsTab + briefParms + 0xA), 8);
     } else {
-        mystrcpy(scrStr, "\x89FLIGHT PLAN");
+        mystrcpy(scrStr, "\x89" "FLIGHT PLAN");
         i = f19_stringWidth((int16 *)briefParms, (uint8 *)scrStr);
         sub_13B76((int16 *)briefParms, scrStr, (0x140 - i) >> 1, 0x14);
         mystrcpy(scrStr, "\x89TAKEOFF:\x80 You will depart from ");
@@ -975,7 +979,7 @@ void f19_printMission(void) {
         mystrcat(scrStr, ", ONC ");
         mystrcat(scrStr, f19_getItemCoordStr(pathWpD));
         mystrcat(scrStr, a);
-        mystrcat(scrStr, "\x89FUEL ESTIMATE: \x80");
+        mystrcat(scrStr, "\x89" "FUEL ESTIMATE: \x80");
         my_itoa(commData->fuelEst, g);
         mystrcat(scrStr, g);
         mystrcat(scrStr, " lbs.");
@@ -1040,14 +1044,14 @@ void f19_printObjective(uint16 n) {
         mystrcat(scrStr, "\x80, ONC ");
         mystrcat(scrStr, briefTargs[n].coord);
         if (missionKinds[briefTargs[n].missionNum].flags & 0x20) {
-            mystrcat(scrStr, ", \x89before ");
+            mystrcat(scrStr, ", \x89" "before ");
             mystrcat(scrStr, briefTimeB);
             mystrcat(scrStr, " hours\x80, while the cargo is still being unloaded.");
         } else
             mystrcat(scrStr, ".");
         break;
     case 2:
-        mystrcat(scrStr, "to \x89destroy the ");
+        mystrcat(scrStr, "to \x89" "destroy the ");
         mystrcat(scrStr, (char *)(((uint8 *)f19_dsegAt(wldNameTab[siteObjData[briefTargs[n].targetIdx << 4]]))));
         if (mystrlen((char *)(((uint8 *)f19_dsegAt(wldNameTab[*(int16 *)(siteNameData + (briefTargs[n].targetIdx << 4))]))))) {
             mystrcat(scrStr, " at ");
@@ -1056,11 +1060,11 @@ void f19_printObjective(uint16 n) {
         mystrcat(scrStr, "\x80, ONC ");
         mystrcat(scrStr, briefTargs[n].coord);
         if (missionKinds[briefTargs[n].missionNum].flags & 0x20) {
-            mystrcat(scrStr, ", \x89before ");
+            mystrcat(scrStr, ", \x89" "before ");
             mystrcat(scrStr, briefTimeB);
             mystrcat(scrStr, " hours\x80, while the cargo is still being unloaded.");
         } else if (missionKinds[briefTargs[n].missionNum].flags & 2) {
-            mystrcat(scrStr, ", \x89before ");
+            mystrcat(scrStr, ", \x89" "before ");
             mystrcat(scrStr, briefTimeB);
             mystrcat(scrStr, " hours\x80.");
         } else
@@ -1069,7 +1073,7 @@ void f19_printObjective(uint16 n) {
     case 3:
         mystrcat(scrStr, "to \x89reach the beacon\x80 at ONC ");
         mystrcat(scrStr, briefTargs[n].coord);
-        mystrcat(scrStr, " and \x89drop the supplies before ");
+        mystrcat(scrStr, " and \x89" "drop the supplies before ");
         mystrcat(scrStr, briefTimeB);
         mystrcat(scrStr, " hours\x80.  To minimize the chance of enemy detection, ");
         mystrcat(scrStr, "the beacon will be on ONLY during this period.");
@@ -1077,12 +1081,12 @@ void f19_printObjective(uint16 n) {
     case 4:
         mystrcat(scrStr, "to \x89reach the secret airstrip\x80 at ONC ");
         mystrcat(scrStr, briefTargs[n].coord);
-        mystrcat(scrStr, " \x89before ");
+        mystrcat(scrStr, " \x89" "before ");
         mystrcat(scrStr, briefTimeB);
         mystrcat(scrStr, " hours\x80.  The airstrip will be lighted ONLY during this period.");
         break;
     case 5:
-        mystrcat(scrStr, "to \x89intercept and destroy\x80 the \x89AN-72 Coaler transport\x80 departing from ");
+        mystrcat(scrStr, "to \x89" "intercept and destroy\x80 the \x89" "AN-72 Coaler transport\x80 departing from ");
         mystrcat(scrStr, (char *)(((uint8 *)f19_dsegAt(wldNameTab[*(int16 *)(siteNameData + (briefDepartSite << 4))]))));
         mystrcat(scrStr, " airbase, ONC ");
         mystrcat(scrStr, briefCoord2);
@@ -1097,7 +1101,7 @@ void f19_printObjective(uint16 n) {
         mystrcat(scrStr, " hours.");
         break;
     case 7:
-        mystrcat(scrStr, "to \x89intercept and destroy\x80 the \x89AN-72 Coaler transport\x80 leaving from ");
+        mystrcat(scrStr, "to \x89" "intercept and destroy\x80 the \x89" "AN-72 Coaler transport\x80 leaving from ");
         mystrcat(scrStr, (char *)(((uint8 *)f19_dsegAt(wldNameTab[*(int16 *)(siteNameData + (briefTargs[n].targetIdx << 4))]))));
         mystrcat(scrStr, " airbase, ONC ");
         mystrcat(scrStr, briefTargs[n].coord);

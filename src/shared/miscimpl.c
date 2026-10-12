@@ -44,6 +44,8 @@ void doNothing2(const char *msg, int a, int b, int c) {
 }
 
 int getTimeOfDay(void) {
+    const char *s = getenv("F19_TICK");
+    if (s) return (int)strtol(s, 0, 0) & 0xFFFF;
     return (int)((unsigned long)((double)time(NULL) * 18.2065) & 0xFFFF);
 }
 

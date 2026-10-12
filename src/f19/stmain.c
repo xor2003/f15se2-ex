@@ -26,7 +26,8 @@ struct CommData {
     int16 f26, f28, f2a, f2c;
     int16 missionRange;                     /* +0x2e */
     int16 f30;
-    int16 pad32[6];
+    int16 detailLevel;                      /* +0x32 SU detail pref -> EGAME g_detailLevel */
+    int16 pad34[2];
     int16 missionKind[4];                   /* +0x38 */
     int16 missionStat[4];                   /* +0x40 */
     int8  f48[0x28];                        /* +0x48 — far arg to ovlFee_fd */
@@ -155,6 +156,18 @@ void f19_sub_10010(void) {
      * SU must seed it as configured color. */
     if (commData->f2a == 0)
         commData->f2a = 1;
+
+    /* SU.EXE stored the graphics detail preference at comm+0x32 (EGAME reads
+     * it as g_detailLevel); with no SU in this port, seed max detail — the
+     * in-game detail key still cycles it down. */
+    if (commData->detailLevel == 0)
+        commData->detailLevel = 2;
+
+    /* Test hook (cf. F19_KEYS): F19_QS seeds the original's quick-start flag,
+     * skipping the title/menu flow straight into a generated "Sid" mission so
+     * a headless drive can reach the flight without joystick-style input. */
+    if (commData->f70 == 0 && getenv("F19_QS"))
+        commData->f70 = 1;
 
     if (commData->f70 == 0)
         byte_2C160 = 7;

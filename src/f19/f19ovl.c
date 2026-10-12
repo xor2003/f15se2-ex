@@ -62,8 +62,47 @@ static void f19_submitSprite(struct SpriteParams *p, int opaque) {
     sf = img ? r2d_imageSurface(img) : (SDL_Surface *)0;
     if (!sf) return;
     memcpy(sf->pixels, src, 320 * 200);
-    r2d_submitImage(img, p->srcX, p->srcY, p->width, p->height,
-                    p->dstX, p->dstY, opaque ? -1 : 0);
+    {
+        /* MGRAPHIC gfx_spriteVariant2 (slot 0x311): the transparent path clips
+         * the rect against the record's clip window {+0x10 top, +0x12 bottom,
+         * +0x14 left, +0x16 right} — shrinking dst/src in place (w/h stay) and
+         * skipping the blit entirely when it falls fully outside. The opaque
+         * path (slot 0x31B -> gfx_blitSprite @0x7C8) calls blitCore directly
+         * with NO clip. The airspeed tape relies on this: it bumps the bottom
+         * bound 0x6D->0xC7 so the marker sprite can draw at y171. */
+        int16 x = p->dstX, y = p->dstY, w = p->width, h = p->height;
+        int16 sx = p->srcX, sy = p->srcY;
+        const uint8 *pb = (const uint8 *)p;
+        if (!opaque) {
+            int16 clipT = (int16)(pb[0x10] | (pb[0x11] << 8));
+            int16 clipB = (int16)(pb[0x12] | (pb[0x13] << 8));
+            int16 clipL = (int16)(pb[0x14] | (pb[0x15] << 8));
+            int16 clipR = (int16)(pb[0x16] | (pb[0x17] << 8));
+            int16 bx, cx;
+            if (x < clipL) {
+                bx = (int16)(x + w - 1);
+                if (bx < clipL) return;
+                cx = (int16)(clipL - x); x += cx; sx += cx; w -= cx;
+            }
+            bx = (int16)(x + w - 1);
+            if (bx > clipR) {
+                if (x > clipR) return;
+                w = (int16)(w - (bx - clipR));
+            }
+            if (y < clipT) {
+                bx = (int16)(y + h - 1);
+                if (bx < clipT) return;
+                cx = (int16)(clipT - y); y += cx; sy += cx; h -= cx;
+            }
+            bx = (int16)(y + h - 1);
+            if (bx > clipB) {
+                if (y > clipB) return;
+                h = (int16)(h - (bx - clipB));
+            }
+            p->dstX = x; p->dstY = y; p->srcX = sx; p->srcY = sy;
+        }
+        r2d_submitImage(img, sx, sy, w, h, x, y, opaque ? -1 : 0);
+    }
 }
 
 void far gfx_blitSprite(int16 spr) {

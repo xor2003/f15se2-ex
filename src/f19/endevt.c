@@ -974,7 +974,7 @@ void sub_175BC(void)
         clearRect(awardTextItem, 5, 0xad, 0x13c, 0xc7);
         mystrcpy(obuf, rbuf);
         mystrcat(obuf, " is ");
-        mystrcat(obuf, "awarded the \x8eCombat Readiness Ribbon\x8f for ");
+        mystrcat(obuf, "awarded the \x8e" "Combat Readiness Ribbon\x8f for ");
         mystrcat(obuf, "successfully completing this training mission.");
         awardTextItem[2] = 9;
         drawStringAt(awardTextItem, "Press Selector to continue", 0x64, 0xc1);

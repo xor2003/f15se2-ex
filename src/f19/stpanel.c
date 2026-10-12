@@ -30,6 +30,18 @@ struct ObjD {                               /* dseg:0xb38e, stride 0x10 */
 struct Attr14 { int16 f0, f2;               /* dseg:0x3e26, stride 0x0e */
                 uint8 f4, pad5[9]; };
 struct Rec18 { int16 f0, pad[8]; };
+struct MsnRec {                             /* dseg:0x9d54, stride 0x50 */
+    int16 f0;
+    char  name[0x1E];
+    int16 f20, f22, f24, f26, f28, f2a, f2c, f2e, f30;
+    union { struct { int16 f32, f34; } w; long coord; } u32;
+    int16 f36, f38, f3a, f3c, f3e, f40;
+    int16 f42, f44, f46, f48, f4a, f4c, f4e;
+};
+
+extern int16 sub_13E38(int16 *p, char *s);  /* seg000:0x3e38 stringWidth */
+extern void  sub_13E7C(long v, char *buf);  /* seg000:0x3e7c my_ltoa */
+extern int16 far ovlCall_b4f(int16 spr);    /* overlay 1000:0b4f sprite blit */
 
 /* seg000:0x2754 — object detail panel.  base = item-table offset into the
  * sprite-param pool, row = record index (stride 0x32), pg = page handle.
@@ -292,5 +304,132 @@ tail4:
             break;
         }
         sub_13B76(pg, (char *)(((uint8 *)f19_stSpace.m_strB96A)), 0xEB, 0x5A);
+    }
+}
+
+/* seg000:0x3218 — pilot detail-panel drawer. When the item's flag word at
+ * +0x30 carries 0x400, clears the item's detail rect (item fields +0x14..1A)
+ * and draws the pilot block: header ("Next mission assigned to:" or "Career
+ * Record of:" chosen by pilot-record f4e), rank+name, missions/career/last/
+ * best stats, then one icon+label per medal the pilot holds. Medal icons
+ * blit through the sprite descriptor the item's f28 points at (+2=sprite id,
+ * +8=x). The IDA/map extent ends at 0x3253 because the reachable stream
+ * stopped at the early-out jump; the real body runs to 0x3885. */
+void sub_13218(void *t, int16 i, int16 *pd) {
+    int8 *base = (int8 *)t;
+    int16 id;
+    struct MsnRec *rec;
+    int16 *mdesc;
+    int16 w, x;
+    char buf[0x1E];
+
+    id = i * 0x32;
+    if (!(*(uint16 *)(base + id + 0x30) & 0x400))
+        return;
+    sub_14622(pd, *(int16 *)(base + id + 0x14), *(int16 *)(base + id + 0x16),
+              *(int16 *)(base + id + 0x18), *(int16 *)(base + id + 0x1A));
+    pd[2] = 8;
+    rec = &word_29D54[i];
+    if (rec->f4e == 0)
+        sub_15120((char *)f19_stSpace.m_strB96A, (char *)f19_dsegAt(0x626));
+    else
+        sub_15120((char *)f19_stSpace.m_strB96A, (char *)f19_dsegAt(0x640));
+    w = sub_13E38(pd, (char *)f19_stSpace.m_strB96A);
+    sub_13B76(pd, (char *)f19_stSpace.m_strB96A, (0x140 - w) >> 1, 0x1A);
+    pd[2] = 9;
+    sub_15120((char *)f19_stSpace.m_strB96A,
+              (char *)f19_dsegAt(*(uint16 *)f19_dsegAt(0x286 + rec->f20 * 2)));
+    sub_15189((char *)f19_stSpace.m_strB96A, rec->name);
+    sub_13B76(pd, (char *)f19_stSpace.m_strB96A, 0x2D, 0x25);
+    sub_15120((char *)f19_stSpace.m_strB96A, (char *)f19_dsegAt(0x652));
+    sub_13FB3(rec->f36, buf);
+    sub_15189((char *)f19_stSpace.m_strB96A, buf);
+    sub_13B76(pd, (char *)f19_stSpace.m_strB96A, 0x2D, 0x2D);
+    sub_15120((char *)f19_stSpace.m_strB96A, (char *)f19_dsegAt(0x663));
+    sub_13E7C(rec->u32.coord, buf);
+    sub_15189((char *)f19_stSpace.m_strB96A, buf);
+    sub_13B76(pd, (char *)f19_stSpace.m_strB96A, 0xA5, 0x2D);
+    sub_15120((char *)f19_stSpace.m_strB96A, (char *)f19_dsegAt(0x672));
+    sub_13E7C((long)(uint16)rec->f30, buf);
+    sub_15189((char *)f19_stSpace.m_strB96A, buf);
+    sub_13B76(pd, (char *)f19_stSpace.m_strB96A, 0x2D, 0x35);
+    sub_15120((char *)f19_stSpace.m_strB96A, (char *)f19_dsegAt(0x681));
+    sub_13E7C((long)(uint16)rec->f2e, buf);
+    sub_15189((char *)f19_stSpace.m_strB96A, buf);
+    sub_13B76(pd, (char *)f19_stSpace.m_strB96A, 0xA5, 0x35);
+    x = 0x2D;
+    mdesc = (int16 *)f19_dsegAt(*(uint16 *)(base + id + 0x28));
+    if (rec->f24 != 0) {
+        sub_15120((char *)f19_stSpace.m_strB96A, (char *)f19_dsegAt(0x690));
+        if (rec->f24 > 1) {
+            sub_15189((char *)f19_stSpace.m_strB96A, (char *)f19_dsegAt(0x693));
+            sub_13FB3(rec->f24, buf);
+            sub_15189((char *)f19_stSpace.m_strB96A, buf);
+        }
+        w = sub_13E38(pd, (char *)f19_stSpace.m_strB96A);
+        sub_13B76(pd, (char *)f19_stSpace.m_strB96A, ((0x22 - w) >> 1) + x, 0x3D);
+        mdesc[1] = 0x55;
+        mdesc[4] = x;
+        ovlCall_b4f(*(uint16 *)(base + id + 0x28));
+        x += 0x27;
+    }
+    if (rec->f26 != 0) {
+        sub_15120((char *)f19_stSpace.m_strB96A, (char *)f19_dsegAt(0x695));
+        if (rec->f26 > 1) {
+            sub_15189((char *)f19_stSpace.m_strB96A, (char *)f19_dsegAt(0x699));
+            sub_13FB3(rec->f26, buf);
+            sub_15189((char *)f19_stSpace.m_strB96A, buf);
+        }
+        w = sub_13E38(pd, (char *)f19_stSpace.m_strB96A);
+        sub_13B76(pd, (char *)f19_stSpace.m_strB96A, ((0x22 - w) >> 1) + x, 0x3D);
+        mdesc[1] = 0x77;
+        mdesc[4] = x;
+        ovlCall_b4f(*(uint16 *)(base + id + 0x28));
+        x += 0x27;
+    }
+    if (rec->f28 != 0) {
+        sub_15120((char *)f19_stSpace.m_strB96A, (char *)f19_dsegAt(0x69B));
+        if (rec->f28 > 1) {
+            sub_15189((char *)f19_stSpace.m_strB96A, (char *)f19_dsegAt(0x69E));
+            sub_13FB3(rec->f28, buf);
+            sub_15189((char *)f19_stSpace.m_strB96A, buf);
+        }
+        w = sub_13E38(pd, (char *)f19_stSpace.m_strB96A);
+        sub_13B76(pd, (char *)f19_stSpace.m_strB96A, ((0x22 - w) >> 1) + x, 0x3D);
+        mdesc[1] = 0x99;
+        mdesc[4] = x;
+        ovlCall_b4f(*(uint16 *)(base + id + 0x28));
+        x += 0x27;
+    }
+    if (rec->f2a != 0) {
+        sub_15120((char *)f19_stSpace.m_strB96A, (char *)f19_dsegAt(0x6A0));
+        if (rec->f2a > 1) {
+            sub_15189((char *)f19_stSpace.m_strB96A, (char *)f19_dsegAt(0x6A4));
+            sub_13FB3(rec->f2a, buf);
+            sub_15189((char *)f19_stSpace.m_strB96A, buf);
+        }
+        w = sub_13E38(pd, (char *)f19_stSpace.m_strB96A);
+        sub_13B76(pd, (char *)f19_stSpace.m_strB96A, ((0x22 - w) >> 1) + x, 0x3D);
+        mdesc[1] = 0xBB;
+        mdesc[4] = x;
+        ovlCall_b4f(*(uint16 *)(base + id + 0x28));
+        x += 0x27;
+    }
+    if (rec->f22 == 1) {
+        sub_15120((char *)f19_stSpace.m_strB96A, (char *)f19_dsegAt(0x6A6));
+        w = sub_13E38(pd, (char *)f19_stSpace.m_strB96A);
+        sub_13B76(pd, (char *)f19_stSpace.m_strB96A, ((0x22 - w) >> 1) + x, 0x3D);
+        mdesc[1] = 0x33;
+        mdesc[4] = x;
+        ovlCall_b4f(*(uint16 *)(base + id + 0x28));
+        x += 0x27;
+    }
+    if (rec->f2c == 1) {
+        sub_15120((char *)f19_stSpace.m_strB96A, (char *)f19_dsegAt(0x6A9));
+        w = sub_13E38(pd, (char *)f19_stSpace.m_strB96A);
+        sub_13B76(pd, (char *)f19_stSpace.m_strB96A, ((0x22 - w) >> 1) + x, 0x3D);
+        mdesc[1] = 0xDD;
+        mdesc[4] = x;
+        ovlCall_b4f(*(uint16 *)(base + id + 0x28));
     }
 }

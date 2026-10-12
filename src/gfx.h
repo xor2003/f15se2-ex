@@ -142,6 +142,7 @@ void FAR CDECL gfx_setOvlVal1(int val);                                       /*
 void FAR CDECL gfx_setOvlVal2(int val);                                       /* slot 0x41: writes ds:0xce */
 void FAR CDECL gfx_setDac(uint16 palIdx);                                     /* slot 0x44: set VGA DAC palette */
 void gfx_setDacRange(uint16 startReg, uint16 count, const uint8 *vgaTriples); /* native INT 10h AX=1012h: load DAC register block */
+void gfx_dacRefreshUi(void);                                                  /* per-tick re-apply of the current UI record to DAC[0..15] */
 void FAR CDECL gfx_waitRetrace();                                             /* slot 0x45: wait for vblank */
 void FAR CDECL gfx_flipPage();                                                /* slot 0x46: vblank + flip to VGA */
 void FAR CDECL gfx_blitSpriteClipped(int16 *ptr);                             /* slot 0x47: sprite variant */

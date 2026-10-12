@@ -107,7 +107,10 @@ void f19_segUseWorld(int world) {
 }
 
 void *f19_dsegAt(uint32 off) {
-    if (off >= 0x10000) return NULL;
+    /* Callers pass int16-typed dseg values (e.g. word_2CA70[] world-name
+     * offsets) whose sign-extended promotion must wrap like the original's
+     * 16-bit register load, not fail. */
+    off &= 0xFFFF;
     if (f19_world == 2)
         return (char *)&f19_enSpace + off;
     return (char *)(f19_world == 1 ? (void *)&f19_egSpace

@@ -46,6 +46,8 @@ void projectMapPoint(int16 mapX, int16 mapY) {
 /* sprite/param block for blitGaugeSprite — dseg 0x2828 */
 struct GaugeParams {
     int16 bufPtr, srcX, srcY, page, dstX, dstY, width, height;
+    int16 clipT, clipB, clipL, clipR;   /* +0x10..+0x17: image-baked driver clip window */
+    uint8 flags, transparent;
 };
 
 /* ==== seg000:0x98bc ==== */

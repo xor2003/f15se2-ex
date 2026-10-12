@@ -22,6 +22,8 @@ struct Proj3d {
 };
 struct GaugeParams {
     int16 bufPtr, srcX, srcY, page, dstX, dstY, width, height;
+    int16 clipT, clipB, clipL, clipR;   /* +0x10..+0x17: image-baked driver clip window */
+    uint8 flags, transparent;
 };
 struct TileSceneObject {
     int16 x, y, z;
@@ -53,7 +55,11 @@ int16 *f19eg_g_viewParams;
 struct VpParms *f19eg_g_vpParms;
 int16 f19eg_g_vtxX;
 int16 f19eg_g_vtxY;
-struct GaugeParams f19eg_gaugeSpriteParams;
+/* Original image bakes the record tail at dseg 0x5822+: w/h=7,7,
+ * clip window {top=124,bottom=195,left=40,right=143}, flags=0x10, trans=1. */
+struct GaugeParams f19eg_gaugeSpriteParams = {
+    0, 0, 0, 0, 0, 0, 7, 7, 124, 195, 40, 143, 0x10, 1
+};
 char *f19eg_regnFile;
 char *f19eg_regnName;
 
@@ -125,10 +131,18 @@ static const struct {
     {0x5112, "Special\000\000\000Equip\000\000\000\000\000\000\000", 22},          /* Special */
 };
 
+/* egdata.c — rebinds the shared colour-remap table pointer */
+extern void egdata_setColorLut(uint8 *lut);
+
 void f19_egDsegLoad(void) {
     int i;
     f19_segUseWorld(1);
     f19_egVarsReset();
+    /* colorLut lives in the emulated dseg for F-19 code (the f19egglobals.h
+     * macro), but the shared display-list rasterizer + projection code read
+     * the egdata global — point it at the dseg copy so remap entries AND the
+     * aliased LOD/clip control words (+0x10..+0x3F) reach the rasterizer. */
+    egdata_setColorLut((uint8 *)f19_egSpace.m_colorLut);
     for (i = 0; i < (int)(sizeof f19eg_enStrings / sizeof f19eg_enStrings[0]); i++)
         memcpy(f19_dsegAt(f19eg_enStrings[i].off), f19eg_enStrings[i].s,
                f19eg_enStrings[i].n);

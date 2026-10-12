@@ -16,13 +16,8 @@ int16 *word_2B942;                                       /* stmain.c */
 int16 *g_vpParms;                                        /* stutil.c */
 int16 *uiPage;                                           /* stpinp.c */
 int16 *page1Num;                                         /* stpinp.c */
-char str682E[0x400];                                     /* stutil.c */
-char str6832[0x400];                                     /* stutil.c */
-char str6834[0x400];                                     /* stutil.c */
-char str6836[0x400];                                     /* stutil.c */
-char str6838[0x400];                                     /* stutil.c */
-uint8 briefTargs[0x400];                                 /* stutil.c */
-uint8 missionKinds[0x400];                               /* stutil.c */
+/* str682E..str6838, briefTargs, missionKinds are dseg-resident labels —
+ * bound to f19_stSpace via macros in stutil.c, not standalone buffers. */
 FILE *f19_fileHandle;                                    /* stgrid.c */
 int16 g_viewCenterY2;                                    /* eg3dmap.c */
 int16 *f19_nearestTerrainResult;                         /* stgen.c */

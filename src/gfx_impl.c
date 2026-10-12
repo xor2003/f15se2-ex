@@ -711,9 +711,29 @@ SDL_Surface *gfx_getPagePresentSurface(SDL_Surface *page) {
     return gfx_compositePageReplacement(page);
 }
 
+/* F19_DUMP / F15_DUMP: save the presented page so headless drives (F19_QS +
+ * F19_KEYS) can verify rendered output. Dumps the 2D page surface — cockpit
+ * instruments included — before the 3D/GL composite that r2d_present layers
+ * on top. */
+static void gfx_dumpPage(int page) {
+    static int en = -1, n;
+    SDL_Surface *pg;
+    char path[64];
+    if (en < 0) en = (getenv("F19_DUMP") || getenv("F15_DUMP")) ? 1 : 0;
+    if (!en) return;
+    pg = ensurePage(page);
+    if (!pg) return;
+    SDL_SaveBMP(pg, "/tmp/f19frame.bmp");
+    if (n < 400) {
+        snprintf(path, sizeof(path), "/tmp/f19seq_%03d.bmp", n++);
+        SDL_SaveBMP(pg, path);
+    }
+}
+
 /* Push a page's surface to the active 2D backend (GL composite or software
  * renderer) via the r2d seam (vsync-paced present). */
 static void gfx_presentPage(int page) {
+    gfx_dumpPage(page);
     /* During the hi-res title, the page-0 framebuffer still holds the prior
      * 320x200 image (e.g. labs.pic). Redirect generic flips/commits to the
      * hi-res title surface so frame-pacing presents don't clobber it. */
@@ -2744,6 +2764,15 @@ static const uint8 g_palettes[5][48] = {
  * register block): the shared surface palette is rewritten in place so every
  * page recolours on the next present. setupDac (egsys.c) drives the 0x10-0xFF
  * flight/cockpit colours through this; gfx_setDac uses it for the 0-15 block. */
+/* The last 16 VGA RGB triples written to DAC[0..15] — whether by a 256-entry
+ * setupDac load (the flight scene) or a gfx_setDac record. The original driver's
+ * timer ISR re-applied DAC[0..15] every tick (sub_11CAD -> gfx_setDac) before the
+ * fire-colour cycle (gfx_dacCycle) overwrote index 0x0d, so the visible low
+ * palette always tracked the last palette write rather than going stale. We
+ * mirror that by snapshotting every 0-15 write and re-applying it each tick. */
+static uint8 s_dacLow16[48];
+static uint8 s_dacLow16Valid = 0;
+
 void gfx_setDacRange(uint16 startReg, uint16 count, const uint8 *vgaTriples) {
     SDL_Color colors[256];
     uint16 i;
@@ -2751,6 +2780,13 @@ void gfx_setDacRange(uint16 startReg, uint16 count, const uint8 *vgaTriples) {
     if ((uint32)startReg + count > 256) count = (uint16)(256 - startReg);
     if (!gfxPalette) gfxPalette = gfx_buildPalette();
     if (!gfxPalette) return;
+    /* Snapshot writes that cover DAC[0..15] so the per-tick refresh can restore
+     * them — the last low-palette write wins (flight's 256-entry setupDac block
+     * gives standard-VGA 0-15; a gfx_setDac record overwrites just those 16). */
+    if (startReg == 0 && count >= 16 && vgaTriples != s_dacLow16) {
+        memcpy(s_dacLow16, vgaTriples, 48);
+        s_dacLow16Valid = 1;
+    }
     for (i = 0; i < count; i++) {
         /* 6-bit VGA value -> 8-bit (shift left 2, replicate top 2 bits). */
         int r = vgaTriples[i * 3] << 2, g = vgaTriples[i * 3 + 1] << 2, b = vgaTriples[i * 3 + 2] << 2;
@@ -2767,6 +2803,16 @@ void FAR CDECL gfx_setDac(uint16 palIdx) {
     if (palIdx > 4) return;
     gfx_setDacRange(0, 16, g_palettes[palIdx]);
     gfx_waitRetrace();
+}
+
+/* Re-apply the last DAC[0..15] palette write without a retrace wait — the
+ * native form of the ISR's per-tick low-palette refresh. Called from the 60 Hz
+ * tick so entries 0-15 stay on the last loaded palette (flight's standard-VGA
+ * setupDac block, or the last gfx_setDac record) after the fire-cycle and any
+ * transient writes. */
+void gfx_dacRefreshUi(void) {
+    if (s_dacLow16Valid)
+        gfx_setDacRange(0, 16, s_dacLow16);
 }
 
 /* ---- Slot 0x21: gfx_setColor ---- */

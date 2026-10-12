@@ -105,10 +105,12 @@ void f19eg_setupDac(void) {
 }
 
 void FAR CDECL gfx_dacCycle(void);
+extern void gfx_dacRefreshUi(void);
 void f19eg_advanceFrameTick(void) {
     g_frameSyncPending = 0;               /* byte_32DA3 — ISR clears before 120B0 */
     *(int16 *)(((uint8 *)(f19_egSpace.m_sinTable + 0x2EE))) += 1; /* word_32DD0 — frame-timing accum */
     g_timerTick++;                        /* byte_32DD2 — waitFrameSync byte */
+    gfx_dacRefreshUi();                   /* sub_11CAD gfx_setDac — re-apply UI record to DAC[0..15] */
     gfx_dacCycle();
 }
 

@@ -565,6 +565,19 @@ size_t size3d3_6 = 0;
 size_t size3d3_3 = 0;
 int16 sign3dg = 0x3232;
 
+/* The F-19 model loader (f19/eg3dload.c) binds size3d3_* to its own dseg cells
+ * (f19egglobals.h), but the shared rasterizer path — transformModelVerticesFar
+ * (eg3drast.c) and the GL/mesh pool decoders (r3d_gl.c/r3dmesh.c) — reads these
+ * common egdata globals. Without them populated, transformModelVerticesFar
+ * early-returns and the shared-vertex terrain-surface quads never project.
+ * load3D3() calls this after reading the counts so both bindings stay in sync. */
+void f19_setSharedVertCounts(size_t nRefs, size_t nX, size_t nY, size_t nZ) {
+    size3d3_3 = nRefs;
+    size3d3_4 = nX;
+    size3d3_5 = nY;
+    size3d3_6 = nZ;
+}
+
 /* g_theaterGrids: 8-theater terrain-type table ([514] = 8*64 + 2 pad), read via
  * memcpy(g_topLodGrid, g_theaterGrids + (theater&7)*64, 64). */
 extern const uint8 g_theaterGrids[514] = {
@@ -675,12 +688,20 @@ uint8 g_objShade = 0;
  *   [0x10..0x1F] LOD distance-threshold table (setupLodDistances writes [0..5])
  *   [0x20..0x21] object-cull distance (setupLodDistances writes it)
  *   [0x30..0x3F] near-clip distance table (read as word[BX] by the clipper)
- * Entries 0x40+ are unused colour slots (kept zero). */
-uint8 colorLut[0x100] = {
+ * Entries 0x40+ are unused colour slots (kept zero).
+ *
+ * Bound per game: the F-15 table below is the default; F-19's copy lives in
+ * its emulated dseg (f19_egSpace.m_colorLut — f19 code reaches it through the
+ * colorLut macro) and f19_egDsegLoad rebinds the pointer so shared rasterizer
+ * and projection code read the live table. */
+static uint8 s_f15ColorLut[0x100] = {
     0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,
     0x80, 0x00, 0x00, 0x01, 0x00, 0x02, 0x00, 0x04, 0x00, 0x08, 0x00, 0x10, 0x00, 0x20, 0x00, 0x40,
     0x10, 0x27, 0x10, 0x27, 0x10, 0x27, 0x10, 0x27, 0x10, 0x27, 0x10, 0x27, 0x10, 0x27, 0x10, 0x27,
     0xFF, 0xFF, 0xE9, 0xFF, 0xA5, 0xFF, 0x4A, 0xFF, 0x95, 0xFE, 0x2B, 0xFD, 0x56, 0xFA, 0xAC, 0xF4};
+uint8 *colorLut = s_f15ColorLut;
+
+void egdata_setColorLut(uint8 *lut) { if (lut) colorLut = lut; }
 
 int16 g_lodDistBase = 0x800;
 int16 g_lodDistScale = 0x1000;

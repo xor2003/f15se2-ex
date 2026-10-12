@@ -178,9 +178,112 @@ int16 f19_calcBearing(int16 dx, int16 dy) {   /* seg000:0x8b80 */
     return result;
 }
 
+/* ---- f19_findNearestTerrain (seg000:0x6e8c) — START-side nearest tile-object
+ * search over the loaded .3DT/.3DG terrain tables.  Mirrors the EGAME
+ * findNearestTileObject algorithm (a binary-duplicate routine) but runs on the
+ * START data segment: gridBuf1-5 quadtree, terrainTilePtrs/terrainTileCounts
+ * per-level cell tables, terrainTileBlock object stream, objectTypeTable
+ * shape->category filter.  Returns an int16* to a static result record laid out
+ * {id@+0, dist@+2, x@+4(i32), y@+8(i32), entryOff@+0xC, lod/sub/tile@+0xE..}. */
+
+#define terrainTileCountsW ((uint16 *)f19_stSpace.m_terrainTileCounts)   /* [lvl*32+cell] */
+#define terrainTilePtrsW   ((uint16 *)f19_stSpace.m_terrainTilePtrs)     /* [lvl*32+cell] */
+#define terrainTileBlk     ((uint8 *)f19_stSpace.m_terrainTileBlock)
+#define stGridBuf1 ((uint8 *)f19_stSpace.m_gridBuf1)
+#define stGridBuf2 ((uint8 *)f19_stSpace.m_gridBuf2)
+#define stGridBuf3 ((uint8 *)f19_stSpace.m_gridBuf3)
+#define stGridBuf4 ((uint8 *)f19_stSpace.m_gridBuf4)
+#define stGridBuf5 ((uint8 *)f19_stSpace.m_gridBuf5)
+#define gridLevelSize    (f19_stSpace.m_gridLevelSize)
+#define terrainTileBase  0xA5C8      /* dseg offset stored in terrainTilePtrs entries */
+
+#pragma pack(1)
+struct StTileObj { int16 x, y, z; uint8 shape; };
+#pragma pack()
+
+/* sub_17072 — coord >> lod-shift, no rounding (START variant of scaleCoordToLod). */
+static uint32 stScaleCoordToLod(int16 level, uint32 coord) {
+    switch (level) {
+    case 4: return coord >> 6;
+    case 3: return coord >> 4;
+    case 2: return coord >> 2;
+    case 1: return coord;
+    case 0: return coord << 1;
+    }
+    return coord;
+}
+
+/* sub_170E0 — quadtree cell index for tile coords (col,row) at lod, or -1. */
+static int16 stTerrainCellLookup(int16 lod, int16 col, int16 row) {
+    if (col < 0 || row < 0 || col >= gridLevelSize[lod] || row >= gridLevelSize[lod])
+        return -1;
+    switch (lod) {
+    case 4: return stGridBuf1[col + row * 4];
+    case 3: return stGridBuf2[col + row * 16];
+    case 2: return stGridBuf3[(col & 3) + (row & 3) * 4 + stTerrainCellLookup(3, col >> 2, row >> 2) * 16];
+    case 1: return stGridBuf4[(col & 3) + (row & 3) * 4 + stTerrainCellLookup(2, col >> 2, row >> 2) * 16];
+    case 0: return stGridBuf5[(col & 3) + (row & 3) * 4 + stTerrainCellLookup(1, col >> 2, row >> 2) * 16];
+    }
+    return lod;
+}
+
+static int16 f19_ntrBuf[12];             /* result record (18 bytes used) */
+
+int16 *f19_findNearestTerrain(int32 wx, int32 wy) {
+    static const int16 nbrX[9] = {-1, 1, 1, -1, 0, 1, 0, -1, 0};
+    static const int16 nbrY[9] = {1, 1, -1, -1, 1, 0, -1, 0, 0};
+    int16 c, e, f, n, i, k, r, d, a, b, o, p, h, j, q, dist;
+    int16 bestEntry = 0;
+    int32 bestX = 0, bestY = 0;
+    struct StTileObj *entry;
+    uint16 tileOff;
+
+    dist = 0x7fff;
+    for (c = 1; c <= 2; c++) {
+        for (e = 0; e < 9; e++) {
+            uint32 sx = stScaleCoordToLod(c, (uint32)wx);
+            uint32 sy = stScaleCoordToLod(c, (uint32)wy);
+            i = (int16)(sx >> 12); r = (int16)(sx & 0xfff);
+            k = (int16)(sy >> 12); d = (int16)(sy & 0xfff);
+            a = nbrX[e]; b = nbrY[e];
+            o = (int16)(a * 0x1000 - r + 0x800);
+            p = (int16)(b * 0x1000 - d + 0x800);
+            i += a; k += b;
+            n = stTerrainCellLookup(c, i, k);
+            if (n == -1) continue;
+            tileOff = terrainTilePtrsW[c * 32 + n];
+            entry = (struct StTileObj *)(terrainTileBlk + ((uint16)tileOff - terrainTileBase));
+            for (f = 0; f < (int16)terrainTileCountsW[c * 32 + n]; f++, entry++) {
+                int16 shape = entry->shape;
+                if (objectTypeTable[shape] == 0) continue;
+                h = o + entry->x;
+                j = p + entry->y;
+                q = (int16)(abs(j) + abs(h));
+                if (c == 1) q >>= 2;
+                else { h <<= 2; j <<= 2; }
+                if (q < dist) {
+                    /* record best match into the result record */
+                    bestEntry = (int16)tileOff;
+                    f19_ntrBuf[0] = shape;
+                    dist = q;
+                    bestX = wx + h;
+                    bestY = wy + j;
+                }
+            }
+        }
+    }
+    if (dist == 0x7fff) return 0;
+    f19_ntrBuf[1] = dist;
+    f19_ntrBuf[2] = (int16)(bestX & 0xffff);
+    f19_ntrBuf[3] = (int16)(bestX >> 16);
+    f19_ntrBuf[4] = (int16)(bestY & 0xffff);
+    f19_ntrBuf[5] = (int16)(bestY >> 16);
+    f19_ntrBuf[6] = bestEntry;
+    return f19_ntrBuf;
+}
+
 /* seg000:0x866c — f19_findNearestTerrain hit → snap wx/wy to the terrain anchor,
  * reuse a matching f19_worldObjects[] slot or write into `slot`. */
-int16 *f19_findNearestTerrain(int32 wx, int32 wy); /* seg000:0x6e8c */
 
 int16 f19_findOrPlaceItem(int16 wx, int16 wy, int16 slot) {
     int16 j;
