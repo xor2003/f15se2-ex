@@ -132,9 +132,16 @@ int16 f19en_lseek(int16 fd, int32 off, int16 whence) {
     extern int16 sub_1E172(int16 h, int16 lo, int16 hi, int16 mode);
     return sub_1E172(fd, (int16)(off & 0xFFFF), (int16)(off >> 16), whence);
 }
-void f19en_seekFileAt(int16 fd, int16 off, int16 whence) {
-    extern int16 sub_1E172(int16 h, int16 lo, int16 hi, int16 mode);
-    (void)sub_1E172(fd, off, 0, whence);
+/* seg000:0x1694 — showPicFile (map name): decode the open PIC stream into the
+ * driver's page-index buffer. [bp+6] is the page index handed to the driver's
+ * select-page call (9D9:1468); a third arg is pushed by the caller but never
+ * read. Natively the page table mirrors bufPtr registrations (gfx_storeBufPtr),
+ * so f19_pagePixels(n) is the same target copyRect(n) reads. */
+void f19en_showPicFile(int16 fd, int16 page, int16 unused) {
+    extern void f19_decodeTo(int16 fd, void *dst);
+    extern void *f19_pagePixels(int16 n);
+    (void)unused;
+    f19_decodeTo(fd, f19_pagePixels(page));
 }
 uint16 f19en_dos_alloc(uint16 size) {
     return (uint16)f19_allocSeg((uint16)((size + 0xF) >> 4));

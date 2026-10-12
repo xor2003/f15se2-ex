@@ -205,6 +205,13 @@ void  far gfx_setPageN(uint16 n) {                       /* slot 0x0e */
 void  far gfx_storeBufPtr(int16 p, int16 n) {            /* slot 0x4b */
     if (n >= 0 && n < 64)
         f19_bufTab[n] = p;
+    /* DOS keeps ONE buffer-pointer table: storeBufPtr(seg,n) registers the seg
+     * under the same index copyRect/the page blitter resolve. Mirror f19seg
+     * handles into the page table so those paths see registered buffers (END's
+     * debrief icons: storeBufPtr(gfxInitResult,1) then copyRect(1,…)). App
+     * sprite-buf handles (unresolvable by f19_segPtr) stay out of the table. */
+    if (n >= 0 && n < 16 && f19_segPtr(p))
+        f19_pageSegTab[n] = p;
 }
 int16 far gfx_getVal(void) { return 0; }                 /* slot 0x4e cell */
 void  far gfx_blitToCurrent(int16 seg) {                 /* slot 0x30 */

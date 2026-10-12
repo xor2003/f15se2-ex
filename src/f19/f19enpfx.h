@@ -150,7 +150,6 @@
 #define rand                   f19en_rand
 #define srand                  f19en_srand
 #define lseek                  f19en_lseek
-#define seekFileAt             f19en_seekFileAt
 #define drawLineWrapper        f19en_drawLineWrapper
 #define clearRect              f19en_clearRect
 #define int86                  f19en_int86

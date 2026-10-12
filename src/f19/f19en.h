@@ -332,7 +332,7 @@ void   picStreamRead(int16 fd);
 void   seedRandom16(int16 v);
 void   srand(int16 v);
 int16  lseek(int16 fd, int32 off, int16 whence);
-void   seekFileAt(int16 fd, int16 off, int16 whence);
+void   showPicFile(int16 fd, int16 page, int16 unused);  /* seg000:0x1694 */
 uint16 dos_alloc(uint16 size);
 int16  dos_free(uint16 seg);
 void   dos_printstring(const char *s);

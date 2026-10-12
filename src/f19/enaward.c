@@ -3,16 +3,18 @@
 #include "f19en.h"
 
 extern int16 openFileWrapper(const char *name, int16 mode);  /* sub_11336 */
-extern void seekFileAt(int16 fd, int16 off, int16 whence);   /* sub_11694 */
+extern void showPicFile(int16 fd, int16 page, int16 unused); /* sub_11694 — decode-to-driver-page */
 extern void closeFileWrapper(int16 fd);                      /* sub_1135A */
 extern void picBlit(int16 fd, int16 page);                   /* 0x1706 — asm decode-to-page */
 extern void decodePic(int16 fd, int16 page);                 /* 0x17e2 — asm decode */
 
-/* seg000:0x15a6 — open, seek, close (map name: loadPicFromFileAt) */
-void loadPicFromFileAt(const char *name, int16 off, int16 whence) {
+/* seg000:0x15a6 — open + showPicFile + close (map name: loadPicFromFileAt);
+ * arg2 is the driver page index the pic decodes into (dbicons.spr -> page 1),
+ * arg3 is pushed but unread by the page blitter. */
+void loadPicFromFileAt(const char *name, int16 page, int16 unused) {
     int16 handle;
     handle = openFileWrapper(name, 0);
-    seekFileAt(handle, off, whence);
+    showPicFile(handle, page, unused);
     closeFileWrapper(handle);
 }
 
