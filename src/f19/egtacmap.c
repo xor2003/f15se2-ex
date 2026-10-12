@@ -1145,7 +1145,7 @@ void updateTargetingHud(void) {
         !(*(int8 *)&g_viewMode & 0x80)) {
         best = 0xFFFF;
         thresh = 0x64 << (6 - g_nightMode);
-        if (g_groundTargetLock != 0xFFFF) {
+        if ((uint16)g_groundTargetLock != 0xFFFF) {
             i = g_groundTargetLock - 0x80;
             cur = bearingToStore(i) - 1;
             if (abs(g_ourHead + g_scanDir - g_targetBearing) > 0x2000)
@@ -1166,7 +1166,7 @@ void updateTargetingHud(void) {
             }
         }
         if (best & 0x80) {
-            if (g_groundTargetLock == 0xFFFF)
+            if ((uint16)g_groundTargetLock == 0xFFFF)
                 g_lockCooldown = 4;
             else
                 g_groundTargetLock = 0xFFFF;
@@ -1189,7 +1189,7 @@ void updateTargetingHud(void) {
     }
     thresh = 0x4B << (6 - g_nightMode);
     highAlt = (g_hudVisible != 0 && (uint16)(g_nearestThreatRange + g_viewZ) > 0x5DC) ? 1 : 0;
-    if ((g_airTargetLock & 0x80) && g_airTargetLock != 0xFFFF) {
+    if ((g_airTargetLock & 0x80) && (uint16)g_airTargetLock != 0xFFFF) {
         i = g_airTargetLock - 0x80;
         cur = computeTargetBearing(g_simObjects[i].posX,
                                    g_simObjects[i].posY, 1);
@@ -1247,7 +1247,7 @@ void updateTargetingHud(void) {
             }
         }
     }
-    if (best != 0xFFFF)
+    if ((uint16)best != 0xFFFF)
         g_airTargetLock = best;
     if (g_airTargetLock & 0x80)
         g_airTargetLock = 0xFFFF;

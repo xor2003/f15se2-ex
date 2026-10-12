@@ -494,14 +494,14 @@ restart_40a8:
                 randW = f19_randMul(0xe0) * 0x80 + 0x840;
                 randY = f19_randMul(0xe0) * 0x80 + 0x840;
             } while ((terrainGrid[(randW >> 0xb) + ((randY >> 0xb) * 0x10)] & 3) != 0 ||
-                     (f19_targets[0].objIdx = f19_findOrPlaceItem(randW, randY, 1)) == 0xffff ||
+                     (uint16)(f19_targets[0].objIdx = f19_findOrPlaceItem(randW, randY, 1)) == 0xffff ||
                      (f19_worldObjects[f19_targets[0].objIdx].targetFlags & 0x801) == 1);
         }
         do {
             randW = f19_randMul(0xe0) * 0x80 + 0x840;
             randY = f19_randMul(0xe0) * 0x80 + 0x840;
         } while ((terrainGrid[(randW >> 0xb) + ((randY >> 0xb) * 0x10)] & 3) != 0 ||
-                 (f19_targets[1].objIdx = f19_findOrPlaceItem(randW, randY, 2)) == 0xffff ||
+                 (uint16)(f19_targets[1].objIdx = f19_findOrPlaceItem(randW, randY, 2)) == 0xffff ||
                  ((gameData->flags3c & 1) &&
                   (f19_worldObjects[f19_targets[1].objIdx].targetFlags & 0x801) == 1));
     } while (f19_targets[0].objIdx == f19_targets[1].objIdx ||
