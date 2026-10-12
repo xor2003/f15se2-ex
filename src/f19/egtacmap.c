@@ -245,7 +245,7 @@ void drawPanelModeText(int16 mode) {
     switch (mode) {
     case 0x13:
         strcpy(g_nameBuf, "TrackCam ");
-        switch (g_scanDir) {
+        switch ((uint16)g_scanDir) {
         case 0x8000: strcat(g_nameBuf, "Rear"); break;
         case 0xC000: strcat(g_nameBuf, "Left"); break;
         case 0:      strcat(g_nameBuf, "Ahead"); break;
