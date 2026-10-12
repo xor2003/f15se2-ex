@@ -1,4 +1,5 @@
 #include "f19eg.h"
+#include "f19egvars.h"
 
 /* egflight.c — F19 flight-model routines (seg000).
    Verified byte-identical against EGAME.EXE via tools/portcheck.py. */
@@ -762,7 +763,7 @@ void renderFrame(void) {
         g_camEyeZ = g_crashCamZ;
         break;
     }
-    if (abs(g_viewPitch) > 0x4000 || g_viewPitch == 0x8000) {
+    if (abs(g_viewPitch) > 0x4000 || (uint16)g_viewPitch == 0x8000) {
         g_viewPitch = 0x8000 - g_viewPitch;
         (*((char *)&g_viewHeading + 1)) += 0x80;
         g_viewRoll = 0x8000 - g_viewRoll;
@@ -774,7 +775,12 @@ void renderFrame(void) {
     }
     g_camEyeZ = g_camEyeZ < 0x10 ? 0x10 : g_camEyeZ;
     prevVis = g_hudVisible;
+    /* The original's word_33D90 is ONE flag read by both the shared-global
+     * users (g_hudVisible) and the dseg-cell users (g_panelLabelOn /
+     * plotMapObject & co.). Write both bindings or external views keep
+     * plotting map dots/panel labels. */
     g_hudVisible = ((int8)g_viewMode & 0xC0) == 0;
+    g_panelLabelOn = g_hudVisible;
     if (prevVis != g_hudVisible) {
         g_pageFront[8] = g_hudVisible ? 0x6C : 0xC7;
         g_pageBack[8] = g_hudVisible ? 0x6C : 0xC7;
