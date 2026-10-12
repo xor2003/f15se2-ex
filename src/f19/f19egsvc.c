@@ -299,6 +299,34 @@ extern void timerPump(void);               /* shared/timer.c */
 extern void gfx_dacAnimate(void);          /* slot 0x2c present */
 extern uint8 g_missionEndedFlag[];         /* app quit flag (window close) */
 
+uint8 *gfx_pagePixels(int page, int *pitchOut);        /* gfx_impl.c */
+
+static void f19_winlog(int frame) {
+    static int en = -1;
+    int pitch, x, y;
+    unsigned long sum = 0, dsum = 0;
+    uint8 *px;
+    static uint8 prev[0x48 * 0x68];
+    if (en < 0) en = getenv("F19_WINLOG") ? 1 : 0;
+    if (!en) return;
+    px = gfx_pagePixels(0, &pitch);
+    if (!px) return;
+    for (y = 0; y < 0x48; y++)
+        for (x = 0; x < 0x68; x++) {
+            uint8 v = px[(0x7C + y) * pitch + 0xB0 + x];
+            sum += v;
+            if (v != prev[y * 0x68 + x]) dsum++;
+        }
+    memcpy(prev, px + 0x7C * pitch + 0xB0, 0x68); /* row 0 only; full copy below */
+    for (y = 0; y < 0x48; y++)
+        memcpy(prev + y * 0x68, px + (0x7C + y) * pitch + 0xB0, 0x68);
+    fprintf(stderr, "winlog f=%d sum=%lu dchg=%lu airLk=%d grLk=%d panel=%02x weap=%d tIHF=%d pKM=%d lgb=%d tick=%d det=%d drw=%d\n",
+            frame, sum, dsum, (int)g_airTargetLock, (int)g_groundTargetLock,
+            (int)g_curPanelMode, (int)g_currentWeaponType,
+            (int)g_targetInHudFlag, (int)g_prevKillMarker, (int)g_lgbTimer,
+            (int)frameTick, (int)g_detailLevel, (int)g_drawPage);
+}
+
 void f19eg_runGameLoop(void) {
     static int dbg = -1, frames = 0;
     if (dbg < 0) dbg = getenv("F19_DBG") ? 1 : 0;
@@ -317,6 +345,7 @@ void f19eg_runGameLoop(void) {
         f19eg_stepFlightModel();
         f19eg_updateFrame();
         gfx_dacAnimate();
+        f19_winlog(frames++);
         if (g_commEventFlag != 0 || g_missionEndedFlag[0] != 0)
             break;
     }
