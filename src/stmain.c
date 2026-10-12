@@ -79,8 +79,18 @@ int start_main(void) {
         waitMdaCgaStatus(4);
         audio_playIntro();
         restoreTimerIrqHandler();
-        gfx_setDac(titleFadeDac);
+        /* The original holds the EGA title with the credit-greens suppressed
+         * (the driver's palette-4 record blacks out DAC indices 2 and 10 —
+         * exactly the colours the TITLE640 credit text uses) until a key is
+         * pressed, then restores the full palette so the credits pop in for a
+         * beat before the mode-13h switch. */
+        gfx_setDac(titleFadeDac ? 4 : 0);
+        if (titleFadeDac) gfx_presentHiRes();
         misc_getKey();
+        if (titleFadeDac) {
+            gfx_setDac(0);
+            gfx_presentHiRes();
+        }
         gfx_waitRetrace();
         gfx_setMode13();
     }

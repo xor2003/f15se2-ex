@@ -550,8 +550,9 @@ static size_t customCampaignSelectedSortiePos(const string &json) {
     int numericSelector = 1;
 
     if (sequencePos == string::npos) return string::npos;
-    /* Without an explicit sortie, let the original generator choose targets and bases. */
-    if (selector.empty()) return string::npos;
+    /* Without an explicit sortie the campaign starts at its first sortie, so
+     * seed the hints from sortie_sequence[0]. */
+    if (selector.empty()) return json.find('{', sequencePos);
     for (char c : selector) {
         if (!isdigit((unsigned char)c)) {
             numericSelector = 0;
@@ -661,9 +662,22 @@ static void addRecursiveReplacementCandidates(vector<fs::path> &candidates,
     if (!fs::is_directory(root, ec)) return;
     /* convert-all preserves campaign/theater subdirectories below
      * converted_assets_all. Keep direct candidates first, then use this bounded
-     * fallback so runtime loading can find recursive conversion output. */
-    for (const fs::directory_entry &entry : fs::recursive_directory_iterator(root, ec)) {
-        if (ec) break;
+     * fallback so runtime loading can find recursive conversion output.
+     * Campaign packs (dirs carrying campaign.json) are scenario-scoped: never
+     * descend into one whose name doesn't match the selected scenario, or its
+     * art would leak into the base game. */
+    const string selectedScenario = lowerString(g_customWorldScenario);
+    fs::recursive_directory_iterator it(root, ec), end;
+    for (; it != end && !ec; it.increment(ec)) {
+        const fs::directory_entry &entry = *it;
+        if (entry.is_directory(ec)) {
+            std::error_code ec2;
+            if (fs::exists(entry.path() / "campaign.json", ec2) &&
+                lowerString(entry.path().filename().string()) != selectedScenario) {
+                it.disable_recursion_pending();
+                continue;
+            }
+        }
         if (!entry.is_regular_file(ec)) continue;
         if (lowerString(entry.path().filename().string()) == filenameLower) {
             addReplacementCandidate(candidates, entry.path());
@@ -908,9 +922,20 @@ int findReplacementShapeModelPath(const char *containerLegacyFilename, int shape
     for (const fs::path &convertedRoot : recursiveRoots) {
         std::error_code ec;
         if (!fs::is_directory(convertedRoot, ec)) continue;
-        for (const fs::directory_entry &entry : fs::recursive_directory_iterator(convertedRoot, ec)) {
-            if (ec) break;
+        const string selectedScenario = lowerString(g_customWorldScenario);
+        fs::recursive_directory_iterator it(convertedRoot, ec), end;
+        for (; it != end && !ec; it.increment(ec)) {
+            const fs::directory_entry &entry = *it;
             if (!entry.is_directory(ec)) continue;
+            /* Campaign packs (dirs carrying campaign.json) are scenario-scoped:
+             * never descend into one whose name doesn't match the selected
+             * scenario, or its shapes would leak into the base game. */
+            std::error_code ec2;
+            if (fs::exists(entry.path() / "campaign.json", ec2) &&
+                lowerString(entry.path().filename().string()) != selectedScenario) {
+                it.disable_recursion_pending();
+                continue;
+            }
             if (lowerString(entry.path().filename().string()) == lowerDir) {
                 addReplacementCandidate(roots, entry.path());
             }
