@@ -70,7 +70,9 @@ static const GameAssetFile f19Manifest[] = {
     { "fff6a0e3d2d16af739d9a36eb413339f", "persian.spr" },
     { "a019f6eade84d4d6a2c8034850979c14", "ncape.spr" },
     { "bacf2b850fcc6b592f92f046c89b15c8", "ceurope.spr" },
-    { "651bcf535ed50ffa7724c8751bec1a66", "roster.fil" },
+    /* roster.fil intentionally absent: it is mutable save state (pilot roster
+     * rewritten on exit), not a shipped asset — md5-gating it makes the game
+     * unbootable after the first run. */
     { NULL, NULL }
 };
 
