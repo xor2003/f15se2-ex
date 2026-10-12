@@ -17,10 +17,10 @@ void loadColorPalette(int16 idx) {
 /* ==== seg000:0x978c ==== */
 void drawMapMarkerBox(int16 unused1, int16 unused2, int16 color) {
     setDrawColor(color);
-    drawLine(g_mapX - 4, g_mapY - 3, g_mapX + 4, g_mapY - 3);
-    drawLine(g_mapX + 4, g_mapY - 3, g_mapX + 4, g_mapY + 3);
-    drawLine(g_mapX + 4, g_mapY + 3, g_mapX - 4, g_mapY + 3);
-    drawLine(g_mapX - 4, g_mapY + 3, g_mapX - 4, g_mapY - 3);
+    drawLine(g_vprojXlo - 4, g_vprojYlo - 3, g_vprojXlo + 4, g_vprojYlo - 3);
+    drawLine(g_vprojXlo + 4, g_vprojYlo - 3, g_vprojXlo + 4, g_vprojYlo + 3);
+    drawLine(g_vprojXlo + 4, g_vprojYlo + 3, g_vprojXlo - 4, g_vprojYlo + 3);
+    drawLine(g_vprojXlo - 4, g_vprojYlo + 3, g_vprojXlo - 4, g_vprojYlo - 3);
 }
 
 /* seg000:0xe40a openBlitClosePic — stays asm (0xE1xx pic/file cluster) */
