@@ -759,13 +759,13 @@ void f19_wrapUnitText(int16 o, char *s, uint16 w, int16 x, int16 y, int16 dy) {
     g = 1;
     for (;;) {
         h = d = 0;
-        while (h < w) {
+        while ((uint16)h < w) {
             n[0] = *c;
             if (n[0] == 0 || n[0] == 0x0D || n[0] == 0x0A) goto disp;
             h += gfx_setFont(*c++, a);
             d++;
         }
-disp:   if (h >= w) goto b1;
+disp:   if ((uint16)h >= w) goto b1;
         goto b0;
         do {
 chk:        if (n[0] == 0 || n[0] == 0x0D || n[0] == 0x0A || n[0] == '-')
@@ -813,13 +813,13 @@ void f19_wrapUnitTextFar(int16 o, char far *s, uint16 w, int16 x, int16 y, int16
     g = 1;
     for (;;) {
         h = d = 0;
-        while (h < w) {
+        while ((uint16)h < w) {
             n[0] = *c;
             if (n[0] == 0 || n[0] == 0x0D || n[0] == 0x0A) goto disp;
             h += gfx_setFont(*c++, a);
             d++;
         }
-disp:   if (h >= w) goto b1;
+disp:   if ((uint16)h >= w) goto b1;
         goto b0;
         do {
 chk:        if (n[0] == 0 || n[0] == 0x0D || n[0] == 0x0A || n[0] == '-')

@@ -292,7 +292,7 @@ int16 f19_findOrPlaceItem(int16 wx, int16 wy, int16 slot) {
         wx = ((int32 *)f19_nearestTerrainResult)[1] >> 5;
         wy = -((((int32 *)f19_nearestTerrainResult)[2] >> 5) - 0x8000);
         for (j = 3; j < readItemSize; j++) {
-            if (f19_worldObjects[j].x_coord == wx && f19_worldObjects[j].y_coord == wy)
+            if (f19_worldObjects[j].x_coord == (uint16)wx && f19_worldObjects[j].y_coord == (uint16)wy)
                 return j;
         }
         f19_worldObjects[slot].x_coord = wx;

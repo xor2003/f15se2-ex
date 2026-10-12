@@ -193,12 +193,12 @@ void fireGroundThreat(int16 siteIdx) {
         if (d > 0x63)
             d = 0x63;
         g_threatToneLevel = 4;
-        if (score + g_threatScopeRange > 0x32)
+        if ((int16)(score + g_threatScopeRange) > 0x32)
             g_threatToneLevel = 0xC;
-        if (score + g_threatScopeRange > 0x64)
+        if ((int16)(score + g_threatScopeRange) > 0x64)
             g_threatToneLevel = 0xE;
         drawGaugeBar(-d, g_threatToneLevel, 1, 4);
-        g_scopeArcRange = (uint16)((int32)(score + g_threatScopeRange) * r[0] / 100);
+        g_scopeArcRange = (uint16)((int32)(int16)(score + g_threatScopeRange) * r[0] / 100);
         g_scopeSweepTimer = g_frameRateScaling;
         g_threatLabelTarget = siteIdx;
         g_threatRadarFlag = g_samSpecs[e].flags & 1;
@@ -219,7 +219,7 @@ void fireGroundThreat(int16 siteIdx) {
             hudMessage(strBuf);
         }
     }
-    if (score + g_threatScopeRange > 0x64) {
+    if ((int16)(score + g_threatScopeRange) > 0x64) {
         if (!(*(uint8 *)&g_planeTable[siteIdx].flags & 0x10))
             makeSound(8, 1);
         g_planeTable[siteIdx].alertLevel +=
@@ -247,7 +247,7 @@ void fireGroundThreat(int16 siteIdx) {
                         } else {
                             rad = siteIdx & 7;
                             if (g_projectiles[rad].ttl == 0 &&
-                                sams[e].lockRange > r[0]) {
+                                (uint16)sams[e].lockRange > r[0]) {
                                 g_projectiles[rad].mapX = g_planeTable[siteIdx].mapX + 8;
                                 g_projectiles[rad].mapY = g_planeTable[siteIdx].mapY;
                                 g_projectiles[rad].alt = 0;
@@ -303,7 +303,7 @@ int16 computeThreatRangeBearing(int16 threatX, int16 threatY, int16 threatAlt,
     }
     result = ((bearingErr + 0x20) >> 1) * (result >> 1) >> 4;
     if ((uint16)(abs(threatAlt - g_viewZ) >> 0xA) > (uint16)distance) result = 0;
-    if (result + g_threatScopeRange > 0x64) exitTimeAccel();
+    if ((int16)(result + g_threatScopeRange) > 0x64) exitTimeAccel();
     *outBearing = bearing;
     *outRange = distance;
     return result;
@@ -676,7 +676,7 @@ void updateObjects(void) {
                         plotMapObject(g_simObjects[objIdx8].posX, g_simObjects[objIdx8].posY,
                                       color, 1);
                     fireSlot = (((uint8)objIdx8 & 8) >> 3) + (objIdx8 & 7) * 2;
-                    if (frameTick % (g_frameRateScaling << 4) == fireSlot * g_frameRateScaling &&
+                    if (frameTick % (int16)(g_frameRateScaling << 4) == (int16)(fireSlot * g_frameRateScaling) &&
                         !(g_simObjects[objIdx8].flags.b[0] & 0x20))
                         fireAirThreat(objIdx8);
                 }
@@ -724,7 +724,7 @@ void fireAirThreat(int16 objIdx) {
                                       &bearing, (int16 *)&acqRange);
     g_threatToneLevel = 4;
     if (range > 0) {
-        g_scopeArcRange = (uint16)((int32)(range + g_threatScopeRange) * acqRange / 100);
+        g_scopeArcRange = (uint16)((int32)(int16)(range + g_threatScopeRange) * acqRange / 100);
         if (!(*(uint8 *)&g_samSpecs[j].flags & 2)) {
             g_scopeArcStart = (g_simObjects[objIdx].heading.w >> 8) - 0x30;
             g_scopeArcEnd = (g_simObjects[objIdx].heading.w >> 8) + 0x30;
@@ -735,7 +735,7 @@ void fireAirThreat(int16 objIdx) {
             g_scopeArcStart = (bearing >> 8) - 0x20;
             g_scopeArcEnd = (bearing >> 8) + 0x20;
         }
-        g_threatToneLevel = (range + g_threatScopeRange > 0x64) ? 0xF : 0xB;
+        g_threatToneLevel = ((int16)(range + g_threatScopeRange) > 0x64) ? 0xF : 0xB;
         gauge = range;
         if (gauge > 0x63)
             gauge = 0x63;
@@ -745,7 +745,7 @@ void fireAirThreat(int16 objIdx) {
         g_scopeArcColor = g_threatToneLevel;
         g_threatRadarFlag = g_samSpecs[j].flags & 1;
     }
-    if (range + g_threatScopeRange > 0x64) {
+    if ((int16)(range + g_threatScopeRange) > 0x64) {
         g_simObjects[objIdx].damage += (((g_difficultyTier + g_missionStatus) << 4) + 0x20) >>
                                        ((g_playerPlaneFlags & 0x10) != 0);
         if (g_simObjects[objIdx].damage > 0xC0) {
@@ -769,7 +769,7 @@ void fireAirThreat(int16 objIdx) {
                 abs(bearing - g_simObjects[objIdx].heading.w) < 0x1800) {
                 j = g_simObjects[objIdx].weaponType;
                 wofs = j * 0x12;
-                if (sams[j].lockRange > acqRange &&
+                if ((uint16)sams[j].lockRange > acqRange &&
                     (uint16)(-(g_missionStatus * 2 - 8)) < acqRange && j != 0) {
                     g_projectiles[k].mapX = g_simObjects[objIdx].posX;
                     g_projectiles[k].mapY = g_simObjects[objIdx].posY;
@@ -920,7 +920,7 @@ lock_eval:
                             acqk = samCanAcquireTarget(slotd, g_simObjects[scanb].posX,
                                                        g_simObjects[scanb].posY,
                                                        g_simObjects[scanb].alt, modec);
-                            if (g_acqRange < beste && acqk != 0) {
+                            if ((uint16)g_acqRange < beste && acqk != 0) {
                                 aimYa = g_acqAimY;
                                 beste = g_acqRange;
                                 bestIdxa = scanb;
@@ -948,7 +948,7 @@ lock_eval:
                                  !(g_shapeTargetCategory[g_planeTable[scanb].symbol] & 0xC))) {
                                 acqk = samCanAcquireTarget(slotd, g_planeTable[scanb].mapX,
                                                            g_planeTable[scanb].mapY, 0, modec);
-                                if (g_acqRange < beste && acqk != 0) {
+                                if ((uint16)g_acqRange < beste && acqk != 0) {
                                     aimYa = g_acqAimY;
                                     beste = g_acqRange;
                                     bestIdxa = scanb;

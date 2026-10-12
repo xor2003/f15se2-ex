@@ -79,8 +79,8 @@ extern void drawEventSprite(uint16 rec);      /* sub_14DDE */
 
 /* seg000:0x3ff5 */
 int16 isPointInRect(MenuItem *p) {
-    if (p->hitX1 <= cursorX && p->hitX2 >= cursorX &&
-        p->hitY1 <= cursorY && p->hitY2 >= cursorY)
+    if ((uint16)p->hitX1 <= cursorX && (uint16)p->hitX2 >= cursorX &&
+        (uint16)p->hitY1 <= cursorY && (uint16)p->hitY2 >= cursorY)
         return 1;
     else
         return 0;

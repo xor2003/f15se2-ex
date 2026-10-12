@@ -42,8 +42,8 @@ void f19_plotMapPoint(int16 mx, int16 my, int16 color, int16 unused) {
     int16 sx, sy;
     sx = f19_mapToScreenX(mx);
     sy = f19_mapToScreenY(my);
-    if (color != -1 && sx > 0 && (uint16)(mapClipX2 - mapClipX1) > sx &&
-        sy > 0 && (uint16)(mapClipY2 - mapClipY1) > sy)
+    if (color != -1 && sx > 0 && (uint16)(mapClipX2 - mapClipX1) > (uint16)sx &&
+        sy > 0 && (uint16)(mapClipY2 - mapClipY1) > (uint16)sy)
         f19_drawMapPoint(sx, sy, color);
 }
 
@@ -853,7 +853,7 @@ void f19_sub_11366(int16 *view, struct SelRow *row, int16 *pd) {
     }
     if (i == 0x5000) {          /* DOWN */
         word_2CA64 += view[1];
-        if (view[5] < word_2CA64)
+        if ((uint16)view[5] < word_2CA64)
             word_2CA64 = view[5];
         byte_27E52 = 1;
         if (flag_29948 == 1)
@@ -867,7 +867,7 @@ void f19_sub_11366(int16 *view, struct SelRow *row, int16 *pd) {
             f19_selectNextUnit();
         else {
             word_2CA60 += view[0];
-            if (view[3] < word_2CA60)
+            if ((uint16)view[3] < word_2CA60)
                 word_2CA60 = view[3];
         }
         byte_27E52 = 1;

@@ -127,7 +127,7 @@ void sub_17334(void)
     word_23B6A = calcMissionScore(word_22F10);
     if (commData->trainingFlag == 0) {
         pilotRec->awardPoints = word_23B6A;
-        if (pilotRec->bestScore < (int16)word_23B6A)
+        if (pilotRec->bestScore < (uint16)(int16)word_23B6A)
             pilotRec->bestScore = (int16)word_23B6A;
         pilotRec->totalScore += word_23B6A;
     } else
