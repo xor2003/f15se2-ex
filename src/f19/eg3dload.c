@@ -142,9 +142,9 @@ void load3DT(char *fileName) {
     }
     byteOff = 0;
     for (cat = 0; cat < 5; cat++) {
-        for (tile = 0; sizes3dt[cat] > tile; tile++) {
+        for (tile = 0; sizes3dt[cat] > (uint16)tile; tile++) {
             matrix3dt_2[cat][tile] = f19_dsegOff(OBJ(byteOff));
-            for (obj = 0; matrix3dt[cat][tile] > obj; obj++) {
+            for (obj = 0; matrix3dt[cat][tile] > (uint16)obj; obj++) {
                 fread(&OBJ(byteOff)->x, 2, 1, fileHandle);
                 fread(&OBJ(byteOff)->y, 2, 1, fileHandle);
                 fread(&OBJ(byteOff)->z, 2, 1, fileHandle);

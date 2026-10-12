@@ -49,7 +49,7 @@ void f19_parseTerrain(char *filename) {         /* seg000:0x720c */
             }
             tileOffset = 0;
             for (level = 0; level < 5; level = level + 1) {
-                for (entry = 0; terrainBuf1[level] > entry; entry++) {
+                for (entry = 0; terrainBuf1[level] > (uint16)entry; entry++) {
                     terrainTilePtrs[level].entries[entry] = (uint16)(0xA5C8 + tileOffset);
                     for (i = 0; i < terrainTileCounts[level].entries[entry]; i++) {
                         if (tileOffset > 0xdac) {

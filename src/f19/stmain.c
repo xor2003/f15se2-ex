@@ -258,7 +258,7 @@ void f19_sub_10010(void) {
         szc = (int16)(((int32)bs << 2) / 16)
             + (int16)((int32)m6 * 3 / 16)
             + 0x11E9 * m4;
-        if (szc < need) {
+        if ((uint16)szc < need) {
             word_2C7D4 = 1;
             word_2BB74 = m4;
             goto tier_alloc;
@@ -266,7 +266,7 @@ void f19_sub_10010(void) {
         szc = (int16)((int32)m6 * 3 / 16)
             + (int16)((int32)bs / 16)
             + 0x11E9 * m4;
-        if (szc < need) {
+        if ((uint16)szc < need) {
             word_2C7D4 = 2;
             word_2BB74 = m4;
             goto tier_alloc;
@@ -274,14 +274,14 @@ void f19_sub_10010(void) {
         szc = (int16)((int32)bs / 16)
             + (int16)((int32)m6 / 16)
             + 0x1101 * m4;
-        if (szc < need) {
+        if ((uint16)szc < need) {
             word_2C7D4 = 0;
             word_2BB74 = m4;
             goto tier_alloc;
         }
         szc = (int16)((int32)bs / 16)
             + (int16)((int32)m6 / 16);
-        if (szc < need) {
+        if ((uint16)szc < need) {
             word_2C7D4 = 0;
             word_2BB74 = 0;
             goto tier_alloc;

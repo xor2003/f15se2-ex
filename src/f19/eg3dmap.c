@@ -59,7 +59,7 @@ void drawMapTiles(int16 originX, int16 originY, int16 zoomShift) {
                     cell = process3dg(g_curLod, col, row);
                     if (cell != -1) {
                         g_curTileEntry = (struct TileSceneObject *)(((uint8 *)f19_dsegAt(matrix3dt_2[g_curLod][cell])));
-                        for (subIdx = 0; matrix3dt[g_curLod][cell] > subIdx; subIdx++) {
+                        for (subIdx = 0; matrix3dt[g_curLod][cell] > (uint16)subIdx; subIdx++) {
                             if (g_curTileEntry->z == 0) {
                                 g_modelStreamPtr = (char far *)(g_world3dData + buf3d3[g_curTileEntry->shape]);
                                 drawMapTileObject(g_modelStreamPtr,
@@ -222,7 +222,7 @@ struct TileObject *findNearestTileObject(uint32 worldX, uint32 worldY) {
             n = process3dg(c, i += a, k += b);
             if (n != -1) {
                 g_curTileEntry = (struct TileSceneObject *)(((uint8 *)f19_dsegAt(matrix3dt_2[c][n])));
-                for (f = 0; matrix3dt[c][n] > f; f++) {
+                for (f = 0; matrix3dt[c][n] > (uint16)f; f++) {
                     if (g_shapeTargetCategory[g_curTileEntry->shape & 0x7f] != 0) {
                         h = o + g_curTileEntry->x;
                         j = g_curTileEntry->y + p;
@@ -290,7 +290,7 @@ void drawNearestTileObject(uint32 coord1, uint32 coord2, uint32 coord3) {
     cell = process3dg(lod, tileX, tileY);
     if (cell != -1) {
         g_curTileEntry = (struct TileSceneObject *)(((uint8 *)f19_dsegAt(matrix3dt_2[lod][cell])));
-        for (subIdx = 1; subIdx < matrix3dt[lod][cell]; subIdx++) {
+        for (subIdx = 1; (uint16)subIdx < matrix3dt[lod][cell]; subIdx++) {
             relX = g_curTileEntry->x + xOff;
             relY = g_curTileEntry->y + yOff;
             g_objDistance = abs16Compat(relX) + abs16Compat(relY);
@@ -403,7 +403,7 @@ void projectObjects(int16 heading, int16 rangeGate, int32 worldX, int32 worldY, 
                 if (sampleIdx >= 4 || g_detailLevel >= 2) {
                     g_objColorBase = (g_detailLevel >= 2) ? 0 : ((uint8)g_curLod << 8);
                     g_curTileEntry = (struct TileSceneObject *)(((uint8 *)f19_dsegAt(matrix3dt_2[g_curLod][cell])));
-                    for (subIdx = 0; matrix3dt[g_curLod][cell] > subIdx; subIdx++) {
+                    for (subIdx = 0; matrix3dt[g_curLod][cell] > (uint16)subIdx; subIdx++) {
                         if (g_curTileEntry->shape & 0x80) {
                             g_modelStreamPtr = (char FAR *)(g_world3dData + (uint16)lookupTileEntry(g_curLod, subIdx, tileX + gridX, tileY + gridY));
                             if (g_modelStreamPtr == (char FAR *)g_world3dData) {

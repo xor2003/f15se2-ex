@@ -394,7 +394,7 @@ void updateFrame(void) {
         }
     }
 
-    if (++g_frameRateAccum >= (uint16)(g_frameRateScaling * 4)) {
+    if ((uint16)++g_frameRateAccum >= (uint16)(g_frameRateScaling * 4)) {
         g_frameTimingAccum -= (g_frameSyncWait * 2 - 1) * g_frameRateScaling * 2;
         if (g_frameTimingAccum < 4) {
             g_frameTimingAccum = 4;

@@ -653,7 +653,7 @@ int16 findStoreAtGrid(int16 gridX, int16 gridY) {
         gridX = (int16)(g_nearestTileObj->x >> 5);
         gridY = (int16)(0x8000 - (g_nearestTileObj->y >> 5));
         for (i = 1; i < g_storeDefCount; i++) {
-            if (g_storeDefs[i].coordX == gridX && g_storeDefs[i].coordY == gridY) {
+            if (g_storeDefs[i].coordX == (uint16)gridX && g_storeDefs[i].coordY == (uint16)gridY) {
                 return i;
             }
         }
