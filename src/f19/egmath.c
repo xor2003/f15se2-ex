@@ -212,7 +212,9 @@ void drawWorldObject(int16 shapeId, int32 worldX, int32 worldY, int16 altitude, 
     int16 *dpage;
     int16 dataOff;
     int32 ox, pg;
-    int16 sh, dz;
+    int16 sh, dz = 0;   /* original writes dz's low byte only and pushes the
+                           whole word; the callee helper masks count to a byte,
+                           so the stale high byte never reached the shift */
 
     dataOff = shapeDataOffset(shapeId);
     dpage = (g_drawPage == 0) ? g_pageFront : g_pageBack;
@@ -226,15 +228,16 @@ void drawWorldObject(int16 shapeId, int32 worldX, int32 worldY, int16 altitude, 
     }
     scaleShift = (g_halfScaleRender != 0) ? (scaleShift - 2) : (scaleShift - 3);
     if (scaleShift > 0) {
-        shiftLongLeftInPlace(scaleShift, &pg);
-        shiftLongLeftInPlace(scaleShift, &ox);
-        sh <<= (char)scaleShift;
+        int16 n = (int16)(scaleShift & 0xFF); /* `shl word,cl` uses the byte */
+        shiftLongLeftInPlace(n, &pg);
+        shiftLongLeftInPlace(n, &ox);
+        sh = (int16)(n >= 16 ? 0 : sh << n);  /* 286 shl saturates to 0 */
     }
     if (scaleShift < 0) {
         *(char *)&dz = -scaleShift;
         shiftLongRightInPlace(dz, &pg);
         shiftLongRightInPlace(dz, &ox);
-        sh >>= (char)dz;
+        sh = (int16)(dz >= 16 ? sh >> 15 : sh >> dz); /* sar saturates to sign */
     }
     if ((int16)labs(pg) < 0x7FFF) {
         if ((int16)labs(ox) < 0x7FFF) {

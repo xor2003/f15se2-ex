@@ -15,12 +15,17 @@ int f19eg_getTimeOfDay(void) { return getTimeOfDay(); }
  * library's int/long variants */
 int16 abs(int16 v) { return (int16)(v < 0 ? -v : v); }
 
-/* int32* overloads of the eg3dmath shift helpers (the app's take long*) */
+/* int32* overloads of the eg3dmath shift helpers (the app's take long*).
+ * The original helpers (sub_1FCC8/sub_1FCBC) begin with `xor ch,ch` — the
+ * count is a single byte — then shift in a `loop`; >=32 iterations saturate
+ * (right: sign extension, left: zero). */
 void shiftLongLeftInPlace(int count, int32 *ptr) {
-    *ptr = (int32)((uint32)*ptr << count);
+    count &= 0xFF;
+    *ptr = count >= 32 ? 0 : (int32)((uint32)*ptr << count);
 }
 void shiftLongRightInPlace(int count, int32 *ptr) {
-    *ptr = *ptr >> count;
+    count &= 0xFF;
+    *ptr = count >= 32 ? *ptr >> 31 : *ptr >> count;
 }
 
 /* ---- gfx driver slots -------------------------------------------------- */

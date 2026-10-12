@@ -19,7 +19,7 @@ void buildVertexSignMask(void) {
     while (edgeIdx < g_modelEdgeCount) {
         g_modelStreamPtr += 4;
         if (*(*(int16 far **)&g_modelStreamPtr)++ < 0) {
-            *(int32 *)&g_vtxSignMaskLo ^= bit;
+            g_vtxSignMask ^= bit;
         }
         g_modelStreamPtr += 2;
         bit <<= 1;
@@ -206,15 +206,19 @@ struct TileObject *findNearestTileObject(uint32 worldX, uint32 worldY) {
     /* Single-letter names are load-bearing: MSC 5.1 hashes each name to a
        fixed stack slot; this 18-local frame only byte-matches with this set. */
     int16 p, q, a, r, b, c, d, e, f, g, h, i, j, k, l, m, n, o;
+    int32 lodScale; /* original wrote the dx:ax pair through &m, spanning the
+                       adjacent stack slot; only m (ax) was ever read */
 
     nearestTile.dist = 0x7fff;
     for (c = 1; c <= 2; c++) {
         for (e = 0; e < 9; e++) {
-            *(int32 *)&m = scaleCoordToLod(c, worldX);
-            i = *(uint32 *)&m >> 0xc;
+            lodScale = scaleCoordToLod(c, worldX);
+            m = (int16)lodScale;
+            i = (int16)((uint32)lodScale >> 0xc);
             r = m & 0xfff;
-            *(int32 *)&m = scaleCoordToLod(c, worldY);
-            k = *(uint32 *)&m >> 0xc;
+            lodScale = scaleCoordToLod(c, worldY);
+            m = (int16)lodScale;
+            k = (int16)((uint32)lodScale >> 0xc);
             d = m & 0xfff;
             a = g_neighborSampling.gridX[e];
             b = g_neighborSampling.gridY[e];

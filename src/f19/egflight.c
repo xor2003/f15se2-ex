@@ -434,7 +434,8 @@ void stepFlightModel(void) {
         if (lastAlt > g_groundAltitude && g_inLandingCorridor != 0) {
             makeSound(0xC, 2);
             if (((g_planeTable[g_closestThreatIndex].flags & 0x200) ? 0x100 : 0x80) <
-                    (uint16)g_viewParamsFar[0x20] * (uint16)-g_climbRate ||
+                    (uint16)((uint32)(uint16)g_viewParamsFar[0x20] *
+                             (uint16)-g_climbRate) ||
                 (g_viewParamsFar[0x20] != 0 &&
                  ((g_playerPlaneFlags & 1) ||
                   ((0x18 / (uint16)g_viewParamsFar[0x20]) << 8) <
@@ -562,7 +563,13 @@ uint16 signedRatio16(int16 numerator, int16 denominator) {
     if (denominator < 0) denominatorSign = -1;
     absNumerator = (int32)abs16Compat(numerator);
     absDenominator = (int32)abs16Compat(denominator);
-    return (uint16)((uint16)((((uint32)(uint16)absNumerator) << 16) / absDenominator >> 1)) * (uint16)(int16)numeratorSign * (uint16)(int16)denominatorSign;
+    /* MSC evaluates the sign-multiply chain as 16-bit unsigned mul (mod 2^16).
+     * uint16 promotes to int here, where e.g. 43690*65535 is signed overflow —
+     * compute in uint32 (defined wrap) and truncate, matching mod-2^16. */
+    uint16 ratio = (uint16)((((uint32)(uint16)absNumerator) << 16) / absDenominator >> 1);
+    uint32 signedRatio = (uint32)ratio * (uint16)(int16)numeratorSign *
+                         (uint16)(int16)denominatorSign;
+    return (uint16)signedRatio;
 }
 
 /* ==== seg000:0x32f1 ==== */

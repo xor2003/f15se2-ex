@@ -5,6 +5,7 @@
 #include "egtypes.h"
 
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
@@ -110,7 +111,7 @@ enum class LoaderFile {
 };
 
 struct DrawCall {
-    const char *text;
+    char text[256];
     int x;
     int y;
     int color;
@@ -536,7 +537,13 @@ void fileClose(SDL_IOStream *handle) {
 
 void drawStringBothPages(const char *text, int x, int y, int color) {
     require(g_drawCalls < kDrawLogCapacity, "3D loader draw log capacity is sufficient");
-    g_drawLog[g_drawCalls++] = {text, x, y, color};
+    /* The loader may pass a pointer into its own stack frame (diskBMsg); copy
+     * the text so the log remains valid after the callee returns. */
+    DrawCall &call = g_drawLog[g_drawCalls++];
+    std::snprintf(call.text, sizeof(call.text), "%s", text);
+    call.x = x;
+    call.y = y;
+    call.color = color;
 }
 
 void gfx_flipPage(void) { ++g_flipCalls; }
