@@ -1,12 +1,9 @@
 #include "f19eg.h"
+#include "f19r3d.h"
 
 /* seg000 routines — 3D frame orchestrator (ported, verified vs original) */
 /* Original module compiled /Ot /Oa: g_viewParams stays cached in bx across
    the consecutive pointer stores at the top of render3DView. */
-
-void setup3DTransform(const int16 *transform, int16 a, int16 b, int16 c,
-                      int16 d, int16 e, int16 f, int16 g);  /* sub_119EA */
-void rasterize3DWorld(void);                               /* sub_11A64 */
 
 /* ==== seg000:0x044a ==== */
 uint8 far gfx_getDrawPage(void);         /* sub_2F10B */
@@ -24,10 +21,10 @@ void render3DView(int16 camX, int16 camY, int16 camZ, int32 worldX, int32 worldY
     *g_viewParams = gfx_getDrawPage() & 0xFF;
     waitFrameSync(g_frameSyncWait);
     g_viewParams[2] = (uint8)colorLut[g_skyColorIndex & 0xFF];
-    setup3DTransform(g_viewParams, camX, camY, camZ, 0, 0, (int16)worldZ, 1);
+    f19_beginScene(g_viewParams, camX, camY, camZ, 0, 0, (int16)worldZ, 1);
     projectObjects(camX, camY, worldX, worldY, worldZ);
     updateTargetingHud();
-    rasterize3DWorld();
+    f19_endScene();
     drawHudWorldOverlay();
     g_renderPageToggle ^= 1;
 }

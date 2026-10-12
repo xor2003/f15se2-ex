@@ -1,4 +1,5 @@
 #include "f19eg.h"
+#include "f19r3d.h"
 
 struct CommData { int8 pad72[0x72]; int16 setupUseJoy; };
 /* seg000 routines — math helpers (ported, verified vs original) */
@@ -241,7 +242,7 @@ void drawWorldObject(int16 shapeId, int32 worldX, int32 worldY, int16 altitude, 
             g_curLod = 1;
             /* dataOff is a 16-bit word offset into seg004 — modular unsigned,
              * not signed (buf3d3 tail entries legitimately exceed 0x7FFF). */
-            projectSceneObject((char *)(g_world3dData + (uint16)dataOff), -objYaw, objPitch, objRoll, (int16)pg, -(int16)ox, altitude != 0);
+            f19_submit((char *)(g_world3dData + (uint16)dataOff), -objYaw, objPitch, objRoll, (int16)pg, -(int16)ox, altitude != 0);
         }
     }
 }

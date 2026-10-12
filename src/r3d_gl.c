@@ -94,10 +94,15 @@ int r3dgl_wantGL(void) {
 
 /* MSAA multisampling for the GL framebuffer. 4x is effectively free on any desktop
  * GPU and noticeably cleans up the flat-shaded polygon edges and the native-res
- * vector HUD. gfx_impl.c retries with 0 if the context won't come up with it. */
-static const int GL_MSAA_SAMPLES = 4;
+ * vector HUD. gfx_impl.c retries with 0 if the context won't come up with it.
+ * F15_MSAA=0 disables (llvmpipe's multisample resolve has a crash path that
+ * F-19's point-heavy far terrain trips). */
+static int GL_MSAA_SAMPLES(void) {
+    const char *e = SDL_getenv("F15_MSAA");
+    return e ? (int)SDL_strtol(e, NULL, 0) : 4;
+}
 
-int r3dgl_msaaSamples(void) { return GL_MSAA_SAMPLES; }
+int r3dgl_msaaSamples(void) { return GL_MSAA_SAMPLES(); }
 
 void r3dgl_setGLAttributes(int msaaSamples) {
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
@@ -121,7 +126,7 @@ int r3dgl_initContext(SDL_Window *win) {
     SDL_GL_MakeCurrent(win, s_ctx);
     SDL_GL_SetSwapInterval(1);
     s_glFogCoordf = (void (*)(GLfloat))SDL_GL_GetProcAddress("glFogCoordf");
-    if (GL_MSAA_SAMPLES > 0) glEnable(GL_MULTISAMPLE); /* no-op if the format has 0 samples */
+    if (GL_MSAA_SAMPLES() > 0) glEnable(GL_MULTISAMPLE); /* no-op if the format has 0 samples */
     {
         GLint depthBits = 0, stencilBits = 0, samples = 0;
         glGetIntegerv(GL_DEPTH_BITS, &depthBits);
@@ -916,6 +921,17 @@ static int peekSortFlag(const uint8 *model, const uint8 *limit) {
  * pass real sheets also catches it.) */
 static const int GL_FLAT_SPAN = 8;
 
+/* Upper bound for display-list bounds checks. Default: the shared F-15 world
+ * model buffer. F-19's streams live in its own seg004 block — a foreign address
+ * range that fails every `p < limit` test against this buffer, so the game sets
+ * the real bound once via r3dgl_setWorld3dLimit. */
+static const uint8 *s_world3dLimit;
+static const uint8 *world3dLimit(void) {
+    return s_world3dLimit ? s_world3dLimit
+                          : (const uint8 *)g_world3dData + WORLD3D_DATA_SIZE;
+}
+void r3dgl_setWorld3dLimit(const uint8 *limit) { s_world3dLimit = limit; }
+
 /* Relief is a static property of the model, but a frame has many instances of a few
  * models (terrain tiles), so cache the verdict per model pointer; reset each frame
  * (the world data can reload between regions). */
@@ -932,8 +948,7 @@ static int modelIsFlat(const char *model) {
 
     fillPools(&pools);
     flat = 0; /* undecodable / non-model -> treat as solid (z-buffer it; the safe side) */
-    if (r3dmesh_decode((const uint8 *)model,
-                       (const uint8 *)g_world3dData + WORLD3D_DATA_SIZE,
+    if (r3dmesh_decode((const uint8 *)model, world3dLimit(),
                        &pools, colorLut, &s_mesh) >= 0) {
         l = &s_mesh.lods[0];
         if (l->form == MESH_FORM_MODEL && l->nVerts > 0) {
@@ -991,10 +1006,16 @@ static const float FOG_DENSITY = 0.0003f;   /* GL_EXP/EXP2: higher = haze closes
 //static const float FOG_DENSITY = 0.0003f;   /* GL_EXP/EXP2: higher = haze closes in sooner */
 
 /* Emit one vertex with its fog distance = its forward depth z (planar), bypassing GL's
- * eye-distance derivation. Falls back to a plain vertex if glFogCoordf is unavailable. */
+ * eye-distance derivation. Falls back to a plain vertex if glFogCoordf is unavailable.
+ * The emitted xyz is scaled by GL_EYE_SHRINK: F-19's far terrain reaches eye coords
+ * near ±2^31 which overflows llvmpipe's internal fixed-point setup (segfault in
+ * libgallium). A uniform homogeneous scale preserves NDC and depth-buffer results
+ * exactly (clip = M·e·k cancels in the w divide), a power of two scales floats
+ * losslessly, and fog keeps the true depth via the separate fog-coord attribute. */
+#define GL_EYE_SHRINK (1.0f / 1024.0f)
 static void fogVertex(float x, float y, float z) {
     if (s_glFogCoordf) s_glFogCoordf(z);
-    glVertex3f(x, y, z);
+    glVertex3f(x * GL_EYE_SHRINK, y * GL_EYE_SHRINK, z * GL_EYE_SHRINK);
 }
 
 static const char *gl_name(void) { return "opengl1"; }
@@ -1043,9 +1064,13 @@ static void buildProjection(int Wv, int Hv, int cx, int cy, float fGate) {
     float zb = -2.0f / (1.0f / dNear - 1.0f / fGate);
     float za = -1.0f - zb / dNear;
     float *m = s_proj;
+    /* zb is scaled by GL_EYE_SHRINK: fogVertex emits eye coords at 1/1024 so the
+     * whole clip vector (including w=ez) scales by the same factor — NDC and
+     * depth ordering identical, but the magnitudes stay inside llvmpipe's
+     * fixed-point rasterizer range. */
     m[0] = ax; m[4] = 0;  m[8]  = az; m[12] = 0;
     m[1] = 0;  m[5] = by; m[9]  = bz; m[13] = 0;
-    m[2] = 0;  m[6] = 0;  m[10] = za; m[14] = zb;
+    m[2] = 0;  m[6] = 0;  m[10] = za; m[14] = zb * GL_EYE_SHRINK;
     m[3] = 0;  m[7] = 0;  m[11] = 1;  m[15] = 0;
 }
 
@@ -1512,8 +1537,7 @@ static void gl_submit(const R3DSubmit *o) {
      * The lowest-LOD ground tile (colorBase 0x400) is always flat (its non-ground
      * faces are junk that would otherwise read as relief). */
     r->immediate = (!o->shadow && o->posZ == 0 &&
-                    !peekSortFlag((const uint8 *)o->mesh,
-                                  (const uint8 *)g_world3dData + WORLD3D_DATA_SIZE) &&
+                    !peekSortFlag((const uint8 *)o->mesh, world3dLimit()) &&
                     (g_objColorBase == 0x400 || modelIsFlat((const char *)o->mesh)));
     r->seq = s_nSub;
     s_nSub++;
@@ -1568,7 +1592,12 @@ static int s_paintSeq; /* primitives drawn so far this frame (reset in gl_endSce
 /* Bias the next primitive one draw-step toward the camera. Call OUTSIDE glBegin/End,
  * before each primitive, so draw order breaks coplanar depth ties. */
 static void paintBias(void) {
-    glPolygonOffset(0.0f, -(float)(s_paintSeq++) * GL_PAINT_BIAS);
+    /* Cap the running bias: F-19's tile count pushes seq orders of magnitude past
+     * F-15's per frame, and llvmpipe's fixed-point depth-offset path segfaults on
+     * extreme unit values. A bounded seq still orders every coplanar surface. */
+    int seq = s_paintSeq < 0x4000 ? s_paintSeq : 0x4000;
+    glPolygonOffset(0.0f, -(float)seq * GL_PAINT_BIAS);
+    s_paintSeq++;
 }
 
 /* Round anti-aliased points come from GL_POINT_SMOOTH's coverage-blended alpha. The
@@ -1581,28 +1610,28 @@ static void beginSmoothPoints(void) {
     glEnable(GL_POINT_SMOOTH);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    /* One fixed size per point batch — the original drew these as fixed 1px dots
+     * at any range; distance cueing comes from the shade colour. Per-point
+     * glPointSize also forced a pipeline-state update between every dot, which
+     * trips a llvmpipe emit-queue bug on F-19's point-heavy far terrain. */
+    glPointSize(s_pixelScale > 1.0f ? s_pixelScale : 1.0f);
 }
 static void endSmoothPoints(void) {
     glDisable(GL_BLEND);
     glDisable(GL_POINT_SMOOTH);
-    if (GL_MSAA_SAMPLES > 0) glEnable(GL_MULTISAMPLE);
+    if (GL_MSAA_SAMPLES() > 0) glEnable(GL_MULTISAMPLE);
 }
 
-#define GL_POINT_REF_DEPTH 5000.0f /* depthHi at which the point is one logical pixel */
-#define GL_POINT_NEAR_CAP 3.0f     /* max size, in logical pixels, for the nearest points */
-#define GL_POINT_MIN_SIZE 0.5f     /* smallest size; smooth coverage fades it below 1px */
-static void drawDepthPoint(float x, float y, long depth32, int colorIdx) {
-    int depthHi = (int)(depth32 >> 16);
-    float sz;
-    if (depthHi < 1) return; /* behind the near plane */
-    sz = s_pixelScale * (GL_POINT_REF_DEPTH / (float)depthHi);
-    if (sz > GL_POINT_NEAR_CAP * s_pixelScale) sz = GL_POINT_NEAR_CAP * s_pixelScale;
-    if (sz < GL_POINT_MIN_SIZE) sz = GL_POINT_MIN_SIZE;
-    paintBias();
-    glPointSize(sz);
+/* Emit one depth-shaded dot inside the current GL_POINTS batch (fog distance =
+ * forward depth). Caller culls depthHi < 1 (behind the near plane). */
+static void emitDepthPoint(float x, float y, long depth32, int colorIdx) {
     glColorIndex(colorIdx);
-    glBegin(GL_POINTS);
     fogVertex(x, y, (float)depth32 / 65536.0f);
+}
+static void drawDepthPoint(float x, float y, long depth32, int colorIdx) {
+    if ((int)(depth32 >> 16) < 1) return; /* behind the near plane */
+    glBegin(GL_POINTS);
+    emitDepthPoint(x, y, depth32, colorIdx);
     glEnd();
 }
 
@@ -1668,8 +1697,7 @@ static void compareGlbReplacementWithLegacy(const GlSub *r, GlbMesh *mesh) {
     mesh->compared = 1;
 
     fillPools(&pools);
-    if (r3dmesh_decode((const uint8 *)r->model,
-                       (const uint8 *)g_world3dData + WORLD3D_DATA_SIZE,
+    if (r3dmesh_decode((const uint8 *)r->model, world3dLimit(),
                        &pools, colorLut, &legacy) < 0) {
         LogWarn(("asset replacement compare: failed to decode legacy 3D shape %d for %s", r->shapeId, mesh->path));
         return;
@@ -1824,8 +1852,7 @@ static void drawSub(const GlSub *r) {
     }
 
     fillPools(&pools);
-    if (r3dmesh_decode((const uint8 *)r->model,
-                       (const uint8 *)g_world3dData + WORLD3D_DATA_SIZE,
+    if (r3dmesh_decode((const uint8 *)r->model, world3dLimit(),
                        &pools, colorLut, &s_mesh) < 0)
         return;
     l = &s_mesh.lods[0];
@@ -1849,6 +1876,7 @@ static void drawSub(const GlSub *r) {
     if (l->form == MESH_FORM_EDGERUN) {
         beginSmoothPoints();
         for (i = 0; i < 9; i++) cm[i] = (float)r->combined[i];
+        glBegin(GL_POINTS);
         for (i = 0; i < l->nRunRefs; i++) {
             int ref = l->runRefs[i];
             int ix, iy, iz, X, Y, Z;
@@ -1867,8 +1895,9 @@ static void drawSub(const GlSub *r) {
             depth = 2.0f * (cm[2] * X + cm[5] * Z + cm[8] * Y) + (float)r->camY;
             depthRaw = (long)depth;
             if ((int)(depthRaw >> 16) < 1) continue; /* dHi >= 1 */
-            drawDepthPoint(camX, camY, depthRaw, glEdgeRunColor((int)(depthRaw >> 16)));
+            emitDepthPoint(camX, camY, depthRaw, glEdgeRunColor((int)(depthRaw >> 16)));
         }
+        glEnd();
         endSmoothPoints();
         return;
     }

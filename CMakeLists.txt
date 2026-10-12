@@ -161,6 +161,7 @@ set(F15SE2_SOURCES
     ${SRC_DIR}/f19/egtacmap.c
     ${SRC_DIR}/f19/egtarget.c
     ${SRC_DIR}/f19/egui.c
+    ${SRC_DIR}/f19/f19r3d.c
     # f19 (merged END module — native port of the f19ru reconstruction)
     ${SRC_DIR}/f19/enalloc.c
     ${SRC_DIR}/f19/enaward.c

@@ -1,4 +1,5 @@
 #include "f19eg.h"
+#include "f19r3d.h"
 #include "f19egvars.h"
 
 /* seg000 routines — 3D map/model decode (ported, verified vs original) */
@@ -412,7 +413,7 @@ void projectObjects(int16 heading, int16 rangeGate, int32 worldX, int32 worldY, 
                         } else {
                             g_modelStreamPtr = (char FAR *)(g_world3dData + buf3d3[g_curTileEntry->shape]);
                         }
-                        projectSceneObject((char *)g_modelStreamPtr, 0, 0, 0,
+                        f19_submit((char *)g_modelStreamPtr, 0, 0, 0,
                                            g_curTileEntry->x,
                                            g_curTileEntry->y,
                                            g_curTileEntry->z);
@@ -424,7 +425,7 @@ void projectObjects(int16 heading, int16 rangeGate, int32 worldX, int32 worldY, 
                         g_curTileEntry = (struct TileSceneObject *)(((uint8 *)f19_dsegAt(matrix3dt_2[g_curLod][cell])));
                         g_modelStreamPtr = (char FAR *)(g_world3dData + buf3d3[g_curTileEntry->shape]);
                         g_objColorBase = 0x400;
-                        projectSceneObject((char *)g_modelStreamPtr, 0, 0, 0,
+                        f19_submit((char *)g_modelStreamPtr, 0, 0, 0,
                                            g_curTileEntry->x,
                                            g_curTileEntry->y,
                                            g_curTileEntry->z);

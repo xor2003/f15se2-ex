@@ -39,6 +39,12 @@ int r3dgl_initContext(struct SDL_Window *win);
 /* Nonzero once the GL context is live. */
 int r3dgl_active(void);
 
+/* Override the upper bound used for display-list bounds checks (default: the
+ * shared world3d buffer end). F-19's model streams live in its own seg004 block,
+ * so it registers that block's end here when GL is active. Pass NULL to restore
+ * the default. */
+void r3dgl_setWorld3dLimit(const unsigned char *limit);
+
 /* Nonzero when the last present carried a live 3D flight frame. The GL 3D lives in
  * the framebuffer (not the retained page), so a bare re-present of the page
  * (gfx_repaint on a window expose/resize) would blank it; the caller skips the

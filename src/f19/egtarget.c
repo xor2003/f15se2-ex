@@ -1,4 +1,5 @@
 #include "f19eg.h"
+#include "f19r3d.h"
 #include "f19egvars.h"
 
 /* egtarget.c — target bearing/label routines (F19) */
@@ -834,9 +835,9 @@ void drawTargetView(int16 shapeId, int16 worldX, int16 worldY, int16 altitude, i
     }
 
     g_offscreenRender = 1;
-    setup3DTransform(g_targetViewParams, -g_trkBearing, g_trkPitch, g_trkRoll, 0, 0, 0, 0);
-    projectSceneObject((char *)(g_world3dData + (uint16)doffh), -objYaw, objPitch, objRoll, relX, -relY, relZ);
-    rasterize3DWorld();
+    f19_beginScene(g_targetViewParams, -g_trkBearing, g_trkPitch, g_trkRoll, 0, 0, 0, 0);
+    f19_submit((char *)(g_world3dData + (uint16)doffh), -objYaw, objPitch, objRoll, relX, -relY, relZ);
+    f19_endScene();
     g_offscreenRender = 0;
 
     if (mode == 1) {
