@@ -137,3 +137,80 @@ jobs:
           fail_ci_if_error: false
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+  sanitizers:
+    name: Sanitizers (ASan+UBSan)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake \
+            libx11-dev libxext-dev libxcursor-dev libxi-dev libxfixes-dev \
+            libxrandr-dev libxss-dev libxtst-dev \
+            libwayland-dev wayland-protocols \
+            libegl1-mesa-dev libgl1-mesa-dev libgles2-mesa-dev
+
+      - name: Configure CMake (sanitizers)
+        run: cmake -S . -B build -DASAN=ON -DUBSAN=ON
+
+      - name: Build
+        run: cmake --build build -j$(nproc)
+
+      # halt_on_error turns recoverable UBSan reports into aborts so the test
+      # fails instead of silently logging "runtime error" lines.
+      - name: Test under sanitizers
+        env:
+          ASAN_OPTIONS: halt_on_error=1:abort_on_error=1
+          UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1
+        run: ctest --test-dir build --output-on-failure
+
+  static-analysis:
+    name: Static analysis (cppcheck + clang)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install tools and Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            cmake cppcheck clang clang-tools \
+            libx11-dev libxext-dev libxcursor-dev libxi-dev libxfixes-dev \
+            libxrandr-dev libxss-dev libxtst-dev \
+            libwayland-dev wayland-protocols \
+            libegl1-mesa-dev libgl1-mesa-dev libgles2-mesa-dev
+
+      # Hard gate: any new warning-severity finding fails the job. Known
+      # false positives live in tools/cppcheck-suppressions.txt.
+      - name: cppcheck
+        run: |
+          cppcheck --enable=warning --std=c11 --error-exitcode=1 \
+            --suppressions-list=tools/cppcheck-suppressions.txt \
+            --disable-check=unusedFunction \
+            -j"$(nproc)" -I src src/
+
+      # clang static analyzer over the actively ported modules. Findings are
+      # reported but not gated: faithful decomp ports carry dead stores and
+      # uninitialized-looking overlay reads by design. Hard errors (files that
+      # no longer parse/analyze) still fail the job.
+      - name: Configure CMake (compile database)
+        run: cmake -S . -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+
+      - name: clang --analyze report
+        run: |
+          set -o pipefail
+          find src/f19 src/shared src/game -name '*.c' -print0 \
+            | xargs -0 -P"$(nproc)" -I{} sh -c \
+                'clang-check -p build -analyze "$1" -extra-arg=-Wno-register 2>&1 \
+                 | sed "s|^|{}: |"' _ {} \
+            | tee /tmp/clang-check.log
+          if grep -qE ': *error:|Error while processing' /tmp/clang-check.log; then
+            echo "::error title=clang-check::analysis failed on one or more files"
+            exit 1
+          fi

@@ -322,6 +322,12 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang"
         message(STATUS "Building with sanitizers: ${SANITIZER_LIST}")
         add_compile_options(-fsanitize=${SANITIZER_LIST} -fno-omit-frame-pointer -g)
         add_link_options(-fsanitize=${SANITIZER_LIST})
+        # The decompiled dseg overlays are packed byte arrays cast to structs
+        # everywhere — misaligned access is architectural, not a bug. Drop the
+        # check so remaining UBSan signal (index, null, nonnull) stays usable.
+        if(UBSAN)
+            add_compile_options(-fno-sanitize=alignment)
+        endif()
     endif()
 
     # Coverage instrumentation (directory scope, so the core library and every
