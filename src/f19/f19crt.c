@@ -16,7 +16,9 @@ int16 time(int16 *t) {
 int16 getch(void)  { return misc_getKey(); }
 int16 getche(void) { return misc_getKey(); }
 int16 putch(int16 c) { (void)c; return c; }   /* tty echo: no-op in SDL */
-int16 sub_1E1EC(void) { return misc_checkKeyBuf() ? 1 : 0; }
+/* MISC.EXE slot 0x5a returns 0 when a key waits, 0xFFFF when the buffer is
+ * empty — sub_1E1EC callers test != 0 for "key waiting", so invert it. */
+int16 sub_1E1EC(void) { return misc_checkKeyBuf() == 0 ? 1 : 0; }
 
 /* DOS misc helpers used by the reconstruction */
 int16 sub_14980(int16 h, int16 b, int16 c, int16 d) { (void)h;(void)b;(void)c;(void)d; return 0; }

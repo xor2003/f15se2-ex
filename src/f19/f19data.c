@@ -10,7 +10,12 @@
 void *f19_commData;
 void *f19_gameData;
 uint8 f19_commBase[0x8000];   /* commData+0, gameData+0x120E */
-int16 f19_lowFlags[4];
+/* Low-mem flag cells (0:4F0 comm seg, 0:4F2 boot flag, 0:4F4 gfx vector).
+ * F19.COM writes es:[0:4F2]=1 at cold boot so START runs its title/credits/ad
+ * splash once; START then clears it (sub_10010 @0x10695) so post-mission
+ * menu returns never replay the intro. Seed once per process — f19_start_main
+ * re-runs each mission loop and must inherit the cleared value. */
+int16 f19_lowFlags[4] = { 0, 1, 0, 0 };
 int16 *word_298EC;
 int16 *word_2B942;                                       /* stmain.c */
 int16 *g_vpParms;                                        /* stutil.c */

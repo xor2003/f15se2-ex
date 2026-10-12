@@ -215,7 +215,7 @@ void f19_sub_10010(void) {
         ovlCall_c58();
         f19_sub_108B7();
         szj = f19_time(&szm) + 6;
-        while (f19_time(&szm) < szj) {
+        while ((uint16)f19_time(&szm) < szj) {
             if (sub_1E1EC() != 0) {
                 getch();
                 break;
@@ -230,7 +230,7 @@ void f19_sub_10010(void) {
         ovlCall_c58();
         f19_sub_108B7();
         szj = f19_time(&szm) + 5;
-        while (f19_time(&szm) < szj) {
+        while ((uint16)f19_time(&szm) < szj) {
             if (sub_1E1EC() != 0) {
                 getch();
                 break;
