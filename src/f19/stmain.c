@@ -6,6 +6,7 @@
  * settle-poll (f19_sub_108B7) and two empty stubs (f19_sub_108B5/f19_sub_108B6). */
 #include "f19.h"
 #include "f19stvars.h"
+#include "f19lang.h"
 #include <setjmp.h>
 
 #define byte_20A1A timerCounter   /* shared/timer.c 60 Hz tick — was PIT-ISR cell */
@@ -463,6 +464,7 @@ extern jmp_buf f19_chainExit;
 int f19_start_main(void) {
     int code;
     f19_dsegInit();
+    f19_langInit();
     setTimerIrqHandler();   /* CRT-side PIT install; native 60 Hz counters */
     code = setjmp(f19_chainExit);
     if (code != 0)

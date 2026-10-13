@@ -168,6 +168,30 @@ each against shared-reader externs. `buf3d3`, `g_modelVertX/Y/Z`,
    `git grep -n "fprintf\|getenv" src/f19 src/eg3drast.c` should show only the
    intentional env-hooks above).
 
+## Russian localization (F19_LANG=ru)
+
+- `F19_LANG=ru` enables the Boriss Software (1990) localization; unset/`en`
+  keeps original English. Source assets: `/home/xor/games/f19ru/F19`.
+- `src/fontdata_ru.h` — authentic Boriss Cyrillic font planes (fonts 0,1,3,4,5)
+  extracted from RU `MGRAPHIC.EXE` (regenerate via the strided-row layout:
+  256-stride planes; seg000:0 = file 0x200).
+- `src/f19/f19_strings_ru.h` — 698-entry EN->RU table (sorted longest-key-first).
+  Regenerate with `python3 tools/f19_rustrings.py`; EGAME pairs are an explicit
+  positional map (Boriss repacking broke offset alignment), START/END pairs come
+  from anchor alignment + curated OVERRIDES. Do not hand-edit the header.
+- `src/f19/f19lang.c` — `f19_translate` substring-scan translator (longest
+  match, ASCII-case-insensitive, mirrors all-uppercase EN to uppercase
+  Cyrillic), `f19_textChars` codepoint count, `f19_langInit` installs the hook.
+- `gfx_impl.c`: `g_stringTranslator` applied in `drawStringCore` +
+  `gfx_getStringAdvanceUtf8`; `ruCyrillicSlot` maps UTF-8 Cyrillic to the
+  Boriss KOI-7 glyph slots (А-Я at A B W G D E V Z I J K L M N O P R S T U
+  F H C ^ [ ] _ Y X \ @ Q, lowercase +0x20). Invalid high bytes remain DOS
+  color escapes (zero-advance, set color).
+- `compat64/dos.h` `strupr` folds UTF-8 Cyrillic length-stably.
+- Wrap paths (`stutil.c`, `endrawstr.c`) translate BEFORE wrapping and measure
+  via `gfx_nextCodepointAdvance`; `f19_stringWidth`/`stringWidth` measure the
+  translated text. `.WLD` site names stay English (identical data in Boriss).
+
 ## Notes / gotchas
 
 - The active in-game 3D path is the **software span rasterizer**

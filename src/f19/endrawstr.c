@@ -4,6 +4,9 @@
 
 extern void far gfx_drawString(int16 *pageNum, const char *string);
 extern int16 far gfx_charWidth(int16 ch, int16 font);   /* slot — 9d9:0x143b */
+extern int gfx_nextCodepointAdvance(const char **p, uint16 fontIdx); /* gfx_impl.c */
+extern int gfx_getStringAdvanceUtf8(const char *text, uint16 fontIdx);
+extern const char *f19_translate(const char *s);        /* f19lang.c */
 extern void farStrcpy(char *dst, char far *src);        /* sub_138EC — asm */
 extern void copyBytes(char *dst, char *src, int16 n);   /* sub_13998 — asm */
 extern void memcpyFromFar(char *dst, char far *src, int16 n); /* sub_139B6 — asm */
@@ -43,6 +46,7 @@ void drawWrappedTextFar(int16 *page, char far *str, uint16 maxWidth, int16 x, in
     uint16 g;           /* pixWidth */
     char buf[500];
 
+    str = (char far *)f19_translate((const char *)str);  /* RU mode: wrap localized text */
     e = str;
     a = str;
     b = str;
@@ -52,8 +56,10 @@ void drawWrappedTextFar(int16 *page, char far *str, uint16 maxWidth, int16 x, in
     for (;;) {
         g = c = 0;
         while (g < maxWidth && *b != 0 && *b != '\r' && *b != '\n') {
-            g += gfx_charWidth(*b++, p);
-            c++;
+            const char *pc = (const char *)b;
+            g += (uint16)gfx_nextCodepointAdvance(&pc, (uint16)p);
+            c += (int16)(pc - (const char *)b);
+            b = (char far *)pc;
         }
         if (g >= maxWidth) {
             b--;
@@ -102,6 +108,7 @@ void drawWrappedText(int16 *page, char *str, uint16 maxWidth, int16 x, int16 y, 
     uint16 g;           /* pixWidth */
     char buf[1000];
 
+    str = (char *)f19_translate(str);                    /* RU mode: wrap localized text */
     e = str;
     a = str;
     b = (uint8 *)str;
@@ -111,8 +118,10 @@ void drawWrappedText(int16 *page, char *str, uint16 maxWidth, int16 x, int16 y, 
     for (;;) {
         g = c = 0;
         while (g < maxWidth && *b != 0 && *b != '\r' && *b != '\n') {
-            g += gfx_charWidth(*b++, p);
-            c++;
+            const char *pc = (const char *)b;
+            g += (uint16)gfx_nextCodepointAdvance(&pc, (uint16)p);
+            c += (int16)(pc - (const char *)b);
+            b = (uint8 *)pc;
         }
         if (g >= maxWidth) {
             b--;
@@ -148,15 +157,7 @@ void drawWrappedText(int16 *page, char *str, uint16 maxWidth, int16 x, int16 y, 
 
 /* seg000:0x0a88 — sum of per-char widths; font from item word at +0x0c */
 int16 stringWidth(int16 *item, uint8 *str) {
-    int16 font;
-    uint8 *cur;
-    int16 n;
-    cur = str;
-    font = item[6];
-    n = 0;
-    while (*cur != 0)
-        n += gfx_charWidth(*cur++, font);
-    return n;
+    return (int16)gfx_getStringAdvanceUtf8(f19_translate((const char *)str), (uint16)item[6]);
 }
 
 /* seg000:0x2ef2 — guarded far call to overlay text op at 91d:0x762 */

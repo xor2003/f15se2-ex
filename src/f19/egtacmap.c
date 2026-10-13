@@ -1,5 +1,6 @@
 #include "f19eg.h"
 #include "f19egvars.h"
+#include "f19lang.h"
 
 int16 sinMul(int16, int16);
 int16 cosMul(int16, int16);
@@ -213,8 +214,9 @@ MAPCHECK:
 HUDMSG:
     if (g_hudMsgTimer != 0 &&
         ((g_viewMode == 0 && g_halfScaleRender == 0) || g_inputDisabled != 0)) {
-        drawStringActivePage(g_hudMessageBuf,
-            -(((int16)strlen(g_hudMessageBuf) >> 1) - 0x28) * 4, 0x18, 0xF);
+        const char *msgT = f19_translate(g_hudMessageBuf);
+        drawStringActivePage(msgT,
+            -(((int16)f19_textChars(msgT) >> 1) - 0x28) * 4, 0x18, 0xF);
         g_hudMsgTimer--;
     }
 }
@@ -564,7 +566,7 @@ void drawCenteredLabelBox(int16 panelId, const char *text) {
     y -= 8;
     setDrawColor(8);
     fillRectBoth(xl + 5, y, xr - 5, y + 4);
-    drawStringBothPages(text, ((xl + xr) >> 1) - (strlen(text) << 1), y, 0xB);
+    drawStringBothPages(text, ((xl + xr) >> 1) - (f19_textChars(f19_translate(text)) << 1), y, 0xB);
 }
 
 /* ==== seg000:0x91b4 ==== */

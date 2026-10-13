@@ -1,6 +1,7 @@
 #include "f19eg.h"
 #include "f19r3d.h"
 #include "f19egvars.h"
+#include "f19lang.h"
 
 /* egtarget.c — target bearing/label routines (F19) */
 
@@ -347,7 +348,7 @@ void drawHudWorldOverlay(void) {
                 buildRangeString(bearingToStore(wpIdxc));
                 drawStringActivePage(strBuf, 0xbc, 0xbc, 0xf);
                 buildStoreName(wpIdxc);
-                drawStringActivePage(strBuf, -((int16)strlen(strBuf) * 2 - 0xe4), 0x82, 0xf);
+                drawStringActivePage(strBuf, -((int16)f19_textChars(f19_translate(strBuf)) * 2 - 0xe4), 0x82, 0xf);
                 if (g_currentWeaponType == 0) {
                     computeAimProjection(g_planeTable.planes[g_groundTargetLock].mapX,
                                          g_planeTable.planes[g_groundTargetLock].mapY, 0);
@@ -575,7 +576,7 @@ void drawTargetLabel(const char *text, int16 color, int16 size) {
     }
     if (g_vprojXlo > 20 && g_vprojXlo < 280 &&
         g_vprojYlo > 0 && g_vprojYlo < 94) {
-        drawStringActivePage(text, g_vprojXlo - (int16)strlen(text) * 2, g_vprojYlo + 5, g_scopeArcColor);
+        drawStringActivePage(text, g_vprojXlo - (int16)f19_textChars(f19_translate(text)) * 2, g_vprojYlo + 5, g_scopeArcColor);
     }
 }
 

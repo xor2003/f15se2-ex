@@ -24,6 +24,7 @@
 #include <string.h>
 
 #include "fontdata.h"
+#include "fontdata_ru.h"
 
 /* The SDL window and renderer are owned here: the graphics layer brings up the
  * video output and every gfx_* function presents through it. The original game
@@ -1049,6 +1050,78 @@ static void cleanupReplacementFonts(void) {
         g_freetypeLibrary = NULL;
     }
 #endif
+}
+
+/* ---- Boriss RU Cyrillic glyph lookup -------------------------------------
+ * The authentic Boriss Software (1990) font planes live in fontdata_ru.h as
+ * [96][height] tables covering legacy slots 0x20-0x7F, where Cyrillic glyphs
+ * replace the Latin letters in KOI-7 order. For UTF-8 input the ASCII table
+ * keeps serving Latin; Unicode Cyrillic codepoints are resolved here to the
+ * corresponding KOI-7 slot so both scripts share one font instance.
+ * Slot order: А..Я = A B W G D E V Z I J K L M N O P R S T U F H C ^ [ ] _ Y X \ @ Q */
+static const uint8 g_ruKoi7Upper[32] = {
+    0x41, 0x42, 0x57, 0x47, 0x44, 0x45, 0x56, 0x5A,
+    0x49, 0x4A, 0x4B, 0x4C, 0x4D, 0x4E, 0x4F, 0x50,
+    0x52, 0x53, 0x54, 0x55, 0x46, 0x48, 0x43, 0x5E,
+    0x5B, 0x5D, 0x5F, 0x59, 0x58, 0x5C, 0x40, 0x51};
+
+static int ruCyrillicSlot(uint32 codepoint) {
+    if (codepoint == 0x401) return 0x45;            /* Ё -> Е slot */
+    if (codepoint == 0x451) return 0x65;            /* ё -> е slot */
+    if (codepoint >= 0x410 && codepoint <= 0x42F)
+        return g_ruKoi7Upper[codepoint - 0x410];
+    if (codepoint >= 0x430 && codepoint <= 0x44F)
+        return g_ruKoi7Upper[codepoint - 0x430] + 0x20;
+    return -1;
+}
+
+static const uint8 *ruFontGlyphRows(uint16 fontIdx, int slot) {
+    if (slot < 0x20 || slot > 0x7f) return NULL;
+    switch (fontIdx) {
+        case 0: return ru_font0_bitmaps[slot - 0x20];
+        case 1: return ru_font1_bitmaps[slot - 0x20];
+        case 3: return ru_font3_bitmaps[slot - 0x20];
+        case 4: return ru_font4_bitmaps[slot - 0x20];
+        case 5: return ru_font5_bitmaps[slot - 0x20];
+        default: return NULL;
+    }
+}
+
+static int ruFontGlyphAdvance(uint16 fontIdx, int slot) {
+    switch (fontIdx) {
+        case 0: return 4;                            /* HUD font: fixed pitch */
+        case 1: return ru_font1_widths[slot - 0x20];
+        case 3: return ru_font3_widths[slot - 0x20];
+        case 4: return ru_font4_widths[slot - 0x20];
+        case 5: return ru_font5_widths[slot - 0x20];
+        default: return 8;
+    }
+}
+
+/* Draw-time string translator (F-19 registers f19_translate; F-15 leaves it
+ * NULL). Applied in drawStringCore and gfx_getStringAdvanceUtf8 so layout and
+ * rendering see the same text. */
+static const char *(*g_stringTranslator)(const char *) = NULL;
+void gfx_setStringTranslator(const char *(*fn)(const char *)) {
+    g_stringTranslator = fn;
+}
+
+static int decodeUtf8Codepoint(const char *text, uint32 *codepointOut, int *byteCountOut);
+
+/* Decode the UTF-8 codepoint at *p (falling back to one raw byte on invalid
+ * input), advance *p past it and return its glyph advance in `fontIdx`.
+ * Shared by the F-19 word-wrap loops, which walk the string byte-wise. */
+int gfx_nextCodepointAdvance(const char **p, uint16 fontIdx) {
+    uint32 codepoint;
+    int byteCount = 1;
+    uint8 ch = (uint8)**p;
+    if (!decodeUtf8Codepoint(*p, &codepoint, &byteCount)) {
+        codepoint = ch;
+        byteCount = 1;
+    }
+    (*p) += byteCount;
+    if (byteCount == 1 && (ch & 0x80)) return 0;    /* color escape */
+    return gfx_getGlyphAdvance(codepoint, fontIdx);
 }
 
 static const ReplacementFontGlyph *findReplacementFontGlyph(uint16 fontIdx, uint32 codepoint) {
@@ -2353,6 +2426,7 @@ static void drawStringCore(int16 *params, const char *string,
 #endif
 
     if (!string || !params) return;
+    if (g_stringTranslator) string = g_stringTranslator(string);
 
     /* The font tables are file-scope arrays in this module; in the merged
      * single-process build they are reached directly as native pointers (the
@@ -2439,6 +2513,7 @@ static void drawStringCore(int16 *params, const char *string,
             glyph = bitmaps + (codepoint - 0x20) * (uint16)rowSize;
             advance = widthTab ? widthTab[codepoint - 0x20] : 8;
         } else if (codepoint >= 0x80) {
+            int ruSlot;
             extraGlyph = findReplacementFontGlyph(fontIdx, codepoint);
 #ifdef F15_HAVE_FREETYPE
             if (!extraGlyph) extraGlyph = cacheReplacementTtfGlyph(fontIdx, codepoint);
@@ -2446,6 +2521,9 @@ static void drawStringCore(int16 *params, const char *string,
             if (extraGlyph) {
                 glyph = extraGlyph->rows;
                 advance = extraGlyph->width;
+            } else if ((ruSlot = ruCyrillicSlot(codepoint)) >= 0 &&
+                       (glyph = ruFontGlyphRows(fontIdx, ruSlot)) != NULL) {
+                advance = ruFontGlyphAdvance(fontIdx, ruSlot);
             } else if (bitmaps) {
                 glyph = bitmaps + ('?' - 0x20) * (uint16)rowSize;
                 advance = widthTab ? widthTab['?' - 0x20] : 8;
@@ -3068,6 +3146,11 @@ int gfx_getGlyphAdvance(uint32 codepoint, uint16 fontIdx) {
         if (!glyph) glyph = cacheReplacementTtfGlyph(fontIdx, codepoint);
 #endif
         if (glyph) return glyph->width;
+        {
+            int ruSlot = ruCyrillicSlot(codepoint);
+            if (ruSlot >= 0 && ruFontGlyphRows(fontIdx, ruSlot))
+                return ruFontGlyphAdvance(fontIdx, ruSlot);
+        }
         /* Legacy single-byte chars >= 0x80 are inline color escapes. */
         if (codepoint <= 0xff) return 0;
         return 8;
@@ -3083,6 +3166,7 @@ int gfx_getStringAdvanceUtf8(const char *text, uint16 fontIdx) {
     int drawnChars;
     if (!text) return 0;
     if (fontIdx >= 8) return 0;
+    if (g_stringTranslator) text = g_stringTranslator(text);
     tryLoadReplacementFont(fontIdx);
 #ifdef F15_HAVE_FREETYPE
     if (g_fontReplacementTtfFaces[fontIdx]) {

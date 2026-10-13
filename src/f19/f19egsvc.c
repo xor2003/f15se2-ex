@@ -358,8 +358,10 @@ void f19eg_runGameLoop(void) {
 
 int f19eg_main(void);
 void f19_egDsegLoad(void);
+void f19_langInit(void);
 int f19_egame_main(void) {
     f19_egDsegLoad();
+    f19_langInit();
     return f19eg_main();
 }
 

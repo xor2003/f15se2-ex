@@ -107,7 +107,12 @@ int16 f19_rand(void) {
 
 /* seg000:0x40ae — (rand() * arg) >> 15 via unsigned 32x32 mul + logical shift */
 int16 f19_randMul(uint16 arg) {
-    return (int16)(((uint32)(uint16)f19_rand() * (uint32)arg) >> 0xF);
+    int16 r = (int16)(((uint32)(uint16)f19_rand() * (uint32)arg) >> 0xF);
+    static int genlog = -1, genlogN;
+    if (genlog < 0) { genlog = getenv("F19_GENLOG") != 0; genlogN = 0; }
+    if (genlog) fprintf(stderr, "GENLOG randMul #%d arg=%x ret=%x state=%x\n",
+                        genlogN++, arg, r & 0xffff, f19_rngState);
+    return r;
 }
 
 /* seg000:0x40a3 — seed the LCG from the BIOS tick counter. */
@@ -190,18 +195,16 @@ void f19_initGraphics(void) {                 /* seg000:0x827 */
     misc_jump_5e_clearKeyFlags();
 }
 
+extern int gfx_getStringAdvanceUtf8(const char *text, uint16 fontIdx); /* gfx_impl.c */
+extern const char *f19_translate(const char *s);   /* f19lang.c — no-op in EN */
+
 int16 f19_stringWidth(int16 *page, const uint8 *str) {   /* seg000:0x3e38 */
-    const uint8 *l;
-    int16 j, n;
-    l = str;
+    int16 j;
     /* callers pass the descriptor as a bare dseg offset or a resolved pointer */
     if ((uintptr_t)page < 0x10000)
         page = (int16 *)(((uint8 *)f19_dsegAt((uintptr_t)page)));
     j = page[6];
-    n = 0;
-    while (*l != 0)
-        n += gfx_setFont(*l++, j);
-    return n;
+    return (int16)gfx_getStringAdvanceUtf8(f19_translate((const char *)str), (uint16)j);
 }
 
 void f19_drawLine(int16 x0, int16 y0, int16 x1, int16 y1, int16 color) { /* seg000:0xc083 */
@@ -744,6 +747,8 @@ void f19_dispatchDrawMode(int16 *pa, int16 b, int16 c, int16 *pd,
 extern void far gfx_drawString(int16 o, char *s);   /* slot 0x05 */
 extern void     sub_151FE(char *d, uint8 *s, int16 n); /* near copy */
 extern void     sub_1521C(char *d, char far *s, int16 n); /* far copy */
+extern int      gfx_nextCodepointAdvance(const char **p, uint16 fontIdx); /* gfx_impl.c */
+#include "f19lang.h"
 
 void f19_wrapUnitText(int16 o, char *s, uint16 w, int16 x, int16 y, int16 dy) {
     int16 h;
@@ -753,6 +758,7 @@ void f19_wrapUnitText(int16 o, char *s, uint16 w, int16 x, int16 y, int16 dy) {
     int8  g;
     char  buf[0x3E6], n[2];
 
+    s = (char *)f19_translate(s);          /* RU mode: wrap the localized text */
     f = (uint8 *)s; b = (uint8 *)s; c = (uint8 *)s;
     a = *(int16 *)(sprParmsTab + o + 0xC);
     *(int16 *)(sprParmsTab + o + 0xA) = y;
@@ -760,10 +766,13 @@ void f19_wrapUnitText(int16 o, char *s, uint16 w, int16 x, int16 y, int16 dy) {
     for (;;) {
         h = d = 0;
         while ((uint16)h < w) {
+            const char *pc;
             n[0] = *c;
             if (n[0] == 0 || n[0] == 0x0D || n[0] == 0x0A) goto disp;
-            h += gfx_setFont(*c++, a);
-            d++;
+            pc = (const char *)c;
+            h += gfx_nextCodepointAdvance(&pc, (uint16)a);
+            d += (int16)(pc - (const char *)c);
+            c = (uint8 *)pc;
         }
 disp:   if ((uint16)h >= w) goto b1;
         goto b0;
@@ -807,6 +816,7 @@ void f19_wrapUnitTextFar(int16 o, char far *s, uint16 w, int16 x, int16 y, int16
     int8  g;
     char  buf[0x1F4], n[2];
 
+    s = (char far *)f19_translate((const char *)s);   /* RU mode: wrap localized text */
     f = s; b = s; c = s;
     a = *(int16 *)(sprParmsTab + o + 0xC);
     *(int16 *)(sprParmsTab + o + 0xA) = y;
@@ -814,10 +824,13 @@ void f19_wrapUnitTextFar(int16 o, char far *s, uint16 w, int16 x, int16 y, int16
     for (;;) {
         h = d = 0;
         while ((uint16)h < w) {
+            const char *pc;
             n[0] = *c;
             if (n[0] == 0 || n[0] == 0x0D || n[0] == 0x0A) goto disp;
-            h += gfx_setFont(*c++, a);
-            d++;
+            pc = (const char *)c;
+            h += gfx_nextCodepointAdvance(&pc, (uint16)a);
+            d += (int16)(pc - (const char *)c);
+            c = (char far *)pc;
         }
 disp:   if ((uint16)h >= w) goto b1;
         goto b0;

@@ -248,6 +248,8 @@ extern jmp_buf f19_chainExit;
 
 int f19_end_main(void) {
     int code;
+    void f19_langInit(void);
+    f19_langInit();
     f19_segUseWorld(2);
     f19_enVarsReset();
     f19_enInitPtrs();
