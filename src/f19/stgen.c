@@ -243,8 +243,8 @@ int16 *f19_findNearestTerrain(int32 wx, int32 wy) {
         for (e = 0; e < 9; e++) {
             uint32 sx = stScaleCoordToLod(c, (uint32)wx);
             uint32 sy = stScaleCoordToLod(c, (uint32)wy);
-            i = (int16)(sx >> 12); r = (int16)(sx & 0xfff);
-            k = (int16)(sy >> 12); d = (int16)(sy & 0xfff);
+            i = (int16)(sx >> 12); r = (int16)(sx & 0xf00);   /* and ah,0F — 1/16-tile fraction */
+            k = (int16)(sy >> 12); d = (int16)(sy & 0xf00);
             a = nbrX[e]; b = nbrY[e];
             o = (int16)(a * 0x1000 - r + 0x800);
             p = (int16)(b * 0x1000 - d + 0x800);
@@ -263,7 +263,7 @@ int16 *f19_findNearestTerrain(int32 wx, int32 wy) {
                 else { h <<= 2; j <<= 2; }
                 if (q < dist) {
                     /* record best match into the result record */
-                    bestEntry = (int16)tileOff;
+                    bestEntry = (int16)(terrainTileBase + ((uint8 *)entry - terrainTileBlk));
                     f19_ntrBuf[0] = shape;
                     dist = q;
                     bestX = wx + h;
@@ -382,6 +382,7 @@ void f19_exportWorldToComm(const char *filename) {
 struct GD { int8 pad[0x38]; int16 theater; int16 isCampaignMission;
             uint8 flags3c; int8 pad3d; int16 difficulty; };
 extern struct GD *gameData;
+extern uint32 f19_rngState;
 extern void mystrcpy(char *d, const char *s);
 
 char *f19_formatGridRef(int16 wx, int16 wy, int16 theater) {
@@ -438,6 +439,10 @@ void f19_missionGenerate() {
     difficultySaved = gameData->difficulty;
     theaterSaved = gameData->theater;
     flag4Saved = gameData->isCampaignMission;
+    if (getenv("F19_GENLOG"))
+        fprintf(stderr, "GENLOG genInput theater=%d camp=%d flags3c=%x diff=%d rngState=%x\n",
+                gameData->theater, gameData->isCampaignMission,
+                gameData->flags3c, gameData->difficulty, f19_rngState);
     switch (gameData->theater) {
     case 0: f19_parseWorld("libya.wld"); break;
     case 1: f19_parseWorld("gulf.wld"); break;
@@ -515,9 +520,9 @@ restart_40a8:
                     ((f & 0x100) != 0 ?
                      f19_randMul(0x64) * 0x40 + 0xc80 : 0), 0, 0x7fff);
                 if (range[2] < 0x7000 &&
-                    f19_randMul(0x500) + range[2] <
-                        ((f19_worldObjects[m2].targetFlags & 0x200) ? 0xc80 : 0) +
-                        range[sl]) {
+                    (int16)(f19_randMul(0x500) + range[2]) <
+                        (int16)(((f19_worldObjects[m2].targetFlags & 0x200) ? 0xc80 : 0) +
+                         range[sl])) {
                     f19_targets[sl].siteObj = m2;
                     range[sl] = range[2];
                 }
@@ -844,5 +849,19 @@ counterMore1k:
     f19_formatTimeStr(briefTimeA, mKind);
     f19_formatTimeStr(briefTimeB, mKind + missionDistAccum);
     f19_formatTimeStr(briefTimeC, mKind + missionDistAccum + 0x1c2);
-    missionDistAccum -= (mKind + missionDistAccum) % 0x96;
+    missionDistAccum -= (int16)(mKind + missionDistAccum) % 0x96;
+    if (getenv("F19_GENLOG")) {
+        int tn;
+        fprintf(stderr, "GENLOG mission range=%x kind=[%d,%d,%d,%d] stat=[%d,%d,%d,%d]\n",
+                commData->missionRange & 0xffff, commData->missionKind[0],
+                commData->missionKind[1], commData->missionKind[2],
+                commData->missionKind[3], commData->missionStat[0],
+                commData->missionStat[1], commData->missionStat[2],
+                commData->missionStat[3]);
+        for (tn = 0; tn < 2; tn++)
+            fprintf(stderr, "GENLOG target%d kind=%d objIdx=%d siteObj=%d siteIdx=%d name=%.4s\n",
+                    tn, f19_targets[tn].kind, f19_targets[tn].objIdx,
+                    f19_targets[tn].siteObj, f19_targets[tn].siteIdx,
+                    (char *)f19_targets[tn].name);
+    }
 }

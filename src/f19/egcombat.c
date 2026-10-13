@@ -430,7 +430,7 @@ void updateObjects(void) {
                                 if (abs(viewBrgK - candBear) < best8) {
                                     best8 = abs(viewBrgK - candBear);
                                     g_simObjects[objIdx8].objType = selTgt;
-                                    if (-(g_missionStatus * 0x1000 - 0x4000) > best8)
+                                    if ((int16)(-(int16)(g_missionStatus * 0x1000 - 0x4000)) > best8)
                                         break;
                                 }
                             }
@@ -879,7 +879,7 @@ void updateThreatTargeting(void) {
                 if (g_threatActiveTimer < g_threatDisplayTtl &&
                     g_projectiles[slotd].specIdx != 0x21) {
 lock_eval:
-                    if ((g_missionStatus << 8) + 0x180 < beste ||
+                    if ((uint16)(((uint8)g_missionStatus << 8) + 0x180) < beste ||
                         modec == 1 || modec == -1) {
                         aimYa = g_projectiles[slotd].worldX;
                         lockedn = 0;
@@ -891,7 +891,7 @@ lock_eval:
                         (mapEvents[scanb].type == 2 &&
                          (modec == 1 || modec == 2 ||
                           (modec == 3 &&
-                           -(g_missionStatus * 12 - 0x40) >
+                           (int16)(-(int16)(g_missionStatus * 12 - 0x40)) >
                                abs(abs((aimYa - g_ourHead) >> 8) - 0x40))))) {
                         acqk = samCanAcquireTarget(slotd, mapEvents[scanb].mapX,
                                                    mapEvents[scanb].mapY, g_viewZ, modec);

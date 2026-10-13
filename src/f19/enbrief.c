@@ -984,7 +984,7 @@ noRibbons:
         pilotRec->flag2c = 1;
         return;
     }
-    if (900 * pilotRec->award2a + 900 <= pilotRec->awardPoints) {
+    if ((uint16)(900 * pilotRec->award2a + 900) <= pilotRec->awardPoints) {
         if (promoScreenOpen == 1 || commData->trainingFlag == 1) {
             awardQueued = 4;
             return;
@@ -993,7 +993,7 @@ noRibbons:
         awardCode = 4;
         return;
     }
-    if (600 * pilotRec->award28 + 600 <= pilotRec->awardPoints) {
+    if ((uint16)(600 * pilotRec->award28 + 600) <= pilotRec->awardPoints) {
         if (promoScreenOpen == 1 || commData->trainingFlag == 1) {
             awardQueued = 3;
             return;
@@ -1002,7 +1002,7 @@ noRibbons:
         awardCode = 3;
         return;
     }
-    if (300 * pilotRec->award26 + 300 <= pilotRec->awardPoints) {
+    if ((uint16)(300 * pilotRec->award26 + 300) <= pilotRec->awardPoints) {
         if (promoScreenOpen == 1 || commData->trainingFlag == 1) {
             awardQueued = 2;
             return;
@@ -1011,7 +1011,7 @@ noRibbons:
         awardCode = 2;
         return;
     }
-    if (pilotRec->award24 < 9 && 100 * pilotRec->award24 + 100 <= pilotRec->awardPoints) {
+    if (pilotRec->award24 < 9 && (uint16)(100 * pilotRec->award24 + 100) <= pilotRec->awardPoints) {
         if (promoScreenOpen == 1 || commData->trainingFlag == 1) {
             awardQueued = 1;
             return;
