@@ -39,6 +39,7 @@
 #include "r3d_replacement.h"
 #include "r2d.h"
 #include "r3dmesh.h"
+#include "r3d_replacement.h"
 #include "gfx_impl.h"
 #include "eg3dmap.h"
 #include "egcode.h"
@@ -168,6 +169,79 @@ static void fillPools(MeshVtxPools *pools) {
     pools->nY = (int)size3d3_5;
     pools->nZ = (int)size3d3_6;
 }
+
+#ifdef DEBUG
+int r3dgl_testLegacyShapeStats(const unsigned char *legacyModel,
+                               size_t legacyModelSize,
+                               R3DLegacyShapeStats *stats) {
+    MeshVtxPools pools{};
+    Mesh decoded{};
+    MeshLod *lod{};
+
+    if (!legacyModel || !stats || legacyModelSize == 0 ||
+        legacyModelSize > WORLD3D_DATA_SIZE) {
+        return 0;
+    }
+    memset(stats, 0, sizeof(*stats));
+    memset(g_world3dData, 0, WORLD3D_DATA_SIZE);
+    memcpy(g_world3dData, legacyModel, legacyModelSize);
+    fillPools(&pools);
+    if (r3dmesh_decode((const uint8 *)g_world3dData,
+                       (const uint8 *)g_world3dData + legacyModelSize,
+                       &pools, colorLut, &decoded) < 0) {
+        return 0;
+    }
+    lod = &decoded.lods[0];
+    stats->form = lod->form;
+    if (lod->form == MESH_FORM_POINT) {
+        stats->renderable = 1;
+        stats->points = 1;
+        stats->pointColors[lod->pointColor] = 1;
+        return 1;
+    }
+    if (lod->form == MESH_FORM_EDGERUN) {
+        stats->renderable = lod->nRunRefs > 0;
+        stats->points = lod->nRunRefs;
+        stats->pointColors[lod->pointColor] = lod->nRunRefs;
+        return 1;
+    }
+    if (lod->form != MESH_FORM_MODEL) return 1;
+
+    for (int i = 0; i < lod->nFaces; ++i) {
+        MeshFace *face = &lod->faces[i];
+        if (face->nEdges < 3 || face->colorByte == 0xff) continue;
+        const int triangleCount = (int)face->nEdges - 2;
+        stats->renderable = 1;
+        stats->triangles += triangleCount;
+        stats->faceColors[face->colorByte] += triangleCount;
+        for (int edgeIndex = 0; edgeIndex < face->nEdges; ++edgeIndex) {
+            MeshEdge *edge = &lod->edges[face->edge[edgeIndex]];
+            if (edge->va == edge->vb) {
+                ++stats->points;
+                ++stats->pointColors[face->colorByte];
+            } else {
+                ++stats->maximumLines;
+                ++stats->maximumLineColors[face->colorByte];
+            }
+        }
+    }
+    for (int i = 0; i < lod->nLines; ++i) {
+        MeshLine *line = &lod->lines[i];
+        MeshEdge *edge = &lod->edges[line->edge];
+        stats->renderable = 1;
+        if (edge->va == edge->vb) {
+            ++stats->points;
+            ++stats->pointColors[line->colorByte];
+        } else {
+            ++stats->minimumLines;
+            ++stats->maximumLines;
+            ++stats->minimumLineColors[line->colorByte];
+            ++stats->maximumLineColors[line->colorByte];
+        }
+    }
+    return 1;
+}
+#endif
 
 /* ---- scene state -------------------------------------------------------- */
 
@@ -1865,6 +1939,123 @@ static void compareGlbReplacementWithLegacy(const GlSub *r, GlbMesh *mesh) {
     stats.glbLineColor = glbLineColor;
     stats.replacementPath = mesh->path;
     assetCompare3dShapeStats(&stats);
+}
+
+/* Replacement and legacy shadows use the same opacity and ground-plane lift. */
+static const float GL_SHADOW_ALPHA = 0.4f;
+static const float GL_SHADOW_RAISE_FRAC = 0.25f;
+
+/* Submit one replacement mesh with the same transform and primitive order as the legacy shape. */
+static void drawReplacementSub(const GlSub *submission,
+                               const R3DReplacementMesh *mesh) {
+    const int lod_shift = 8 - 2 * submission->curLod;
+    const int shift = lod_shift > 0 ? lod_shift : 0;
+    const float scale = (float)(1 << shift);
+    float matrix[9]{};
+    float shadow_nx = 0.0f, shadow_ny = 0.0f, shadow_nz = 0.0f;
+    float shadow_ox = 0.0f, shadow_oy = 0.0f, shadow_oz = 0.0f;
+    float shadow_lift_x = 0.0f, shadow_lift_y = 0.0f;
+    float shadow_lift_z = 0.0f;
+    for (int index = 0; index < 9; ++index) {
+        matrix[index] = (float)submission->combined[index];
+    }
+
+    if (submission->shadow) {
+        shadow_nx = (float)g_viewRotMatrix[3];
+        shadow_ny = (float)g_viewRotMatrix[4];
+        shadow_nz = (float)g_viewRotMatrix[5];
+        const float normal_length = SDL_sqrtf(
+            shadow_nx * shadow_nx + shadow_ny * shadow_ny
+            + shadow_nz * shadow_nz);
+        if (normal_length > 1e-3f) {
+            shadow_nx /= normal_length;
+            shadow_ny /= normal_length;
+            shadow_nz /= normal_length;
+        }
+        shadow_ox = (float)submission->camBase / scale;
+        shadow_oy = (float)submission->camX / scale;
+        shadow_oz = (float)submission->camY / scale;
+        float maximum_height = 0.0f;
+        for (int primitive_index = 0;
+             primitive_index < mesh->nPrims; ++primitive_index) {
+            const R3DReplacementPrim *primitive =
+                &mesh->prims[primitive_index];
+            for (int vertex = 0; vertex < primitive->nVerts; ++vertex) {
+                const float x = primitive->xyz[vertex * 3];
+                const float y = primitive->xyz[vertex * 3 + 1];
+                const float z = primitive->xyz[vertex * 3 + 2];
+                const float camera_x =
+                    (2.0f * (matrix[0] * x + matrix[3] * z
+                             + matrix[6] * y)
+                     + (float)submission->camBase) / scale;
+                const float camera_y =
+                    (2.0f * (matrix[1] * x + matrix[4] * z
+                             + matrix[7] * y)
+                     + (float)submission->camX) / scale;
+                const float depth =
+                    (2.0f * (matrix[2] * x + matrix[5] * z
+                             + matrix[8] * y)
+                     + (float)submission->camY) / scale;
+                float height =
+                    (camera_x - shadow_ox) * shadow_nx
+                    + (camera_y - shadow_oy) * shadow_ny
+                    + (depth - shadow_oz) * shadow_nz;
+                if (height < 0.0f) height = -height;
+                if (height > maximum_height) maximum_height = height;
+            }
+        }
+        const float raise =
+            (shadow_nz > 0.0f ? -GL_SHADOW_RAISE_FRAC
+                              : GL_SHADOW_RAISE_FRAC)
+            * maximum_height;
+        shadow_lift_x = raise * shadow_nx;
+        shadow_lift_y = raise * shadow_ny;
+        shadow_lift_z = raise * shadow_nz;
+    }
+
+    for (int primitive_index = 0;
+         primitive_index < mesh->nPrims; ++primitive_index) {
+        const R3DReplacementPrim *primitive =
+            &mesh->prims[primitive_index];
+        if (submission->shadow && primitive->mode != 4) continue;
+        const GLenum mode = primitive->mode == 4 ? GL_TRIANGLES
+                          : primitive->mode == 1 ? GL_LINES : GL_POINTS;
+        if (submission->shadow) {
+            glColor4f(0.0f, 0.0f, 0.0f, GL_SHADOW_ALPHA);
+        } else {
+            paintBias();
+            glColor4fv(primitive->rgba);
+        }
+        if (mode == GL_POINTS) {
+            glPointSize(s_pixelScale > 1.0f ? s_pixelScale : 1.0f);
+        }
+        glBegin(mode);
+        for (int vertex = 0; vertex < primitive->nVerts; ++vertex) {
+            const float x = primitive->xyz[vertex * 3];
+            const float y = primitive->xyz[vertex * 3 + 1];
+            const float z = primitive->xyz[vertex * 3 + 2];
+            float camera_x =
+                (2.0f * (matrix[0] * x + matrix[3] * z + matrix[6] * y)
+                 + (float)submission->camBase) / scale;
+            float camera_y =
+                (2.0f * (matrix[1] * x + matrix[4] * z + matrix[7] * y)
+                 + (float)submission->camX) / scale;
+            float depth =
+                (2.0f * (matrix[2] * x + matrix[5] * z + matrix[8] * y)
+                 + (float)submission->camY) / scale;
+            if (submission->shadow) {
+                const float distance =
+                    (camera_x - shadow_ox) * shadow_nx
+                    + (camera_y - shadow_oy) * shadow_ny
+                    + (depth - shadow_oz) * shadow_nz;
+                camera_x += shadow_lift_x - distance * shadow_nx;
+                camera_y += shadow_lift_y - distance * shadow_ny;
+                depth += shadow_lift_z - distance * shadow_nz;
+            }
+            fogVertex(camera_x, camera_y, depth / 65536.0f);
+        }
+        glEnd();
+    }
 }
 
 /* Decode + transform + draw one object (painter's order; z-buffer on, GL_LEQUAL,

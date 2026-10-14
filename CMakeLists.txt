@@ -285,6 +285,7 @@ set(EGAME_SOURCES
     ${SRC_DIR}/eghudr.c
     ${SRC_DIR}/eg3drast.c
     ${SRC_DIR}/r3d.c
+    ${SRC_DIR}/r3d_replacement.c
     ${SRC_DIR}/r3d_sw.c
     ${SRC_DIR}/r3dmesh.c
     ${SRC_DIR}/r2d.c
@@ -831,8 +832,20 @@ if(F15SE2_ORIGINAL_ASSETS AND F15SE2_CONVERTED_ASSETS
         TIMEOUT 120)
 else()
     message(STATUS
-        "Skipping PNG/structured full validation: set F15SE2_ORIGINAL_ASSETS and "
+        "Skipping PNG/structured/3D full validation: set F15SE2_ORIGINAL_ASSETS and "
         "F15SE2_CONVERTED_ASSETS to existing directories")
+endif()
+add_behavior_test(r3d_replacement_behavior_tests LINK_CORE)
+if(F15SE2_ORIGINAL_ASSETS AND F15SE2_CONVERTED_ASSETS
+   AND IS_DIRECTORY "${F15SE2_ORIGINAL_ASSETS}"
+   AND IS_DIRECTORY "${F15SE2_CONVERTED_ASSETS}")
+    add_behavior_test(r3d_replacement_full_validation_tests LINK_CORE
+        DEFS
+            F15_ORIGINAL_ASSETS="${F15SE2_ORIGINAL_ASSETS}"
+            F15_CONVERTED_ASSETS="${F15SE2_CONVERTED_ASSETS}")
+    set_tests_properties(r3d_replacement_full_validation_tests PROPERTIES
+        LABELS "assets;integration"
+        TIMEOUT 120)
 endif()
 add_behavior_test(utf8_behavior_tests SOURCES
     ${SRC_DIR}/shared/utf8.c)
