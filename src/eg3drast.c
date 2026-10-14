@@ -1169,13 +1169,15 @@ static void renderPrimitiveCommand(unsigned char far **pp) {
             /* On a GL vector frame the only faces reaching here are the left-MFD
              * terrain-map tiles (the main/target 3D views render through the r3d
              * backend, not this span rasterizer). Submit the face as a native-res
-             * filled polygon instead of rasterizing spans into the page. The face
-             * is an UNORDERED set of boundary edges (each an arbitrary-orientation
-             * v_a->v_b) — fine for the span fill, but GL_POLYGON needs the vertices
-             * in loop order, so walk the edge adjacency around the cycle (matching
-             * on the projected endpoints; the map has no near-plane clipping, so the
-             * int coords are exact). blitOffset folds the viewport origin into
-             * absolute 320-space. Software frames fall through to the span fill. */
+             * filled polygon AND fall through to the span fill — the tile draw is
+             * one-shot (zoom/scroll redraw), so a vector-only face would survive a
+             * single frame and leave the map black; the page bake persists it like
+             * DOS VRAM. The face is an UNORDERED set of boundary edges (each an
+             * arbitrary-orientation v_a->v_b) — fine for the span fill, but
+             * GL_POLYGON needs the vertices in loop order, so walk the edge
+             * adjacency around the cycle (matching on the projected endpoints;
+             * the map has no near-plane clipping, so the int coords are exact).
+             * blitOffset folds the viewport origin into absolute 320-space. */
             if (r2d_vectorActive()) {
                 struct { short ax, ay, bx, by; uint8 used; } eg[64];
                 short ring[64 * 2];
@@ -1193,7 +1195,6 @@ static void renderPrimitiveCommand(unsigned char far **pp) {
                         ne++;
                     }
                 }
-                p += cnt + 1; /* vertex indices + the colour byte */
                 if (ne >= 2) {
                     short curX = eg[0].bx, curY = eg[0].by;
                     eg[0].used = 1;
@@ -1221,8 +1222,6 @@ static void renderPrimitiveCommand(unsigned char far **pp) {
                  * edge to match the viewport extent. */
                 r2d_submitPoly(ring, nv, colorLut[colorByte] + g_objShade,
                                vx, vy, vx + g_clipMaxX + 1, vy + g_clipMaxY + 1);
-                *pp = p;
-                return;
             }
         }
         resetScanlineSpansImpl();

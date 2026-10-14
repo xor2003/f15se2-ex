@@ -228,6 +228,20 @@ F-19 3D now routes through the shared GL backend (`f19r3d.c` → `r3d_submit` �
   silhouette span-fill lands inside the whole-screen show-through rect, so
   it also needed the F-15 `drawVectorShape` pattern: collect the vertex ring
   and `r2d_submitPoly` it.
+- **TAC-map zoom black background** — `renderPrimitiveCommand`'s GL branch
+  submitted map terrain faces as vector polys then returned early, never
+  running the span fill → the retained page stayed black and the next
+  composite wiped the one-frame poly. Now it submits the poly (native-res,
+  this frame) AND falls through to the span fill (page bake, persists like
+  DOS VRAM). The ring walk uses its own cursor `rp`; `p` still feeds the
+  span path exactly once.
+- **F4 DATABASE model vanishing** — `drawTargetView` mode≥2 calls
+  (DATABASE panel, recon photo) are one-shot: under GL the subscene drew to
+  the framebuffer for a single frame. Under GL, mode≥2 now runs the
+  original SW sequence — `setup3DTransform`/`projectSceneObject`/
+  `rasterize3DWorld` — baking the model into the retained page (the MFD
+  rect is opaque page, so the composite keeps it). Modes 0/1 (live
+  TrackCam, re-submitted every frame) keep the GL subscene.
 
 `insertOutlineEdges` walk semantics: `attr, v0, v1, ..., v0, -1` per group —
 each edge is prev→current, the ring repeats v0 to close (drop the dup for

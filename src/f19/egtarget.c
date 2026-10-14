@@ -836,9 +836,20 @@ void drawTargetView(int16 shapeId, int16 worldX, int16 worldY, int16 altitude, i
     }
 
     g_offscreenRender = 1;
-    f19_beginScene(g_targetViewParams, -g_trkBearing, g_trkPitch, g_trkRoll, 0, 0, 0, 0);
-    f19_submit((char *)(g_world3dData + (uint16)doffh), -objYaw, objPitch, objRoll, relX, -relY, relZ);
-    f19_endScene();
+    if (f19_r3dGL() && mode >= 2) {
+        /* One-shot target views (DATABASE panel, recon photo) must bake the
+         * model into the retained page like DOS — a GL subscene draw lands on
+         * the framebuffer for a single frame and the panel is black on the
+         * next. Run the original span-rasterizer sequence; the page composite
+         * picks the pixels up every frame thereafter. */
+        setup3DTransform(g_targetViewParams, -g_trkBearing, g_trkPitch, g_trkRoll, 0, 0, 0, 0);
+        projectSceneObject((char far *)(g_world3dData + (uint16)doffh), -objYaw, objPitch, objRoll, relX, -relY, relZ);
+        rasterize3DWorld();
+    } else {
+        f19_beginScene(g_targetViewParams, -g_trkBearing, g_trkPitch, g_trkRoll, 0, 0, 0, 0);
+        f19_submit((char *)(g_world3dData + (uint16)doffh), -objYaw, objPitch, objRoll, relX, -relY, relZ);
+        f19_endScene();
+    }
     g_offscreenRender = 0;
 
     if (mode == 1) {
