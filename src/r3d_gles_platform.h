@@ -2,7 +2,13 @@
 #define R3D_GLES_PLATFORM_H
 
 #include <SDL3/SDL.h>
+#ifdef __ANDROID__
 #include "android_ar.h"
+#else
+static inline int android_ar_requested(void) { return 0; }
+static inline int android_ar_active(void) { return 0; }
+static inline void android_ar_adjustView(int *, int *, int *) {}
+#endif
 #include "r3d_gles_compat.h"
 #include "log.h"
 

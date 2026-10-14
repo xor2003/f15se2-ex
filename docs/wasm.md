@@ -47,7 +47,7 @@ legacy polling loops do not block browser events. Asyncify retains their
 synchronous control flow; it is not a simulation rewrite.
 
 WebGL uses GLES2 with Emscripten's client-side array emulation (`FULL_ES2`).
-The launcher uses WebGL; it does not offer software-renderer selection.
+The launcher offers WebGL (default) or software rendering.
 Browser gamepad support and audio activation depend
 on browser/device permissions. This initial port still needs a browser playthrough;
 native tests alone do not validate WebGL, Asyncify or IndexedDB behavior.

@@ -340,7 +340,11 @@ set(END_SOURCES
 )
 
 if(EMSCRIPTEN)
-    list(APPEND EGAME_SOURCES ${SRC_DIR}/r3d_gles_compat.c ${SRC_DIR}/web_runtime.c)
+    list(REMOVE_ITEM EGAME_SOURCES ${SRC_DIR}/r3d_gl.c)
+    list(APPEND EGAME_SOURCES
+        ${SRC_DIR}/r3d_gles.c
+        ${SRC_DIR}/r3d_gles_compat.c
+        ${SRC_DIR}/web_runtime.c)
 endif()
 
 list(APPEND F15SE2_SOURCES ${EGAME_SOURCES})
@@ -377,11 +381,6 @@ endif()
 if(NOT F15_DOS AND NOT EMSCRIPTEN)
     find_package(Threads REQUIRED)
 endif()
-
-# TrueType/OpenType font replacements are optional. When FreeType is available,
-# fonts/font_<id>.ttf and .otf are loaded directly by the runtime; otherwise the
-# game still builds and falls back to BDF/PNG/built-in font paths.
-find_package(Freetype QUIET)
 
 # TrueType/OpenType font replacements are optional. When FreeType is available,
 # fonts/font_<id>.ttf and .otf are loaded directly by the runtime; otherwise the
@@ -471,6 +470,12 @@ if(ANDROID)
         ${CMAKE_CURRENT_SOURCE_DIR}/android/app/src/main/cpp/android_main.cpp)
     target_link_libraries(main PRIVATE f15se2_core)
     set(F15SE2_APP_TARGET main)
+elseif(EMSCRIPTEN)
+    target_link_libraries(f15se2_core PUBLIC SDL3::SDL3)
+    add_executable(f15se2 ${SRC_DIR}/f15.c)
+    target_link_libraries(f15se2 PRIVATE f15se2_core)
+    f15_configure_browser(f15se2)
+    set(F15SE2_APP_TARGET f15se2)
 else()
     target_link_libraries(f15se2_core PUBLIC SDL3::SDL3)
     if(ENABLE_OPENGL1 AND NOT EMSCRIPTEN)
@@ -673,7 +678,7 @@ endif()
 # PNG re-copies it on the next build without a relink or `make clean`. CONFIGURE_DEPENDS
 # re-globs at build time, so new files are picked up too; the stamp makes it incremental
 # (the copy runs only when an asset actually changed).
-if(NOT ANDROID)
+if(NOT ANDROID AND NOT EMSCRIPTEN)
     file(GLOB_RECURSE ASSET_FILES CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/assets/*)
     add_custom_command(
         OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/assets.stamp
@@ -740,7 +745,7 @@ endif()
 #                  Not-yet-migrated tests still use this.
 #
 #   add_behavior_test(<name> [LINK_CORE] [SOURCES <.c/.cpp ...>] [DEFS <defs...>])
-if(NOT ANDROID)
+if(NOT ANDROID AND NOT EMSCRIPTEN)
 enable_testing()
 
 set(TEST_DIR ${CMAKE_CURRENT_SOURCE_DIR}/tests)

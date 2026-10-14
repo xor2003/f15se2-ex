@@ -2,7 +2,7 @@ name: Browser build
 on:
   workflow_dispatch:
   push:
-    branches: [wasm-upstream, release/svn-multiplatform]
+    branches: [integration/latest, release/svn-multiplatform]
   pull_request:
     paths:
       - 'src/**'

@@ -73,6 +73,8 @@ element('start').onclick = () => {
     started = true;
     element('start').disabled = true;
     element('files').disabled = true;
+    element('renderer').disabled = true;
+    runtime.ENV.F15_RENDER = element('renderer').value;
     element('canvas').focus();
     status('Flight running. Saves are synchronized every five seconds.');
     const bundled = element('campaign').value === 'svn';
