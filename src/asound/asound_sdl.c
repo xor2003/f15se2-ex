@@ -18,6 +18,7 @@
 
 #include "../shared/asset_compare.h"
 #include "asound_model.h"
+#include "asound_music_replacement.h"
 #include "asound_replacements.h"
 #include "asopl.h"
 #include "compressed_audio.h"
@@ -71,16 +72,6 @@ static double g_smpPos; /* fractional read position (bytes) */
 static int g_smpSize{};
 static double g_smpStep = (double)ASND_SAMPLE_HZ / (double)ASND_OUT_RATE;
 
-typedef struct ReplacementMusic {
-    AsoundU8 *intro[ASOUND_STREAM_COUNT];
-    AsoundU8 *release[ASOUND_STREAM_COUNT];
-    int introSize[ASOUND_STREAM_COUNT];
-    int releaseSize[ASOUND_STREAM_COUNT];
-    int loaded;
-    int tried;
-} ReplacementMusic;
-
-static ReplacementMusic g_replacementMusic;
 static CompressedAudio g_compressedIntro;
 static double g_compressedIntroPos;
 static bool g_compressedIntroActive;
@@ -141,141 +132,6 @@ static int loadCompressedIntro(void) {
     return 1;
 }
 
-static const char *jsonFindAfter(const char *text, const char *needle) {
-    return text && needle ? strstr(text, needle) : NULL;
-}
-
-static AsoundU8 *parseJsonStreamBytes(const char *json, const char *symbol, int *outCount) {
-    char needle[96];
-    const char *p;
-    const char *array;
-    AsoundU8 *bytes = NULL;
-    int count = 0;
-    int cap = 0;
-
-    if (outCount) *outCount = 0;
-    snprintf(needle, sizeof(needle), "\"source_symbol\": \"%s\"", symbol);
-    p = jsonFindAfter(json, needle);
-    if (!p) return NULL;
-    array = jsonFindAfter(p, "\"stream_bytes\"");
-    if (!array) return NULL;
-    array = strchr(array, '[');
-    if (!array) return NULL;
-    array++;
-
-    while (*array && *array != ']') {
-        char *end = NULL;
-        long value;
-        while (*array == ' ' || *array == '\n' || *array == '\r' || *array == '\t' || *array == ',') array++;
-        if (*array == ']') break;
-        value = strtol(array, &end, 10);
-        if (end == array || value < 0 || value > 255) {
-            SDL_free(bytes);
-            return NULL;
-        }
-        if (count >= cap) {
-            int newCap = cap ? cap * 2 : 64;
-            AsoundU8 *newBytes = (AsoundU8 *)SDL_realloc(bytes, (size_t)newCap);
-            if (!newBytes) {
-                SDL_free(bytes);
-                return NULL;
-            }
-            bytes = newBytes;
-            cap = newCap;
-        }
-        bytes[count++] = (AsoundU8)value;
-        array = end;
-    }
-    if (count <= 0) {
-        SDL_free(bytes);
-        return NULL;
-    }
-    if (outCount) *outCount = count;
-    return bytes;
-}
-
-static void freeReplacementMusic(void) {
-    int phase, voice;
-    AsoundU8 **sets[2] = {g_replacementMusic.intro, g_replacementMusic.release};
-    for (phase = 0; phase < 2; phase++) {
-        for (voice = 0; voice < ASOUND_STREAM_COUNT; voice++) {
-            SDL_free(sets[phase][voice]);
-            sets[phase][voice] = NULL;
-            if (phase == 0) g_replacementMusic.introSize[voice] = 0;
-            else g_replacementMusic.releaseSize[voice] = 0;
-        }
-    }
-    g_replacementMusic.loaded = 0;
-}
-
-static int loadReplacementIntroMusic(void) {
-    char replacementPath[512];
-    SDL_IOStream *io;
-    Sint64 jsonSize = 0;
-    char *json;
-    int voice;
-
-    if (g_replacementMusic.tried) return g_replacementMusic.loaded;
-    g_replacementMusic.tried = 1;
-
-    if (!findReplacementAssetPath("sounds/intro_music", ".asound.json", replacementPath, sizeof(replacementPath))) {
-        return 0;
-    }
-
-    io = SDL_IOFromFile(replacementPath, "rb");
-    json = (char *)readEntireIo(io, &jsonSize);
-    if (io) SDL_CloseIO(io);
-    if (!json || jsonSize <= 0) {
-        SDL_free(json);
-        LogWarn(("asset replacement: failed to read intro music %s; using built-in ASOUND streams", replacementPath));
-        return 0;
-    }
-
-    /* readEntireIo returns exact file bytes. Add a terminator for this
-     * purpose-built parser; the JSON remains the authoritative music data. */
-    {
-        char *terminated = (char *)SDL_realloc(json, (size_t)jsonSize + 1u);
-        if (!terminated) {
-            SDL_free(json);
-            return 0;
-        }
-        json = terminated;
-        json[jsonSize] = '\0';
-    }
-
-    freeReplacementMusic();
-    for (voice = 0; voice < ASOUND_STREAM_COUNT; voice++) {
-        char symbol[64];
-        snprintf(symbol, sizeof(symbol), "asound_intro_voice%d", voice);
-        g_replacementMusic.intro[voice] = parseJsonStreamBytes(json, symbol, &g_replacementMusic.introSize[voice]);
-        snprintf(symbol, sizeof(symbol), "asound_release_voice%d", voice);
-        g_replacementMusic.release[voice] = parseJsonStreamBytes(json, symbol, &g_replacementMusic.releaseSize[voice]);
-        if (!g_replacementMusic.intro[voice] || !g_replacementMusic.release[voice]) {
-            freeReplacementMusic();
-            SDL_free(json);
-            LogWarn(("asset replacement: malformed intro music %s; using built-in ASOUND streams", replacementPath));
-            return 0;
-        }
-    }
-    SDL_free(json);
-    g_replacementMusic.loaded = 1;
-    LogInfo(("asset replacement: loaded intro music from %s", replacementPath));
-    return 1;
-}
-
-static int startReplacementMusicPhase(int releasePhase) {
-    AsoundDriver *drv;
-    int voice;
-    if (!loadReplacementIntroMusic()) return 0;
-    drv = sound_driver_state();
-    for (voice = 0; voice < ASOUND_STREAM_COUNT; voice++) {
-        asound_stream_init(
-            &drv->streams[voice],
-            releasePhase ? g_replacementMusic.release[voice] : g_replacementMusic.intro[voice]
-        );
-    }
-    return 1;
-}
 static const double g_samplesPerTick = (double)ASND_OUT_RATE / (double)ASND_TICK_HZ;
 
 /* ---- OPL shadow -> chip --------------------------------------------------- */
@@ -567,7 +423,7 @@ int FAR CDECL audio_playIntro(void) {
 
     LogInfo(("asound: playing intro music"));
     SDL_LockMutex(g_lock);
-    if (!startReplacementMusicPhase(0)) {
+    if (!asound_start_replacement_music(sound_driver_state(), 0)) {
         sound_driver_play_intro();
     }
     SDL_UnlockMutex(g_lock);
@@ -587,7 +443,7 @@ int FAR CDECL audio_playIntro(void) {
 
         /* release tail (adlib_start_intro_release), then let it decay out */
         SDL_LockMutex(g_lock);
-        if (!startReplacementMusicPhase(1)) {
+        if (!asound_start_replacement_music(sound_driver_state(), 1)) {
             asound_driver_start_intro_rel(sound_driver_state());
         }
         SDL_UnlockMutex(g_lock);
@@ -732,18 +588,18 @@ int asound_testCompareReplacementIntroMusic(void) {
     };
     int voice;
 
-    freeReplacementMusic();
-    g_replacementMusic.tried = 0;
-    if (!loadReplacementIntroMusic()) return 0;
+    if (!asound_reload_replacement_music()) return 0;
     for (voice = 0; voice < ASOUND_STREAM_COUNT; voice++) {
+        const AsoundU8 *introData = NULL, *releaseData = NULL;
+        size_t introSize = 0, releaseSize = 0;
         size_t introLen = asound_intro_voice_length(voice);
         size_t releaseLen = asound_release_voice_length(voice);
         if (introLen == 0 || releaseLen == 0) return 0;
-        if (!g_replacementMusic.intro[voice] || !g_replacementMusic.release[voice]) return 0;
-        if (g_replacementMusic.introSize[voice] != (int)introLen) return 0;
-        if (g_replacementMusic.releaseSize[voice] != (int)releaseLen) return 0;
-        if (memcmp(g_replacementMusic.intro[voice], legacyIntro[voice], introLen) != 0) return 0;
-        if (memcmp(g_replacementMusic.release[voice], legacyRelease[voice], releaseLen) != 0) return 0;
+        if (!asound_replacement_music_stream(0, voice, &introData, &introSize)) return 0;
+        if (!asound_replacement_music_stream(1, voice, &releaseData, &releaseSize)) return 0;
+        if (introSize != introLen || releaseSize != releaseLen) return 0;
+        if (memcmp(introData, legacyIntro[voice], introLen) != 0) return 0;
+        if (memcmp(releaseData, legacyRelease[voice], releaseLen) != 0) return 0;
     }
     return 1;
 }

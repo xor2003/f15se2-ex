@@ -300,6 +300,7 @@ set(EGAME_SOURCES
 if(AUDIO)
     list(APPEND EGAME_SOURCES
         ${SRC_DIR}/asound/asound_model.c
+        ${SRC_DIR}/asound/asound_music_replacement.c
         ${SRC_DIR}/asound/asound_replacements.c
         ${SRC_DIR}/asound/asopl.c
         ${SRC_DIR}/asound/compressed_audio.c
@@ -843,6 +844,7 @@ else()
 endif()
 if(AUDIO)
     add_behavior_test(asound_replacements_behavior_tests LINK_CORE)
+    add_behavior_test(asound_music_replacement_behavior_tests LINK_CORE)
 endif()
 add_behavior_test(r3d_replacement_behavior_tests LINK_CORE)
 if(F15SE2_ORIGINAL_ASSETS AND F15SE2_CONVERTED_ASSETS
@@ -852,6 +854,15 @@ if(F15SE2_ORIGINAL_ASSETS AND F15SE2_CONVERTED_ASSETS
         DEFS
             F15_ORIGINAL_ASSETS="${F15SE2_ORIGINAL_ASSETS}"
             F15_CONVERTED_ASSETS="${F15SE2_CONVERTED_ASSETS}")
+    if(AUDIO)
+        add_behavior_test(asound_music_full_validation_tests LINK_CORE
+            DEFS
+                F15_ORIGINAL_ASSETS="${F15SE2_ORIGINAL_ASSETS}"
+                F15_CONVERTED_ASSETS="${F15SE2_CONVERTED_ASSETS}")
+        set_tests_properties(asound_music_full_validation_tests PROPERTIES
+            LABELS "assets;integration"
+            TIMEOUT 120)
+    endif()
     set_tests_properties(r3d_replacement_full_validation_tests PROPERTIES
         LABELS "assets;integration"
         TIMEOUT 120)
