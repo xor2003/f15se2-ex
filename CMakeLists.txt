@@ -33,6 +33,35 @@ option(BLACKBOX_AUTO_RECORD
 # through the front end each run.
 option(AUTOSTART "Skip menus and start a mission directly (DEBUG_AUTOSTART)" OFF)
 
+# The DJGPP toolchain (build-scripts/i586-pc-msdosdjgpp.cmake) sets
+# CMAKE_SYSTEM_NAME=DOS. DOS has no GPU/OpenGL, so the GL backend is compiled out
+# there and the software rasterizer is the only 3D backend.
+if(CMAKE_SYSTEM_NAME STREQUAL "DOS")
+    set(F15_DOS TRUE)
+endif()
+option(F15_DOS_I486_TUNE "Tune the DOS game binary for an i486 baseline" OFF)
+if(F15_DOS AND F15_DOS_I486_TUNE)
+    # Apply the baseline to dependencies added below as well as game sources;
+    # the DOS executable links SDL statically and must not retain i586 code.
+    add_compile_options(
+        $<$<CONFIG:Release>:-O2>
+        $<$<CONFIG:Release>:-march=i486>
+        $<$<CONFIG:Release>:-mtune=i486>
+        $<$<CONFIG:Release>:-ffunction-sections>
+        $<$<CONFIG:Release>:-fdata-sections>
+    )
+endif()
+
+# 3D render backends are chosen per platform at compile time; the runtime probe
+# (r3d.c) then claims the first compiled-in backend whose environment it supports.
+# OpenGL 1.1 is the desktop default but does not exist on DOS. A future GPU backend
+# such as Glide would gate the same way (DOS-yes / desktop-no).
+option(ENABLE_OPENGL1 "Build the OpenGL 1.1 3D backend" ON)
+if(F15_DOS AND ENABLE_OPENGL1)
+    message(STATUS "DOS build: forcing ENABLE_OPENGL1 OFF (no GPU on DOS)")
+    set(ENABLE_OPENGL1 OFF)
+endif()
+
 # Full asset replacement proof is intentionally a test-time integration check,
 # not runtime game instrumentation. The paths default to the local developer
 # layout when available, but can be overridden by packagers/CI.
@@ -63,12 +92,25 @@ else()
     if(DOWNLOAD_DEPENDENCIES)
         message(STATUS "System SDL3 not found, building it from source")
         include(FetchContent)
-        FetchContent_Declare(
-            SDL3
-            GIT_REPOSITORY "https://github.com/libsdl-org/SDL.git"
-            GIT_TAG "release-3.4.12"
-            UPDATE_DISCONNECTED TRUE
-        )
+        if(F15_DOS)
+            # DOS support landed after 3.4.12; pin the commit that carries the DOS
+            # video/timer/audio backends and the DJGPP toolchain.
+            FetchContent_Declare(
+                SDL3
+                URL "https://github.com/libsdl-org/SDL/archive/e442a9a5e1d6eb2621e9206f5176c53b0d034e09.tar.gz"
+                URL_HASH SHA256=8ebc84ff04c076c0e6249c885fc1efc6dc5f13a411b31de8621478646ff76bcf
+                PATCH_COMMAND ${CMAKE_COMMAND} -DSDL_SOURCE_DIR=<SOURCE_DIR>
+                    -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/patch_sdl_dos_audio.cmake
+                UPDATE_DISCONNECTED TRUE
+            )
+        else()
+            FetchContent_Declare(
+                SDL3
+                GIT_REPOSITORY "https://github.com/libsdl-org/SDL.git"
+                GIT_TAG "release-3.4.12"
+                UPDATE_DISCONNECTED TRUE
+            )
+        endif()
         FetchContent_MakeAvailable(SDL3)
         if(EMSCRIPTEN)
             f15_patch_sdl_missing_axes("${sdl3_SOURCE_DIR}")
@@ -263,6 +305,11 @@ endif()
 list(APPEND F15SE2_SOURCES ${EGAME_SOURCES})
 list(APPEND F15SE2_SOURCES ${END_SOURCES})
 
+# The GL backend is compiled in only when the OpenGL 1.1 backend is enabled.
+if(NOT ENABLE_OPENGL1)
+    list(REMOVE_ITEM F15SE2_SOURCES ${SRC_DIR}/r3d_gl.c)
+endif()
+
 #==============================================================================
 # Target
 #==============================================================================
@@ -274,16 +321,19 @@ set_source_files_properties(
     PROPERTIES LANGUAGE CXX
 )
 
+# OpenGL for the GL 3D backend (r3d_gl.c). The immediate-mode 1.x path needs only
+# the base GL library; SDL3 supplies the GL headers and context management.
 # Desktop uses OpenGL 1.x; Android uses the GLES2 compatibility backend.
 if(ANDROID)
     find_library(GLESV2_LIBRARY GLESv2 REQUIRED)
-elseif(NOT EMSCRIPTEN)
+elseif(ENABLE_OPENGL1 AND NOT EMSCRIPTEN)
     find_package(OpenGL REQUIRED)
 endif()
 
 # Some tests use std::thread; link a threads library explicitly so it resolves
-# across toolchains (not all fold pthread into libc).
-if(NOT EMSCRIPTEN)
+# across toolchains (not all fold pthread into libc). DJGPP has no pthreads and the
+# tests aren't cross-built for DOS, so skip it there.
+if(NOT F15_DOS AND NOT EMSCRIPTEN)
     find_package(Threads REQUIRED)
 endif()
 
@@ -368,13 +418,32 @@ if(ANDROID)
     set(F15SE2_APP_TARGET main)
 else()
     target_link_libraries(f15se2_core PUBLIC SDL3::SDL3)
-    if(NOT EMSCRIPTEN)
+    if(ENABLE_OPENGL1 AND NOT EMSCRIPTEN)
         target_link_libraries(f15se2_core PUBLIC OpenGL::GL)
     endif()
     add_executable(f15se2 ${SRC_DIR}/f15.c)
-    set_target_properties(f15se2 PROPERTIES OUTPUT_NAME "f15se2-ex")
+    # DOS 8.3 filenames cap the base name at 8 chars, so "f15se2-ex" (9) becomes
+    # "f15se2ex" there; other platforms keep the full name.
+    if(F15_DOS)
+        set_target_properties(f15se2 PROPERTIES OUTPUT_NAME "f15se2ex")
+    else()
+        set_target_properties(f15se2 PROPERTIES OUTPUT_NAME "f15se2-ex")
+    endif()
     target_link_libraries(f15se2 PRIVATE f15se2_core)
     set(F15SE2_APP_TARGET f15se2)
+endif()
+# The GL backend symbol (r3d_glBackend) is provided by r3d_gl.c on desktop and by
+# r3d_gles.c (which includes it) on Android; DOS has no GL backend at all.
+if(ENABLE_OPENGL1)
+    target_compile_definitions(f15se2_core PUBLIC ENABLE_OPENGL1)
+endif()
+target_sources(f15se2_core PRIVATE src/benchmark.c)
+
+# The i486 has a small unified 8 KiB on-chip cache. Prefer -O2 over the larger
+# -O3 output, emit no instructions newer than the i486, and remove unreachable
+# functions and data so more of the active game code remains cache-resident.
+if(F15_DOS AND F15_DOS_I486_TUNE)
+    target_link_options(${F15SE2_APP_TARGET} PRIVATE $<$<CONFIG:Release>:-Wl,--gc-sections>)
 endif()
 option(F15SE2_MODERN_MATH "Experimental double-precision flight state and math" OFF)
 if(F15SE2_MODERN_MATH)
@@ -525,6 +594,10 @@ endif()
 if(NOT ANDROID)
     include(cmake/PackageRuntime.cmake)
 endif()
+
+# The behavior tests and coverage targets are host-only (they run under ctest with
+# SDL dummy drivers and std::thread); they aren't cross-built for the DOS target.
+if(NOT F15_DOS)
 
 #==============================================================================
 # Behavior tests
@@ -905,3 +978,4 @@ if(WIN32)
     endif()
 endif()
 endif() # NOT ANDROID
+endif() # NOT F15_DOS (host-only tests + coverage)

@@ -13,6 +13,7 @@
  * arrival/removal. Only the keyboard/gamepad meaning differs between flight and
  * the menus, so that part is gated on the mode set by the phase's key readers.
  */
+#include "benchmark.h"
 #include "input.h"
 #include "egdata.h"
 #include "inttype.h"
@@ -206,6 +207,7 @@ static bool menuPointFromWindow(const SDL_MouseButtonEvent *button, int *x, int 
 }
 
 bool input_keyWaiting(void) {
+    if (benchmarkEnabled()) return false;
     input_pumpEvents();
     return ringHead != ringTail;
 }
@@ -1128,11 +1130,17 @@ void input_pumpEvents(void) {
                 gfx_toggleFullscreen();
                 break;
             }
+<<<<<<< HEAD
             /* Host-only diagnostic shortcut: never enqueue it as a game key, so
              * taking a dump cannot perturb the run being investigated. */
             if (ev.key.scancode == SDL_SCANCODE_F10 && (ev.key.mod & SDL_KMOD_CTRL) &&
                 blackbox_enabled()) {
                 blackbox_diagWriteAutomaticDump();
+                break;
+            }
+            /* Alt+P toggles the FPS overlay. */
+            if (ev.key.scancode == SDL_SCANCODE_P && (ev.key.mod & SDL_KMOD_ALT)) {
+                gfx_toggleFps();
                 break;
             }
             if (blackbox_replaying()) break;

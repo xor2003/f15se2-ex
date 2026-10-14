@@ -182,6 +182,21 @@ static void joy_open(SDL_JoystickID id) {
     SDL_CloseJoystick(candidate);
     if (!hasFlightAxes) return;
 #endif
+#ifdef __DJGPP__
+    /* Temporary: https://github.com/libsdl-org/SDL/issues/16289
+     * Missing trigger axes read as 16383, above our fire threshold. Bind real
+     * buttons instead, preserving menu confirm/cancel. Revisit after SDL fixes. */
+    char guid[33] = {0};
+    char mapping[256] = {0};
+    SDL_GUIDToString(SDL_GetJoystickGUIDForID(id), guid, sizeof(guid));
+    SDL_snprintf(mapping, sizeof(mapping),
+                 "%s,DOS Gameport Joystick,leftx:a0,lefty:a1,"
+                 "righttrigger:b0,lefttrigger:b1,x:b2,y:b3,", guid);
+    if (SDL_AddGamepadMapping(mapping) < 0) {
+        LogInfo(("joystick: DOS mapping failed: %s", SDL_GetError()));
+        return;
+    }
+#endif
     if (SDL_IsGamepad(id)) {
         g_pad = SDL_OpenGamepad(id);
         if (g_pad) {

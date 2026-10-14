@@ -12,6 +12,7 @@
  * racing it. timerPump() is called from the input pump and from timerYield(),
  * so every wait loop that polls a counter advances time as it spins.
  */
+#include "benchmark.h"
 
 #include "inttype.h"
 #include "web_runtime.h"
@@ -62,6 +63,14 @@ void timerPump(void) {
     uint32 pumpStartTick;
     uint32 pumpedTicks = 0;
     if (!timerRunning) return;
+    if (benchmarkEnabled()) {
+        timerCounter++;
+        timerCounter2++;
+        timerCounter3++;
+        timerCounter4++;
+        if (gameTickHook != 0) gameTickHook();
+        return;
+    }
     if (blackbox_replaying()) {
         uint32 replayTicks = blackbox_replayTimerPump();
         while (replayTicks-- != 0 && !blackbox_pauseReached())

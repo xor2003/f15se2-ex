@@ -28,6 +28,7 @@ using CamMath = f15::math::GuidanceMath<f15::math::GameBackend>;
 #include "shared/common.h"
 #include "r3d.h"
 #include "strand.h"
+#include "benchmark.h"
 
 #include <dos.h>
 #include <memory.h>
@@ -583,7 +584,10 @@ int16 signOf(int16 value) { /* Original: sgn(x). Return -1, 0, or 1. */
 }
 
 void seedRng(void) {
-    if (g_inputDisabled == 0) {
+    if (benchmarkEnabled()) {
+        g_rngSeed = benchmarkRngSeed();
+        gameSrand((uint32)g_rngSeed);
+    } else if (g_inputDisabled == 0) {
         gameSrandFromClock(&g_rngSeed);
     } else {
         gameSrand((uint32)g_rngSeed);

@@ -38,6 +38,10 @@ extern "C" {
 #include "shared/blackbox.h"
 #include "shared/blackbox_wait.h"
 
+#ifdef __DJGPP__
+#include "asound_dos_opl.h"
+#endif
+
 #define ASND_OUT_RATE 44100 /* SDL output sample rate (Hz) */
 #define ASND_TICK_HZ 60     /* sequencer tick = game tick rate */
 #define ASND_SAMPLE_HZ 7850 /* Recovered F15DGTL.BIN cue playback rate, shared with exported WAVs. */
@@ -442,7 +446,11 @@ static void asnd_syncChip(void) {
     for (int r = 0; r < ASOPL_REGISTER_COUNT; r++) {
         AsoundU8 v = asopl_get_register(&g_opl, (AsoundU8)r);
         if (g_hwShadow[r] == v) continue;
+#ifdef __DJGPP__
+        asnd_writeDosOpl((unsigned char)r, v);
+#else
         OPL3_WriteReg(&g_chip, (uint16_t)r, v);
+#endif
         g_hwShadow[r] = v;
     }
 }
@@ -572,7 +580,13 @@ static void SDLCALL asnd_callback(void *user, SDL_AudioStream *stream,
         if (chunk > (int)g_tickAccum) chunk = (int)g_tickAccum;
         if (chunk > ASND_CHUNK) chunk = ASND_CHUNK;
 
+#ifdef __DJGPP__
+        /* The AdLib chip produces FM audio directly. Only digitized speech
+         * needs PCM; synthesizing OPL again costs most of a DOS CPU's time. */
+        SDL_memset(buf, 0, chunk * 2 * sizeof(Sint16));
+#else
         OPL3_GenerateStream(&g_chip, buf, (uint32_t)chunk);
+#endif
         asnd_mixSample(buf, chunk);
         asnd_mixCompressedIntro(buf, chunk);
         g_tickAccum -= chunk;
