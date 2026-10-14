@@ -1,0 +1,26 @@
+name: Asset tools
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+permissions:
+  contents: read
+
+jobs:
+  python-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Python and Pillow
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends python3 python3-pil
+      - name: Test converters and replacement validation
+        env:
+          PYTHONPATH: tools/f15assets:.
+        # Synthetic fixtures run without copyrighted assets. Local developers
+        # can additionally set F15SE2_ORIGINAL_ASSETS for full-asset tests.
+        run: python3 -m unittest discover -s tools/f15assets/tests -v
