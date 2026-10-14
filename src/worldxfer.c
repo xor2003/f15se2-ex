@@ -54,6 +54,7 @@ extern int16 g_targetEntityCount;
 extern int16 g_planeScanCount;
 extern struct GroundTargetTable g_planeTable;
 extern int16 g_groundUnitCount;
+extern int16 g_simObjScanBound;
 extern struct SimObject g_simObjects[];
 extern f15::math::ViewCoordinate<f15::math::GameBackend, f15::math::ViewXAxis> g_simObjectFineX[];
 extern f15::math::ViewCoordinate<f15::math::GameBackend, f15::math::ViewYAxis> g_simObjectFineY[];
@@ -129,6 +130,7 @@ void worldImportToEgame(void) {
     }
 
     g_groundUnitCount = (int16)flightUnitCount;
+    g_simObjScanBound = g_groundUnitCount;
     memcpy(g_simObjects, flightUnits, (size_t)flightCnt * sizeof(struct SimObject));
     for (i = 0; i < flightCnt; i++) {
         /* The on-disk worldX/worldY are the authoritative fine seeds; the typed

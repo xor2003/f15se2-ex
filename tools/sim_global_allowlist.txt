@@ -88,6 +88,9 @@ g_autopilotEngaged
 g_axisInput1
 g_axisInputAccum
 g_bombDamageMask
+g_bulletFreshMask
+g_bulletFreshTick
+g_bulletPoolCursor
 g_bulletTrackCount
 g_camEyeFracX
 g_camEyeFracY
@@ -146,6 +149,7 @@ g_crashCamZ
 g_curLod
 g_currentWeaponType
 g_dacSupported
+g_damageSeq
 g_damageTakenFlag
 g_dbiconsBuf
 g_detailLevel
@@ -184,6 +188,7 @@ g_headingBase
 g_headingModulus
 g_headingPixPerDeg
 g_headingWrapOffset
+g_headlessSim
 g_highGeeFlag
 g_horizonEdgeX
 g_horizonGroundColor
@@ -234,6 +239,7 @@ g_modelVertY
 g_modelVertZ
 g_modelVtxCount
 g_modelWideVtxFlag
+g_netClientMode
 g_nightMode
 g_northSouthSign
 g_objColorBase
@@ -285,12 +291,14 @@ g_primDataBase
 g_primRunCount
 g_projDepth
 g_radarScopeRange
+g_randCallCount
 g_rasterClipFlags
 g_rasterDeltaX
 g_rasterDeltaY
 g_render3DTiles
 g_renderAlphaQ12
 g_renderPageToggle
+g_residentPlayer
 g_resupplyCount
 g_rleRowBase
 g_rngSeed
@@ -309,6 +317,7 @@ g_scopeClipLeft
 g_scopeClipRight
 g_scopeClipTop
 g_shapeTargetCategory
+g_simObjScanBound
 g_simStepsThisFrame
 g_skyColorIndex
 g_slowMotionMode
@@ -363,6 +372,7 @@ g_threatRadarFlag
 g_threatScopeRange
 g_threatSpec
 g_threatToneLevel
+g_threatWarningBits
 g_tileEntryCount
 g_tileEntryIdx
 g_tileGridDim

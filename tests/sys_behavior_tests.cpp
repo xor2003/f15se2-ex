@@ -1,4 +1,5 @@
 #include "egcode.h"
+#include "debugframe.h"
 #include "egdata.h"
 #include "egtypes.h"
 #include "inttype.h"
@@ -20,6 +21,7 @@ void timerPump(void) {}
 uint64 timerNowNs(void) { return 0; }
 void gfx_dacAnimate(void) {}
 void renderFrame(void) {}
+void debugDumpFrame(void) {}
 void renderHudFrame(int) {}
 void stepFlightModel(void) {}
 void updateFrame(void) {}

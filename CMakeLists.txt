@@ -75,6 +75,13 @@ set(F15SE2_ORIGINAL_ASSETS "/home/xor/games/f15" CACHE PATH "Original F-15 asset
 set(F15SE2_CONVERTED_ASSETS "${CMAKE_CURRENT_SOURCE_DIR}/converted_assets_all" CACHE PATH "Converted asset directory used by full replacement validation")
 option(F15SE2_ENABLE_ASSET_VALIDATION_TEST "Register full old-vs-modern asset validation as a CTest when asset dirs exist" ON)
 
+# Authoritative-server multiplayer (docs/networking.md). Native-only for now:
+# adds the f15server headless sim + --connect client mode via
+# GameNetworkingSockets. Requires protobuf (set F15_PROTOBUF_ROOT to a prefix
+# containing include/, lib/, bin/protoc when no system -dev package exists).
+option(F15_NET "Build multiplayer: f15server + --connect client (GameNetworkingSockets)" OFF)
+set(F15_PROTOBUF_ROOT "" CACHE PATH "protobuf prefix (include/lib/bin/protoc) when no system package")
+
 #==============================================================================
 # Global settings
 #==============================================================================
@@ -259,7 +266,6 @@ set(EGAME_SOURCES
     ${SRC_DIR}/egmain.c
     ${SRC_DIR}/egsphere.c
     ${SRC_DIR}/egframe.c
-    ${SRC_DIR}/worldxfer.c
     ${SRC_DIR}/eg3dview.c
     ${SRC_DIR}/eg3dproj.c
     ${SRC_DIR}/eg3dgrid.c
@@ -290,13 +296,34 @@ set(EGAME_SOURCES
     ${SRC_DIR}/r3dmesh.c
     ${SRC_DIR}/r2d.c
     ${SRC_DIR}/egsys.c
+    ${SRC_DIR}/debugframe.c
     ${SRC_DIR}/egtick.c
     ${SRC_DIR}/eginput.c
     ${SRC_DIR}/egstubs.c
 )
 
+# Shared infrastructure the netcode branch introduced but single-player and
+# tests also use: the input-ops/player-context seam (egplayer.c provides the
+# simEvents*/simInput* hooks) and the START->EGAME world transfer (worldxfer.c).
+list(APPEND EGAME_SOURCES
+    ${SRC_DIR}/egplayer.c
+    ${SRC_DIR}/worldxfer.c
+)
+
 # audio backend: the real ASOUND AdLib driver on SDL3, or the silent nsound.c
 # no-op backend (AUDIO=OFF). Both satisfy the same audio_* / loadF15DgtlBin ABI.
+if(F15_NET)
+    # net-support TUs: the updateFrame segment split, remote-player
+    # context and net-side rendering. Written against the untyped math base;
+    # only built when the GNS/protobuf server+client mode is enabled.
+    list(APPEND EGAME_SOURCES
+        ${SRC_DIR}/egframeseg.c
+        ${SRC_DIR}/f15world.c
+        ${SRC_DIR}/egtarget_net.c
+        ${SRC_DIR}/net/netrender.c
+    )
+endif()
+
 if(AUDIO)
     list(APPEND EGAME_SOURCES
         ${SRC_DIR}/asound/asound_model.c
@@ -363,6 +390,7 @@ endif()
 set_source_files_properties(
     ${F15SE2_SOURCES}
     ${SRC_DIR}/vgapal.c
+    ${SRC_DIR}/f15host.c
     PROPERTIES LANGUAGE CXX
 )
 
@@ -1166,3 +1194,81 @@ if(WIN32)
 endif()
 endif() # NOT ANDROID
 endif() # NOT F15_DOS (host-only tests + coverage)
+
+#==============================================================================
+# Networking (F15_NET): authoritative server + GNS client mode
+#==============================================================================
+if(F15_NET)
+    # protobuf: GNS generates code for its internal handshake messages. Use a
+    # system package if present, else the F15_PROTOBUF_ROOT prefix (e.g. an
+    # unpacked apt download: usr/include, usr/lib/<triplet>, usr/bin/protoc).
+    if(F15_PROTOBUF_ROOT)
+        set(Protobuf_INCLUDE_DIR "${F15_PROTOBUF_ROOT}/usr/include" CACHE PATH "" FORCE)
+        find_library(Protobuf_LIBRARY
+            NAMES protobuf libprotobuf
+            PATHS "${F15_PROTOBUF_ROOT}/usr/lib" "${F15_PROTOBUF_ROOT}/usr/lib/x86_64-linux-gnu"
+            NO_DEFAULT_PATH)
+        set(Protobuf_PROTOC_EXECUTABLE "${F15_PROTOBUF_ROOT}/usr/bin/protoc" CACHE FILEPATH "" FORCE)
+    endif()
+    find_package(Protobuf REQUIRED)
+
+    set(GAMENETWORKINGSOCKETS_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    set(GAMENETWORKINGSOCKETS_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+    set(BUILD_SHARED_LIB OFF CACHE BOOL "" FORCE) # static-only: our protobuf.a is non-PIC
+    set(BUILD_STATIC_LIB ON CACHE BOOL "" FORCE)
+    set(BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+    set(BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    set(BUILD_TOOLS OFF CACHE BOOL "" FORCE)
+    set(Protobuf_USE_STATIC_LIBS ON CACHE BOOL "" FORCE)
+    set(USE_CRYPTO OpenSSL CACHE STRING "" FORCE)
+    set(USE_CRYPTO25519 OpenSSL CACHE STRING "" FORCE)
+    FetchContent_Declare(
+        GameNetworkingSockets
+        GIT_REPOSITORY "https://github.com/ValveSoftware/GameNetworkingSockets.git"
+        GIT_TAG "v1.4.1"
+        UPDATE_DISCONNECTED TRUE
+        # None of the submodules are needed for the library build:
+        # webrtc/abseil only under USE_STEAMWEBRTC (off), picojson only for
+        # the cert tool (BUILD_TOOLS off). Skipping avoids a multi-GB clone.
+        GIT_SUBMODULES ""
+    )
+    FetchContent_MakeAvailable(GameNetworkingSockets)
+
+    add_library(f15net STATIC
+        ${SRC_DIR}/net/codec.cpp
+        ${SRC_DIR}/net/commands.cpp
+        ${SRC_DIR}/net/gns_transport.cpp
+        ${SRC_DIR}/net/snapshot.cpp
+    )
+    target_include_directories(f15net PUBLIC
+        ${SRC_DIR} ${SRC_DIR}/net ${SRC_DIR}/compat64 ${SRC_DIR}/shared)
+    target_link_libraries(f15net PUBLIC GameNetworkingSockets::GameNetworkingSockets_s)
+    target_compile_definitions(f15net PUBLIC F15_NET=1)
+
+    target_compile_definitions(f15se2_core PUBLIC F15_NET=1)
+    target_sources(f15se2 PRIVATE ${SRC_DIR}/net/netclient.cpp
+                                  ${SRC_DIR}/server/f15server.cpp
+                                  ${SRC_DIR}/f15host.c)
+    # f15net->core back-refs (snapshot.cpp calls egui/egtgt2): repeat core
+    # after f15net so the static linker resolves them.
+    target_link_libraries(f15se2 PRIVATE f15net f15se2_core)
+
+    add_executable(f15server ${SRC_DIR}/server/f15server.cpp
+                             ${SRC_DIR}/server/server_main.cpp)
+    target_include_directories(f15server PRIVATE ${SRC_DIR} ${SRC_DIR}/shared)
+    target_link_libraries(f15server PRIVATE f15net f15se2_core)
+
+    # scripted headless client for the review acceptance gates (not a ctest;
+    # driven by hand/scripts against a live f15server)
+    add_executable(netprobe ${CMAKE_SOURCE_DIR}/tools/netprobe.cpp)
+    target_link_libraries(netprobe PRIVATE f15net)
+
+    # net unit tests: serializer + protocol round-trip, cmd mapping
+    add_behavior_test(net_codec_tests SOURCES
+        ${SRC_DIR}/net/codec.cpp ${SRC_DIR}/net/commands.cpp)
+    add_behavior_test(player_ctx_tests LINK_CORE)
+    add_behavior_test(net_sim_tests LINK_CORE)
+    target_link_libraries(net_sim_tests PRIVATE f15net f15se2_core)
+    add_behavior_test(net_server_tests LINK_CORE)
+    target_link_libraries(net_server_tests PRIVATE f15net f15se2_core)
+endif()

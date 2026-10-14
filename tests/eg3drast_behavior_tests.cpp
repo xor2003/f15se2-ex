@@ -149,7 +149,7 @@ int main() {
         for (int slot = 0; slot < 4; ++slot) g_objTransform[slot] = 123;
         modelStream[0] = static_cast<uint8>(0x80 | selected);
         g_modelStreamPtr = reinterpret_cast<char *>(modelStream);
-        g_spinAngle = -kSpinAngle;
+        g_spinAngle = f15::math::legacy::angleFromWord(-kSpinAngle);
         storeObjTransformByOpcode();
         for (int slot = 0; slot < 4; ++slot) {
             const int expected = slot == selected ? -kSpinAngle : 123;

@@ -17,6 +17,7 @@ using f15::math::legacy::signedAngle;
 #include "r2d.h"
 #include "hdsprite.h"
 #include "const.h"
+#include "net/protocol.h" /* F15_MAX_MAP_EVENTS: marker draw bound */
 
 #include "comm.h"
 
@@ -58,6 +59,17 @@ static int scopeRound(float v) {
  * missile ticks: thicker, so they read apart from the grid at a glance). */
 static void scopeLine(float x1, float y1, float x2, float y2, float widthScale) {
     r2d_submitScopeLine(x1, y1, x2, y2, g_pageFront[2], 120, 104, 200, 176, widthScale);
+}
+
+/* A remote pilot has a map entry for the tactical map as well as a
+ * SimObject. The radar aircraft pass already draws it: do not overpaint it
+ * with the map-entry SAM/runway symbol in the later ground-site pass. */
+static int isRemotePlayerMapEntry(int mapIdx) {
+    for (int obj = 0; obj < g_groundUnitCount; ++obj)
+        if ((g_simObjects[obj].flags.b[1] & SIMFLAG_B1_REMOTE_PLAYER) &&
+            g_simObjects[obj].objType == mapIdx)
+            return 1;
+    return 0;
 }
 
 void drawTacticalMap(char page) {
@@ -111,7 +123,11 @@ void drawTacticalMap(char page) {
         i += 2;
     }
     for (i = 0; i < g_groundUnitCount; i++) {
-        if ((g_simObjects[i].flags.w & SIMOBJ_ALIVE) && g_simObjects[i].speed != 0) {
+        if ((g_simObjects[i].flags.w & SIMOBJ_ALIVE) &&
+            (g_simObjects[i].speed != 0 ||
+             /* live remote pilots show on radar even when stationary -
+              * a parked/spawned plane is still an aircraft contact */
+             (g_simObjects[i].flags.b[1] & SIMFLAG_B1_REMOTE_PLAYER))) {
             projectMapPoint(g_simObjects[i].posX, g_simObjects[i].posY);
             if (g_projDepth != -1) {
                 if (g_currentWeaponType == 1 && i == g_airTargetLock) {
@@ -145,6 +161,8 @@ void drawTacticalMap(char page) {
         }
     }
     for (i = 0; i < g_planeCount; i++) {
+        if (isRemotePlayerMapEntry(i))
+            continue;
         if (!(g_planeTable.planes[i].flags & 0x80)) {
             projectMapPoint(g_planeTable.planes[i].mapX, g_planeTable.planes[i].mapY);
             if (g_projDepth != -1) {
@@ -181,7 +199,7 @@ void drawTacticalMap(char page) {
             blitGaugeSprite(0, 3, vtxScratch.vproj.x.lo, vtxScratch.vproj.y.lo);
         }
     }
-    for (i = 0; i < 4; i++) {
+    for (i = 0; i < F15_MAX_MAP_EVENTS; i++) {
         if (mapEvents[i].ttl != 0) {
             projectMapPoint(mapEvents[i].mapX, mapEvents[i].mapY);
             if (g_projDepth != -1) {

@@ -39,6 +39,13 @@ extern char far g_world3dData[];
 extern struct SpriteParams gaugeSpriteParams;
 extern struct SpriteParams blitSpriteParams;
 extern struct BulletTrack bulletTracks[20];
+extern int32 g_randCallCount; /* in-sim rand() draws (canonical hash input) */
+extern uint32 g_bulletPoolCursor; /* server round-robin overwrite cursor
+                                   * (saturated pool eviction order) */
+extern uint32 g_bulletFreshMask;  /* slots claimed this frameTick - the
+                                   * saturated fallback skips them so a
+                                   * same-tick allocation can't be evicted */
+extern int16 g_bulletFreshTick;   /* frameTick the fresh mask belongs to */
 extern uint8 g_dacSupported;
 extern int16 exitCode;
 extern int16 f15DgtlResult;
@@ -239,6 +246,8 @@ extern f15::math::TickDuration g_missionTick;
 extern SDL_IOStream *fileHandle;
 extern int16 g_gunFiredFlag;
 extern int16 g_damageTakenFlag;
+extern int16 g_damageSeq;
+extern int16 g_threatWarningBits;
 extern f15::math::Angle<f15::math::GameBackend> g_threatRefHead;
 extern f15::math::WordRep<f15::math::GameBackend> g_nearestThreatRange;
 extern struct Game far *gameData;
@@ -384,6 +393,16 @@ extern int16 g_enemyGroundRemaining;
 extern char string_3C04A[80];
 extern int16 g_mapMode;
 extern int16 g_enemyAlertFlag;
+extern int16 g_residentPlayer;
+extern void (*g_threatFireHook)(int16 planeIdx);
+extern void (*g_airThreatFireHook)(int16 objIdx);
+/* Iteration bound for target/bullet scans over g_simObjects: == g_groundUnitCount
+ * in single-player; the server extends it to cover parked remote-player objects
+ * (slots above the world objects) without touching g_groundUnitCount itself. */
+extern int16 g_simObjScanBound;
+/* Called when a simObject is destroyed; server uses it to map parked
+ * remote-player objects back to their owner for damage attribution. */
+extern void (*g_playerObjectHitHook)(int16 objIdx);
 extern int16 g_activePanelMode;
 extern f15::math::Angle<f15::math::GameBackend> g_targetLeadAngle;
 extern char *g_targetNameTable[MODEL_SLOT_CAPACITY];
@@ -455,6 +474,8 @@ extern f15::math::Angle<f15::math::GameBackend> g_targetBearing;
 extern int16 g_prevKillMarker;
 extern int16 g_aamLeadDist;
 extern int16 g_axisInput1;
+extern uint8 g_exitMsgDigit;
+extern uint8 g_exitMsgTerm;
 extern int16 *g_targetViewParams;
 extern int16 g_trkRange;
 extern f15::math::Angle<f15::math::GameBackend> g_trkBearing;

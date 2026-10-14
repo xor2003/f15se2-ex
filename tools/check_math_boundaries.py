@@ -27,12 +27,19 @@ ALLOWED = {
     "src/eg3drast.c", "src/eg3dcam.c", "src/eg3dmap.c", "src/egflight.c",
     # Snapshot interpolation writes the legacy render word through renderWord.
     "src/egsys.c",
+    # Snapshot structs carry the boundary Reps; interpolation lives in egsys.c.
+    "src/egsnap.h",
     # Temporary Euler consumers; remove each entry as its scalar math is migrated.
     "src/egtarget.c", "src/egkeys.c", "src/egmath.c", "src/eghudr.c",
     "src/egtgt2.c", "src/egcombat.c", "src/egframe.c", "src/egtacmap.c", "src/egthreat.c",
     "src/egui.c",
     # The world load/save seam seeds the SimObject fine shadow from packed fields.
     "src/worldxfer.c",
+    # F15_NET boundary files: the wire codec, PlayerSim ctx swap, net render
+    # snapshots, and the server-side segment compositions all translate
+    # between typed globals and raw DOS-format context/wire fields by design.
+    "src/egplayer.c", "src/egframeseg.c", "src/f15world.c", "src/egtarget_net.c",
+    "src/net/netclient.cpp", "src/net/netrender.c", "src/net/snapshot.cpp",
     # START-program word-domain kernels delegate to the shared f15::fixed
     # formulas; generation output is packed words, not typed sim state.
     "src/stmath.c",

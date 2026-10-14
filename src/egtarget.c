@@ -27,6 +27,7 @@ using TrackMath = f15::math::GuidanceMath<f15::math::GameBackend>;
 #include "egthreat.h"
 #include "egtypes.h"
 #include "egui.h"
+#include "egplayer.h" /* g_netClientMode */
 #include "offsets.h"
 #include "log.h"
 #include "gfx.h"
@@ -73,7 +74,39 @@ static void rememberTargetLabelTtfRect(int x1, int y1, int x2, int y2) {
     s_targetLabelTtfRects[i][3] = y2;
 }
 
-/* Private helpers for this translation unit. */
+/* Remote-player identity resolvers. With F15_NET a parked remote pilot's
+ * spec field is unused/0 (aircraftTypes[0] would read "MIG-23"); single-player
+ * never sets SIMFLAG_B1_REMOTE_PLAYER so these resolve via the type table. */
+int16 simObjectViewModel(int objIdx, int nearModel) {
+    if (g_simObjects[objIdx].flags.b[1] & SIMFLAG_B1_REMOTE_PLAYER)
+        return (g_simObjects[objIdx].flags.b[1] & SIMFLAG_B1_GEAR_DOWN) ? 6 : 7;
+    return (&aircraftTypes[g_simObjects[objIdx].spec].viewModelId)[nearModel ? 0 : 1];
+}
+
+/* Display name for the same identity (target panel/labels). */
+const char *simObjectTypeName(int objIdx) {
+    if (g_simObjects[objIdx].flags.b[1] & SIMFLAG_B1_REMOTE_PLAYER)
+        return "F-15";
+    return aircraftTypes[g_simObjects[objIdx].spec].name;
+}
+
+/* projectWorldToHudFine expects map-fine coords (its relY subtracts 0x100000,
+ * i.e. fineY == posY<<5). Ordinary objects store worldY in exactly that
+ * convention, but a parked remote player's worldY is render-space
+ * (0x01000000 - ViewY), 0xF00000 higher - feeding it through unchanged
+ * throws the projected box/label half a map away. Convert explicitly;
+ * the fine precision is preserved, so the box still glides. */
+int32 simObjectFineY(int objIdx) {
+    int32 y = g_simObjects[objIdx].worldY;
+    if (g_simObjects[objIdx].flags.b[1] & SIMFLAG_B1_REMOTE_PLAYER)
+        y -= 0x01000000L - 0x100000L;
+    return y;
+}
+
+/* Private helpers for this translation unit. The sim-step combat halves
+ * (simTargetLock/simBulletHits) and the hit-box + deterministic-spark
+ * machinery moved to egtarget_net.c for the F15_NET build. */
+
 void drawTargetBox(int16, int16, int16, int16);
 void drawTargetBoxF(float centerX, float centerY, int size, int mode);
 void drawMissileLock(void);
@@ -101,8 +134,14 @@ void updateTargetLock(void) {
     int16 dk;
     int16 lodM, planeModelDepth, planeFineDepth;
     int16 airSelect;
-
-    deadInit = 0;
+#ifdef F15_NET
+    /* A net client receives locks from the server's simTargetLock via
+     * snapshots; this render pass stays drawing-only there. Single-player
+     * (including a net-enabled binary's own SP mode) resolves here. */
+    const int renderOwnsLocks = !g_netClientMode;
+#else
+    enum { renderOwnsLocks = 1 };
+#endif
 
     /* Fire at g_viewMode == 0x8b (sidewinder lock) */
     if (g_viewMode == VIEW_TARGET) {
@@ -111,6 +150,7 @@ void updateTargetLock(void) {
                         signedAngle(g_ourHead), signedAngle(g_ourPitch), signedAngle(g_ourRoll), 2);
     }
 
+    if (renderOwnsLocks) {
     if (!g_aamLockCooldown.isZero()) {
         --g_aamLockCooldown;
     }
@@ -178,6 +218,7 @@ void updateTargetLock(void) {
         g_groundTargetLock = best;
         g_lockedTargetKilled = 0;
     }
+    }
 
 skip_aam:
     /* Missile/chaff loop (8 entries, stride 8) */
@@ -229,6 +270,10 @@ skip_aam:
        lock (-1) or the T key just requested the next target. With an A2A missile
        selected the lock is then sticky (T cycles, like the ground-target lock);
        other weapons keep auto-acquiring the nearest contact every frame. */
+    if (!renderOwnsLocks) {
+        airSelect = 0;
+        lockedRange = 0;
+    } else
     if (g_airTargetLock & 0x80) {
         airSelect = 1;
         if (g_airTargetLock != -1) {
@@ -252,6 +297,8 @@ skip_aam:
     }
 
     best = -1;
+    /* Under F15_NET this acquisition lives in simTargetLock (sim step);
+     * single-player resolves it here at render time as the original did. */
     for (idx = 0; idx < g_groundUnitCount; idx++) {
         if (!(g_simObjects[idx].flags.w & SIMOBJ_ALIVE))
             goto next2;
@@ -276,6 +323,9 @@ skip_aam:
 
         g_projDepth >>= depthShift;
 
+        {
+            int16 vmdl = simObjectViewModel(idx, g_projDepth > planeFineDepth);
+
         if (g_projDepth > planeModelDepth) {
             if (g_simObjects[idx].alt < 999 && g_nightMode == 0) {
                 marker = 0;
@@ -285,8 +335,7 @@ skip_aam:
                     marker = 0x80;
                 }
                 if (g_sceneHeightRender != f15::math::legacy::Altitudes::render(0x80) || marker == 0x80) {
-                    drawAircraftShadow(
-                                    (&aircraftTypes[g_simObjects[idx].spec].viewModelId)[(g_projDepth > planeFineDepth) ? 0 : 1],
+                    drawAircraftShadow(vmdl,
                                     objectFineRep(g_simObjectFineX[idx]), objectFineRep(g_simObjectFineY[idx]),
                                     marker, g_simObjects[idx].heading.w,
                                     g_simObjects[idx].pitch, g_simObjects[idx].bank.w,
@@ -295,8 +344,7 @@ skip_aam:
             }
 
             /* Draw the target */
-            drawWorldObject(
-                (&aircraftTypes[g_simObjects[idx].spec].viewModelId)[(g_projDepth > planeFineDepth) ? 0 : 1],
+            drawWorldObject(vmdl,
                 objectFineRep(g_simObjectFineX[idx]), objectFineRep(g_simObjectFineY[idx]), g_simObjectAlt[idx],
                 g_simObjects[idx].heading.w, g_simObjects[idx].pitch,
                 g_simObjects[idx].bank.w, 2 - depthShift);
@@ -304,15 +352,18 @@ skip_aam:
             setDrawColor(COLOR_WHITE);;
             drawViewportLine(vtxScratch.vproj.x.lo, vtxScratch.vproj.y.lo, vtxScratch.vproj.x.lo, vtxScratch.vproj.y.lo);
         }
+        }
     next2:;
     }
 
-    if (best != -1) {
-        g_airTargetLock = best;
-        g_lockedTargetKilled = 0;
-    }
-    if (g_airTargetLock & 0x80) {
-        g_airTargetLock = -1;
+    if (renderOwnsLocks) {
+        if (best != -1) {
+            g_airTargetLock = best;
+            g_lockedTargetKilled = 0;
+        }
+        if (g_airTargetLock & 0x80) {
+            g_airTargetLock = -1;
+        }
     }
 
     /* SAM/missile visual loop (12 entries, stride 0x18) */
@@ -434,8 +485,9 @@ int groundModelRadius(int nameIndex) {
     return (s >= 0 && s < MODEL_SLOT_CAPACITY) ? s_worldShapeRadius[s] : 0;
 }
 
-/* Ground target gun/impact radius in map units, Q8-scaled and difficulty-tightened. */
-static int groundHitRadiusMap(int nameIndex) {
+/* Ground target gun/impact radius in map units, Q8-scaled and difficulty-tightened.
+ * Non-static: egtarget_net.c's simBulletHits shares it under F15_NET. */
+int groundHitRadiusMap(int nameIndex) {
     int r = (groundModelRadius(nameIndex) * GUN_GROUND_HIT_SCALE_Q8) >> (8 + 4);
     if (r < GROUND_HIT_MIN_MAP) r = GROUND_HIT_MIN_MAP;
     r /= (g_missionStatus + 1);
@@ -443,8 +495,9 @@ static int groundHitRadiusMap(int nameIndex) {
 }
 
 /* Model-derived gun hit radius (fine world units) for a target, with the
- * original difficulty tightening kept (higher g_missionStatus -> smaller). */
-static int aircraftGunRadiusFine(int spec) {
+ * original difficulty tightening kept (higher g_missionStatus -> smaller).
+ * Non-static: shared with egtarget_net.c's simBulletHits under F15_NET. */
+int aircraftGunRadiusFine(int spec) {
     int r;
     if (spec < 0 || spec >= 19) spec = 0;
     r = ((int)s_aircraftModelRadius[spec] * 2 * GUN_AIRCRAFT_HIT_SCALE_Q8) >> 8;
@@ -458,7 +511,7 @@ static int aircraftGunRadiusFine(int spec) {
  * (the original 64-bit intermediates) and double under modern so the
  * fractional track state flows through the projection instead of truncating
  * to whole fine units at the read. */
-static long roundToTargetDist2(int idx, int objIdx) {
+long roundToTargetDist2(int idx, int objIdx) {
     using Num = std::conditional_t<std::is_same_v<f15::math::GameBackend,
         f15::math::FixedBackend>, long, double>;
     const Num ax = bulletTracks[idx].posX.deltaFrom(
@@ -490,12 +543,21 @@ static long roundToTargetDist2(int idx, int objIdx) {
  * from drawHudWorldOverlay (which does the 2D HUD symbology) so the effects join
  * the 3D pass; game-logic order is tracer hit-detect then explosion. */
 void drawWorldEffects(void) {
-    int hitFlag, tmp, idx, radius, objIdx, pointY, pointX, dist, wpEntry, prevX, gunRadius;
+    int tmp, idx, radius, dist, prevX;
+    int hitFlag, objIdx, pointY, pointX, wpEntry, gunRadius;
     /* Rounds advance and the burst timer ticks per SIM step; this runs per
      * render frame, so the game-logic half (hit tests, expiry, timer) fires only
-     * on frames that consumed a step — the drawing half runs every frame. */
+     * on frames that consumed a step — the drawing half runs every frame.
+     * Under F15_NET a net client leaves that half to the server's simBulletHits
+     * (per player ctx, sim step); single-player — including a net binary's own
+     * SP mode — resolves it here at render time as the original did. */
     int stepped = g_simStepsThisFrame > 0;
     int16 bx, by;
+#ifdef F15_NET
+    const int renderOwnsHits = !g_netClientMode;
+#else
+    enum { renderOwnsHits = 1 };
+#endif
 
     gunRadius = 0x200 / isqrt(g_frameRateScaling.scaled(4) + 8);
 
@@ -527,7 +589,7 @@ void drawWorldEffects(void) {
         drawWorldLine(fineWord(ax), fineWord(ay), (int)az, fineWord(ex), fineWord(ey), (int)ez,
                       idx < g_bulletTrackCount ? 0x0d : 0x0c);
 
-        if (!stepped) continue;
+        if (!stepped || !renderOwnsHits) continue;
 
         hitFlag = 0;
         bx = (int16)bulletTracks[idx].posX.mapWord();
@@ -645,11 +707,15 @@ void drawWorldEffects(void) {
                 drawWorldLine(hx, hy, f15::math::legacy::terrainUnits(g_hitAlt), ex, ey, (int)ez, color);
             }
         }
-        if (stepped) g_hitEffectTimer.stepTowardZero();
+        if (stepped && renderOwnsHits) g_hitEffectTimer.stepTowardZero();
     } else {
         g_lockedTargetKilled = 0;
     }
 }
+/* F15_NET splits the sim-step halves of this machinery into egtarget_net.c
+ * (simTargetLock/simBulletHits — per-ctx sim-step resolution); the shared
+ * hit-box helpers above stay unconditional and the drawing half of
+ * drawWorldEffects runs in both builds. */
 
 void drawHudWorldOverlay(void) {
     int p, lockFlag, r, wpEntry, tmp, t, missileSpecD, loftDist, e, missileSpec, marker, idx, g, radius, objIdx, pointY, pointX, dist, wpIdx, prevX, compat, prevY;
@@ -785,7 +851,6 @@ void drawHudWorldOverlay(void) {
                              1) != 0)) {
                     drawStringActivePage("No Target", 252, 142, 0x0f);
                 }
-
                 if (angleMagnitude(g_ourHead + angleFromWord(g_viewHeadingOffset) - g_targetBearing) > 0x2000) {
                     g_groundTargetLock = -1;
                 }
@@ -800,7 +865,7 @@ void drawHudWorldOverlay(void) {
             if (!(g_airTargetLock & 0x80)) {
 
                 projectWorldToHudFine(g_simObjects[g_airTargetLock].worldX,
-                                      g_simObjects[g_airTargetLock].worldY,
+                                      simObjectFineY(g_airTargetLock),
                                       g_simObjects[g_airTargetLock].alt);
 
                 if (vtxScratch.vproj.x.lo != -1) {
@@ -832,8 +897,10 @@ void drawHudWorldOverlay(void) {
         wpIdx = g_airTargetLock & 0x7f;
 
         /* Fine (integrated) world position, not the coarse posX/posY seed, so the
-         * tracked model doesn't jitter on the ÷32 grid as the view interpolates. */
-        drawTargetView(aircraftTypes[g_simObjects[wpIdx].spec].viewModelId,
+         * tracked model doesn't jitter on the ÷32 grid as the view interpolates.
+         * Same identity resolver as the world loop: a remote pilot previews as
+         * the F-15, not aircraftTypes[0] (MiG-23). */
+        drawTargetView(simObjectViewModel(wpIdx, 1),
                        objectFineRep(g_simObjectFineX[wpIdx]),
                        objectFineRep(g_simObjectFineY[wpIdx]),
                        g_simObjectAlt[wpIdx],
@@ -847,11 +914,14 @@ void drawHudWorldOverlay(void) {
         drawStringActivePage(strBuf, 244, 170, 0x0f);
 
         idx = g_simObjects[wpIdx].spec;
-        strcpy(strBuf, aircraftTypes[idx].name);
-        strcat(strBuf, aircraftTypes[idx].altName);
+        strcpy(strBuf, simObjectTypeName(wpIdx));
+        if (!(g_simObjects[wpIdx].flags.b[1] & SIMFLAG_B1_REMOTE_PLAYER))
+            strcat(strBuf, aircraftTypes[idx].altName);
         drawStringActivePage(strBuf, 248, 134, 0x0f);
 
-        if (aircraftTypes[idx].modelId == -1 && !frameTick.bit(0)) {
+        if (aircraftTypes[idx].modelId == -1 &&
+            !(g_simObjects[wpIdx].flags.b[1] & SIMFLAG_B1_REMOTE_PLAYER) &&
+            !frameTick.bit(0)) {
             drawStringActivePage("No Target", 252, 140, 0x0f);
         }
 
@@ -868,9 +938,9 @@ void drawHudWorldOverlay(void) {
     if (g_scopeSweepTimer.isPositive() && g_threatLabelTarget < 0) {
         idx = -1 - g_threatLabelTarget;
         projectWorldToHudFine(g_simObjects[idx].worldX,
-                              g_simObjects[idx].worldY,
+                              simObjectFineY(idx),
                               g_simObjects[idx].alt);
-        drawTargetLabel(aircraftTypes[g_simObjects[idx].spec].name,
+        drawTargetLabel(simObjectTypeName(idx),
                         g_scopeArcColor, g_scopeSweepTimer.elapsedWithin(g_frameRateScaling.word()));
     }
 

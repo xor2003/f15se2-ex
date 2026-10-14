@@ -39,6 +39,7 @@ using f15::math::legacy::fineUnits;
 #include "const.h"
 #include "comm.h"
 #include "eginput.h"
+#include "egplayer.h"
 #include "input.h"
 #include "joystick.h"
 #include "math/legacy_rotation.hpp"
@@ -272,8 +273,8 @@ void stepFlightModel(void) {
 #endif
 
     keyScancode = 0;
-    if (kbhit()) {
-        keyScancode = egReadKey();
+    if (simInputKeyWaiting()) {
+        keyScancode = simInputReadKey();
         if (g_autopilotEngaged == 1) {
             g_directorMode =
                 g_autopilotEngaged =
@@ -281,8 +282,8 @@ void stepFlightModel(void) {
         }
     }
 
-    while (kbhit()) {
-        egReadKey(); // Flush keyboard buffer
+    while (simInputKeyWaiting()) {
+        simInputReadKey(); // Flush keyboard buffer
     }
 
     if (input_takeFlightThrottle(&pointerThrottle) && !joy_hasThrottleAxis()) {
@@ -406,15 +407,9 @@ switch_break:
         joyAxes[1] = 0x80;
 #endif
     } else {
-        if (input_preferGamepad()) {
-            readCalibratedJoystick();
-        } else {
-
-            // temp_si = g_kbdSensitivity + 1;
-            joyAxes[0] = (uint8)(((int16)((uint8)g_joyRawX - 0x80) * (g_kbdSensitivity + 1)) / 3) - 0x80;
-
-            joyAxes[1] = (uint8)(((int16)((uint8)g_joyRawY - 0x80) * (g_kbdSensitivity + 1)) / 3) - 0x80;
-        }
+        /* InputSource seam (egplayer.h): local ops reproduce the original
+         * gamepad/keyboard read; remote ops feed net client's stick. */
+        simInputPollAxes(&joyAxes[0], &joyAxes[1]);
     }
 
     using Controls = f15::math::legacy::Controls;
@@ -847,6 +842,7 @@ uint16 signedRatio16(int16 numerator, int16 denominator) { /* Original: IntDiv(A
     /* Divide two signed 15-bit fractions, then restore the combined sign. */
     if (numerator < 0) numeratorSign = -1;
     if (denominator < 0) denominatorSign = -1;
+    if (denominator == 0) return 0;
     absNumerator = (int32)(numerator < 0 ? -numerator : numerator);
     absDenominator = (int32)(denominator < 0 ? -denominator : denominator);
     /* Original callers consume the 16-bit quotient word, including wraparound
@@ -854,7 +850,6 @@ uint16 signedRatio16(int16 numerator, int16 denominator) { /* Original: IntDiv(A
      * host-width signed arithmetic result. */
     return (uint16)((uint16)((((uint32)(uint16)absNumerator) << 16) / (uint32)absDenominator >> 1) *
                     (int)numeratorSign * (int)denominatorSign);
-done:;
 }
 
 #define ASIN_TABLE_SHIFT 9
@@ -1023,6 +1018,22 @@ void renderFrame() {
         g_camEyeFracX = (int16)((ex & 0xfff) >> 4);
         g_camEyeFracY = (int16)((ey & 0xfff) >> 4);
         g_camEyeFracZ = (int16)((ez & 0xfff) >> 4);
+        /* Stationary/slow aircraft, or history filled by seeding/backfill on
+         * the net client: the delayed pose can sit on top of the current one
+         * and seat the camera inside the airframe. If the eye ended up within
+         * a quarter of the follow distance in every axis, fall back to the
+         * follow-camera eye so the plane stays framed. */
+        {
+            const int64 ddx = g_camEyeX - fineUnits(g_ViewX);
+            const int64 ddy = g_camEyeY - fineUnits(g_ViewY);
+            const int64 ddz = g_camEyeZ - g_viewZ;
+            if (ddx * ddx + ddy * ddy < (int64)(0x18 << camDist) * (0x18 << camDist) / 16 &&
+                ddz * ddz < (int64)(4 << camDist) * (4 << camDist) / 16) {
+                g_camEyeX = eyeFromQ8(CamMath::sineOffsetQ8(g_ourHead + angleFromWord((int16)0x8000), 0x18 << camDist, g_angleLut) + fineRep(g_ViewX) * 256.0, &g_camEyeFracX);
+                g_camEyeY = eyeFromQ8(CamMath::cosineOffsetQ8(g_ourHead + angleFromWord((int16)0x8000), 0x18 << camDist, g_angleLut) + fineRep(g_ViewY) * 256.0, &g_camEyeFracY);
+                g_camEyeZ = (4 << camDist) + g_viewZ;
+            }
+        }
         break;
     }
     case VIEW_EXT_SIDE:
@@ -1309,6 +1320,10 @@ void drawVectorShape(const int16 *shapeData) {
 void waitForKeyPress(void) {
     int16 savedTiming;
     int key;
+
+    /* headless server has no local keyboard; waiting here would freeze the
+     * authoritative sim for every connected player. */
+    if (g_headlessSim) return;
 
     audio_engineDroneOff();
     savedTiming = g_frameTimingAccum;

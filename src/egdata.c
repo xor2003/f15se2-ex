@@ -12,6 +12,7 @@
 #include "comm.h"
 #include "egdata.h"
 #include "math/legacy_propulsion.hpp"
+#include "net/protocol.h" /* F15_MAX_MAP_EVENTS sizes mapEvents[] */
 #include <stdio.h>
 #include <dos.h>
 
@@ -1717,9 +1718,11 @@ uint8 g_tapeColumn = 0;
 uint8 g_tapeChar = 0;
 int16 g_tapeCursorX = 0;
 
-/* mapEvents: 4 tactical-map marker slots (flare/chaff/lock markers). A slot is
-   free when ttl == 0; entries are aged down by tickMessageTimers. */
-struct MapEvent mapEvents[4];
+/* mapEvents: tactical-map marker slots (flare/chaff/lock markers). A slot is
+   free when ttl == 0; entries are aged down by tickMessageTimers. Slot 0 is
+   the shared padlock/lock marker; 1..F15_MAX_MAP_EVENTS-1 are the decoy pool
+   (the wire ships all of them, so the size lives in net/protocol.h). */
+struct MapEvent mapEvents[F15_MAX_MAP_EVENTS];
 uint8 g_joyRawX = 0; /* keyboard virtual-stick raw pitch axis (int9Handler) */
 uint8 g_joyRawY = 0; /* keyboard virtual-stick raw roll axis (int9Handler) */
 /* Normalized/calibrated stick deflection: [0] = pitch, [1] = roll.
@@ -1869,6 +1872,11 @@ f15::math::Matrix3<f15::math::GameBackend> g_orientMatrix =
 
 /* bulletTracks: 3D projectile table (player rounds + threat shots), HUD-projected. */
 struct BulletTrack bulletTracks[20];
+int32 g_randCallCount; /* in-sim rand() draws (canonical hash input) */
+uint32 g_bulletPoolCursor; /* server round-robin overwrite cursor */
+uint32 g_bulletFreshMask;  /* slots allocated this frameTick - saturated
+                            * fallback must skip them (free->full transition) */
+int16 g_bulletFreshTick;   /* frameTick the fresh mask belongs to */
 
 /* Product staging keeps both operands valid when the current matrix is one. */
 f15::math::Matrix3<f15::math::GameBackend> g_matrixScratch;
@@ -2083,6 +2091,8 @@ int16 g_autoCrashDive;
 f15::math::TickDuration g_missionTick;
 int16 g_gunFiredFlag;
 int16 g_damageTakenFlag;
+int16 g_damageSeq;
+int16 g_threatWarningBits;
 f15::math::Angle<f15::math::GameBackend> g_threatRefHead;
 f15::math::WordRep<f15::math::GameBackend> g_nearestThreatRange;
 
@@ -2280,6 +2290,19 @@ int16 g_groundUnitCount;
 int16 g_enemyGroundRemaining;
 int16 g_mapMode;
 int16 g_enemyAlertFlag;
+/* Index of the PlayerSim ctx currently swapped in (server only); -1 in
+ * single-player where no player indexing exists. Projectiles compare their
+ * targetPlayer owner against this so each shot advances under its own ctx. */
+int16 g_residentPlayer = -1;
+/* Server threat-fire hooks: when set, the threat sites/aircraft fire
+ * routines delegate target selection + ctx swap to the server instead of
+ * engaging whichever ctx happens to be resident. NULL = single-player. */
+void (*g_threatFireHook)(int16 planeIdx) = 0;
+void (*g_airThreatFireHook)(int16 objIdx) = 0;
+/* See egdata.h. Set to g_groundUnitCount at mission import; the server bumps
+ * it to include parked remote-player slots above the real objects. */
+int16 g_simObjScanBound;
+void (*g_playerObjectHitHook)(int16 objIdx) = 0;
 int16 g_activePanelMode;
 f15::math::Angle<f15::math::GameBackend> g_targetLeadAngle;
 char *g_targetNameTable[MODEL_SLOT_CAPACITY];

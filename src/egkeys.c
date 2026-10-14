@@ -14,6 +14,7 @@ using SpeedMath = f15::math::AirspeedMath<f15::math::GameBackend>;
 #include "egframe.h"
 #include "egkeys.h"
 #include "egmath.h"
+#include "egplayer.h"
 #include "egtacmap.h"
 #include "egtypes.h"
 #include "offsets.h"
@@ -340,6 +341,7 @@ void selectMissile() {
 
 // ==== seg000:0xda35 ====
 void makeSound(int soundId, int priority) {
+    simEventsSound(soundId, priority); /* net: forward as NE_SOUND */
     if (priority >= g_axisInputAccum[2]) {
         if (g_ejectState == 0 || priority > 1) {
             audio_playSound(soundId);
@@ -350,6 +352,7 @@ void makeSound(int soundId, int priority) {
 
 // ==== seg000:0xda5f ====
 void playVoiceCue(int weaponIdx) {
+    simEventsVoice(weaponIdx); /* net: forward as NE_VOICE_CUE */
     if (g_axisInputAccum[2] < 2 && g_ejectState == 0 &&
         (unsigned)voiceCueThresholds[weaponIdx] < (unsigned)f15DgtlResult) {
         audio_playSample(weaponIdx);

@@ -38,3 +38,6 @@ __pycache__/
 /android/local.properties
 /build-*/
 /_blackbox.rec
+build-net/
+build-base/
+build-auto/

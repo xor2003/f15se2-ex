@@ -40,7 +40,9 @@ using TickDuration = f15::math::TickDuration;
 #include "worldxfer.h"
 #include "egkeys.h"
 #include "egmath.h"
+#include "egplayer.h"
 #include "egtacmap.h"
+#include "egtarget.h"
 #include "egthreat.h"
 #include "egtypes.h"
 #include "egui.h"
@@ -52,6 +54,7 @@ using TickDuration = f15::math::TickDuration;
 #include "comm.h"
 #include "shared/common.h"
 #include "replacement_terrain_collision.h"
+#include "net/protocol.h" /* F15_MAX_MAP_EVENTS: decoy pool bound */
 
 #include <dos.h>
 #include <stdio.h>
@@ -76,8 +79,19 @@ void findWaypointFeatures();
 void moveStuff();
 void moveNearFar(void *nearPtr, int16 count);
 int16 setCommWorldbufPtr();
+/* updateFrame is split into ordered segments (egframeseg.c, decls in
+ * egframe.h): the P-segments only touch player-scoped globals, the W-segments
+ * world state. Single-player calls them interleaved exactly as before; the
+ * net server runs the W pass once and the P pass per PlayerSim context.
+ * frameThreatScan/frameThreatEscort are defined in f15world.c — the scan's
+ * world-mutating half was split out so the server can drive it with a
+ * deterministic threat target. */
 
 // ==== seg000:0x0720 ====
+/* Original order, preserved for single-player:
+ *   P-pre W-sims P-fire W-tracers P-gravity P-tacmap P-timers W-threat
+ *   P-mission W-tick P-keys
+ * The server calls updateWorldFrame() once + updatePlayerFrame() per ctx. */
 void updateFrame(void) {
     int16 tmp, unused;
     uint16 val;
@@ -530,7 +544,22 @@ skip_autopilot:
         }
     }
     dispatchKeyScancode();
+#ifdef F15_NET
+    /* Multiplayer contexts resolve combat in the sim step (deterministic and
+     * render-rate independent). A net build's own single-player path keeps
+     * the original render-side resolution in updateTargetLock/drawWorldEffects
+     * — the sim-step halves only run while a player ctx is swapped in (the
+     * server reaches them through updatePlayerFrame, not here). */
+    if (g_residentPlayer >= 0) {
+        simBulletHits();
+        simTargetLock();
+    }
+#endif
 }
+
+/* The server's world-only/per-player compositions of these segments live in
+ * f15world.c (updateWorldFrame/updatePlayerFrame); the segment bodies moved
+ * to egframeseg.c so this file stays close to upstream. */
 
 // ==== seg000:0x14e8 ====
 void dispatchKeyScancode(void) {
@@ -545,15 +574,20 @@ void countermeasures(int16 eventType) {
 
     slot = -1;
     if (!gameOptionsEnabled(GAME_OPTION_INFINITE_WEAPONS) &&
-        g_eventTimers[eventType]--.atMost(0)) {
+        g_eventTimers[eventType].atMost(0)) {
         g_eventTimers[eventType] = TickDuration{};
         hudMessage("Stores exhausted");
     } else {
-        for (i = 1; i < 4; i++) {
+        /* shared decoy pool: find space BEFORE spending stores - a full
+         * pool rejects the release without consuming inventory (the old
+         * order burned one store and deployed nothing) */
+        for (i = 1; i < F15_MAX_MAP_EVENTS; i++) {
             if (mapEvents[i].ttl == 0)
                 slot = i;
         }
         if (slot != -1) {
+            if (!gameOptionsEnabled(GAME_OPTION_INFINITE_WEAPONS))
+                g_eventTimers[eventType]--;
             mapEvents[slot].mapX = f15::math::legacy::mapWordX(flightMapPosition());
             mapEvents[slot].mapY = f15::math::legacy::mapWordY(flightMapPosition());
             mapEvents[slot].type = eventType;
@@ -574,15 +608,17 @@ void countermeasures(int16 eventType) {
             strcat(strBuf, ":");
             strcat(strBuf, itoa(g_eventTimers[eventType].word(), g_itoaScratch, 10));
             setTimedMessage(strBuf);
+            makeSound(22, 2);
+        } else {
+            hudMessage("Decoy slots full");
         }
-        makeSound(22, 2);
     }
 }
 
 // ==== seg000:0x1636 ====
 void tickMessageTimers(void) {
     int16 i;
-    for (i = 0; i < 4; i++) {
+    for (i = 0; i < F15_MAX_MAP_EVENTS; i++) {
         if (mapEvents[i].ttl != 0) {
             (mapEvents[i].ttl)--;
             if (mapEvents[i].ttl == 0) {
@@ -806,7 +842,7 @@ void generateRandomRadioMessage(void) {
         } while (g_simObjectSpeed[idx] == 0);
         g_viewTargetObj = idx + 0x20;
         g_viewMode = VIEW_MISSILE;
-        strcpy(strBuf, aircraftTypes[g_simObjects[idx].spec].name);
+        strcpy(strBuf, simObjectTypeName(idx));
         strcat(strBuf, " on patrol");
         hudMessage(strBuf);
         break;
@@ -819,6 +855,7 @@ void generateRandomRadioMessage(void) {
 
 // ==== seg000:0x1d10 ====
 void appendMapEvent(int16 eventType, int16 eventArg) {
+    simEventsMapEvent(eventType, eventArg); /* net: forward as NE_MAP_EVENT */
     if (g_eventLogCount >= 255) {
         return;
     }
@@ -849,7 +886,10 @@ void placeString(int16 waypointIdx) {
 // ==== seg000:0x1e0e ====
 void initMissionStrings() {
     int16 nameIdx, i;
-    worldImportToEgame();
+    /* Net clients receive the world tables in MISSION_SETUP instead of
+     * importing from the local START state. */
+    if (!g_netClientMode)
+        worldImportToEgame();
     g_targetNameTable[0] = g_stringPool;
     nameIdx = 1;
     for (i = 0; i < 750; ++i) {
@@ -881,7 +921,10 @@ void findWaypointFeatures() {
                 (MAP_Y_MIRROR - (uint32)(uint16)g_planeTable.planes[g_targetSlots[slot].planeIndex].mapY) << 5);
             if (g_nearestTileObj != 0) {
                 g_shapeTargetCategory[nameIdx] = g_shapeTargetCategory[g_nearestTileObj->id];
-                strcpy(g_targetNameTable[nameIdx], g_targetNameTable[g_nearestTileObj->id]);
+                /* src may alias dst when the tile maps to this very name
+                 * slot - strcpy(x,x) is UB (ASan abort; seen on the server) */
+                if (g_targetNameTable[nameIdx] != g_targetNameTable[g_nearestTileObj->id])
+                    strcpy(g_targetNameTable[nameIdx], g_targetNameTable[g_nearestTileObj->id]);
                 g_targetNameTable[nameIdx + 1] = g_targetNameTable[nameIdx] + strlen(g_targetNameTable[nameIdx]) + 1;
                 addTileEntry(g_nearestTileObj, shapeDataOffset(nameIdx + 0x100), nameIdx + 0x100);
             }

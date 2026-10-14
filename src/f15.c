@@ -34,29 +34,14 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_main.h>
 
+#ifdef F15_NET
+#include "f15host.h" /* network options, --host spawn, --server dispatch */
+#endif
+
 const int RET_MENU = 0xc;
 const int RET_DEBRIEFING = 0x23;
 
-struct GameComm commBuffer;
-struct Game gameBuffer;
-
-void game_init(const int16 showIntro) {
-    commData = &commBuffer;
-    gameData = &gameBuffer;
-
-    commData->needSplash = showIntro;
-    commData->setupUseJoy = 0;
-    commData->setupDetail = 4; /* 4 = extended detail: full LOD + long-range draw distance */
-
-    gfx_initState();
-    gfx_setMode13();
-    r3d_init();
-
-    /* F15.SPR (radar/tac-map/HUD sprite sheet) lives in a sprite-buffer image, not
-     * a page. Allocated once here; START decodes f15.spr into it and EGAME blits
-     * from it via gfxBufPtr (the handle). */
-    commData->gfxInitResult = (int16)gfx_allocSpriteBuf();
-}
+void game_init(const int16 showIntro); /* egmain.c (core lib; shared with f15server) */
 
 /* In-process entry points for START.EXE / EGAME.EXE / END.EXE — three separate
  * DOS programs in the original, here linked into this single executable and
@@ -67,6 +52,9 @@ int end_main(void);
 bool setGamePath(const char *path);
 bool verifyGameAssets();
 #include "bundled_campaign.h"
+#ifdef F15_NET
+int netClientMain(const char *hostPort, const char *name); /* net/netclient.cpp */
+#endif
 
 /* Graceful application shutdown, registered with the input pump as the
  * window-close (SDL_EVENT_QUIT) handler so closing the window quits from any
@@ -97,6 +85,9 @@ void usage(int errcode) {
            "               Only redirect this legacy WLD stem, for example VN; can\n"
            "               also use F15_WORLD_SCENARIO_BASE env var\n");
     blackbox_cliPrintUsage();
+#ifdef F15_NET
+    f15NetUsage();
+#endif
     exit(errcode);
 }
 
@@ -109,10 +100,16 @@ int main(int argc, char *argv[]) {
     const char *campaignSortieArg = NULL;
     const char *scenarioArg = NULL;
     const char *scenarioBaseArg = NULL;
+    const char *gameDir = getenv("F15SE2_DIR");
     BlackboxCliOptions blackboxOptions;
+#ifdef F15_NET
+    F15NetOpts netOpts;
+    char hostAddr[64];
+    f15NetOptsInit(&netOpts, argv[0]);
+#endif
     log_set_app("f15");
     blackbox_cliInit(&blackboxOptions);
-    if (!setGamePath(getenv("F15SE2_DIR"))) goto shutdown;
+    if (!setGamePath(gameDir)) goto shutdown;
     /* process cmdline args */
     for (int i = 1; i < argc; ++i) {
         const char* optStr = argv[i];
@@ -122,6 +119,7 @@ int main(int argc, char *argv[]) {
         else if (strcmp(optStr, "--game") == 0) {
             if (i + 1 >= argc) { printf("Option requires an argument: --game\n"); usage(1); }
             if (!setGamePath(argv[i + 1])) goto shutdown;
+            gameDir = argv[i + 1];
             i++;
         }
         else if (strcmp(optStr, "--campaign") == 0) {
@@ -150,10 +148,22 @@ int main(int argc, char *argv[]) {
         else if (int parsed = blackbox_cliParseOption(&blackboxOptions, argc, argv, &i); parsed != 0) {
             if (parsed < 0) usage(1);
         }
+#ifdef F15_NET
+        else {
+            int rc = f15NetParseOpt(argc, argv, &i, &netOpts);
+            if (rc == 2)
+                break; /* everything after --server belongs to the server parser */
+            if (rc == 0) {
+                printf("Unrecognized option: '%s'\n", optStr);
+                usage(1);
+            }
+        }
+#else
         else {
             printf("Unrecognized option: '%s'\n", optStr);
             usage(1);
         }
+#endif
     }
 #ifdef F15_BLACKBOX_AUTO_RECORD
     /* Debug builds collect a reproducible report by default. Explicit blackbox
@@ -182,12 +192,36 @@ int main(int argc, char *argv[]) {
     if (scenarioBaseSet) setCustomWorldScenarioBase(scenarioBaseArg);
     else if (getenv("F15_WORLD_SCENARIO_BASE")) setCustomWorldScenarioBase(getenv("F15_WORLD_SCENARIO_BASE"));
 
+#ifdef F15_NET
+    if (netOpts.serverIdx > 0)
+        return f15ServerRun(argc, argv, &netOpts, gameDir);
+    if (netOpts.hostMode) {
+        /* --host: spawn ourselves as a headless server child, wait for it to
+         * listen, then join as a normal client. The child is reaped on every
+         * exit path via the atexit hook registered by the spawn. */
+        if (!f15HostSpawn(gameDir, &netOpts)) {
+            fprintf(stderr, "f15: --host: local server failed to start\n");
+            goto shutdown;
+        }
+        netOpts.connectAddr = f15HostJoinAddr(hostAddr, sizeof(hostAddr), &netOpts);
+    }
+#endif
+
     if (!verifyGameAssets()) goto shutdown;
     gfx_videoInit();
     game_init(showIntro);
     joy_init();
     input_setQuitHandler(app_quit);
     joy_showSetup();
+
+#ifdef F15_NET
+    if (netOpts.connectAddr) {
+        /* Network client: skip START menus, fly under the server's authority. */
+        log_set_app("netclient");
+        netClientMain(netOpts.connectAddr, netOpts.pilotName);
+        goto shutdown;
+    }
+#endif
 
     while (true) {
         int err;

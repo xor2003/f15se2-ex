@@ -58,6 +58,7 @@
 #include <algorithm>
 #include <string>
 #include <vector>
+#include "debugframe.h" /* debugDumpFrameGL call in r3dgl_present */
 
 namespace fs = std::filesystem;
 
@@ -151,6 +152,10 @@ int r3dgl_initContext(SDL_Window *win) {
 }
 
 int r3dgl_active(void) { return s_active; }
+
+/* for debugframe.c's GL dump (window pixel size; the GL context itself is
+ * already current inside r3dgl_present where the dump runs) */
+SDL_Window *r3dgl_window(void) { return s_win; }
 
 /* ---- mesh decode -------------------------------------------------------- */
 
@@ -2911,6 +2916,7 @@ void r3dgl_presentVirtual(SDL_Surface *page, int virtW, int virtH, int shakeOffs
     if (blackbox_fastForwarding()) return;
     blackbox_drawGlOverlay(page, shakeOffset, s_win, gfx_getPalette(),
                            overlay2DState);
+    debugDumpFrameGL(); /* readback BEFORE swap (back buffer is dead after) */
     SDL_GL_SwapWindow(s_win);
 }
 

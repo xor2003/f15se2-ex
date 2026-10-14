@@ -159,6 +159,11 @@ struct ViewSnapshot {
 };
 STATIC_ASSERT(sizeof(struct ViewSnapshot) == 16);
 
+/* Delayed-camera history depth (VIEW_EXT_DYNAMIC / network ring push):
+ * must stay a power of two - readers mask the tick with F15_VIEW_RING_MASK. */
+#define F15_VIEW_RING_SLOTS 16
+#define F15_VIEW_RING_MASK (F15_VIEW_RING_SLOTS - 1)
+
 // In-flight guided-weapon tracking (g_projectiles[12]): slots 0-7 = SAM/ground
 // threat shots, 8-11 = player-fired missiles. fireMissile() claims a slot whose
 // ttl == 0 and seeds the launch position; ttl counts down the flight time. 0x18 bytes.
@@ -184,6 +189,11 @@ struct Projectile {
      * Modern keeps the sub-fine-unit fraction as well. */
     f15::math::FineCoord<f15::math::GameBackend> fineX; // +0x18
     f15::math::FineCoord<f15::math::GameBackend> fineY; // +0x1C
+    /* Multiplayer owner: slots<8 = the player this threat shot guides on
+     * (victim); slots>=8 = the player who fired (shooter). Guidance runs
+     * under that player's ctx so position/damage land correctly and each
+     * projectile still advances exactly once per tick. -1 = single-player. */
+    int16 targetPlayer;
 };
 
 /* g_proj3d: the world-space origin (x,y,z) projectObjects() projects the 3D scene
@@ -211,6 +221,10 @@ struct BulletTrack {
     f15::math::FineCoord<f15::math::GameBackend>::StepRep velX;
     f15::math::FineCoord<f15::math::GameBackend>::StepRep velY;
     f15::math::FineCoord<f15::math::GameBackend>::StepRep velZ;
+    /* owner of a player round (idx < g_bulletTrackCount): only that player's
+     * pass runs its hit test. Enemy tracers (last 4) are unowned - every
+     * player's pass tests them against its own position. -1 = single-player. */
+    int16 targetPlayer;
 };
 /* Fine map coords span coarse 0..0xffff << 5; the mask keeps the DOS int16
  * coarse-wrap semantics after summing fine velocities. */
@@ -303,6 +317,13 @@ struct SimObject {
  * record — it must equal FLIGHTUNIT_SIZE, not just be 36. */
 STATIC_ASSERT(sizeof(struct SimObject) == 36);
 STATIC_ASSERT(sizeof(struct SimObject) == FLIGHTUNIT_SIZE);
+
+/* SimObject.flags.b[1] extension bits used ONLY for client-parked remote
+ * pilots (slots >= the world object count; never a server-owned object).
+ * REMOTE_PLAYER makes the 3D path render the player-aircraft model (6/7)
+ * instead of aircraftTypes[spec]; GEAR_DOWN picks the gear-down model. */
+#define SIMFLAG_B1_REMOTE_PLAYER 0x10
+#define SIMFLAG_B1_GEAR_DOWN     0x04
 
 struct MapTarget {
     uint16 mapX;              // +0x00  map X coord (worldX = mapX << 5)

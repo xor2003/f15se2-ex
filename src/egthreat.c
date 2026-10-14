@@ -78,8 +78,18 @@ void updateThreatSites() {
                         ((g_planeTable.planes[siteIdx].alertLevel >> 3) + 0x20) +
                     siteIdx / 2;
             }
-            if (g_planeTable.planes[siteIdx].threatTimer == 4 && g_scopeSweepTimer.isNegative()) {
-                fireGroundThreat(siteIdx);
+            if (g_planeTable.planes[siteIdx].threatTimer == 4 &&
+                (g_threatFireHook != 0 || g_scopeSweepTimer.isNegative())) {
+                /* The scope-timer term is a per-PILOT engagement debounce
+                 * (fireGroundThreat sets it to g_frameRateScaling on a
+                 * contact). SP reads the single resident ctx directly; on
+                 * the server the hook swaps in the chosen victim's ctx and
+                 * applies the check there - one pilot's active sweep must
+                 * not suppress a threat against another pilot. */
+                if (g_threatFireHook)
+                    g_threatFireHook(siteIdx);
+                else
+                    fireGroundThreat(siteIdx);
                 g_planeTable.planes[siteIdx].flags |= 0x02;
             }
         } else {
@@ -103,6 +113,14 @@ void updateThreatSites() {
         }
     }
 
+    /* g_scopeSweepTimer's decrement is a per-player cockpit timer. On the
+     * server it lives in frameThreatScan so each player's sweep advances in
+     * its own ctx — this site is the world pass there (a ctx is resident).
+     * Single-player — including a net binary's own SP mode — decrements
+     * here, where the original put it. */
+#ifdef F15_NET
+    if (g_residentPlayer < 0)
+#endif
     --g_scopeSweepTimer;
 }
 
@@ -173,6 +191,7 @@ void fireGroundThreat(int16 planeIdx) {
                                         g_projectiles[slot].ttl = f15::math::TickDuration::fromWord((int16)(g_frameRateScaling.scaled(f15::specLockRangeUnits(sams[threatType].lockRange)) / (int32)f15::specProjSpeed(sams[threatType].maxSpeed)));
                                         g_projectiles[slot].specIdx = threatType;
                                         g_projectiles[slot].targetRef = planeIdx;
+                                        g_projectiles[slot].targetPlayer = g_residentPlayer;
 
                                         placeString(planeIdx);
                                         strcat(strBuf, " firing ");

@@ -30,6 +30,7 @@ using ProjectileGuidance = f15::math::GuidanceMath<f15::math::GameBackend>;
 #include "egframe.h"
 #include "egkeys.h"
 #include "egmath.h"
+#include "egplayer.h"
 #include "egtacmap.h"
 #include "egtarget.h"
 #include "egthreat.h"
@@ -39,6 +40,7 @@ using ProjectileGuidance = f15::math::GuidanceMath<f15::math::GameBackend>;
 #include "const.h"
 #include "comm.h"
 #include "campaign_allegiance.h"
+#include "net/protocol.h" /* F15_MAX_MAP_EVENTS: decoy scan bound */
 
 #include <dos.h>
 #include <memory.h>
@@ -64,7 +66,12 @@ void fireAirThreat(int16 objIdx) {
     uint16 acqRange = 0;
     int16 h, idx, slot, k, l, range, n;
 
-    idx = aircraftTypes[g_threatSpec].modelId;
+    /* Attacker profile from the firing object itself, not the ambient
+     * g_threatSpec: the server swaps in the victim's ctx before calling this,
+     * which restores the victim's stale threatSpec and would silently change
+     * the attacker's model. In single-player g_threatSpec == objIdx.spec here
+     * anyway (updateObjects assigns it at the top of this iteration). */
+    idx = aircraftTypes[g_simObjects[objIdx].spec].modelId;
 
     range = computeThreatRangeBearing(
         g_simObjects[objIdx].posX,
@@ -117,10 +124,12 @@ void fireAirThreat(int16 objIdx) {
 
                                 g_projectiles[slot].specIdx = idx;
                                 g_projectiles[slot].targetRef = -objIdx;
+                                /* the engaged player owns this threat shot */
+                                g_projectiles[slot].targetPlayer = g_residentPlayer;
 
                                 strcpy(strBuf, sams[idx].name);
                                 strcat(strBuf, " fired by ");
-                                strcat(strBuf, aircraftTypes[g_threatSpec].name);
+                                strcat(strBuf, aircraftTypes[g_simObjects[objIdx].spec].name);
                                 hudMessage(strBuf);
 
                                 makeSound(6, 2);
@@ -195,6 +204,7 @@ void updateThreatTargeting(void) {
      * uint16 wrap on uncapped modern ranges was a legacy limit. */
     f15::math::WordRep<f15::math::GameBackend> best, dist;
 
+    g_threatWarningBits = 0;
     switchIndicatorColor(0, 8);
     switchIndicatorColor(1, 8);
     if (mapEvents[0].ttl != 0) {
@@ -207,6 +217,14 @@ void updateThreatTargeting(void) {
 
     for (slot = 0; slot < 12; slot++) {
         if (!g_projectiles[slot].ttl.isZero()) {
+            /* Multiplayer: every in-flight shot is owned by exactly one
+             * player ctx (slots<8: the victim it guides on; slots>=8: the
+             * shooter). The owner pass processes its own shots so guidance,
+             * warnings and damage are player-correct while each projectile
+             * still advances exactly once per tick. Single-player leaves
+             * every targetPlayer -1 == g_residentPlayer. */
+            if (g_projectiles[slot].targetPlayer != g_residentPlayer)
+                continue;
             spec = g_projectiles[slot].specIdx;
             locked = 0;
             aimY = 0;
@@ -238,7 +256,7 @@ void updateThreatTargeting(void) {
                         }
                     }
                     scan++;
-                } while (scan < 4);
+                } while (scan < F15_MAX_MAP_EVENTS);
 
                 if (best > 0x200) {
                     if (g_projectiles[slot].targetRef > 2 &&
@@ -253,7 +271,13 @@ void updateThreatTargeting(void) {
             } else {
                 best = 0x7fff;
                 if (mode == 7) {
-                    for (scan = 0; scan < g_groundUnitCount; scan++) {
+                    /* Server extends the scan over parked remote-player slots
+                     * (g_simObjScanBound > g_groundUnitCount). Any path that
+                     * seeds g_groundUnitCount without worldImportToEgame
+                     * leaves the bound 0 — fall back so SP still scans. */
+                    const int16 scanBound =
+                        g_simObjScanBound > 0 ? g_simObjScanBound : g_groundUnitCount;
+                    for (scan = 0; scan < scanBound; scan++) {
                         /* A2A: once the shot has a remembered launch target
                            (targetLock, a g_simObjects index) only that contact is
                            eligible, so the missile tracks the target that was
@@ -324,6 +348,12 @@ void updateThreatTargeting(void) {
 
             if (locked != 0 && slot < 8 &&
                 angleSeparation(angleFromWord(g_acqAimY), g_projectiles[slot].head) < 0x1000 && mapEvents[0].ttl == 0) {
+                /* Ownership was checked above. Replicate the same lock,
+                 * bearing and decoy conditions to this pilot's cockpit. */
+                if (mode <= 0)
+                    g_threatWarningBits |= PLAYER_WARN_IR;
+                if (mode != 0)
+                    g_threatWarningBits |= PLAYER_WARN_RADAR;
                 if (mode <= 0 && frameTick.bit(1))
                     switchIndicatorColor(1, 0xc);
                 if (mode != 0 && !frameTick.bit(1))
@@ -576,6 +606,7 @@ int samCanAcquireTarget(int slot, int targetX, int targetY, int targetAlt, int m
 // ==== seg000:0x86f8 ====
 void destroyAircraft(int16 objIdx) {
     int16 eventType;
+    int16 wasRemote = g_simObjects[objIdx].flags.b[1] & SIMFLAG_B1_REMOTE_PLAYER;
 
     if (!(g_simObjects[objIdx].flags.w & SIMOBJ_DESTROYED)) {
         aircraftTypes[g_simObjects[objIdx].spec].killCount += 1;
@@ -596,6 +627,11 @@ void destroyAircraft(int16 objIdx) {
         if (g_simObjectSpeed[objIdx] != 0) goto done;
         g_simObjects[objIdx].flags.w &= SIMOBJ_PERSIST_MASK;
     done:;
+        /* parked remote-player object destroyed -> attribute damage to
+         * its owner (checked inside the once-only block above, before
+         * flags.w &= 0x1c1 can clear the REMOTE marker) */
+        if (g_playerObjectHitHook && wasRemote)
+            g_playerObjectHitHook(objIdx);
     }
     strcpy(strBuf, aircraftTypes[g_simObjects[objIdx].spec].name);
     makeSound(2, 2);
@@ -786,6 +822,8 @@ void fireMissile() {
     g_projectiles[slot].specIdx = spec;
     g_projectiles[slot].weaponIdx = weaponIdx;
     g_projectiles[slot].targetLock = -1;
+    /* the firing player owns this shot: guidance/damage run under their ctx */
+    g_projectiles[slot].targetPlayer = g_residentPlayer;
 
     if (spec != 30) {
         g_projectiles[slot].pitch -= angleFromWord(0x1000);

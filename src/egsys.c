@@ -5,6 +5,10 @@
 
 #include "benchmark.h"
 #include "egtypes.h"
+#include <SDL3/SDL.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include "egcode.h"
 #include "egdata.h"
 #include "math/interpolation.hpp"
@@ -13,14 +17,18 @@
 #include "math/legacy_horizontal.hpp"
 #include "math/legacy_rotation.hpp"
 #include "egflight.h"
+#include "egsnap.h"
 #include "inttype.h"
 #include "gfx.h"
+#include "gfx_impl.h"
+#include "r3d_gl.h"
 #include "shared/common.h"
 #include "shared/blackbox.h"
 #include "shared/blackbox_diag.h"
 
 /* per-frame work reconstructed in their own TUs (egflight/egtacmap/egframe),
  * not surfaced in a header; declared here for the game loop below. */
+void debugDumpFrame(void); /* debugframe.c */
 void renderFrame(void);
 void renderHudFrame(int unused);
 void stepFlightModel(void);
@@ -43,8 +51,6 @@ void updateFrame(void);
  * precision. */
 
 #define NS_PER_SEC 1000000000ULL
-#define SIM_OBJ_MAX 20
-#define PROJ_MAX 12
 #define OBJ_TELEPORT_GUARD 0x2000 /* world units/axis; a real step moves << this */
 #define SEEKER_TELEPORT_GUARD 0x400 /* seeker units/axis; a lock switch jumps >> a tracking step */
 
@@ -56,27 +62,14 @@ void updateFrame(void);
  * player->target bearing in the director/target views) and the crash-cam eye
  * (g_crashCam*, the 0x8c view) so those tracking views interpolate coherently
  * too. Moving objects are interpolated separately (object snapshot helpers
- * below). */
-typedef struct {
-    f15::math::ViewCoordinate<f15::math::GameBackend, f15::math::ViewXAxis> viewX;
-    f15::math::ViewCoordinate<f15::math::GameBackend, f15::math::ViewYAxis> viewY;
-    f15::math::RenderHeight<f15::math::GameBackend> viewZ;
-    f15::math::Angle<f15::math::GameBackend> head, pitch, roll;
-    f15::math::MapPosition<f15::math::GameBackend> mapPos; /* g_viewX_ / g_viewY_ */
-    int32 crashX, crashY, crashZ;
-    int32 wreckX, wreckY, wreckAlt; /* downed-aircraft wreck/parachute */
-    /* HUD reticle inputs derived from the player state each sim step (gun-reticle
-     * vertical trim, air-to-air seeker head offset). They ride the same snapshot so
-     * the reticles glide every render frame instead of snapping at the sim rate. */
-    f15::math::Angle<f15::math::GameBackend> rollPitchTrim;
-    int32 aamSeekerX, aamSeekerY;
-} CamSnapshot;
+ * below). Snapshot types + the shared helpers' interface live in egsnap.h
+ * (net/netrender.c uses the same machinery). */
 
 static int32 iabs32(int32 v) {
     return v < 0 ? -v : v;
 }
 
-static void camCapture(CamSnapshot *s) {
+void camCapture(CamSnapshot *s) {
     s->viewX = g_ViewX;
     s->viewY = g_ViewY;
     s->viewZ = flightSceneHeight();
@@ -95,7 +88,7 @@ static void camCapture(CamSnapshot *s) {
     s->aamSeekerY = g_aamSeekerY;
 }
 
-static void camRestore(const CamSnapshot *s) {
+void camRestore(const CamSnapshot *s) {
     g_ViewX = s->viewX;
     g_ViewY = s->viewY;
     g_sceneHeightRender = s->viewZ;
@@ -120,12 +113,58 @@ static int32 lerpLinear(int32 a, int32 b, int64 num, int64 den) {
     return a + (int32)(((int64)(b - a) * num) / den);
 }
 
+/* Shortest-arc interpolation in 16-bit angle space (heading wraps; pitch/roll
+ * don't in practice, where the int16 delta degenerates to a plain difference). */
+static int32 lerpAngle(int32 a, int32 b, int64 num, int64 den) {
+    int16 d = (int16)(b - a);
+    /* A single sim step never rotates the airframe ~90deg from stick input; a
+     * delta that large is the discontinuous 0x8000 heading/roll flip
+     * computeAttitudeAngles() emits as pitch crosses +/-90deg (gimbal). Tweening
+     * across it would sweep the view 180deg for one render frame, so snap to the
+     * new pose instead. */
+    if (d >= 0x4000 || d <= -0x4000)
+        return b;
+    return a + (int32)(((int64)d * num) / den);
+}
+
+static int angleSnaps(int32 a, int32 b) {
+    int16 d = (int16)(b - a);
+    return d >= 0x4000 || d <= -0x4000;
+}
+
+/* Wrap-aware interpolation in 16-bit map space: the int16 delta takes the
+ * shortest path across the 0x10000 boundary, so a contact crossing the map
+ * edge tweens a few units instead of sweeping across the whole map. */
+static int32 lerpMap16(uint16 a, uint16 b, int64 num, int64 den) {
+    int16 d = (int16)(b - a);
+    return (int32)a + (int32)(((int64)d * num) / den);
+}
+
+/* Interpolate a heading/pitch/roll pose. The gimbal flip changes the
+ * REPRESENTATION of all three components at once (head/roll jump 0x8000 while
+ * pitch reflects with a small delta); snapping only the offending component
+ * while the others keep tweening mixes two representations into a visibly
+ * wrong pose (the "90deg flip-flop" when pulling through the vertical), so a
+ * flip in any component snaps the whole triple to the new pose. */
+void lerpPose(int32 h0, int32 p0, int32 r0, int32 h1, int32 p1, int32 r1,
+              int64 num, int64 den, int32 *h, int32 *p, int32 *r) {
+    if (angleSnaps(h0, h1) || angleSnaps(p0, p1) || angleSnaps(r0, r1)) {
+        *h = h1;
+        *p = p1;
+        *r = r1;
+    } else {
+        *h = lerpAngle(h0, h1, num, den);
+        *p = lerpAngle(p0, p1, num, den);
+        *r = lerpAngle(r0, r1, num, den);
+    }
+}
+
 /* The heading/pitch/roll pose lerp that used to live here moved to
  * Pose::interpolate (math/interpolation.hpp): the gimbal flip changes the
  * REPRESENTATION of all three components at once, so a snap in any component
  * snaps the whole triple to the new pose — shortest-arc blend otherwise. */
 
-static void camApplyInterp(const CamSnapshot *p, const CamSnapshot *n, int64 num, int64 den) {
+void camApplyInterp(const CamSnapshot *p, const CamSnapshot *n, int64 num, int64 den) {
     using Pose = f15::math::PoseInterpolation<f15::math::GameBackend>;
     const auto pose = Pose::interpolate({p->head, p->pitch, p->roll}, {n->head, n->pitch, n->roll},
                                        f15::math::FrameFraction::fromTicks(num, den));
@@ -196,34 +235,12 @@ static uint64 simStepNsNow(void) {
  *     advances a few hundred world units; a reuse/respawn jumps map-scale).
  *   - projectiles: ttl decrements by exactly 1 per step in flight and a reused
  *     slot always passes through ttl==0, so interpolate iff next.ttl==prev.ttl-1.
- * posX/posY mirror worldX/worldY (>>5) so the HUD reticle (projectWorldToHud,
- * which reads posX/posY) and the 3D model (drawWorldObject, worldX/worldY) stay
- * consistent. */
-typedef struct {
-    /* Fine-position rep captured from the object shadow — int32 under fixed,
-     * fractional under modern so interpolation keeps sub-fine precision. */
-    f15::math::HorizontalBoundary<f15::math::GameBackend>::Rep worldX, worldY;
-    uint16 posX, posY;
-    /* Linear shadow rep captured for alt — int16 under fixed, fractional
-     * under modern so interpolation keeps sub-word precision. */
-    f15::math::WordRep<f15::math::GameBackend> alt;
-    /* Attitude reps captured from the object shadows — the packed int16 word
-     * under fixed, fractional under modern so interpolation keeps sub-word
-     * precision. */
-    f15::math::Angle<f15::math::GameBackend> head, pitch, bank;
-    uint8 alive;
-} SimObjSnap;
-
-typedef struct {
-    f15::math::FineCoord<f15::math::GameBackend> fineX, fineY; /* authoritative mapX<<5-scale position */
-    /* Altitude shadow rep (fractional under modern) + the packed low-bit
-     * radar flag, which rides bit 0 of the packed word separately. */
-    f15::math::WordRep<f15::math::GameBackend> alt;
-    uint8 altFlag;
-    f15::math::Angle<f15::math::GameBackend> head, pitch;      /* missile yaw/pitch */
-    f15::math::TickDuration ttl;
-} ProjSnap;
-
+ * posX/posY are interpolated in their own map convention (wrap-aware):
+ * for ordinary AI objects they still mirror worldX/worldY (>>5), but for
+ * parked remote players posY is 0x8000-(ViewY>>5), which a render-space
+ * derivation corrupts. The HUD reticle (projectWorldToHud, reading
+ * posX/posY) and the 3D model (worldX/worldY) stay consistent.
+ * SimObjSnap/ProjSnap themselves live in egsnap.h. */
 static int simObjCount(void) {
     int n = g_groundUnitCount;
     if (n < 0) n = 0;
@@ -231,7 +248,7 @@ static int simObjCount(void) {
     return n;
 }
 
-static void objCapture(SimObjSnap *sim, ProjSnap *proj) {
+void objCapture(SimObjSnap *sim, ProjSnap *proj) {
     int i, n = simObjCount();
     for (i = 0; i < n; i++) {
         sim[i].worldX = f15::math::legacy::objectFineRep(g_simObjectFineX[i]);
@@ -255,9 +272,9 @@ static void objCapture(SimObjSnap *sim, ProjSnap *proj) {
     }
 }
 
-static void objApplyInterp(const SimObjSnap *sp, const SimObjSnap *sn,
-                           const ProjSnap *pp, const ProjSnap *pn,
-                           int64 num, int64 den) {
+void objApplyInterp(const SimObjSnap *sp, const SimObjSnap *sn,
+                    const ProjSnap *pp, const ProjSnap *pn,
+                    int64 num, int64 den) {
     int i, n = simObjCount();
     using Horizontal = f15::math::HorizontalMath<f15::math::GameBackend>;
     using HBoundary = f15::math::HorizontalBoundary<f15::math::GameBackend>;
@@ -279,8 +296,14 @@ static void objApplyInterp(const SimObjSnap *sp, const SimObjSnap *sn,
             HBoundary::coordinate(Horizontal::interpolate(
                 HBoundary::coordinate<f15::math::ViewYAxis>(sp[i].worldY),
                 HBoundary::coordinate<f15::math::ViewYAxis>(sn[i].worldY), fraction)));
-        g_simObjects[i].posX = (uint16)(g_simObjects[i].worldX >> 5);
-        g_simObjects[i].posY = (uint16)(g_simObjects[i].worldY >> 5);
+        /* posX/posY are MAP-space fields, not a derivation of render
+         * coords: for parked remote players posY = 0x8000-(ViewY>>5) and
+         * (uint16)(wy>>5) loses the 0x01000000 render offset - the review's
+         * 0x4000 -> 0xc000 mid-render corruption. Interpolate the captured
+         * map fields directly so range checks/radar see the real position
+         * throughout the interpolated frame. */
+        g_simObjects[i].posX = (uint16)lerpMap16(sp[i].posX, sn[i].posX, num, den);
+        g_simObjects[i].posY = (uint16)lerpMap16(sp[i].posY, sn[i].posY, num, den);
         f15::math::legacy::objectLinearSet(g_simObjectAlt[i], g_simObjects[i].alt,
             f15::math::legacy::wordLerp(sp[i].alt, sn[i].alt, num, den));
         /* enemy AI flips its pose representation the same way as the player
@@ -333,7 +356,7 @@ static void objApplyInterp(const SimObjSnap *sp, const SimObjSnap *sn,
     }
 }
 
-static void objRestore(const SimObjSnap *sn, const ProjSnap *pn) {
+void objRestore(const SimObjSnap *sn, const ProjSnap *pn) {
     int i, n = simObjCount();
     for (i = 0; i < n; i++) {
         f15::math::legacy::objectFineSet<f15::math::ViewXAxis>(
@@ -438,6 +461,7 @@ void gameMainLoop(void) {
         camRestore(&camNext); /* restore authoritative sim state for the next step */
         objRestore(simNext, projNext);
         if (benchmarkFrameComplete()) break;
+        debugDumpFrame();
     } while (g_missionEndedFlag[0] == 0);
     benchmarkFinish();
 }
