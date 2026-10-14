@@ -2617,7 +2617,7 @@ void far projectSceneShadow(char far *model, int yaw, int posX, int posY, int po
 int far r3d_objTransformFar(char far *model, int yaw, int pitch, int roll,
                             int posX, int posY, int posZ,
                             int16 *combined, long *camBase, long *camX, long *camY,
-                            int *shade) {
+                            int *shade, uint32 *visMask, const uint8 *limit) {
     int i;
     g_objRenderMode = *(unsigned char far *)model;
     g_objTransform[1] = yaw;
@@ -2667,9 +2667,57 @@ int far r3d_objTransformFar(char far *model, int yaw, int pitch, int roll,
     *camX = JOIN32(g_camTransXLo, g_camTransXHi);
     *camY = JOIN32(g_camTransYLo, g_camTransYHi);
 
-    /* No object-facing/back-face-cull axis is produced here: back-face culling is a
-     * software-rasterizer concern (the display-list walk's g_vtxSignMask path). The
-     * GPU backend fills double-sided, so a GPU consumer needs only the transform. */
+    /* Face/line visibility mask — rotatePoint3d's g_vtxSignMask. The display
+     * list gates every primitive on a bit of this mask (normals vs the
+     * model-space camera direction), and the GPU draw still needs it: a
+     * z-buffer alone keeps faces the original culls outright, so e.g. the
+     * F-19's tail-cone covers its recessed engine nozzles only because that
+     * face is culled, not z-tested. Computed on the FINEST LOD's normal table —
+     * the one r3dmesh_decode descends to (near branch of every LOD header). */
+    if (visMask) {
+        int dirX, dirY, dirZ;
+        const uint8 *np;
+        unsigned long lo = 0xffffUL, hi = 0xffffUL;
+        int cnt;
+        {   /* g_objDir*, identical to rotatePoint3d: direction to the camera in
+             * model space (the relative-position triple negated, then put
+             * through the inverse-orientation matrix when the object rotates). */
+            int rx = -(int)g_objRelX;             /* relX negated */
+            int ry = -(int)g_objRelY;             /* relY negated */
+            int rz = -(int)g_objTransform[0];     /* relZ negated */
+            if (g_objHasRotation == 0) {
+                dirX = rx; dirY = rz; dirZ = ry;
+            } else {
+                int16 *m = g_objOrientMatrix;
+                transposeOrientationMatrix();
+                dirX = dirRound(imul16(ry, m[6]) + imul16(rz, m[3]) + imul16(rx, m[0]));
+                dirY = dirRound(imul16(ry, m[7]) + imul16(rz, m[4]) + imul16(rx, m[1]));
+                dirZ = dirRound(imul16(ry, m[8]) + imul16(rz, m[5]) + imul16(rx, m[2]));
+                transposeOrientationMatrix();
+            }
+        }
+        np = (const uint8 *)model + 1;
+        while (np < limit && (np[0] & 0x80)) np += 3;
+        if (np < limit && (np[0] & 0x60) == 0x60) np++; /* storeObjTransform */
+        if (np < limit && (np[0] & 0x3f) < 0x3e) {      /* MODEL form */
+            cnt = np[0] & 0x1f;
+            np++;
+            for (i = 0; i < cnt; i++) {
+                unsigned long bit = 1UL << i;
+                long dot;
+                if (np + 8 > limit) break;
+                dot = imul16(rdI16(np), dirX)
+                    + imul16(rdI16(np + 2), dirZ)
+                    + imul16(rdI16(np + 4), dirY);
+                if (dot < (long)rdI16(np + 6)) {
+                    lo ^= bit & 0xffffUL;
+                    hi ^= bit >> 16;
+                }
+                np += 8;
+            }
+        }
+        *visMask = (uint32)(hi << 16) | (uint32)lo;
+    }
     return 0;
 }
 

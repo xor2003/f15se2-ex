@@ -1602,8 +1602,8 @@ static int drawReplacementTtfGlyph(uint16 fontIdx, uint32 codepoint, FT_UInt pre
             coverage = freetypeBitmapPixel(bitmap, col, row);
             if (coverage != 0) {
                 blended = blendReplacementTtfPixel(dstRow[px], (uint8)color, coverage);
+                dstRow[px] = blended;
                 if (submit) r2d_submitPoint(px, py, blended);
-                else dstRow[px] = blended;
             }
         }
     }
@@ -2543,8 +2543,14 @@ static void drawStringCore(int16 *params, const char *string,
                     int px = x + col;
                     if ((bits & 0x80) && px >= clipL && px <= clipR &&
                         px >= 0 && px < surfW) {
+                        /* Always write the page: under GL it is composited every
+                         * frame, so one-shot text (panel labels, "TRACKCAM AHEAD")
+                         * persists like DOS video memory; the vector point alone
+                         * would vanish after this frame. Inside the 3D viewport
+                         * the composite is transparent, so the vector still rules
+                         * what shows there. */
+                        dstRow[px] = (uint8)color;
                         if (submit) r2d_submitPoint(px, py, color);
-                        else dstRow[px] = (uint8)color;
                     }
                     bits <<= 1;
                 }

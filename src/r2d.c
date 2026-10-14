@@ -174,7 +174,14 @@ void r2d_submitImage(R2DImage *img, int srcX, int srcY, int w, int h,
                      int dstX, int dstY, int key) {
     if (img && r2d_vectorActive()) {
         r3dgl_drawImage(img, srcX, srcY, w, h, dstX, dstY, w, h, key); /* 1:1 footprint */
-    } else if (s_swImage) {
+    }
+    /* Always bake into the retained page as well: under GL the page is
+     * composited every frame, so a once-drawn sprite (throttle-tape marker,
+     * panel icons) stays up exactly as DOS retained it — the vector copy only
+     * covers the frame it was submitted on. In-viewport pixels are invisible
+     * under the composite's show-through region, so the overlay path still
+     * governs what the eye sees there. */
+    if (s_swImage) {
         s_swImage(img, srcX, srcY, w, h, dstX, dstY, key);
     }
 }
@@ -234,7 +241,10 @@ int r2d_hasNativeOverlay(void) { return r3dgl_active(); }
 
 void r2d_submitLine(int x1, int y1, int x2, int y2, int color) {
     if (r2d_vectorActive()) r3dgl_drawLine(x1, y1, x2, y2, color);
-    else if (s_swLine) s_swLine(x1, y1, x2, y2, color);
+    /* Also bake into the page (see r2d_submitImage): lines drawn once — panel
+     * borders, the RUD/throttle tape — must persist like DOS page memory, not
+     * survive only for the frame that submitted them. */
+    if (s_swLine) s_swLine(x1, y1, x2, y2, color);
 }
 
 void r2d_submitPoint(int x, int y, int color) {

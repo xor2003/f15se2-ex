@@ -36,7 +36,7 @@ int far multiplyMatrix3x3Far(const int16 *matA, const int16 *matB, int16 *result
 int far r3d_objTransformFar(char far *model, int yaw, int pitch, int roll,
                             int posX, int posY, int posZ,
                             int16 *combined, long *camBase, long *camX, long *camY,
-                            int *shade);
+                            int *shade, uint32 *visMask, const uint8 *limit);
 /* World point (view-relative, transformAndCullObject arg order) -> scene camera
  * space; the 3D line primitive (tracers / explosion sparks) transforms each
  * endpoint with this. */

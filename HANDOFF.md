@@ -192,13 +192,58 @@ each against shared-reader externs. `buf3d3`, `g_modelVertX/Y/Z`,
   via `gfx_nextCodepointAdvance`; `f19_stringWidth`/`stringWidth` measure the
   translated text. `.WLD` site names stay English (identical data in Boriss).
 
+## F-19 GL backend (F15_RENDER=opengl1)
+
+F-19 3D now routes through the shared GL backend (`f19r3d.c` → `r3d_submit` →
+`gl_submit`). Three fixes this session, all verified headless on Xvfb :99
+(`F15_AUDIO=off`, window shots via `import -window root`, page dumps via
+`F19_DUMP`):
+
+- **Face/line visibility mask (nozzles fix)** — the GL draw used to render
+  every decoded face double-sided; a z-buffer alone keeps faces the original
+  *culls outright*, so the tail-cone covered the F-19's recessed engine
+  nozzles (the `0x0d` fire-cycle faces that blink yellow↔red). Fix:
+  `r3d_objTransformFar` (eg3drast.c) now also computes the
+  `rotatePoint3d` `g_vtxSignMask` equivalent — same math: negated rel pos
+  through the (transposed) `g_objOrientMatrix`, `dot = fn·dir` vs per-normal
+  threshold toggling mask bits, on the FINEST LOD's normal table (the one
+  `r3dmesh_decode` descends to). Plumbed via `GlSub.visMask`; `drawSub` gates
+  faces on `1u << f->cullNormal` and wire lines on `line->visMask & mask` —
+  matching `renderPrimitiveCommand`/`testVisibilityMask` exactly.
+- **Retained-page dual-write (RUD/labels fix)** — under a GL vector frame
+  (`r2d_vectorActive`), lines/sprites/glyph pixels went vector-only → wiped
+  by the next `glClear`. One-shot draws (`drawAirspeedTape` rung lines on
+  thrust change, `drawPanelModeText` "TRACKCAM AHEAD/REAR/..." labels) then
+  vanished. Fix: `r2d_submitLine`/`r2d_submitImage` now ALSO call the
+  software callback to bake the retained page (composited each frame →
+  persists like DOS VRAM), and `drawStringCore` glyph paths write
+  `dstRow[px]` before submitting the vector point. Per-frame fills keep
+  using `fillSpanRectImmediate` (vector-only by design — never dirty the
+  page). `r2d_submitPoint` stays vector-only; its text callers now write the
+  page explicitly.
+- **`insertOutlineEdges` crash + silhouette** — the transliterated
+  `((const uint8 *)*p++)[0x9E8]` read host address `attr+0x9E8` (low memory
+  → segfault under the `?`/`>`/`<`/`M` look-around views 0x41–0x44). DOS read
+  `DS:[attr+0x9E8]` = `colorLut[attr]`; fixed to that. Under GL the
+  silhouette span-fill lands inside the whole-screen show-through rect, so
+  it also needed the F-15 `drawVectorShape` pattern: collect the vertex ring
+  and `r2d_submitPoly` it.
+
+`insertOutlineEdges` walk semantics: `attr, v0, v1, ..., v0, -1` per group —
+each edge is prev→current, the ring repeats v0 to close (drop the dup for
+GL_POLYGON).
+
 ## Notes / gotchas
 
-- The active in-game 3D path is the **software span rasterizer**
-  (`processSceneObject`→`transformVertexList`→`renderPrimitiveList` in
-  `eg3drast.c`), even when the GL backend initializes — GL composites, the SW
-  path draws the 3D geometry into the page. MFD/map `face cb=` logs come from
-  `eg3dmap.c` `drawModelDisplayList`, a different path — don't confuse them.
+- Under `F15_RENDER=software` the in-game 3D path is the **software span
+  rasterizer** (`processSceneObject`→`transformVertexList`→
+  `renderPrimitiveList` in `eg3drast.c`); under `opengl1` it goes through
+  `r3d_gl.c`. Either way the same `colorLut`/`g_vtxSignMask` semantics apply.
+  MFD/map `face cb=` logs come from `eg3dmap.c` `drawModelDisplayList`, a
+  different path — don't confuse them.
+- Widescreen 3D (`F15_WIDESCREEN`, default on) extends the world into the
+  pillarbox side-bars — the red columns at the window edges in flight are
+  terrain seen through the gaps, intended.
 - `transformVertexList` uses `transformModelVerticesFar` (precomputed shared
   verts) when `g_offscreenRender==0` (detail≥1), else on-the-fly pool reads.
 - Keep changes minimal and idiomatic; preserve dseg bindings; don't hardcode

@@ -1,5 +1,6 @@
 #include "f19eg.h"
 #include "f19egvars.h"
+#include "r2d.h"
 
 /* egflight.c — F19 flight-model routines (seg000).
    Verified byte-identical against EGAME.EXE via tools/portcheck.py. */
@@ -879,17 +880,39 @@ void far endEdgeGroup(void);            /* sub_21D18 */
 
 void insertOutlineEdges(int16 *p) {
     while (*p != -1) {
-        gfx_setObjAttr(((const uint8 *)*p++)[0x9E8]);
-        beginEdgeGroup();
-        p += 2;
-        while (*p != -1) {
-            g_edgeQuad[0] = p[-2];
-            g_edgeQuad[2] = p[-1];
-            g_edgeQuad[1] = *p++;
-            g_edgeQuad[3] = *p++;
-            insertEdge();
+        /* DOS: DS:[attr + 0x9E8] — the attr is a small colour-LUT index, so
+         * the original reads colorLut[attr], not a host pointer + 0x9E8. */
+        int color = colorLut[*p++];
+        gfx_setObjAttr(color);
+        if (r2d_vectorActive()) {
+            /* The silhouette draws inside the 3D viewport's show-through rect
+             * (hudVisible==0 → the view spans the whole page), so a span fill
+             * baked into the page would be composited away under GL — submit
+             * the vertex ring as an immediate native-res filled polygon, the
+             * same route drawVectorShape takes. */
+            short ring[64 * 2];
+            int nv = 0;
+            while (*p != -1 && nv < 64) {
+                ring[nv * 2] = *p++;
+                ring[nv * 2 + 1] = *p++;
+                nv++;
+            }
+            if (nv >= 2 && ring[0] == ring[(nv - 1) * 2] &&
+                ring[1] == ring[(nv - 1) * 2 + 1])
+                nv--;
+            r2d_submitPoly(ring, nv, color, 0, 0, 320, 200);
+        } else {
+            beginEdgeGroup();
+            p += 2;
+            while (*p != -1) {
+                g_edgeQuad[0] = p[-2];
+                g_edgeQuad[2] = p[-1];
+                g_edgeQuad[1] = *p++;
+                g_edgeQuad[3] = *p++;
+                insertEdge();
+            }
+            endEdgeGroup();
         }
-        endEdgeGroup();
         p++;
     }
 }

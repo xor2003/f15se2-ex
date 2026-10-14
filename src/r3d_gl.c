@@ -228,6 +228,7 @@ typedef struct {
     int16 combined[9];
     long camBase, camX, camY; /* camera-space origin axes (screen-X, screen-Y, depth) */
     int shade, colorBase, curLod;
+    uint32 visMask;       /* g_vtxSignMask: per-normal visibility bits (r3d_objTransformFar) */
     int posZ;             /* object world altitude (0 = ground/sea), for wire ground test */
     int sortHi, sortLo;   /* normalized origin depth (sort key, farthest = largest) */
     int immediate;        /* flat ground/sea (posZ==0, no sort flag): drawn first/behind */
@@ -1503,6 +1504,7 @@ static void gl_submit(const R3DSubmit *o) {
     GlSub *r;
     int16 combined[9];
     long camBase, camTransX, camTransY, depth;
+    uint32 visMask;
     int shade, shift, i;
 
     if (s_nSub >= GL_MAX_SUBS) {
@@ -1512,7 +1514,8 @@ static void gl_submit(const R3DSubmit *o) {
 
     if (r3d_objTransformFar((char far *)o->mesh, o->yaw, o->pitch, o->roll,
                             o->posX, o->posY, o->posZ,
-                            combined, &camBase, &camTransX, &camTransY, &shade))
+                            combined, &camBase, &camTransX, &camTransY, &shade,
+                            &visMask, world3dLimit()))
         return; /* frustum-culled */
 
     r = &s_subs[s_nSub];
@@ -1524,6 +1527,7 @@ static void gl_submit(const R3DSubmit *o) {
     r->camX = camTransX;
     r->camY = camTransY;
     r->shade = shade;
+    r->visMask = visMask;
     r->colorBase = g_objColorBase;
     r->curLod = g_curLod;
     r->posZ = o->posZ;
@@ -2020,6 +2024,11 @@ static void drawSub(const GlSub *r) {
         int ring[R3DMESH_MAX_FACE_EDGES + 1];
         int n, k, cur, prev, deg;
         if (f->nEdges < 3) continue;
+        /* Normal-visibility gate (renderPrimitiveCommand): the face's opcode
+         * selects one sign-mask bit — the face draws only when its visibility
+         * normal passes. A pure z-buffer draw keeps faces the original culls,
+         * e.g. the tail-cone cap that covers the F-19's recessed nozzles. */
+        if (!(r->visMask & (1u << f->cullNormal))) continue;
         /* Colour filters from renderPrimitiveCommand: 0xff is transparent, and the
          * lowest-LOD flat ground tile (colorBase == 0x400) draws only its
          * colorByte==1 ground face — the rest of that tile's faces are junk. */
@@ -2089,8 +2098,12 @@ static void drawSub(const GlSub *r) {
         float ul = SDL_sqrtf(ux * ux + uy * uy + uz * uz);
         if (ul > 1e-3f) { ux /= ul; uy /= ul; uz /= ul; }
         for (i = 0; i < l->nLines; i++) {
-            MeshEdge *e = &l->edges[l->lines[i].edge];
+            MeshEdge *e;
             float ax, ay, az, bx, by, bz, lx, ly, lz, len;
+            /* testVisibilityMask: the line's own mask word ANDs against the
+             * sign mask — a hidden wire draws nothing. */
+            if (!(l->lines[i].visMask & r->visMask)) continue;
+            e = &l->edges[l->lines[i].edge];
             if (e->va >= l->nVerts || e->vb >= l->nVerts) continue;
             ax = vx_[e->va]; ay = vy_[e->va]; az = vd_[e->va] * 65536.0f;
             bx = vx_[e->vb]; by = vy_[e->vb]; bz = vd_[e->vb] * 65536.0f;
