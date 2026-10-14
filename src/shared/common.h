@@ -36,8 +36,6 @@ void mystrcpy(char *dest, const char *source);
 void loadPic(const char *filename, int segment);
 void openShowPic(const char *filename, int page);
 void showPicFile(SDL_IOStream *handle, int pageNum);
-int loadReplacementPngToPage(const char *filename, int page);
-int loadReplacementPngToHiResTitle(const char *filename);
 
 /* functions provided by file_io.c / file_*.inc - case-insensitive asset I/O */
 SDL_IOStream *openFile(const char *filename, int mode);

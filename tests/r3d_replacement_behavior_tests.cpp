@@ -80,7 +80,7 @@ int main() {
     setRoot(root.string());
 
     writeMesh(models / "shape_005_Fighter.glmesh", true);
-    R3DReplacementMesh *mesh = r3dReplacementMesh("test.3d3", 5);
+    R3DReplacementMesh *mesh = r3d_replacementMesh("test.3d3", 5);
     require(mesh && mesh->nPrims == 1, "standalone GLMESH loads by shape slot");
     require(mesh->prims[0].mode == 4 && mesh->prims[0].nVerts == 3,
             "triangle primitive is preserved");
@@ -89,19 +89,19 @@ int main() {
             "material and vertex data are preserved");
 
     writeMesh(models / "shape_006_Broken.glmesh", false);
-    require(!r3dReplacementMesh("TEST.3D3", 6),
+    require(!r3d_replacementMesh("TEST.3D3", 6),
             "invalid primitive cardinality falls back atomically");
 
     writeMesh(models / "shape_008.glmesh", true);
     if (!std::filesystem::exists(models / "SHAPE_008.GLMESH")) {
         writeMesh(models / "SHAPE_008.GLMESH", true);
-        require(!r3dReplacementMesh("TEST.3D3", 8),
+        require(!r3d_replacementMesh("TEST.3D3", 8),
                 "duplicate case-insensitive slot names are ambiguous");
     }
 
     writeMesh(models / "shape_009_First.glmesh", true);
     writeMesh(models / "shape_009_Second.glmesh", true);
-    require(!r3dReplacementMesh("TEST.3D3", 9),
+    require(!r3d_replacementMesh("TEST.3D3", 9),
             "two descriptive names for one slot are ambiguous");
 
     writeMesh(models / "shape_010.glmesh", true);
@@ -109,7 +109,7 @@ int main() {
         std::ofstream out(models / "shape_010.glmesh", std::ios::binary | std::ios::app);
         out.put('x');
     }
-    require(!r3dReplacementMesh("TEST.3D3", 10),
+    require(!r3d_replacementMesh("TEST.3D3", 10),
             "trailing bytes invalidate the entire cache");
 
     writeMesh(models / "shape_011.glmesh", true);
@@ -120,7 +120,7 @@ int main() {
         out.seekp(84);
         out.write(reinterpret_cast<const char *>(infinity), sizeof(infinity));
     }
-    require(!r3dReplacementMesh("TEST.3D3", 11),
+    require(!r3d_replacementMesh("TEST.3D3", 11),
             "non-finite coordinates invalidate the entire cache");
 
 #if !defined(_WIN32)
@@ -135,12 +135,12 @@ int main() {
     std::ofstream(models / "shape_007_Oversized.glb", std::ios::binary)
         << "not a GLB";
     setTool("cat '" + oversized.string() + "' #");
-    require(!r3dReplacementMesh("TEST.3D3", 7),
+    require(!r3d_replacementMesh("TEST.3D3", 7),
             "oversized converter output is drained and rejected");
     setTool("");
 #endif
 
-    r3dReplacementShutdown();
+    r3d_replacementShutdown();
     setRoot("");
     std::filesystem::remove_all(root);
     std::cout << "r3d_replacement_behavior_tests passed\n";

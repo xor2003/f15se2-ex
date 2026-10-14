@@ -2172,36 +2172,41 @@ static int replacementPrimitiveColor(const R3DReplacementPrim *prim) {
     int i;
     int base = replacementNearestPaletteIndex(prim->rgba[0], prim->rgba[1], prim->rgba[2]);
 
-    /* Drawing is intentionally material-first: sourceColor is proof metadata for
-     * converter validation, not runtime rendering data. Converted legacy GLBs set
-     * source_order_sensitive in the generated GLMESH cache; that flag opts into
-     * the original distance-shade idea while the GLB material RGB still chooses
-     * the base palette color. Third-party GLBs without converter proof metadata
-     * render exactly from their material colour mapping, so palette-like custom
-     * colors are not accidentally hazed. */
-    if ((prim->sourceFlags & 1u) == 0u) return base;
+    /* Apply the engine's distance shading to material colors. Converter proof
+     * metadata must not affect drawing: stripping GLB extras in an editor must
+     * leave the same geometry and materials looking the same. */
     for (i = 0; i < 16; i++) {
         if (base == colorLut[i]) return colorLut[i] + g_objShade;
     }
     return base;
 }
 
-static void transformReplacementVertex(const R3DReplacementPrim *prim, int srcVert,
-                                       const int16 *combined, long camBase, long camX, long camY,
-                                       ReplacementCameraVertex *out) {
+static int transformReplacementVertex(const R3DReplacementPrim *prim, int srcVert,
+                                      const int16 *combined, long camBase, long camX, long camY,
+                                      ReplacementCameraVertex *out) {
     int shift = 8 - 2 * g_curLod;
     long scaleDiv = (shift > 0) ? (1L << shift) : 1L;
     float x = prim->xyz[srcVert * 3];
     float y = prim->xyz[srcVert * 3 + 1];
     float z = prim->xyz[srcVert * 3 + 2];
-    out->x = (long)(2.0f * ((float)combined[0] * x + (float)combined[3] * z + (float)combined[6] * y) + (float)camBase);
-    out->y = (long)(2.0f * ((float)combined[1] * x + (float)combined[4] * z + (float)combined[7] * y) + (float)camX);
-    out->depth = (long)(2.0f * ((float)combined[2] * x + (float)combined[5] * z + (float)combined[8] * y) + (float)camY);
-    if (scaleDiv != 1) {
-        out->x /= scaleDiv;
-        out->y /= scaleDiv;
-        out->depth /= scaleDiv;
-    }
+    float cameraX = (2.0f * ((float)combined[0] * x + (float)combined[3] * z + (float)combined[6] * y) + (float)camBase) / scaleDiv;
+    float cameraY = (2.0f * ((float)combined[1] * x + (float)combined[4] * z + (float)combined[7] * y) + (float)camX) / scaleDiv;
+    float cameraDepth = (2.0f * ((float)combined[2] * x + (float)combined[5] * z + (float)combined[8] * y) + (float)camY) / scaleDiv;
+    /* Scratch/projection values have a signed 32-bit fixed-point range even
+     * on hosts with 64-bit long. Check before casting: out-of-range float to
+     * integer conversion is undefined. These comparisons also reject NaN/Inf.
+     * Division by the power-of-two LOD scale precedes conversion so a large
+     * intermediate that becomes representable after scaling remains usable. */
+    const float fixedPointMin = -2147483648.0f;
+    const float fixedPointEnd = 2147483648.0f; /* Exclusive: INT32_MAX rounds up as float. */
+    const bool xFits = cameraX >= fixedPointMin && cameraX < fixedPointEnd;
+    const bool yFits = cameraY >= fixedPointMin && cameraY < fixedPointEnd;
+    const bool depthFits = cameraDepth >= fixedPointMin && cameraDepth < fixedPointEnd;
+    if (!xFits || !yFits || !depthFits) return 0;
+    out->x = (long)cameraX;
+    out->y = (long)cameraY;
+    out->depth = (long)cameraDepth;
+    return 1;
 }
 
 static int projectReplacementCameraVertex(const ReplacementCameraVertex *v, int slot) {
@@ -2329,9 +2334,9 @@ static void drawReplacementMesh(R3DReplacementMesh *mesh) {
                 ReplacementCameraVertex tri[3], clipped[5];
                 int points[8];
                 int n;
-                transformReplacementVertex(prim, v, combined, camBase, camX, camY, &tri[0]);
-                transformReplacementVertex(prim, v + 1, combined, camBase, camX, camY, &tri[1]);
-                transformReplacementVertex(prim, v + 2, combined, camBase, camX, camY, &tri[2]);
+                if (!transformReplacementVertex(prim, v, combined, camBase, camX, camY, &tri[0]) ||
+                    !transformReplacementVertex(prim, v + 1, combined, camBase, camX, camY, &tri[1]) ||
+                    !transformReplacementVertex(prim, v + 2, combined, camBase, camX, camY, &tri[2])) continue;
                 n = clipReplacementPolygonNear(tri, 3, clipped);
                 if (!projectReplacementPolygon(clipped, n, points)) continue;
                 drawPolygonOutline(color, n, points, color);
@@ -2340,8 +2345,8 @@ static void drawReplacementMesh(R3DReplacementMesh *mesh) {
             gfx_setColor((unsigned char)color);
             for (v = 0; v + 1 < prim->nVerts; v += 2) {
                 ReplacementCameraVertex a, b;
-                transformReplacementVertex(prim, v, combined, camBase, camX, camY, &a);
-                transformReplacementVertex(prim, v + 1, combined, camBase, camX, camY, &b);
+                if (!transformReplacementVertex(prim, v, combined, camBase, camX, camY, &a) ||
+                    !transformReplacementVertex(prim, v + 1, combined, camBase, camX, camY, &b)) continue;
                 if (!clipReplacementLineNear(&a, &b)) continue;
                 if (!projectReplacementCameraVertex(&a, 0)) continue;
                 if (!projectReplacementCameraVertex(&b, 4)) continue;
@@ -2355,7 +2360,7 @@ static void drawReplacementMesh(R3DReplacementMesh *mesh) {
             gfx_setColor((unsigned char)color);
             for (v = 0; v < prim->nVerts; v++) {
                 ReplacementCameraVertex point;
-                transformReplacementVertex(prim, v, combined, camBase, camX, camY, &point);
+                if (!transformReplacementVertex(prim, v, combined, camBase, camX, camY, &point)) continue;
                 if (!projectReplacementCameraVertex(&point, 0)) continue;
                 g_lineX1 = g_lineX2 = (int16)vtxScratch.vproj.x.v[0];
                 g_lineY1 = g_lineY2 = (int16)vtxScratch.vproj.y.v[0];

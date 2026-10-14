@@ -368,9 +368,6 @@ int main() {
     return 0;
 }
 
-// This decoder fixture has no retained text renderer.
-void gfx_clearTtfTextOverlay(void) {}
-
 // Legacy decoder tests do not load replacement assets or compare their palettes.
 int assetCompareEnabled(void) { return 0; }
 void assetCompareIndexedPixels2D(const char *, const uint8 *, int,

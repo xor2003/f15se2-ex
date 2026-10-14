@@ -18,6 +18,7 @@
 
 #include "../shared/asset_compare.h"
 #include "asound_model.h"
+#include "asound_replacements.h"
 #include "asopl.h"
 #include "compressed_audio.h"
 #if F15_FM_EMULATION
@@ -50,7 +51,6 @@ extern "C" {
 
 #define ASND_OUT_RATE 44100 /* SDL output sample rate (Hz) */
 #define ASND_TICK_HZ 60     /* sequencer tick = game tick rate */
-#define ASND_SAMPLE_HZ 7850 /* Recovered F15DGTL.BIN cue playback rate, shared with exported WAVs. */
 #define ASND_CHUNK 512      /* max frames generated per inner loop pass */
 
 static AsoplState g_opl; /* OPL register shadow (event -> regs) */
@@ -66,27 +66,10 @@ static bool g_ready;                              /* device opened */
 static AsoundU8 *g_blob;
 static int g_blobSize;
 static bool g_smpActive;
-static const AsoundU8 *g_smpData;
-static int g_smpSize;
+static const AsoundU8 *g_smpData{};
 static double g_smpPos; /* fractional read position (bytes) */
+static int g_smpSize{};
 static double g_smpStep = (double)ASND_SAMPLE_HZ / (double)ASND_OUT_RATE;
-
-typedef struct ReplacementCue {
-    AsoundU16 start;
-    AsoundU16 endInclusive;
-    const char *id;
-    AsoundU8 *data;
-    int size;
-    int sampleRate;
-} ReplacementCue;
-
-static ReplacementCue g_replacementCues[] = {
-    {0x0000u, 0x31f3u, "voice_cue_000_sample0", NULL, 0, 0},
-    {0x31f4u, 0x4796u, "voice_cue_001_sample4", NULL, 0, 0},
-    {0x4797u, 0x5c92u, "voice_cue_002_sample2_variant0", NULL, 0, 0},
-    {0x5c93u, 0x6a1au, "voice_cue_003_sample2_variant1", NULL, 0, 0},
-    {0x6a1bu, 0x7d9du, "voice_cue_004_sample2_variant2", NULL, 0, 0},
-};
 
 typedef struct ReplacementMusic {
     AsoundU8 *intro[ASOUND_STREAM_COUNT];
@@ -106,13 +89,6 @@ static bool g_compressedIntroTried;
 /* Fractional countdown (in output frames) to the next sequencer tick. */
 static double g_tickAccum;
 
-static uint16_t rd16le(const AsoundU8 *p) {
-    return (uint16_t)p[0] | ((uint16_t)p[1] << 8);
-}
-
-static uint32_t rd32le(const AsoundU8 *p) {
-    return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16) | ((uint32_t)p[3] << 24);
-}
 
 static AsoundU8 *readEntireIo(SDL_IOStream *io, Sint64 *outSize) {
     Sint64 size;
@@ -135,48 +111,6 @@ static AsoundU8 *readEntireIo(SDL_IOStream *io, Sint64 *outSize) {
     return data;
 }
 
-static int decodePcm8Wav(const AsoundU8 *wav, Sint64 wavSize, AsoundU8 **outSamples, int *outSampleRate) {
-    Sint64 pos;
-    int fmtOk = 0;
-    uint32_t sampleRate = 0;
-    uint16_t channels = 0;
-    uint16_t bitsPerSample = 0;
-    uint16_t audioFormat = 0;
-
-    if (outSamples) *outSamples = NULL;
-    if (outSampleRate) *outSampleRate = 0;
-    if (!wav || wavSize < 44 || memcmp(wav, "RIFF", 4) != 0 || memcmp(wav + 8, "WAVE", 4) != 0) {
-        return 0;
-    }
-
-    pos = 12;
-    while (pos + 8 <= wavSize) {
-        const AsoundU8 *chunk = wav + pos;
-        uint32_t chunkSize = rd32le(chunk + 4);
-        Sint64 dataPos = pos + 8;
-        Sint64 nextPos = dataPos + chunkSize + (chunkSize & 1);
-        if (dataPos + chunkSize > wavSize) return 0;
-
-        if (memcmp(chunk, "fmt ", 4) == 0 && chunkSize >= 16) {
-            audioFormat = rd16le(wav + dataPos);
-            channels = rd16le(wav + dataPos + 2);
-            sampleRate = rd32le(wav + dataPos + 4);
-            bitsPerSample = rd16le(wav + dataPos + 14);
-            fmtOk = (audioFormat == 1 && channels == 1 && bitsPerSample == 8 && sampleRate > 0);
-        } else if (memcmp(chunk, "data", 4) == 0) {
-            AsoundU8 *samples;
-            if (!fmtOk || chunkSize == 0) return 0;
-            samples = (AsoundU8 *)SDL_malloc(chunkSize);
-            if (!samples) return 0;
-            memcpy(samples, wav + dataPos, chunkSize);
-            if (outSamples) *outSamples = samples;
-            if (outSampleRate) *outSampleRate = (int)sampleRate;
-            return (int)chunkSize;
-        }
-        pos = nextPos;
-    }
-    return 0;
-}
 
 static AsoundU8 *loadLegacyDigitizedBlob(int *outSize) {
     SDL_IOStream *io = openFile("F15DGTL.BIN", 0);
@@ -189,105 +123,6 @@ static AsoundU8 *loadLegacyDigitizedBlob(int *outSize) {
     if (!data) return NULL;
     if (outSize) *outSize = (int)size;
     return data;
-}
-
-static ReplacementCue *findCueForRange(AsoundU16 start, AsoundU16 endInclusive) {
-    int i;
-    for (i = 0; i < (int)(sizeof(g_replacementCues) / sizeof(g_replacementCues[0])); i++) {
-        if (g_replacementCues[i].start == start && g_replacementCues[i].endInclusive == endInclusive) {
-            return &g_replacementCues[i];
-        }
-    }
-    return NULL;
-}
-
-static int loadReplacementCueAudio(const AsoundU8 *legacyBlob, int legacyBlobSize) {
-    int i;
-    int loaded = 0;
-    for (i = 0; i < (int)(sizeof(g_replacementCues) / sizeof(g_replacementCues[0])); i++) {
-        ReplacementCue *cue = &g_replacementCues[i];
-        char replacementPath[512];
-        SDL_IOStream *wavIo;
-        Sint64 wavSize = 0;
-        AsoundU8 *wavData;
-        AsoundU8 *samples = NULL;
-        int sampleSize = 0;
-        int sampleRate = 0;
-
-        SDL_free(cue->data);
-        cue->data = NULL;
-        cue->size = 0;
-        cue->sampleRate = 0;
-
-        const char *extension = NULL;
-        if (findReplacementAssetPath(cue->id, ".ogg", replacementPath, sizeof(replacementPath))) {
-            extension = ".ogg";
-        } else if (findReplacementAssetPath(cue->id, ".mp3", replacementPath, sizeof(replacementPath))) {
-            extension = ".mp3";
-        } else if (findReplacementAssetPath(cue->id, ".wav", replacementPath, sizeof(replacementPath))) {
-            extension = ".wav";
-        }
-        if (!extension) {
-            continue;
-        }
-
-        if (!strcmp(extension, ".wav")) {
-            wavIo = SDL_IOFromFile(replacementPath, "rb");
-            wavData = readEntireIo(wavIo, &wavSize);
-            if (wavIo) SDL_CloseIO(wavIo);
-            if (wavData) {
-                sampleSize = decodePcm8Wav(wavData, wavSize, &samples, &sampleRate);
-                SDL_free(wavData);
-            }
-        } else {
-            CompressedAudio decoded;
-            if (compressedAudioLoad(replacementPath, &decoded) && decoded.frames <= INT32_MAX) {
-                sampleSize = (int)decoded.frames;
-                sampleRate = decoded.sampleRate;
-                samples = (AsoundU8 *)SDL_malloc((size_t)sampleSize);
-                if (samples) {
-                    for (int frame = 0; frame < sampleSize; frame++) {
-                        int mixed = 0;
-                        for (int channel = 0; channel < decoded.channels; channel++) {
-                            mixed += decoded.samples[(size_t)frame * decoded.channels + channel];
-                        }
-                        samples[frame] = (AsoundU8)((mixed / decoded.channels >> 8) + 128);
-                    }
-                }
-            }
-            compressedAudioFree(&decoded);
-        }
-        if (!samples || sampleSize <= 0) {
-            SDL_free(samples);
-            LogWarn(("asset replacement: failed to decode sound cue %s; legacy sample range remains fallback", replacementPath));
-            continue;
-        }
-
-        assetCompareSoundCueRange(
-            cue->id,
-            cue->start,
-            cue->endInclusive,
-            ASND_SAMPLE_HZ,
-            legacyBlob,
-            legacyBlobSize > 0 ? (size_t)legacyBlobSize : 0u,
-            samples,
-            (size_t)sampleSize,
-            sampleRate,
-            replacementPath
-        );
-        cue->data = samples;
-        cue->size = sampleSize;
-        cue->sampleRate = sampleRate;
-        loaded++;
-        LogInfo((
-            "asset replacement: loaded sound cue %s from %s (%d bytes, %d Hz)",
-            cue->id,
-            replacementPath,
-            sampleSize,
-            sampleRate
-        ));
-    }
-    return loaded;
 }
 
 static int loadCompressedIntro(void) {
@@ -472,22 +307,17 @@ static void asnd_syncChip(void) {
 /* ---- sequencer tick (audio thread, under g_lock) -------------------------- */
 
 static void asnd_startSample(AsoundU16 start, AsoundU16 end) {
-    ReplacementCue *cue = findCueForRange(start, end);
-    int s, e;
-    if (cue && cue->data && cue->size > 0) {
-        g_smpData = cue->data;
-        g_smpSize = cue->size;
+    AsoundReplacementCue cue{};
+    if (asound_find_replacement_cue(start, end, &cue)) {
+        g_smpData = cue.samples;
+        g_smpSize = cue.sample_count;
         g_smpPos = 0;
-        /* Replacement WAVs are the editable source of truth, so their RIFF
-         * sample rate controls playback speed instead of the legacy blob rate. */
-        g_smpStep = (double)(cue->sampleRate > 0 ? cue->sampleRate : ASND_SAMPLE_HZ) / (double)ASND_OUT_RATE;
+        g_smpStep = (double)cue.sample_rate / (double)ASND_OUT_RATE;
         g_smpActive = true;
         return;
     }
-
     if (!g_blob || g_blobSize <= 0) return;
-    s = start;
-    e = (int)end + 1;
+    int s = start, e = (int)end + 1;
     if (e > g_blobSize) e = g_blobSize;
     if (s < 0 || s >= e) return;
     g_smpData = g_blob + s;
@@ -832,11 +662,12 @@ int FAR CDECL audio_noiseTick(void) { return 0; }
 int loadF15DgtlBin(void) {
     AsoundU8 *data;
     int size = 0;
-    int replacementCueCount;
+    int replacementSpan;
 
     data = loadLegacyDigitizedBlob(&size);
-    replacementCueCount = loadReplacementCueAudio(data, size);
-    if ((!data || size <= 0) && replacementCueCount <= 0) {
+    asound_load_replacement_cues(data, size);
+    replacementSpan = asound_replacement_logical_span();
+    if ((!data || size <= 0) && replacementSpan <= 0) {
         LogError(("asound: cannot open F15DGTL.BIN or replacement cue WAVs"));
         return 0;
     }
@@ -847,8 +678,10 @@ int loadF15DgtlBin(void) {
     g_blobSize = size;
     if (g_lock) SDL_UnlockMutex(g_lock);
 
+    /* f15DgtlResult doubles as the variant selector, so report the known ASOUND
+     * span — not just the loaded-cue coverage — when the legacy blob is absent. */
     if (size > 0) return size;
-    return 0x7d9e;
+    return replacementSpan ? 0x7d9e : 0;
 }
 
 #ifdef DEBUG
@@ -863,19 +696,23 @@ int asound_testCompareReplacementCues(void) {
         SDL_free(legacyBlob);
         return 0;
     }
-    loaded = loadReplacementCueAudio(legacyBlob, legacySize);
-    if (loaded != (int)(sizeof(g_replacementCues) / sizeof(g_replacementCues[0]))) {
+    loaded = asound_load_replacement_cues(legacyBlob, legacySize);
+    if (loaded != asound_replacement_cue_count()) {
         SDL_free(legacyBlob);
         return 0;
     }
-    for (i = 0; i < (int)(sizeof(g_replacementCues) / sizeof(g_replacementCues[0])); i++) {
-        ReplacementCue *cue = &g_replacementCues[i];
-        int start = cue->start;
-        int end = (int)cue->endInclusive + 1;
-        int expectedSize = end - start;
-        if (!cue->data || cue->sampleRate != ASND_SAMPLE_HZ ||
-            cue->size != expectedSize || start < 0 || end > legacySize ||
-            memcmp(cue->data, legacyBlob + start, (size_t)expectedSize) != 0) {
+    for (i = 0; i < asound_replacement_cue_count(); i++) {
+        AsoundReplacementCue cue;
+        AsoundU16 start = 0, endInclusive = 0;
+        int expectedSize;
+        if (!asound_replacement_cue_at(i, &start, &endInclusive, &cue)) {
+            SDL_free(legacyBlob);
+            return 0;
+        }
+        expectedSize = (int)endInclusive + 1 - (int)start;
+        if (!cue.samples || cue.sample_rate != ASND_SAMPLE_HZ ||
+            cue.sample_count != expectedSize || endInclusive + 1 > legacySize ||
+            memcmp(cue.samples, legacyBlob + start, (size_t)expectedSize) != 0) {
             SDL_free(legacyBlob);
             return 0;
         }

@@ -37,4 +37,7 @@ typedef struct R3DReplacementMesh {
  * third-party GLBs. */
 R3DReplacementMesh *r3d_replacementMesh(const char *containerLegacyName, int shapeId);
 
+/* Release every cached replacement mesh at renderer shutdown. */
+void r3d_replacementShutdown(void);
+
 #endif /* R3D_REPLACEMENT_H */

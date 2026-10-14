@@ -93,6 +93,13 @@ static fs::path shapeDirectory(const char *container_name) {
 
     fs::path directory = findChildCaseInsensitive(root, stem);
     if (!directory.empty() && fs::is_directory(directory)) return directory;
+
+    /* Converted asset packs nest one level: <root>/converted_assets_all/<STEM>. */
+    const fs::path converted = findChildCaseInsensitive(root, "converted_assets_all");
+    if (!converted.empty()) {
+        directory = findChildCaseInsensitive(converted, stem);
+        if (!directory.empty() && fs::is_directory(directory)) return directory;
+    }
     return {};
 }
 
@@ -382,6 +389,8 @@ static R3DReplacementMesh *loadShape(const char *container_name,
     CachedMesh *entry = new CachedMesh{};
     entry->key = request_key;
     entry->loaded = parseGlmesh(&entry->mesh, bytes.data(), bytes.size());
+    std::snprintf(entry->mesh.path, sizeof(entry->mesh.path), "%s", cache.string().c_str());
+    entry->mesh.loaded = entry->loaded;
     if (!entry->loaded) {
         LogWarn(("asset replacement: rejected model cache %s",
                  cache.string().c_str()));
@@ -395,7 +404,7 @@ static R3DReplacementMesh *loadShape(const char *container_name,
 }
 
 /* Return the lazily loaded replacement mesh for a legacy container and slot. */
-R3DReplacementMesh *r3dReplacementMesh(const char *container_name,
+R3DReplacementMesh *r3d_replacementMesh(const char *container_name,
                                        int shape_id) {
     if (!container_name || shape_id < 0 || shape_id > MAX_SHAPE_ID) return NULL;
     const std::string key =
@@ -417,7 +426,7 @@ R3DReplacementMesh *r3dReplacementMesh(const char *container_name,
 }
 
 /* Release every cached replacement mesh at renderer shutdown. */
-void r3dReplacementShutdown(void) {
+void r3d_replacementShutdown(void) {
     for (CachedMesh *entry : g_cache) {
         freeMesh(&entry->mesh);
         delete entry;

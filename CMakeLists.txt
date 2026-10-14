@@ -300,6 +300,7 @@ set(EGAME_SOURCES
 if(AUDIO)
     list(APPEND EGAME_SOURCES
         ${SRC_DIR}/asound/asound_model.c
+        ${SRC_DIR}/asound/asound_replacements.c
         ${SRC_DIR}/asound/asopl.c
         ${SRC_DIR}/asound/compressed_audio.c
         ${SRC_DIR}/asound/asound_sdl.c
@@ -667,10 +668,6 @@ endif()
 # SDL dummy drivers and std::thread); they aren't cross-built for the DOS target.
 if(NOT F15_DOS)
 
-# The behavior tests and coverage targets are host-only (they run under ctest with
-# SDL dummy drivers and std::thread); they aren't cross-built for the DOS target.
-if(NOT F15_DOS)
-
 #==============================================================================
 # Behavior tests
 #==============================================================================
@@ -830,10 +827,22 @@ if(F15SE2_ORIGINAL_ASSETS AND F15SE2_CONVERTED_ASSETS
     set_tests_properties(structured_asset_full_validation_tests PROPERTIES
         LABELS "assets;integration"
         TIMEOUT 120)
+    if(AUDIO)
+        add_behavior_test(asound_cue_full_validation_tests LINK_CORE
+            DEFS
+                F15_ORIGINAL_ASSETS="${F15SE2_ORIGINAL_ASSETS}"
+                F15_CONVERTED_ASSETS="${F15SE2_CONVERTED_ASSETS}")
+        set_tests_properties(asound_cue_full_validation_tests PROPERTIES
+            LABELS "assets;integration"
+            TIMEOUT 120)
+    endif()
 else()
     message(STATUS
-        "Skipping PNG/structured/3D full validation: set F15SE2_ORIGINAL_ASSETS and "
+        "Skipping PNG/structured/3D/sound full validation: set F15SE2_ORIGINAL_ASSETS and "
         "F15SE2_CONVERTED_ASSETS to existing directories")
+endif()
+if(AUDIO)
+    add_behavior_test(asound_replacements_behavior_tests LINK_CORE)
 endif()
 add_behavior_test(r3d_replacement_behavior_tests LINK_CORE)
 if(F15SE2_ORIGINAL_ASSETS AND F15SE2_CONVERTED_ASSETS
@@ -1107,6 +1116,4 @@ if(WIN32)
     endif()
 endif()
 endif() # NOT ANDROID
-=======
-
 endif() # NOT F15_DOS (host-only tests + coverage)

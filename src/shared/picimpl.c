@@ -8,6 +8,7 @@
 #include "inttype.h"
 #include "asset_compare.h"
 #include "common.h"
+#include "png_asset.h"
 #include "../gfx.h"
 #include "../log.h"
 #include <SDL3/SDL.h>

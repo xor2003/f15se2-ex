@@ -60,6 +60,8 @@ void clearStatusPanel(void) {
 
 // ==== seg000:0x8e50 ====
 void renderHudFrame(int unused) {
+    static int hudStatusOverlayVisible{};
+    static int directorOverlayVisible{};
     int climbMarkerY, angleFixed, waypointMarkerX, circleX, angle, circleY, prevX, speedBarLen, prevY, markerX, markerY;
     char seekerShift;
     // probably x,y
@@ -202,6 +204,7 @@ void renderHudFrame(int unused) {
                                              HUD_STATUS_TEXT_Y + HUD_TRANSIENT_TEXT_HEIGHT);
         } else {
             drawStringActivePage(tempString, -(((int16)strlen(tempString) >> 1) - 40) * 4, 24, 0xf);
+            hudStatusOverlayVisible = 1;
         }
         if (g_autopilotEngaged == 1) {
             drawStringActivePage("Press any key to play", 120, 1, g_nightMode != 0 ? 0xe : 0);
@@ -218,7 +221,12 @@ void renderHudFrame(int unused) {
                                              HUD_DIRECTOR_TEXT_Y + HUD_TRANSIENT_TEXT_HEIGHT);
         } else {
             drawStringActivePage(string_3C04A, -(((int16)strlen(string_3C04A) >> 1) - 40) * 4, 90, 0xf);
+            directorOverlayVisible = 1;
         }
+    } else if (directorOverlayVisible) {
+        gfx_invalidateTtfTextOverlayRect(0, HUD_DIRECTOR_TEXT_Y, 319,
+                                         HUD_DIRECTOR_TEXT_Y + HUD_TRANSIENT_TEXT_HEIGHT);
+        directorOverlayVisible = 0;
     }
 }
 

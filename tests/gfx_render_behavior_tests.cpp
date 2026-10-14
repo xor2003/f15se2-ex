@@ -29,7 +29,7 @@
 // names; declare it locally to avoid pulling in a program-specific header. Word
 // 0 of the pageDesc is the page index, word 3 the fill colour.
 void clearRect(int16 *pageDesc, int16 x1, int16 y1, int16 x2, int16 y2);
-int loadReplacementPngToPage(const char *filename, int page);
+#include "png_asset.h"
 void drawMenuItem(const MenuItem *items, unsigned int index, int16 *gfxPage);
 
 namespace {
@@ -502,11 +502,13 @@ void test_setFont() {
     gfx_drawString(textParams, "A");
     require(gfx_setFont('A', 4) == kReplacementFontAdvance,
             "gfx_drawString lazily installs a BDF replacement font width table");
-    require(gfx_setFont(0x041f, 4) == kReplacementFontAdvance,
+    /* Unicode metrics go through the codepoint API; gfx_setFont stays a
+     * legacy byte API where >=0x80 is a colour escape. */
+    require(gfx_getGlyphAdvance(0x041f, 4) == kReplacementFontAdvance,
             "BDF replacement font exposes Unicode glyph widths");
-    require(gfx_setFont(0x00c4, 4) == kReplacementFontAdvance,
+    require(gfx_getGlyphAdvance(0x00c4, 4) == kReplacementFontAdvance,
             "BDF replacement font exposes German Unicode glyph widths");
-    require(gfx_setFont(0x0141, 4) == kReplacementFontAdvance,
+    require(gfx_getGlyphAdvance(0x0141, 4) == kReplacementFontAdvance,
             "BDF replacement font exposes Polish Unicode glyph widths");
 
     fillPageRaw(0, 0);

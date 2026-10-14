@@ -1,0 +1,257 @@
+/*
+ * asound_replacements.c - Load individual unsigned 8-bit mono PCM cue WAVs.
+ */
+
+#include "asound_replacements.h"
+
+#include "compressed_audio.h"
+#include "../shared/asset_compare.h"
+#include "../shared/asset_path.h"
+#include "../shared/common.h"
+#include "../log.h"
+
+#include <SDL3/SDL.h>
+
+#include <limits.h>
+#include <stdint.h>
+#include <string.h>
+
+enum {
+    RIFF_HEADER_BYTES = 12,
+    CHUNK_HEADER_BYTES = 8,
+    PCM_FORMAT_BYTES = 16,
+    WAVE_FORMAT_PCM = 1,
+    MONO_CHANNELS = 1,
+    PCM_SAMPLE_BITS = 8
+};
+
+typedef struct CueSlot {
+    AsoundU16 start;
+    AsoundU16 end_inclusive;
+    const char *id;
+    const char *filename;
+    AsoundU8 *samples;
+    int sample_count;
+    int sample_rate;
+} CueSlot;
+
+static CueSlot g_cues[] = {
+    {0x0000u, 0x31f3u, "voice_cue_000_sample0", "sounds/voice_cue_000_sample0.wav", NULL, 0, 0},
+    {0x31f4u, 0x4796u, "voice_cue_001_sample4", "sounds/voice_cue_001_sample4.wav", NULL, 0, 0},
+    {0x4797u, 0x5c92u, "voice_cue_002_sample2_variant0", "sounds/voice_cue_002_sample2_variant0.wav", NULL, 0, 0},
+    {0x5c93u, 0x6a1au, "voice_cue_003_sample2_variant1", "sounds/voice_cue_003_sample2_variant1.wav", NULL, 0, 0},
+    {0x6a1bu, 0x7d9du, "voice_cue_004_sample2_variant2", "sounds/voice_cue_004_sample2_variant2.wav", NULL, 0, 0},
+};
+
+/* Read an unsigned 16-bit little-endian value from an unaligned byte buffer. */
+static uint16_t read16le(const AsoundU8 *data) {
+    return (uint16_t)data[0] | ((uint16_t)data[1] << 8);
+}
+
+/* Read an unsigned 32-bit little-endian value from an unaligned byte buffer. */
+static uint32_t read32le(const AsoundU8 *data) {
+    return (uint32_t)data[0] | ((uint32_t)data[1] << 8)
+        | ((uint32_t)data[2] << 16) | ((uint32_t)data[3] << 24);
+}
+
+/* Read an entire replacement file into an owned heap buffer. */
+static AsoundU8 *readFile(const char *path, size_t *size) {
+    SDL_IOStream *stream = SDL_IOFromFile(path, "rb");
+    if (size) *size = 0;
+    if (!stream) return NULL;
+
+    const Sint64 length = SDL_GetIOSize(stream);
+    if (length <= 0 || (uint64_t)length > SIZE_MAX) {
+        SDL_CloseIO(stream);
+        return NULL;
+    }
+    AsoundU8 *data = (AsoundU8 *)SDL_malloc((size_t)length);
+    const size_t read = data ? SDL_ReadIO(stream, data, (size_t)length) : 0;
+    SDL_CloseIO(stream);
+    if (read != (size_t)length) {
+        SDL_free(data);
+        return NULL;
+    }
+    if (size) *size = read;
+    return data;
+}
+
+/* Decode one unsigned 8-bit mono PCM WAV while rejecting unsupported layouts. */
+static int decodePcm8MonoWav(const AsoundU8 *wav, size_t wav_size,
+                             AsoundU8 **samples, int *sample_rate) {
+    bool format_valid = false;
+    uint32_t rate_hz = 0;
+    if (samples) *samples = NULL;
+    if (sample_rate) *sample_rate = 0;
+    if (!wav || wav_size < RIFF_HEADER_BYTES) return 0;
+    const bool is_wave = !memcmp(wav, "RIFF", 4) && !memcmp(wav + 8, "WAVE", 4);
+    if (!is_wave) return 0;
+
+    for (size_t offset = RIFF_HEADER_BYTES; offset + CHUNK_HEADER_BYTES <= wav_size;) {
+        const AsoundU8 *chunk = wav + offset;
+        const uint32_t chunk_size = read32le(chunk + 4);
+        const size_t data_offset = offset + CHUNK_HEADER_BYTES;
+        if (chunk_size > wav_size - data_offset) return 0;
+
+        if (!memcmp(chunk, "fmt ", 4) && chunk_size >= PCM_FORMAT_BYTES) {
+            const uint16_t format = read16le(wav + data_offset);
+            const uint16_t channels = read16le(wav + data_offset + 2);
+            rate_hz = read32le(wav + data_offset + 4);
+            const uint16_t bits = read16le(wav + data_offset + 14);
+            const bool supported_layout = format == WAVE_FORMAT_PCM &&
+                channels == MONO_CHANNELS && bits == PCM_SAMPLE_BITS;
+            const bool valid_rate = rate_hz > 0 && rate_hz <= INT_MAX;
+            format_valid = supported_layout && valid_rate;
+        } else if (!memcmp(chunk, "data", 4)) {
+            if (!format_valid || !chunk_size || chunk_size > INT32_MAX) return 0;
+            AsoundU8 *decoded = (AsoundU8 *)SDL_malloc(chunk_size);
+            if (!decoded) return 0;
+            memcpy(decoded, wav + data_offset, chunk_size);
+            if (samples) *samples = decoded;
+            if (sample_rate) *sample_rate = (int)rate_hz;
+            return (int)chunk_size;
+        }
+
+        /* RIFF aligns chunks to two bytes; padding is not sample data. */
+        const size_t padded_size = (size_t)chunk_size + (chunk_size & 1u);
+        if (padded_size > wav_size - data_offset) return 0;
+        offset = data_offset + padded_size;
+    }
+    return 0;
+}
+
+/* Decode one compressed cue file to unsigned 8-bit mono via the shared decoder. */
+static int decodeCompressedCue(const char *path, AsoundU8 **samples, int *sample_rate) {
+    CompressedAudio decoded{};
+    if (!compressedAudioLoad(path, &decoded) || decoded.frames > INT32_MAX) {
+        compressedAudioFree(&decoded);
+        return 0;
+    }
+    AsoundU8 *mono = (AsoundU8 *)SDL_malloc((size_t)decoded.frames);
+    if (!mono) {
+        compressedAudioFree(&decoded);
+        return 0;
+    }
+    for (int frame = 0; frame < (int)decoded.frames; frame++) {
+        int mixed = 0;
+        for (int channel = 0; channel < decoded.channels; channel++) {
+            mixed += decoded.samples[(size_t)frame * decoded.channels + channel];
+        }
+        mono[frame] = (AsoundU8)((mixed / decoded.channels >> 8) + 128);
+    }
+    *samples = mono;
+    *sample_rate = decoded.sampleRate;
+    const int count = (int)decoded.frames;
+    compressedAudioFree(&decoded);
+    return count;
+}
+
+/* Load independently editable cue files and replace only slots that are present. */
+int asound_load_replacement_cues(const AsoundU8 *legacy_blob, int legacy_size) {
+    int loaded = 0;
+    for (CueSlot &slot : g_cues) {
+        SDL_free(slot.samples);
+        slot.samples = NULL;
+        slot.sample_count = 0;
+        slot.sample_rate = 0;
+
+        char path[1024]{};
+        const char *extension = NULL;
+        if (findAssetReplacement(slot.filename, path, sizeof(path))) {
+            extension = ".wav";
+        } else if (findReplacementAssetPath(slot.id, ".ogg", path, sizeof(path))) {
+            extension = ".ogg";
+        } else if (findReplacementAssetPath(slot.id, ".mp3", path, sizeof(path))) {
+            extension = ".mp3";
+        } else if (findReplacementAssetPath(slot.id, ".wav", path, sizeof(path))) {
+            extension = ".wav";
+        }
+        if (!extension) continue;
+
+        if (!strcmp(extension, ".wav")) {
+            size_t wav_size = 0;
+            AsoundU8 *wav = readFile(path, &wav_size);
+            if (wav) {
+                slot.sample_count =
+                    decodePcm8MonoWav(wav, wav_size, &slot.samples, &slot.sample_rate);
+                SDL_free(wav);
+            }
+        } else {
+            slot.sample_count =
+                decodeCompressedCue(path, &slot.samples, &slot.sample_rate);
+        }
+        if (!slot.samples || slot.sample_count <= 0) {
+            SDL_free(slot.samples);
+            slot.samples = NULL;
+            slot.sample_count = 0;
+            slot.sample_rate = 0;
+            LogWarn(("asset replacement: failed to decode sound cue %s; "
+                     "legacy sample range remains fallback", path));
+            continue;
+        }
+
+        assetCompareSoundCueRange(
+            slot.id, slot.start, slot.end_inclusive, ASND_SAMPLE_HZ,
+            legacy_blob, legacy_size > 0 ? (size_t)legacy_size : 0u,
+            slot.samples, (size_t)slot.sample_count, slot.sample_rate, path);
+        ++loaded;
+        LogInfo(("asset replacement: loaded sound cue %s from %s (%d samples, %d Hz)",
+                 slot.id, path, slot.sample_count, slot.sample_rate));
+    }
+    return loaded;
+}
+
+/* Return one past the highest legacy byte offset covered by a loaded cue. */
+int asound_replacement_logical_span(void) {
+    int logicalSpan = 0;
+    for (const CueSlot &slot : g_cues) {
+        if (!slot.samples || slot.sample_count <= 0) continue;
+        const int slotSpan = (int)slot.end_inclusive + 1;
+        if (slotSpan > logicalSpan) logicalSpan = slotSpan;
+    }
+    return logicalSpan;
+}
+
+/* Return the replacement cue for a legacy sample pointer, or NULL when not overridden. */
+int asound_find_replacement_cue(AsoundU16 start, AsoundU16 end_inclusive,
+                                AsoundReplacementCue *cue) {
+    if (cue) {
+        cue->samples = NULL;
+        cue->sample_count = 0;
+        cue->sample_rate = 0;
+    }
+    for (const CueSlot &slot : g_cues) {
+        if (slot.start == start && slot.end_inclusive == end_inclusive
+            && slot.samples && slot.sample_count > 0) {
+            if (cue) {
+                cue->samples = slot.samples;
+                cue->sample_count = slot.sample_count;
+                cue->sample_rate = slot.sample_rate;
+            }
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/* Return the number of addressable cue slots, including unloaded slots. */
+int asound_replacement_cue_count(void) {
+    return (int)(sizeof(g_cues) / sizeof(g_cues[0]));
+}
+
+/* Return replacement cue metadata by stable enumeration index. */
+int asound_replacement_cue_at(int index, AsoundU16 *start,
+                              AsoundU16 *end_inclusive,
+                              AsoundReplacementCue *cue) {
+    if (index < 0 || index >= asound_replacement_cue_count()) return 0;
+    CueSlot *slot = &g_cues[index];
+    if (!slot->samples || slot->sample_count <= 0) return 0;
+    if (start) *start = slot->start;
+    if (end_inclusive) *end_inclusive = slot->end_inclusive;
+    if (cue) {
+        cue->samples = slot->samples;
+        cue->sample_count = slot->sample_count;
+        cue->sample_rate = slot->sample_rate;
+    }
+    return 1;
+}

@@ -103,23 +103,6 @@ static Uint64 s_paceCapNs = 0;
 static bool s_showFps = false;
 static int  s_fpsValue = 0;
 
-/* Direct-framebuffer present: blit the paletted page straight into the window
- * surface (INDEX8 / mode 13h) and let SDL push it to VRAM + program the VGA DAC,
- * skipping the SDL_Renderer + per-frame texture upload. Used on fixed-resolution
- * targets with no compositor/scaling (DOS); desktop keeps the renderer for its
- * resizable, scaled window. */
-static bool s_directFB = false;
-/* Optional fixed cap for the no-vsync DOS framebuffer, in nanoseconds per frame. */
-static bool s_pace = false;
-static Uint64 s_paceCapNs = 0;
-
-/* FPS overlay (toggle: Alt+P, handled in input.c). Frames are counted per present
- * in gfx_presentPage; the shown value refreshes ~2x/second so it reads steady. It's
- * drawn into the page's upper-left, so it composites through whatever backend is
- * active. */
-static bool s_showFps = false;
-static int  s_fpsValue = 0;
-
 /* Forward declarations for the page-surface model, used by gfx_videoShutdown
  * before their definitions further down. */
 static GfxState FAR *gfx_getState(void);
@@ -449,25 +432,6 @@ void gfx_paletteRGB(int idx, uint8 *r, uint8 *g, uint8 *b) {
     *b = pal->colors[idx].b;
 }
 
-int gfx_nearestPaletteIndexRgb8(uint8 r, uint8 g, uint8 b) {
-    SDL_Palette *pal = gfx_getPalette();
-    int best = 15;
-    int bestDist = 0x7fffffff;
-    int i;
-    if (!pal || pal->ncolors <= 0) return best;
-    for (i = 0; i < pal->ncolors && i < 256; i++) {
-        int dr = (int)r - pal->colors[i].r;
-        int dg = (int)g - pal->colors[i].g;
-        int db = (int)b - pal->colors[i].b;
-        int dist = dr * dr + dg * dg + db * db;
-        if (dist < bestDist) {
-            bestDist = dist;
-            best = i;
-            if (dist == 0) break;
-        }
-    }
-    return best;
-}
 
 /* Lazily create the 320x200 8-bit surface backing a page index. */
 static SDL_Surface *ensurePage(int page) {
@@ -2644,10 +2608,7 @@ int gfx_testCopyBuiltinFont(uint16 fontIdx, uint8 *bitmapOut, size_t bitmapOutSi
 }
 #endif
 
-/* Runtime font replacement is kept outside this legacy renderer body while
- * remaining in the same translation unit, so it can use the original private
- * font tables without widening the graphics API. */
-#include "gfx_font_replacement.inc"
+
 
 /* ---- Shared glyph engine (slots 0x01-0x06) ----
  * MGRAPHIC has one core blitter (0x04 @0x4ab) that the string slots fall into
@@ -3352,10 +3313,8 @@ int gfx_getGlyphAdvance(uint32 codepoint, uint16 fontIdx) {
      * metrics the glyph renderer will use later. */
     tryLoadReplacementFont(fontIdx);
 #ifdef F15_HAVE_FREETYPE
-    if (fontIdx < 8 && g_fontReplacementTtfFaces[fontIdx]) {
-        if (codepoint <= 0xff && codepoint >= 0x80) return 0;
+    if (fontIdx < 8 && g_fontReplacementTtfFaces[fontIdx])
         return replacementTtfAdvance(fontIdx, codepoint);
-    }
 #endif
     if (codepoint >= 0x80) {
         const ReplacementFontGlyph *glyph = findReplacementFontGlyph(fontIdx, codepoint);
@@ -3363,8 +3322,9 @@ int gfx_getGlyphAdvance(uint32 codepoint, uint16 fontIdx) {
         if (!glyph) glyph = cacheReplacementTtfGlyph(fontIdx, codepoint);
 #endif
         if (glyph) return glyph->width;
-        /* Legacy single-byte chars >= 0x80 are inline color escapes. */
-        if (codepoint <= 0xff) return 0;
+        /* No replacement glyph covers this codepoint: fall back to the
+         * default advance. (Legacy high bytes are color escapes, but those
+         * never reach this API — callers gate them before decoding.) */
         return 8;
     }
     wt = g_fontWidthTables[fontIdx];
@@ -3404,6 +3364,8 @@ int gfx_getStringAdvanceUtf8(const char *text, uint16 fontIdx) {
 }
 
 int FAR CDECL gfx_setFont(uint16 ch, uint16 fontIdx) {
+    /* Only this legacy byte API interprets the high bit as a color command. */
+    if (ch >= 0x80) return 0;
     return gfx_getGlyphAdvance((uint32)ch, fontIdx);
 }
 void FAR CDECL gfx_setFadeSteps(int steps) {

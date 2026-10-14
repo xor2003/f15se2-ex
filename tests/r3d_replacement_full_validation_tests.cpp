@@ -60,7 +60,7 @@ void compareMesh(const std::string &logicalName, int shapeId,
     require(r3dgl_testLegacyShapeStats(legacy, legacySize, &source),
             "legacy shape decode failed: " + logicalName);
     R3DReplacementMesh *mesh =
-        r3dReplacementMesh(logicalName.c_str(), shapeId);
+        r3d_replacementMesh(logicalName.c_str(), shapeId);
     if (!source.renderable) {
         require(mesh == nullptr,
                 "non-renderable shape unexpectedly has replacement: " +
@@ -163,7 +163,7 @@ int main() {
                         offsets[shape + 1] - offsets[shape]);
             ++shapes;
         }
-        r3dReplacementShutdown();
+        r3d_replacementShutdown();
         ++containers;
     }
 
