@@ -10,11 +10,12 @@
  * GM program - still far closer than silence, and the fallback order
  * auto: MT-32 > SF2 > OPL keeps real MT-32 preferred whenever ROMs exist.
  *
- * SoundFont discovery:
+ * SoundFont discovery (quality order):
  *   1. $F15_SF2_PATH (a .sf2/.sf3 file)
- *   2. *.sf2/*.sf3 in <gamedir>/roms, <exedir>/roms, ~/.local/share/mt32-roms
- *   3. system fonts: /usr/share/sounds/sf2 (FluidR3_GM.sf2, default-GM.sf2,
- *      TimGM6mb.sf2), /usr/share/soundfonts
+ *   2. *.sf2/*.sf3 in <gamedir>/roms, ~/.local/share/mt32-roms
+ *   3. big system fonts: /usr/share/sounds/sf2/FluidR3_*.sf2, default-GM.sf2
+ *   4. bundled fonts: <exedir>/roms/*.sf2
+ *   5. small system fonts: TimGM6mb.sf2
  *
  * Selection: F15_AUDIO_BACKEND=sf2|fluidsynth forces this backend; auto
  * uses it when MT-32 cannot open; opl|adlib|off skips it. Without the lib
@@ -65,46 +66,46 @@ static int sf2_try_file(const char *path) {
     return fluid_synth_sfload(g_synth, path, 1) >= 0;
 }
 
-static int sf2_glob_dirs(void) {
-    char dirs[8][1024];
-    int ndirs = 0;
-    const char *gdir = getGamePath();
-    snprintf(dirs[ndirs], sizeof(dirs[0]), "%s/roms", gdir); ndirs++;
-    const char *base = SDL_GetBasePath();
-    if (base && ndirs < 8) {
-        snprintf(dirs[ndirs], sizeof(dirs[0]), "%sroms", base); ndirs++;
-    }
-    const char *home = SDL_getenv("HOME");
-    if (home && *home && ndirs < 8) {
-        snprintf(dirs[ndirs], sizeof(dirs[0]),
-                 "%s/.local/share/mt32-roms", home); ndirs++;
-    }
-    for (int i = 0; i < ndirs; i++) {
-        int count = 0;
-        char **names = SDL_GlobDirectory(dirs[i], "*.sf*", 0, &count);
-        if (!names) continue;
-        for (int j = 0; j < count; j++) {
-            char path[1024];
-            snprintf(path, sizeof(path), "%s/%s", dirs[i], names[j]);
-            if (sf2_try_file(path)) {
-                LogInfo(("sf2: loaded SoundFont %s", path));
-                SDL_free(names);
-                return 1;
-            }
+static int sf2_glob_dir(const char *dir) {
+    int count = 0;
+    char **names = SDL_GlobDirectory(dir, "*.sf*", 0, &count);
+    if (!names) return 0;
+    for (int j = 0; j < count; j++) {
+        char path[1024];
+        snprintf(path, sizeof(path), "%s/%s", dir, names[j]);
+        if (sf2_try_file(path)) {
+            LogInfo(("sf2: loaded SoundFont %s", path));
+            SDL_free(names);
+            return 1;
         }
-        SDL_free(names);
+    }
+    SDL_free(names);
+    return 0;
+}
+
+static int sf2_try_list(const char *const *paths, size_t n) {
+    for (size_t i = 0; i < n; i++) {
+        if (sf2_try_file(paths[i])) {
+            LogInfo(("sf2: loaded SoundFont %s", paths[i]));
+            return 1;
+        }
     }
     return 0;
 }
 
 static int sf2_load_any(void) {
-    static const char *const kSysFonts[] = {
+    /* Quality order: explicit env > user-supplied roms dirs > big system
+     * fonts (FluidR3) > bundled <exedir>/roms > small system fonts. */
+    static const char *const kBigFonts[] = {
         "/usr/share/sounds/sf2/FluidR3_GM.sf2",
         "/usr/share/sounds/sf2/default-GM.sf2",
         "/usr/share/sounds/sf2/FluidR3_GS.sf2",
-        "/usr/share/sounds/sf2/TimGM6mb.sf2",
         "/usr/share/soundfonts/FluidR3_GM.sf2",
         "/usr/share/soundfonts/default-GM.sf2",
+    };
+    static const char *const kSmallFonts[] = {
+        "/usr/share/sounds/sf2/TimGM6mb.sf2",
+        "/usr/share/soundfonts/TimGM6mb.sf2",
     };
     const char *env = SDL_getenv("F15_SF2_PATH");
     if (env && *env) {
@@ -114,14 +115,27 @@ static int sf2_load_any(void) {
         }
         LogWarn(("sf2: F15_SF2_PATH=%s failed to load", env));
     }
-    if (sf2_glob_dirs()) return 1;
-    for (size_t i = 0; i < sizeof(kSysFonts) / sizeof(kSysFonts[0]); i++) {
-        if (sf2_try_file(kSysFonts[i])) {
-            LogInfo(("sf2: loaded SoundFont %s", kSysFonts[i]));
-            return 1;
-        }
+    char gdirRoms[1024];
+    snprintf(gdirRoms, sizeof(gdirRoms), "%s/roms", getGamePath());
+    if (sf2_glob_dir(gdirRoms)) return 1;
+    const char *home = SDL_getenv("HOME");
+    if (home && *home) {
+        char mt32Roms[1024];
+        snprintf(mt32Roms, sizeof(mt32Roms),
+                 "%s/.local/share/mt32-roms", home);
+        if (sf2_glob_dir(mt32Roms)) return 1;
     }
-    return 0;
+    if (sf2_try_list(kBigFonts, sizeof(kBigFonts) / sizeof(kBigFonts[0]))) {
+        return 1;
+    }
+    const char *base = SDL_GetBasePath();
+    if (base) {
+        char baseRoms[1024];
+        snprintf(baseRoms, sizeof(baseRoms), "%sroms", base);
+        if (sf2_glob_dir(baseRoms)) return 1;
+    }
+    return sf2_try_list(kSmallFonts,
+                        sizeof(kSmallFonts) / sizeof(kSmallFonts[0]));
 }
 
 /* ---- public API ------------------------------------------------------------ */
