@@ -806,6 +806,7 @@ target_compile_options(signed_ratio_behavior_tests PRIVATE
 add_behavior_test(file_io_behavior_tests LINK_CORE)
 add_behavior_test(asset_path_behavior_tests LINK_CORE)
 add_behavior_test(png_asset_behavior_tests LINK_CORE)
+add_behavior_test(bitmap_font_replacement_behavior_tests LINK_CORE)
 add_behavior_test(structured_asset_replacement_behavior_tests LINK_CORE)
 set(F15SE2_ASSET_TOOL_COMMAND
     "python3 ${CMAKE_CURRENT_SOURCE_DIR}/tools/f15assets/cli.py"
@@ -818,6 +819,13 @@ if(F15SE2_ORIGINAL_ASSETS AND F15SE2_CONVERTED_ASSETS
             F15_ORIGINAL_ASSETS="${F15SE2_ORIGINAL_ASSETS}"
             F15_CONVERTED_ASSETS="${F15SE2_CONVERTED_ASSETS}")
     set_tests_properties(png_asset_full_validation_tests PROPERTIES
+        LABELS "assets;integration"
+        TIMEOUT 120)
+    add_behavior_test(bitmap_font_full_validation_tests LINK_CORE
+        DEFS
+            F15_ORIGINAL_ASSETS="${F15SE2_ORIGINAL_ASSETS}"
+            F15_CONVERTED_ASSETS="${F15SE2_CONVERTED_ASSETS}")
+    set_tests_properties(bitmap_font_full_validation_tests PROPERTIES
         LABELS "assets;integration"
         TIMEOUT 120)
     add_behavior_test(structured_asset_full_validation_tests LINK_CORE

@@ -251,6 +251,7 @@ void gfx_videoShutdown(void) {
         gfxPageCompositeSurface = NULL;
     }
     cleanupReplacementFonts();
+    bitmapFontReplacementShutdown();
     if (gfxSoftwarePresentTexture) {
         SDL_DestroyTexture(gfxSoftwarePresentTexture);
         gfxSoftwarePresentTexture = NULL;
