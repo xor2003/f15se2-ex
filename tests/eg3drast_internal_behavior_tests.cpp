@@ -10,6 +10,7 @@
 #include <cstring>
 #include <iostream>
 #include "math_rotation_reference.hpp"
+#include <limits>
 
 #include "../src/eg3drast.c"
 
@@ -17,10 +18,11 @@
  * through gfx_impl.c in normal builds. This internal harness intentionally does
  * not link gfx_impl.c, so provide a deterministic palette stub; the tests here
  * exercise rasterizer math, not active DAC nearest-colour search. */
+static int replacementPaletteIndex = -1;
 int gfx_nearestPaletteIndexRgb8(uint8 r, uint8 g, uint8 b) {
     (void)g;
     (void)b;
-    return r & 0x0f;
+    return replacementPaletteIndex >= 0 ? replacementPaletteIndex : r & 0x0f;
 }
 
 /* Backs egdata.c's regnStr global (defined in stdata.c, not linked here). MSVC
@@ -291,6 +293,51 @@ void r2d_submitPoly(const short *, int, int, int, int, int, int) {}
 int FAR CDECL gfx_getBlitOffset() { return 0; }
 
 int main() {
+    {
+        float xyz[] = {1.0f, 2.0f, 3.0f};
+        R3DReplacementPrim primitive{};
+        primitive.xyz = xyz;
+        const int16 matrix[] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+        ReplacementCameraVertex vertex{};
+        const auto savedLod = g_curLod;
+        g_curLod = 4;
+        if (!transformReplacementVertex(&primitive, 0, matrix, 0, 0, 0, &vertex) ||
+            vertex.x != 2 || vertex.y != 6 || vertex.depth != 4) return 1;
+        const float invalid[] = {1073741824.0f, -2147483648.0f,
+                                 std::numeric_limits<float>::max(),
+                                 std::numeric_limits<float>::infinity(),
+                                 std::numeric_limits<float>::quiet_NaN()};
+        for (float value : invalid) {
+            xyz[0] = value;
+            if (transformReplacementVertex(&primitive, 0, matrix, 0, 0, 0, &vertex)) {
+                std::cerr << "unrepresentable replacement vertex accepted\n";
+                return 1;
+            }
+        }
+        // LOD scaling can bring a large intermediate back into the valid range.
+        xyz[0] = 1073741824.0f;
+        g_curLod = 0;
+        if (!transformReplacementVertex(&primitive, 0, matrix, 0, 0, 0, &vertex) ||
+            vertex.x != 8388608L) return 1;
+        g_curLod = savedLod;
+    }
+    {
+        // Editor-stripped proof metadata must not disable engine distance shading.
+        R3DReplacementPrim primitive{};
+        const auto savedShade = g_objShade;
+        replacementPaletteIndex = colorLut[0];
+        g_objShade = 16;
+        const int withoutProof = replacementPrimitiveColor(&primitive);
+        primitive.sourceFlags = 1;
+        primitive.sourceColor = 255;
+        const int withProof = replacementPrimitiveColor(&primitive);
+        if (withoutProof != withProof || withProof != colorLut[0] + 16) {
+            std::cerr << "replacement shading depends on proof metadata\n";
+            return 1;
+        }
+        g_objShade = savedShade;
+        replacementPaletteIndex = -1;
+    }
     int16 matrixA[9] = {};
     int16 matrixB[9] = {};
     int16 matrixR[9] = {};

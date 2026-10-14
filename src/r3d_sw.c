@@ -4,7 +4,9 @@
  * is pixel-identical while the rest of the game routes through the backend seam
  * rather than calling them directly. The painter's depth sort, shared-vertex
  * precompute and raw-display-list rasterizer are software-backend internals
- * (integer Q15, no FPU) for the 386+ target. */
+ * (integer Q15, no FPU) for the 386+ target. Editable GLB replacements are the
+ * exception: their float vertices are converted to the same integer camera-space
+ * representation before the existing span and line rasterizers consume them. */
 #include "r3d.h"
 #include "r3d_replacement.h"
 #include "eg3dmap.h"

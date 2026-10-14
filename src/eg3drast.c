@@ -2386,8 +2386,8 @@ static void processSceneObject(void) {
         return;
     }
 
-    op = (*p) & 0x3f;
-    if (op == 0x3f) {
+    op = (*p) & MODEL_OPCODE_MASK;
+    if (op == MODEL_OPCODE_POINT) {
         sceneObjPoint(p);
         return;
     }
@@ -2484,6 +2484,7 @@ static void insertSortedObject(unsigned char far *p) {
 /* seg001 0x0BE7 thunk path — projectSceneObject: entry from the scene walk.
  * Transforms+culls the object origin, then either renders it immediately (when
  * coplanar with the viewer Z) or queues it into the depth-sorted list. */
+/* Project one legacy scene object while optionally substituting a replacement mesh. */
 static void projectSceneObjectImpl(char far *model, R3DReplacementMesh *replacement,
                                    int yaw, int pitch, int roll,
                                    int posX, int posY, int posZ) {
@@ -2536,6 +2537,7 @@ void far projectSceneObject(char far *model, int yaw, int pitch, int roll,
     projectSceneObjectImpl(model, 0, yaw, pitch, roll, posX, posY, posZ);
 }
 
+/* Project one scene object from a per-shape replacement mesh when present. */
 void far projectReplacementSceneObject(char far *model, R3DReplacementMesh *replacement,
                                        int yaw, int pitch, int roll,
                                        int posX, int posY, int posZ) {
@@ -2544,7 +2546,7 @@ void far projectReplacementSceneObject(char far *model, R3DReplacementMesh *repl
 
 #ifdef DEBUG
 int eg3drast_testReplacementColorFromMaterial(float r, float g, float b, int sourceColor) {
-    R3DReplacementPrim prim;
+    R3DReplacementPrim prim{};
     prim.rgba[0] = r;
     prim.rgba[1] = g;
     prim.rgba[2] = b;
