@@ -6,6 +6,7 @@
 
 void animateFlightPath(int16 *gfxPage);
 void debriefPresent(void); /* compose+present the debrief map (HD-aware map, path, markers) */
+void formatAircraftShotDownEvent(char *buffer, int unitIdx);
 void menuLabelsReset(void);
 /* Select or confirm a debrief item from a logical 320x200 pointer release. */
 int applyDebriefPointer(int x, int y, const MenuItem *currentItem);

@@ -427,6 +427,18 @@ int main() {
             "egReadKey blocks until a key is ready, BIOS-read style");
     delayedKey.join();
 
+    // The flight pause loop must ignore another Alt-P and block for a real
+    // resume key without advancing simulation timing while paused.
+    resetInputState();
+    g_frameTimingAccum = kPauseTimingValue;
+    pushKey(SDL_SCANCODE_P, SDL_KMOD_ALT);
+    pushKey(SDL_SCANCODE_ESCAPE);
+    waitForKeyPress();
+    require(g_frameTimingAccum == kPauseTimingValue,
+            "waitForKeyPress ignores repeated Alt-P and restores frame timing");
+    require(kbhit() == 0,
+            "waitForKeyPress consumes the resume key after repeated Alt-P");
+
     resetInputState();
     input_setMode(INPUT_MODE_MENU);
     pushMenuClick(30, 40);
