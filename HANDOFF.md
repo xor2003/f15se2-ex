@@ -35,8 +35,16 @@ F19_HEAD=0x0        # heading
 F19_KNOTS=          # airspeed
 F19_DAY=1|0         # force day/night
 F19_VM=0x84         # view mode (0=cockpit; 0x84/85/87/88/89/8B = external/chase)
+F19_SEED=0x1        # pin the EGAME mission RNG (seedRng/getTimeOfDay override) —
+                    # needed for reproducible SW-vs-GL captures; START-side gen is
+                    # already deterministic (sub_150BA pinned to 0)
 F19_DUMP=1          # dump page surface -> /tmp/f19frame.bmp + /tmp/f19seq_*.bmp
 ```
+
+GL capture note: under Xvfb+llvmpipe the first world frame takes ~30s to
+present (shader compile); capture at >=35s. Kill runs with
+`pkill -f '^/path/to/f15se2-ex'` — killing the `timeout` wrapper orphans the
+game, and stale windows pollute later captures.
 
 A good "over the sea" checkpoint used during this work:
 `F19_QS=1 F19_POSX=0x8000 F19_POSY=0x8000 F19_ALT=0x2000 F19_PITCH=-0x0c00`
@@ -263,10 +271,26 @@ GL_POLYGON).
 - `egtacmap.c updateTargetingHud`: detail 4 sets `lodM=8` — dot→model depth
   gates widen to −0x100, model pick to −0x80, and `highAlt` depthShift
   ballooning is disabled.
-- Sphere horizon (`drawProjectionSphere`/`glDrawSphere`) activates at
-  detail≥3 in both renderers — shared code, no F-19-side work needed.
-- Verified under Xvfb :99, no sound: GL and SW both show the curved
-  white→blue→red-haze horizon, runway clutter, distant mountains/hangars.
+- F-19 keeps the FLAT horizon at every detail level: the gradient sphere
+  (shared `drawProjectionSphere`/`glDrawSphere`) is dead code in the original
+  binary (detail caps at 2), and original captures show uniform cyan sky +
+  dark ground/sea band. `f19_egame_main` sets `g_skyFlatOnly` (egdata.c),
+  which `drawProjectionSphere` (SW) and the `glDrawSphere` gate (r3d_gl.c)
+  both honor. F-15 still gets the sphere at detail≥3.
+- Verified under Xvfb :99, no sound: GL and SW both show flat cyan sky,
+  runway clutter, distant mountains/hangars — matching DOSBox captures of
+  the original.
+
+## GL fixes (this session)
+
+- `r3d_gl.c`: deferred depth-point queue (`s_depthPts`/`queueDepthPoint`/
+  `flushDepthPoints`). Detail-4's dense terrain collapses hundreds of
+  distant subs to dots per frame; the per-dot begin/endSmoothPoints
+  GL_BLEND+POINT_SMOOTH+MSAA toggles SEGFAULT llvmpipe's emit queue
+  (endSmoothPoints→glDisable inside libgallium, real crash reproduced under
+  gdb). All dots now draw in one batch at scene end; each carries its own
+  depth so z-order vs world is preserved. Sites converted: MESH_FORM_POINT,
+  MESH_FORM_EDGERUN, and the sub-pixel-collapse path in drawSub.
 
 ## Notes / gotchas
 

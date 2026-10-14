@@ -24,7 +24,7 @@ void drawProjectionSphere(int16 skyColor) {
     int facePts[8]; // 4-point quad buffer for drawPolygonOutline
     int16 ringRad;    // ring radius temp
 
-    if (*(char *)&g_detailLevel < 3) {
+    if (g_skyFlatOnly || *(char *)&g_detailLevel < 3) {
         drawFlatHorizon(skyColor);
         return;
     }

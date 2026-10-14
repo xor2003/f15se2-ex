@@ -239,6 +239,12 @@ typedef struct {
 static GlSub s_subs[GL_MAX_SUBS];
 static int s_nSub;
 static int s_subOverflow;
+/* Deferred depth-point queue (see flushDepthPoints): detail-4 F-19 collapses
+ * hundreds of distant subs to dots per frame, and per-dot GL_BLEND/POINT_SMOOTH/
+ * MSAA toggles crash llvmpipe's emit queue, so dots batch to scene end. */
+#define GL_MAX_DEPTH_PTS 16384
+static struct { float x, y, depth; int color; } s_depthPts[GL_MAX_DEPTH_PTS];
+static int s_nDepthPts;
 
 typedef R3DReplacementPrim GlbPrim;
 typedef R3DReplacementMesh GlbMesh;
@@ -1303,6 +1309,7 @@ static void gl_beginScene(const R3DScene *s) {
      * at the gl_endScene anchor (after the 3D, before the HUD), so don't compose it
      * here. */
     r2d_vectorBeginFrame(R2D_COMPOSE_NONE);
+    s_nDepthPts = 0; /* drop any dots left over if a prior scene ended early */
 
     if (s_wide < 0) {
         /* Widescreen 3D (Hor+): on by default; F15_WIDESCREEN=0 forces 4:3. The
@@ -1440,7 +1447,7 @@ static void gl_beginScene(const R3DScene *s) {
     /* Sky/ground background sphere (detail >= 3) drawn first (farthest) with the
      * depth test off so it stays behind everything; the 3D projection is then
      * restored for the objects. */
-    if ((char)g_detailLevel >= 3)
+    if ((char)g_detailLevel >= 3 && !g_skyFlatOnly)
         glDrawSphere(sphOrtho[0], sphOrtho[1], sphOrtho[2], sphOrtho[3]);
     glMatrixMode(GL_PROJECTION);
     glLoadMatrixf(s_proj);
@@ -1632,11 +1639,28 @@ static void emitDepthPoint(float x, float y, long depth32, int colorIdx) {
     glColorIndex(colorIdx);
     fogVertex(x, y, (float)depth32 / 65536.0f);
 }
-static void drawDepthPoint(float x, float y, long depth32, int colorIdx) {
+static void queueDepthPoint(float x, float y, long depth32, int colorIdx) {
     if ((int)(depth32 >> 16) < 1) return; /* behind the near plane */
+    if (s_nDepthPts >= GL_MAX_DEPTH_PTS) return;
+    s_depthPts[s_nDepthPts].x = x;
+    s_depthPts[s_nDepthPts].y = y;
+    s_depthPts[s_nDepthPts].depth = (float)depth32 / 65536.0f;
+    s_depthPts[s_nDepthPts].color = colorIdx;
+    s_nDepthPts++;
+}
+static void flushDepthPoints(void) {
+    int i;
+    if (!s_nDepthPts) return;
+    glPolygonOffset(0.0f, 0.0f);
+    beginSmoothPoints();
     glBegin(GL_POINTS);
-    emitDepthPoint(x, y, depth32, colorIdx);
+    for (i = 0; i < s_nDepthPts; i++) {
+        glColorIndex(s_depthPts[i].color);
+        fogVertex(s_depthPts[i].x, s_depthPts[i].y, s_depthPts[i].depth);
+    }
     glEnd();
+    endSmoothPoints();
+    s_nDepthPts = 0;
 }
 
 static void drawGlbReplacementSub(const GlSub *r, const GlbMesh *mesh) {
@@ -1867,10 +1891,8 @@ static void drawSub(const GlSub *r) {
      * so no scaleDiv is needed. Sized by distance (drawDepthPoint). */
     if (l->form == MESH_FORM_POINT) {
         if ((int)(r->camY >> 16) < 1) return; /* g_camTransYHi < 1 cull */
-        beginSmoothPoints();
-        drawDepthPoint((float)r->camBase, (float)r->camX, r->camY,
-                       colorLut[l->pointColor] + GL_NEAR_SHADE);
-        endSmoothPoints();
+        queueDepthPoint((float)r->camBase, (float)r->camX, r->camY,
+                        colorLut[l->pointColor] + GL_NEAR_SHADE);
         return;
     }
 
@@ -1878,9 +1900,7 @@ static void drawSub(const GlSub *r) {
      * vertex transformed by the object matrix (the on-the-fly path's emitModelVertex).
      * No LOD scale (emitModelVertex applies none), so depth feeds glEdgeRunColor raw. */
     if (l->form == MESH_FORM_EDGERUN) {
-        beginSmoothPoints();
         for (i = 0; i < 9; i++) cm[i] = (float)r->combined[i];
-        glBegin(GL_POINTS);
         for (i = 0; i < l->nRunRefs; i++) {
             int ref = l->runRefs[i];
             int ix, iy, iz, X, Y, Z;
@@ -1898,11 +1918,8 @@ static void drawSub(const GlSub *r) {
             camY = 2.0f * (cm[1] * X + cm[4] * Z + cm[7] * Y) + (float)r->camX;
             depth = 2.0f * (cm[2] * X + cm[5] * Z + cm[8] * Y) + (float)r->camY;
             depthRaw = (long)depth;
-            if ((int)(depthRaw >> 16) < 1) continue; /* dHi >= 1 */
-            emitDepthPoint(camX, camY, depthRaw, glEdgeRunColor((int)(depthRaw >> 16)));
+            queueDepthPoint(camX, camY, depthRaw, glEdgeRunColor((int)(depthRaw >> 16)));
         }
-        glEnd();
-        endSmoothPoints();
         return;
     }
 
@@ -2006,12 +2023,9 @@ static void drawSub(const GlSub *r) {
                 break;
             }
             if (colorByte < 0 && l->nLines) colorByte = l->lines[0].colorByte;
-            if (colorByte >= 0) {
-                beginSmoothPoints();
-                drawDepthPoint((float)r->camBase, (float)r->camX, r->camY,
-                               colorLut[colorByte] + GL_NEAR_SHADE);
-                endSmoothPoints();
-            }
+            if (colorByte >= 0)
+                queueDepthPoint((float)r->camBase, (float)r->camX, r->camY,
+                                colorLut[colorByte] + GL_NEAR_SHADE);
             return;
         }
     }
@@ -2320,6 +2334,11 @@ static void gl_endScene(void) {
     glPolygonOffset(0.0f, 0.0f);
     for (i = 0; i < s_nLine; i++) drawGlLine(&s_lines[i]);
     s_nLine = 0;
+
+    /* Deferred sub-pixel/edge-run dots: one batch, after the world geometry so
+     * the depth buffer sorts them (draw order between dots is moot). */
+    if (s_mainScene) glEnable(GL_FOG);
+    flushDepthPoints();
 
     glDisable(GL_FOG);
     s_nSub = 0;

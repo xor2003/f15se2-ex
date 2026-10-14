@@ -144,7 +144,12 @@ void f19eg_srand(uint16 seed) {
 /* ==== seg000:0xd453 ==== */
 void seedRng(void) {
     if (g_inputDisabled == 0) {
+        const char *fs;
         g_rngSeed = getTimeOfDay();
+        /* F19_SEED=<n> pins the mission seed — deterministic runs for SW/GL
+         * comparisons and replays (the original always reads the RTC). */
+        if ((fs = getenv("F19_SEED")))
+            g_rngSeed = (int16)strtol(fs, NULL, 0);
     }
     f19eg_srand(g_rngSeed);
 }

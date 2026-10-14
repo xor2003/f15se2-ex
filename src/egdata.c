@@ -676,6 +676,11 @@ uint8 g_horizonSkyColor = 3;
 
 uint8 g_horizonGroundColor = 6;
 int16 g_horizonSideFlag = 0;
+/* g_skyFlatOnly: force the flat two-band horizon (drawFlatHorizon) at every
+ * detail level, skipping the detail>=3 gradient sphere. F-19 sets this — the
+ * sphere exists in its binary (sub_204FE) but is unreachable there since the
+ * original caps detail at 2, so F-19's real sky is always the flat bands. */
+int16 g_skyFlatOnly = 0;
 
 /* g_objShade: object-shading flag, written by the 3D shape renderer. */
 uint8 g_objShade = 0;

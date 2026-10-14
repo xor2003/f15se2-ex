@@ -120,6 +120,7 @@ extern const uint8 g_theaterGrids[];
 extern int16 g_unusedLoadDoneFlag;
 extern const int16 g_mapTileLodTable[];
 extern uint8 g_horizonGroundColor;
+extern int16 g_skyFlatOnly;
 extern uint8 *colorLut;
 extern int16 g_overlayBaseX[];
 extern int16 g_overlayBaseY[];
