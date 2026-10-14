@@ -2,6 +2,7 @@
 #include "offsets.h"
 #include "comm.h"
 #include "shared/common.h"
+#include "shared/png_asset.h"
 #include "gfx.h"
 #include "slot.h"
 #include "const.h"

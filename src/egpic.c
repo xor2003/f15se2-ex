@@ -1,5 +1,6 @@
 // seg000 optimization disabled (/Od) code
 #include "shared/common.h"
+#include "shared/png_asset.h"
 #include "egcode.h"
 #include "egpic.h"
 #include "egtypes.h"

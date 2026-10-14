@@ -214,6 +214,7 @@ set(F15SE2_SOURCES
     ${SRC_DIR}/shared/asset_compare_sound.c
     ${SRC_DIR}/shared/asset_compare_3d.c
     ${SRC_DIR}/shared/asset_path.c
+    ${SRC_DIR}/shared/png_asset.c
     ${SRC_DIR}/shared/cleanup.c
     ${SRC_DIR}/shared/drawstr.c
     ${SRC_DIR}/shared/textfmt.c
@@ -797,6 +798,22 @@ target_compile_options(signed_ratio_behavior_tests PRIVATE
     $<$<CXX_COMPILER_ID:MSVC>:/J>)
 add_behavior_test(file_io_behavior_tests LINK_CORE)
 add_behavior_test(asset_path_behavior_tests LINK_CORE)
+add_behavior_test(png_asset_behavior_tests LINK_CORE)
+if(F15SE2_ORIGINAL_ASSETS AND F15SE2_CONVERTED_ASSETS
+   AND IS_DIRECTORY "${F15SE2_ORIGINAL_ASSETS}"
+   AND IS_DIRECTORY "${F15SE2_CONVERTED_ASSETS}")
+    add_behavior_test(png_asset_full_validation_tests LINK_CORE
+        DEFS
+            F15_ORIGINAL_ASSETS="${F15SE2_ORIGINAL_ASSETS}"
+            F15_CONVERTED_ASSETS="${F15SE2_CONVERTED_ASSETS}")
+    set_tests_properties(png_asset_full_validation_tests PROPERTIES
+        LABELS "assets;integration"
+        TIMEOUT 120)
+else()
+    message(STATUS
+        "Skipping PNG full validation: set F15SE2_ORIGINAL_ASSETS and "
+        "F15SE2_CONVERTED_ASSETS to existing directories")
+endif()
 add_behavior_test(gameplay_behavior_tests LINK_CORE)
 add_behavior_test(fixed_math_backend_tests LINK_CORE)
 add_behavior_test(typed_rotation_tests LINK_CORE)
