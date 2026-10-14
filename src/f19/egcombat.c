@@ -12,7 +12,6 @@ int16 rangeApprox(int16 dx, int16 dy);           /* sub_1D23B */
 int16 computeBearing(int16 dx, int16 dy);        /* sub_1D29D */
 int16 abs(int16 v);
 
-struct Projectile { int16 mapX, mapY, alt, speed, worldX, worldY, worldZ, ttl, specIdx, weaponIdx, targetLock, targetRef; };
 struct Weapon { int8 name[8]; int16 lethality, dangerTier, flags; };   /* 14-byte @0x4894 */
 void   exitTimeAccel(void);         /* sub_1E010 */
 struct MissileSpec { int16 weaponIdx; int16 ammo; };
@@ -336,8 +335,8 @@ void updateThreatAlert(void) {
  * transient map index in guard2.  RU needed a phantom register param
  * ('mov si,[bp+4]' dead load) to approximate this. */
 void spawnSamThreat(void) {
-    int16 dy, dx, slot, specIdx;
-    int16 off;
+    struct F19Projectile *pj;
+    int16 dy, dx, slot;
 
     if ((g_missionTick & 0xF) != 0)
         return;
@@ -346,23 +345,22 @@ void spawnSamThreat(void) {
     if (g_nightMode != 0)
         return;
     slot = (g_missionTick >> 4) & 7;
-    specIdx = 0x21;
-    off = slot * 24;
-    if (*(int16 *)((char *)g_projectiles + off + 14) != 0)
+    pj = &g_projectiles[slot];
+    if (pj->ttl != 0)
         return;
-    *(int16 *)((char *)g_projectiles + off) = randomRange(0x800) + (g_viewX_ & 0xF800);
-    *(int16 *)((char *)g_projectiles + off + 2) = randomRange(0x800) + (g_viewY_ & 0xF800);
-    dx = g_viewX_ - *(int16 *)((char *)g_projectiles + off);
-    dy = g_viewY_ - *(int16 *)((char *)g_projectiles + off + 2);
+    pj->mapX = randomRange(0x800) + (g_viewX_ & 0xF800);
+    pj->mapY = randomRange(0x800) + (g_viewY_ & 0xF800);
+    dx = g_viewX_ - pj->mapX;
+    dy = g_viewY_ - pj->mapY;
     if ((uint16)((4 - g_missionStatus) << 8) >= (uint16)rangeApprox(dx, dy))
         return;
-    *(int16 *)((char *)g_projectiles + off + 4) = 0;
-    *(int16 *)((char *)g_projectiles + off + 6) = g_samSpeed >> 6;
-    *(int16 *)((char *)g_projectiles + off + 8) = computeBearing(dx, -dy);
-    *(int16 *)((char *)g_projectiles + off + 10) = 0x2000;
-    *(int16 *)((char *)g_projectiles + off + 14) = (int16)(((int32)g_frameRateScaling * ((int32)g_samRange << 4)) / (int32)*(int16 *)((char *)g_projectiles + off + 6));
-    *(int16 *)((char *)g_projectiles + off + 16) = 0x21;
-    *(int16 *)((char *)g_projectiles + off + 22) = 1;
+    pj->alt = 0;
+    pj->speed = g_samSpeed >> 6;
+    pj->worldX = computeBearing(dx, -dy);
+    pj->worldY = 0x2000;
+    pj->ttl = (int16)(((int32)g_frameRateScaling * ((int32)g_samRange << 4)) / (int32)pj->speed);
+    pj->specIdx = 0x21;
+    pj->targetRef = 1;
     strcpy(strBuf, "SA-14");
     strcat(strBuf, " fired");
     hudMessage(strBuf);
@@ -390,9 +388,9 @@ void updateObjects(void) {
                     plotMapObject(g_simObjects[objIdx8].posX, g_simObjects[objIdx8].posY,
                                   g_simObjects[objIdx8].terrainColor, 1);
                 mode2 = 0;
-                if (!((uint8)*(int16 *)&g_simObjects[objIdx8].flags & 4)) {
+                if (!(g_simObjects[objIdx8].flags.b[0] & 4)) {
                     if (g_threatActiveTimer != 0) {
-                        if (!(*(int16 *)&g_simObjects[objIdx8].flags & 0x140) ||
+                        if (!(g_simObjects[objIdx8].flags.w & 0x140) ||
                             g_threatActiveTimer > g_threatDisplayTtl) {
                         tgtX4 = g_threatRefX;
                         tY = g_threatRefY;
@@ -1037,12 +1035,7 @@ lock_eval:
                 g_projectiles[slotd].ttl = 0;
                 strcpy(strBuf, missiles[g_projectiles[slotd].weaponIdx].longName);
                 if (modec == 0x1E || modec == 0x1D || modec == 0x1C) {
-                    {   /* pjbase is a codegen device: `register` commits si to the
-                         * slotd*24 byte offset region-wide, so the original's
-                         * [si+543x] index-form field accesses fall out instead of
-                         * a folded &projectiles[slotd].weaponIdx pointer. */
-                    int16 pjbase = slotd * (int16)sizeof(struct Projectile);
-                    if (*(int16 *)((char *)g_projectiles + pjbase + 16) == 0x26) {
+                    if (g_projectiles[slotd].specIdx == 0x26) {
                         goto cluster_imp;
                     } else {
                         makeSound(2, 2);
@@ -1054,28 +1047,26 @@ lock_eval:
                             tileYc = -((int16)(g_nearestTileObj->y >> 5) - 0x8000);
                             disto = rangeApprox(g_hitMapX - tileXc, g_hitMapY - tileYc);
                             if (disto < (uint16)((getWeaponStat(
-                                                     *(int16 *)((char *)g_projectiles + pjbase + 18),
+                                                     g_projectiles[slotd].weaponIdx,
                                                      storeIdxj) << 6) /
                                                  (g_missionStatus + 2))) {
                                 destroyGroundTarget(storeIdxj);
                                 strcat(strBuf, " destroyed by ");
                                 strcat(strBuf,
-                                       missiles[*(int16 *)((char *)g_projectiles + pjbase + 18)].longName);
+                                       missiles[g_projectiles[slotd].weaponIdx].longName);
                                 g_hitEffectTimer = 8;
                                 g_hitAlt = 0;
                             }
                         }
                         hudMessage(strBuf);
-                        pjbase = slotd * (int16)sizeof(struct Projectile);
-                        disto = rangeApprox(g_viewX_ - *(int16 *)((char *)g_projectiles + pjbase),
-                                            g_viewY_ - *(int16 *)((char *)g_projectiles + pjbase + 2)) +
+                        disto = rangeApprox(g_viewX_ - g_projectiles[slotd].mapX,
+                                            g_viewY_ - g_projectiles[slotd].mapY) +
                                 ((uint16)g_viewZ >> 5);
                         if ((uint16)(g_missionStatus << 5) > disto) {
                             bombTarget();
                             strcpy(strBuf, "Blast damage");
                         }
                         goto impact_done;
-                    }
                     }
 cluster_imp:
                     foundk = 0;

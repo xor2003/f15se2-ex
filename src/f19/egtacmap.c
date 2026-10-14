@@ -644,8 +644,6 @@ struct SimObject {
     int16 terrainColor; /* +0x20 */
     int16 damage;       /* +0x22 */
 };                                   /* 36 bytes */
-struct Projectile { int16 mapX, mapY, alt, speed, worldX, worldY, worldZ, ttl,
-                    specIdx, weaponIdx, targetLock, targetRef; };
 struct MapEvent { int16 mapX, mapY, unused4, type, ttl, unusedA; };
 void projectMapPoint(int16 mapX, int16 mapY);               /* sub_19810 */
 void drawMapMarkerBox(int16 cx, int16 cy, int16 color);     /* sub_1978C */

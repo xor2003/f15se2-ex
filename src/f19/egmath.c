@@ -195,12 +195,10 @@ int16 readAxisInput(int16 axisIdx) {
  * Returns a 32-bit fixed-point result in dx:ax.  Each axis term is a Q14
  * fixed multiply sign-extended to 32 bits and accumulated. */
 int32 matVecDotAxis(int16 i, int16 a, int16 b, int16 c) {
-    int16 off;
     int32 acc;
-    off = i * 2;
-    acc = (int32)fixedMulQ14(*(int16 *)((char *)g_rotMatrix + off), a);
-    acc += (int32)fixedMulQ14(*(int16 *)((char *)g_rotMatrix + off + 6), c);
-    acc += (int32)fixedMulQ14(*(int16 *)((char *)g_rotMatrix + off + 12), b);
+    acc = (int32)fixedMulQ14(g_rotMatrix[i], a);
+    acc += (int32)fixedMulQ14(g_rotMatrix[i + 3], c);
+    acc += (int32)fixedMulQ14(g_rotMatrix[i + 6], b);
     return acc;
 }
 

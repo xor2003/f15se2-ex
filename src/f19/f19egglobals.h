@@ -18,7 +18,10 @@ struct NeighborSampling;
 struct ObjType;
 struct Particle;
 struct Proj3d;
-struct Projectile;
+/* DOS 24-byte projectile record — distinct from shared struct.h's Projectile,
+ * which carries the port's extra fineX/fineY fields (32-byte stride). */
+struct F19Projectile { int16 mapX, mapY, alt, speed, worldX, worldY, worldZ,
+                       ttl, specIdx, weaponIdx, targetLock, targetRef; };
 struct Sam;
 struct SimObject;
 struct SpriteParams;
@@ -235,7 +238,7 @@ extern int16 g_posVisibleFlag;
 extern struct Proj3d f19eg_g_proj3d;   /*  */
 #define g_proj3d f19eg_g_proj3d
 #define g_projDepth (*(int16 *)((uint8 *)f19_egSpace.m_g_classTab + 112))
-#define g_projectiles ((struct Projectile *)f19_egSpace.m_g_projectiles)
+#define g_projectiles ((struct F19Projectile *)f19_egSpace.m_g_projectiles)
 #define g_radarScopeRange (*(int16 *)((uint8 *)f19_egSpace.m_g_weaponCells + 270))
 #define g_rearViewShape ((int16 *)f19_egSpace.m_g_rearViewShape)
 #define g_render3DTiles (*(int16 *)((uint8 *)f19_egSpace.m_g_projectiles + 314))

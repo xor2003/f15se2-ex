@@ -612,8 +612,6 @@ void rebuildOrientation() {
 }
 
 /* ==== seg000:0x33d9 ==== */
-struct Projectile { int16 mapX, mapY, alt, speed, worldX, worldY, worldZ,
-                    ttl, specIdx, weaponIdx, targetLock, targetRef; };
 void far gfx_waitRetrace(void);                    /* sub_2F183 */
 #define gfx_waitRetrace2 gfx_waitRetrace
 void far gfx_waitRetrace(void);                   /* sub_2F188 */
