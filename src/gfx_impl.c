@@ -261,7 +261,6 @@ void gfx_videoShutdown(void) {
         SDL_DestroyPalette(gfxPalette);
         gfxPalette = NULL;
     }
-<<<<<<< HEAD
     gfx_setHiResReplacementSurface(NULL);
     gfx_setPageReplacementSurface(NULL);
     if (gfxPageCompositeSurface) {
@@ -269,9 +268,6 @@ void gfx_videoShutdown(void) {
         gfxPageCompositeSurface = NULL;
     }
     cleanupReplacementFonts();
-=======
-    bitmapFontReplacementShutdown();
->>>>>>> feature/asset-runtime-bitmap-fonts
     if (gfxSoftwarePresentTexture) {
         SDL_DestroyTexture(gfxSoftwarePresentTexture);
         gfxSoftwarePresentTexture = NULL;
@@ -1283,7 +1279,6 @@ static uint8 g_fontMaxWidths[8] = {4, 8, 6, 6, 8, 6, 0, 0};
 static uint8 *g_fontBitmapPtrs[8] = {
     (uint8 *)g_font0_bitmaps, (uint8 *)g_font1_bitmaps, NULL, (uint8 *)g_font3_bitmaps,
     (uint8 *)g_font4_bitmaps, (uint8 *)g_font5_bitmaps, NULL, NULL};
-<<<<<<< HEAD
 static uint8 g_fontBitmapRowSize[8] = {5, 8, 0, 6, 7, 6, 0, 0};
 /* Modern font replacements are deliberately media-first. BDF carries both
  * glyph bitmaps and advance widths; PNG atlas fallback carries bitmap pixels
@@ -2599,42 +2594,11 @@ static int copyFontTables(uint16 fontIdx, const uint8 *bitmap, const uint8 *widt
     if (widthsOut && widthsOutSize < 96u) return 0;
     if (bitmapOut) memcpy(bitmapOut, bitmap, bitmapSize);
     if (widthsOut) memcpy(widthsOut, widths, 96);
-=======
-static const uint8 g_fontBitmapRowSize[8] = {5, 8, 0, 6, 7, 6, 0, 0};
-/* Override one legacy bitmap font slot from editable BDF or PNG media when available. */
-static void tryLoadBitmapFontReplacement(uint16 fontIdx) {
-    BitmapFontReplacement replacement{};
-    if (fontIdx >= 8 || !g_fontWidthTables[fontIdx]
-        || !g_fontBitmapPtrs[fontIdx]) {
-        return;
-    }
-    if (bitmapFontReplacementGet(fontIdx, g_fontMaxWidths[fontIdx],
-                                 g_fontHeightsArr[fontIdx],
-                                 g_fontWidthTables[fontIdx], &replacement)) {
-        g_fontBitmapPtrs[fontIdx] = (uint8 *)replacement.bitmaps;
-        g_fontWidthTables[fontIdx] = (const uint8 *)replacement.widths;
-    }
-}
-
-#ifdef DEBUG
-static int copyFontTables(const uint8 *bitmap, const uint8 *widths,
-                          int height, int maxWidth,
-                          uint8 *bitmapOut, size_t bitmapOutSize,
-                          uint8 *widthsOut, size_t widthsOutSize,
-                          int *heightOut, int *maxWidthOut) {
-    const size_t bitmapSize = (size_t)96 * (size_t)height;
-    if (!bitmap || !widths || height <= 0 || maxWidth <= 0) return 0;
-    if (bitmapOut && bitmapOutSize < bitmapSize) return 0;
-    if (widthsOut && widthsOutSize < 96u) return 0;
-    if (bitmapOut) memcpy(bitmapOut, bitmap, bitmapSize);
-    if (widthsOut) memcpy(widthsOut, widths, 96u);
->>>>>>> feature/asset-runtime-bitmap-fonts
     if (heightOut) *heightOut = height;
     if (maxWidthOut) *maxWidthOut = maxWidth;
     return 1;
 }
 
-<<<<<<< HEAD
 int gfx_testCopyEffectiveFont(uint16 fontIdx, uint8 *bitmapOut, size_t bitmapOutSize,
                               uint8 *widthsOut, size_t widthsOutSize,
                               int *heightOut, int *maxWidthOut) {
@@ -2654,41 +2618,13 @@ int gfx_testCopyBuiltinFont(uint16 fontIdx, uint8 *bitmapOut, size_t bitmapOutSi
                           g_fontBitmapRowSize[fontIdx], g_fontMaxWidths[fontIdx],
                           bitmapOut, bitmapOutSize, widthsOut, widthsOutSize,
                           heightOut, maxWidthOut);
-=======
-int gfx_testCopyEffectiveFont(uint16 fontIdx, uint8 *bitmapOut,
-                              size_t bitmapOutSize, uint8 *widthsOut,
-                              size_t widthsOutSize, int *heightOut,
-                              int *maxWidthOut) {
-    if (fontIdx >= 8) return 0;
-    tryLoadBitmapFontReplacement(fontIdx);
-    return copyFontTables(
-        g_fontBitmapPtrs[fontIdx], g_fontWidthTables[fontIdx],
-        g_fontBitmapRowSize[fontIdx], g_fontMaxWidths[fontIdx],
-        bitmapOut, bitmapOutSize, widthsOut, widthsOutSize,
-        heightOut, maxWidthOut);
-}
-
-int gfx_testCopyBuiltinFont(uint16 fontIdx, uint8 *bitmapOut,
-                            size_t bitmapOutSize, uint8 *widthsOut,
-                            size_t widthsOutSize, int *heightOut,
-                            int *maxWidthOut) {
-    const uint8 *bitmap = NULL;
-    const uint8 *widths = NULL;
-    switch (fontIdx) {
-    case 0: bitmap = &g_font0_bitmaps[0][0]; widths = g_font0_widths; break;
-    case 1: bitmap = &g_font1_bitmaps[0][0]; widths = g_font1_widths; break;
-    case 3: bitmap = &g_font3_bitmaps[0][0]; widths = g_font3_widths; break;
-    case 4: bitmap = &g_font4_bitmaps[0][0]; widths = g_font4_widths; break;
-    case 5: bitmap = &g_font5_bitmaps[0][0]; widths = g_font5_widths; break;
-    default: return 0;
-    }
-    return copyFontTables(
-        bitmap, widths, g_fontBitmapRowSize[fontIdx],
-        g_fontMaxWidths[fontIdx], bitmapOut, bitmapOutSize,
-        widthsOut, widthsOutSize, heightOut, maxWidthOut);
->>>>>>> feature/asset-runtime-bitmap-fonts
 }
 #endif
+
+/* Runtime font replacement is kept outside this legacy renderer body while
+ * remaining in the same translation unit, so it can use the original private
+ * font tables without widening the graphics API. */
+#include "gfx_font_replacement.inc"
 
 /* ---- Shared glyph engine (slots 0x01-0x06) ----
  * MGRAPHIC has one core blitter (0x04 @0x4ab) that the string slots fall into
@@ -2730,11 +2666,7 @@ static void drawStringCore(int16 *params, const char *string,
     y = (int)params[5];
     color = (int)params[2];
     fontIdx = (uint16)params[6] & 7;
-<<<<<<< HEAD
     tryLoadReplacementFont(fontIdx);
-=======
-    tryLoadBitmapFontReplacement(fontIdx);
->>>>>>> feature/asset-runtime-bitmap-fonts
     height = g_fontHeightsArr[fontIdx];
     rowSize = g_fontBitmapRowSize[fontIdx];
     bitmaps = g_fontBitmapPtrs[fontIdx];
@@ -2858,15 +2790,6 @@ static void drawStringCore(int16 *params, const char *string,
     params[2] = (int16)color;
 }
 
-/* Rotated, sub-grid HUD label (GL native-res overlay only). Draws `string` in font
- * `fontIdx`/`color` with its glyph grid placed by two basis vectors: (exX,exY) is the
- * on-screen 320-space step per text column, (eyX,eyY) per row, both emanating from the
- * float anchor (ax,ay) = the string's top-left in absolute 320-space. Each lit font
- * texel becomes one rotated parallelogram cell submitted via r2d_submitQuadF, so the
- * label rotates with (and glides sub-grid along) the pitch-ladder lines instead of
- * snapping upright to the 320x200 grid. The software backend keeps the upright integer
- * glyph engine (drawStringCore); this is a no-op there. Scissored to the half-open
- * clip rect, matching the glyph slot's clip window. */
 void FAR gfx_drawGlyphStrRot(const char *string, int fontIdx, int color,
                              float ax, float ay, float exX, float exY,
                              float eyX, float eyY,
@@ -2878,7 +2801,6 @@ void FAR gfx_drawGlyphStrRot(const char *string, int fontIdx, int color,
     float penX = 0.0f; /* running text-column offset (in glyph texels) */
     if (!string) return;
     fontIdx &= 7;
-    tryLoadBitmapFontReplacement((uint16)fontIdx);
     height = g_fontHeightsArr[fontIdx];
     rowSize = g_fontBitmapRowSize[fontIdx];
     bitmaps = g_fontBitmapPtrs[fontIdx];
@@ -3402,7 +3324,6 @@ int gfx_getGlyphAdvance(uint32 codepoint, uint16 fontIdx) {
      * agrees with drawStringCore's glyph selection and x-advance behavior. */
     const uint8 *wt;
     if (fontIdx >= 8) return 8;
-<<<<<<< HEAD
     /* Font replacements are authoritative for both drawing and layout. Load
      * BDF/PNG before width lookup so centred/right-aligned text uses the same
      * metrics the glyph renderer will use later. */
@@ -3423,11 +3344,6 @@ int gfx_getGlyphAdvance(uint32 codepoint, uint16 fontIdx) {
         if (codepoint <= 0xff) return 0;
         return 8;
     }
-=======
-    tryLoadBitmapFontReplacement(fontIdx);
-    /* Chars >= 0x80 are inline color escapes - no glyph, no width */
-    if (ch >= 0x80) return 0;
->>>>>>> feature/asset-runtime-bitmap-fonts
     wt = g_fontWidthTables[fontIdx];
     if (!wt || codepoint < 0x20) return 8;
     return wt[codepoint - 0x20];

@@ -206,6 +206,10 @@ void renderHudFrame(int unused) {
         if (g_autopilotEngaged == 1) {
             drawStringActivePage("Press any key to play", 120, 1, g_nightMode != 0 ? 0xe : 0);
         }
+    } else if (hudStatusOverlayVisible) {
+        gfx_invalidateTtfTextOverlayRect(0, HUD_STATUS_TEXT_Y, 319,
+                                         HUD_STATUS_TEXT_Y + HUD_TRANSIENT_TEXT_HEIGHT);
+        hudStatusOverlayVisible = 0;
     }
     if (!g_dirMsgTimer.isZero() && g_viewMode == VIEW_COCKPIT && g_halfScaleRender == 0) {
         --g_dirMsgTimer;
