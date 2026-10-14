@@ -392,6 +392,7 @@ if(AUDIO)
     list(APPEND EGAME_SOURCES
         ${SRC_DIR}/asound/asound_model.c
         ${SRC_DIR}/asound/asound_mt32.c
+        ${SRC_DIR}/asound/asound_sf2.c
         ${SRC_DIR}/asound/asound_music_replacement.c
         ${SRC_DIR}/asound/asound_replacements.c
         ${SRC_DIR}/asound/asopl.c
@@ -577,6 +578,39 @@ if(AUDIO)
         message(STATUS "MT-32 backend enabled (libmt32emu found)")
     else()
         message(STATUS "MT-32 backend disabled (libmt32emu not found); AdLib/OPL only")
+    endif()
+
+    # SoundFont tier (free, ROM-less): optional FluidSynth. The SoundFont
+    # itself is discovered at runtime (see asound_sf2.c). Prefer a static
+    # lib (vcpkg's is glib-free) over the system shared one, which drags
+    # glib/sndfile/pulse deps into the self-contained bundle.
+    find_library(FLUIDSYNTH_LIBRARY NAMES libfluidsynth.a fluidsynth
+        HINTS ${F15_FLUIDSYNTH_ROOT}/lib /home/xor/vcpkg/packages/fluidsynth_x64-linux/lib)
+    find_path(FLUIDSYNTH_INCLUDE_DIR fluidsynth.h
+        HINTS ${F15_FLUIDSYNTH_ROOT}/include /home/xor/vcpkg/packages/fluidsynth_x64-linux/include)
+    if(FLUIDSYNTH_LIBRARY AND FLUIDSYNTH_INCLUDE_DIR)
+        add_library(FluidSynth::fluidsynth UNKNOWN IMPORTED)
+        set_target_properties(FluidSynth::fluidsynth PROPERTIES
+            IMPORTED_LOCATION "${FLUIDSYNTH_LIBRARY}"
+            INTERFACE_INCLUDE_DIRECTORIES "${FLUIDSYNTH_INCLUDE_DIR}"
+            INTERFACE_LINK_LIBRARIES "asound;m;pthread;rt")
+        set(FLUIDSYNTH_FOUND TRUE)
+        set(FLUIDSYNTH_TARGET FluidSynth::fluidsynth)
+    else()
+        find_package(PkgConfig QUIET)
+        if(PkgConfig_FOUND)
+            pkg_check_modules(FLUIDSYNTH QUIET IMPORTED_TARGET fluidsynth)
+        endif()
+        if(FLUIDSYNTH_FOUND)
+            set(FLUIDSYNTH_TARGET PkgConfig::FLUIDSYNTH)
+        endif()
+    endif()
+    if(FLUIDSYNTH_FOUND)
+        target_link_libraries(f15se2_core PRIVATE ${FLUIDSYNTH_TARGET})
+        target_compile_definitions(f15se2_core PRIVATE F15_HAVE_FLUIDSYNTH=1)
+        message(STATUS "SoundFont backend enabled (FluidSynth: ${FLUIDSYNTH_LIBRARY})")
+    else()
+        message(STATUS "SoundFont backend disabled (FluidSynth not found)")
     endif()
 endif()
 # Keep the log.h diagnostics live (the Log* macros compile out without DEBUG).
