@@ -19,7 +19,7 @@ extern int16  f19_sub_10AE8(struct SelRow *tab, int16 namesOfs, int16 cnt,
                             int16 a4, int16 *pd, int16 a6);
 extern void   sub_10924(char *tab, int16 sel, int16 cnt, int16 x, int16 y, ...);
 extern void   sub_13B50(int16 *p, struct MenuRow r, int16 c, int16 d);
-extern void   sub_13B76(void *o, char *s, int16 x, int16 y);
+extern void   sub_13B76(void *o, const char *s, int16 x, int16 y);
 extern void   sub_13D15(int16 *pg, char *s, int16 a, int16 b, int16 c, int16 d);
 extern void   sub_13FB3(int16 n, char *b);
 extern void   sub_14622(void *o, int16 x0, int16 y0, int16 x1, int16 y1);
@@ -32,7 +32,7 @@ extern int16  f19_setViewOrigin(int16 a, int16 b, int16 flag);
 extern void   f19_sub_108B7(void);
 extern void   sub_14E9C(void);
 extern void   sub_14EDA(void);
-extern void   sub_15120(char *d, char *s);
+extern void   sub_15120(char *d, const char *s);
 extern void   sub_15189(char *d, char *s);
 extern void   f19_drawScorePanel(void);
 extern int16  f19_randMul(uint16 n);

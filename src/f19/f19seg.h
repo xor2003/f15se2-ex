@@ -32,6 +32,12 @@ struct F19SegObj {
 void  f19_segUseWorld(int world);    /* 0 = START space, 1 = EGAME space */
 void *f19_dsegAt(uint32 off);        /* DOS dseg offset -> object address */
 uint16 f19_dsegOff(const void *p);   /* object address -> DOS dseg offset */
+
+/* Common operand forms for the offset->pointer resolution:
+ *   DSTR(off)  — dseg char/string at offset `off`
+ *   PDESC(v)   — descriptor/parms object whose dseg offset is held in cell v */
+#define F19_DSTR(off)  ((char *)f19_dsegAt((uint16)(off)))
+#define F19_PDESC(v)   ((int16 *)f19_dsegAt((uint16)(v)))
 void *f19_segResolve(uint16 off, uint16 seg); /* (off,seg) -> native ptr */
 
 /* --- dseg-resident far pointer cells ------------------------------------

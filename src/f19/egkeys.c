@@ -392,21 +392,25 @@ void keyDispatch(uint16 scanCode) {
             goto wpDone;
         case 0x5000:
             if (commData->setupUseJoy == 0) goto wpDone;
+            [[fallthrough]];
         case 0x5032:
             waypoints[g_wpSelectIdx * 2 + 1] += wpStep >> g_mapZoomLevel;
             goto wpRedraw;
         case 0x4B00:
             if (commData->setupUseJoy == 0) goto wpDone;
+            [[fallthrough]];
         case 0x4B34:
             waypoints[g_wpSelectIdx * 2] -= wpStep >> g_mapZoomLevel;
             goto wpRedraw;
         case 0x4D00:
             if (commData->setupUseJoy == 0) goto wpDone;
+            [[fallthrough]];
         case 0x4D36:
             waypoints[g_wpSelectIdx * 2] += wpStep >> g_mapZoomLevel;
             goto wpRedraw;
         case 0x4900:
             if (commData->setupUseJoy == 0) goto wpDone;
+            [[fallthrough]];
         case 0x4939:
             if (g_wpPanelMode != 0) {
                 --waypointIndex;
@@ -421,6 +425,7 @@ void keyDispatch(uint16 scanCode) {
             }
         case 0x5100:
             if (commData->setupUseJoy == 0) goto wpDone;
+            [[fallthrough]];
         case 0x5133:
             if (g_wpPanelMode != 0) {
                 ++waypointIndex;

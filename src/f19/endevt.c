@@ -435,7 +435,7 @@ void sub_16486(void)
     char    nbuf[2];                         /* 0x8f tag */
     char    rankname[0x38];                  /* rank + name */
     char    pfx[2];                         /* 0x8e tag */
-    register uint16 kills;
+    uint16 kills;
 
     eol[0] = 0xd;  eol[1] = 0;
     pfx[0] = 0x8e; pfx[1] = 0;

@@ -238,7 +238,7 @@ extern struct F19ENData f19_enSpace;
 extern const struct F19ENData f19_enInit;
 void f19_enVarsReset(void);
 
-#define recField8 ((uint8*)f19_enSpace.m_recField8)
+#define recField8 (&f19_enSpace.m_recField8)
 #define recField9 ((uint8*)f19_enSpace.m_recField9)
 #define weaponDataBlock ((int16*)f19_enSpace.m_weaponDataBlock)
 #define recActive ((uint8*)f19_enSpace.m_recActive)
@@ -331,7 +331,9 @@ void f19_enVarsReset(void);
 #define word_1EA42 (*(int16 *)&f19_enSpace.m_word_1EA42)
 #define rankNames ((int16*)f19_enSpace.m_rankNames)
 #define evtItems ((struct EvtItem*)f19_enSpace.m_evtItems)
-#define word_1F6A4 (*(int16 *)&f19_enSpace.m_word_1F6A4)
+/* word_1F6A4 is defined by f19en.h (sprite-record cell at enSpace+0x5914);
+ * the field above is only layout. A second macro here would silently flip
+ * the cell depending on include order. */
 #define menuItems ((MenuItem*)f19_enSpace.m_menuItems)
 #define word_1F858 ((int16*)f19_enSpace.m_word_1F858)
 #define word_1F860 ((int16*)f19_enSpace.m_word_1F860)

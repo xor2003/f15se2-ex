@@ -65,7 +65,7 @@ void   setupDac(void);                          /* sub_11BB4 — int10h AX=1012 
 /* ==== seg000:0x0010 ==== */
 int main(void) {
     uint16 FAR *commPtr;
-    register int16 commSeg;
+    int16 commSeg;
 
     commPtr = (uint16 FAR *)(f19_bda + 0x4F0);    /* DOS ICA — comm seg cell */
     commSeg = *commPtr;

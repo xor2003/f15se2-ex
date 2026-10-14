@@ -337,7 +337,7 @@ void updateThreatAlert(void) {
  * ('mov si,[bp+4]' dead load) to approximate this. */
 void spawnSamThreat(void) {
     int16 dy, dx, slot, specIdx;
-    register int16 off;
+    int16 off;
 
     if ((g_missionTick & 0xF) != 0)
         return;
@@ -510,7 +510,7 @@ void updateObjects(void) {
                         hdgA += g_ourRoll >> 1;
                     asp = (((g_simObjects[objIdx8].heading.w - hdgA) >> 13) + 4) & 7;
                     {
-                        register int16 maneuver;
+                        int16 maneuver;
                         maneuver = g_maneuverTable[aggr][offBoresight][asp];
                         rollC = (maneuver & 0xf) << 12;
                         if (maneuver == 0x100) {
@@ -1041,7 +1041,7 @@ lock_eval:
                          * slotd*24 byte offset region-wide, so the original's
                          * [si+543x] index-form field accesses fall out instead of
                          * a folded &projectiles[slotd].weaponIdx pointer. */
-                    register int16 pjbase = slotd * (int16)sizeof(struct Projectile);
+                    int16 pjbase = slotd * (int16)sizeof(struct Projectile);
                     if (*(int16 *)((char *)g_projectiles + pjbase + 16) == 0x26) {
                         goto cluster_imp;
                     } else {

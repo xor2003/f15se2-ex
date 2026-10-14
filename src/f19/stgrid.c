@@ -18,12 +18,12 @@ extern void mystrcpy(char *d, const char *s);      /* seg000:0x5120 */
 extern int16 f19_showMsgWaitKey(const char *m);        /* seg000:0x7518 */
 extern void sub_151D4(void *d, int8 v, int16 n);   /* seg000:0x51d4 memset */
 
-void f19_replaceExtension(char *path, char *ext);
+void f19_replaceExtension(char *path, const char *ext);
 
 
 void f19_parseGrid(void) {                        /* seg000:0x73df */
     int16 i, n;    /* i gets the post-loop j store; n unused in the frame */
-    register int16 j;
+    int16 j;
     f19_replaceExtension(regnPlhPtr, ".3DG");
     if ((f19_fileHandle = fopen(regnPlhPtr, "rb")) == 0) {
         f19_showMsgWaitKey("Open error on grid file");
@@ -57,8 +57,8 @@ void f19_parseGrid(void) {                        /* seg000:0x73df */
 /* seg000:0x7534 - `s` is a phantom register param (callers pass 2 args;
  * its home [bp+8] is never touched).  It binds si without a local slot,
  * and `path = s` emits the observed `mov [bp+4],si` writeback. */
-void f19_replaceExtension(char *path, char *ext) {
-    register char *s;
+void f19_replaceExtension(char *path, const char *ext) {
+    char *s;
     for (s = path; *s != '.';) {
         if (*s == 0) break;
         s++;

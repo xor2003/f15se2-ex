@@ -514,7 +514,7 @@ restart_40a8:
     for (sl = 0; sl < 2; sl++) {
         range[sl] = 0x7fff;
         for (m2 = worldObjectCount; m2 < readItemSize; m2++) {
-            register int16 f = f19_worldObjects[m2].targetFlags;
+            int16 f = f19_worldObjects[m2].targetFlags;
             if ((f & 0x500) != 0 && (f & 0x201) != 0) {
                 range[2] = f19_clampValue(f19_itemDistance(f19_targets[sl].objIdx, m2) +
                     ((f & 0x100) != 0 ?
@@ -648,7 +648,7 @@ restart_40a8:
     if (f19_targets[0].kind == 7 || f19_targets[0].kind == 6) {
         tmpW = 0x7fff;
         for (m2 = 3; m2 < readItemSize; m2++) {
-            register int16 f = f19_worldObjects[m2].targetFlags;
+            int16 f = f19_worldObjects[m2].targetFlags;
             if ((f & 0x500) == 0) continue;
             if ((f & 0xa00) != 0) continue;
             range[2] = abs16Compat(f19_itemDistance(f19_targets[0].objIdx, m2) - range[0]);

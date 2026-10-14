@@ -13,7 +13,6 @@ extern int16 *g_vpParms;
 #define objectActive ((int8 *)f19_stSpace.m_objectActive)
 /* mapClipX1/Y1/X2/Y2 -> f19stvars.h */
 #define word_22322 (*(int16 *)((uint8 *)f19_stSpace.m_word_21718 + 3082))
-#define byte_20A1A timerCounter   /* shared/timer.c 60 Hz tick — was PIT-ISR cell */
 #define pathWpB (*(int16 *)((uint8 *)f19_stSpace.m_f19_targets + 2))
 #define pathWpC (*(int16 *)((uint8 *)&f19_stSpace.f19_stgap_B958 + 0x2))
 #define pathWpD (*(int16 *)((uint8 *)&f19_stSpace.f19_stgap_B958 + 0x4))
@@ -126,10 +125,10 @@ void f19_seedRng(void) {
  * ~(s_orig - s_end) tail, zero locals; no C shape produces it. Skeleton. */
 
 void f19_getTimeOfDay(void) {                 /* seg000:0x40c8 */
-    g_cntB++;
-    g_cntC++;
-    g_cntA++;
-    g_cntD++;
+    g_cntB = (uint8)(g_cntB + 1);
+    g_cntC = (uint8)(g_cntC + 1);
+    g_cntA = (uint8)(g_cntA + 1);
+    g_cntD = (uint8)(g_cntD + 1);
     audio_jump_6b();
 }
 
@@ -270,7 +269,7 @@ void f19_drawTileIcon(struct TileEntry *t, uint16 idx, struct ObjF06 *o) {
         save = o->f06;
         o->f06 = 3;
         if (flag_29948 == 0) {
-            register struct TileEntry *e = &t[idx];
+            struct TileEntry *e = &t[idx];
             sub_14622(o, e->x0, e->y0, e->x1, e->y1);
         }
         gfx_blitSprite(t[idx].spr1);
@@ -667,13 +666,12 @@ int16 f19_bufReadBytes(int8 *dst, int16 n) {
 }
 
 /* seg000:0x67fd — clears byte +9 on 30 entries of the 0x5c-stride table
- * at dseg:0x2326. */
+ * at dseg:0x2326 (the clip/effect table — same base stobj.c uses). */
 void f19_resetTableFlags(void) {
     int16 i;
-    int16 e;
     for (i = 0; i < 0x1E; i++) {
-        e = 0x2326 + i * 0x5C;
-        ((int8 *)e)[9] = 0;
+        uint8 *e = (uint8 *)f19_stSpace.m_clipTable + i * 0x5C;
+        e[9] = 0;
     }
 }
 
@@ -701,17 +699,17 @@ struct TickEnt { char _p[8]; uint8 f08, f09; char _q[0x52]; int8 f5A; };
 
 void f19_tickEffectTable(void) {
     int16 i;
-    int16 e;
     int16 t;
     for (i = 0; i < word_2367C; i++) {
-        e = 0x2326 + i * 0x5C;
-        if (((struct TickEnt *)e)->f5A != 0) {
-            t = ((struct TickEnt *)e)->f09 + ((struct TickEnt *)e)->f08;
+        struct TickEnt *e =
+            (struct TickEnt *)((uint8 *)f19_stSpace.m_clipTable + i * 0x5C);
+        if (e->f5A != 0) {
+            t = e->f09 + e->f08;
             if (t > 0xFF) {
                 t -= 0x100;
-                sub_16261(e);
+                sub_16261((int16)f19_dsegOff(e));
             }
-            ((struct TickEnt *)e)->f09 = t;
+            e->f09 = (uint8)t;
         }
     }
 }
@@ -864,7 +862,7 @@ join:
  * four route waypoint indices (f19_worldObjects entries) plus waypoint labels.
  * Endpoints share one label when the path is closed (A==D). Called back-to-back
  * with drawRouteFill (sub_1BAC2) from the map orchestrator. No stack frame. */
-extern void  sub_13B76(void *o, char *s, int16 x, int16 y); /* drawObjString */
+extern void  sub_13B76(void *o, const char *s, int16 x, int16 y); /* drawObjString */
 
 void f19_drawRoutePath(void) {
     g_vpParms[2] = 0;
@@ -933,19 +931,19 @@ void f19_printMission(void) {
     d = 0;
     resFileReadBlock("briefing.txt", d += 0, b);   /* +=0: force slot reload */
     flag_29948 = 0;
-    sub_14622((void *)briefParms, 8, 0, 0x13F, 0xB1);
+    sub_14622(F19_PDESC(briefParms), 8, 0, 0x13F, 0xB1);
     gfx_commitPage();
     *(int16 *)(sprParmsTab + titleParms + 4) = 0xC;
-    sub_13B76((int16 *)titleParms, "CLASSIFIED                        CLASSIFIED", 0x1E, 5);
+    sub_13B76(F19_PDESC(titleParms), "CLASSIFIED                        CLASSIFIED", 0x1E, 5);
     *(int16 *)(sprParmsTab + titleParms + 4) = 0;
-    sub_13B76((int16 *)titleParms, "Mission Briefing", 0x6F, 5);
+    sub_13B76(F19_PDESC(titleParms), "Mission Briefing", 0x6F, 5);
     briefActive = 1;
     if (briefPage == 1) {
         mystrcpy(scrStr, "\x89PRIMARY MISSION ");
         my_itoa(f19_targets[0], g);
         mystrcat(scrStr, g);
-        i = f19_stringWidth((int16 *)briefParms, (uint8 *)scrStr);
-        sub_13B76((int16 *)briefParms, scrStr, (0x140 - i) >> 1, 0x14);
+        i = f19_stringWidth(F19_PDESC(briefParms), (uint8 *)scrStr);
+        sub_13B76(F19_PDESC(briefParms), scrStr, (0x140 - i) >> 1, 0x14);
         *(int16 *)(sprParmsTab + briefParms + 4) = 0;
         f19_wrapUnitText(briefParms, sub_17558(f19_targets[0], scrStr, b),
                      0x12C, 0x0A, 0x1E, 8);
@@ -956,8 +954,8 @@ void f19_printMission(void) {
         mystrcpy(scrStr, "\x89SECONDARY MISSION ");
         my_itoa(f19_targets[9], g);
         mystrcat(scrStr, g);
-        i = f19_stringWidth((int16 *)briefParms, (uint8 *)scrStr);
-        sub_13B76((int16 *)briefParms, scrStr, (0x140 - i) >> 1,
+        i = f19_stringWidth(F19_PDESC(briefParms), (uint8 *)scrStr);
+        sub_13B76(F19_PDESC(briefParms), scrStr, (0x140 - i) >> 1,
                   *(int16 *)(sprParmsTab + briefParms + 0xA) + 8);
         *(int16 *)(sprParmsTab + briefParms + 4) = 0;
         f19_wrapUnitText(briefParms, sub_17558(f19_targets[9], scrStr, b),
@@ -969,11 +967,11 @@ void f19_printMission(void) {
                      *(int16 *)(sprParmsTab + briefParms + 0xA), 8);
     } else {
         mystrcpy(scrStr, "\x89" "FLIGHT PLAN");
-        i = f19_stringWidth((int16 *)briefParms, (uint8 *)scrStr);
-        sub_13B76((int16 *)briefParms, scrStr, (0x140 - i) >> 1, 0x14);
+        i = f19_stringWidth(F19_PDESC(briefParms), (uint8 *)scrStr);
+        sub_13B76(F19_PDESC(briefParms), scrStr, (0x140 - i) >> 1, 0x14);
         mystrcpy(scrStr, "\x89TAKEOFF:\x80 You will depart from ");
         {
-            register int16 v;    /* si: site unitRef, register-held         */
+            int16 v;    /* si: site unitRef, register-held         */
             v = *(int16 *)(siteNameData + (pathWpA << 4));
             mystrcat(scrStr, (char *)(((uint8 *)f19_dsegAt(wldNameTab[v ? v : siteObjData[pathWpA << 4]]))));
         }
@@ -985,7 +983,7 @@ void f19_printMission(void) {
                         *(int16 *)(sprParmsTab + briefParms + 0xA), 8);
         mystrcpy(scrStr, "\x89RETURN:\x80 You are scheduled to land at ");
         {
-            register int16 v;
+            int16 v;
             v = *(int16 *)(siteNameData + (pathWpD << 4));
             mystrcat(scrStr, (char *)(((uint8 *)f19_dsegAt(wldNameTab[v ? v : siteObjData[pathWpD << 4]]))));
         }
@@ -1002,15 +1000,15 @@ void f19_printMission(void) {
         f19_wrapUnitText(briefParms, scrStr, 0x12C, 0x0A,
                      *(int16 *)(sprParmsTab + briefParms + 0xA) + 2, 8);
         mystrcpy(scrStr, "\x89RULES OF ENGAGEMENT");
-        i = f19_stringWidth((int16 *)briefParms, (uint8 *)scrStr);
-        sub_13B76((int16 *)briefParms, scrStr, (0x140 - i) >> 1,
+        i = f19_stringWidth(F19_PDESC(briefParms), (uint8 *)scrStr);
+        sub_13B76(F19_PDESC(briefParms), scrStr, (0x140 - i) >> 1,
                   *(int16 *)(sprParmsTab + briefParms + 0xA) + 8);
         *(int16 *)(sprParmsTab + briefParms + 4) = 0;
         f19_wrapUnitTextFar(briefParms, (char *)f19_farAt(briefTab + 4 * (gameData->roeIdx)), 0x12C, 0x0A,
                         *(int16 *)(sprParmsTab + briefParms + 0xA) + 8, 8);
     }
     *(int16 *)(sprParmsTab + briefParms + 4) = 9;
-    sub_13B76((int16 *)briefParms, "Press Selector to continue", 0x64, 0xB2);
+    sub_13B76(F19_PDESC(briefParms), "Press Selector to continue", 0x64, 0xB2);
     gfx_commitPage();
     f19_readInputKey();
     f19_freeBuffer(b);

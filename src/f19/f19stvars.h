@@ -200,15 +200,16 @@ extern struct F19STData f19_stSpace;
 #define wldNameTab ((uint16 *)f19_stSpace.m_wldOffsets)
 #define sprParmsTab ((int8 *)f19_dsegAt(0x0))
 /* dseg 0xA1A..0xA1D are bumped asynchronously by the f19 PIT thread
- * (f19stubs.c f19_pitRun) — volatile so wait loops reload them. */
-#define byte_20A1A (*(volatile uint8 *)((uint8 *)f19_stSpace.m_esTable + 40))
-#define g_cntA (*(volatile uint8 *)((uint8 *)f19_stSpace.m_esTable + 40))
-#define g_cntB (*(volatile uint8 *)((uint8 *)f19_stSpace.m_esTable + 40))
-#define g_cntC (*(volatile uint8 *)((uint8 *)f19_stSpace.m_esTable + 40))
-#define g_cntD (*(volatile uint8 *)((uint8 *)f19_stSpace.m_esTable + 40))
-#define byte_20A1B (*(volatile uint8 *)((uint8 *)f19_stSpace.m_esTable + 41))
-#define blinkTimer (*(volatile uint8 *)((uint8 *)f19_stSpace.m_esTable + 42))
-#define byte_20A1D (*(volatile uint8 *)((uint8 *)f19_stSpace.m_esTable + 43))
+ * (f19stubs.c f19_pitRun) — volatile so wait loops reload them. The four
+ * getTimeOfDay counters are the same four cells. */
+#define byte_20A1A (*(volatile uint8 *)f19_dsegAt(0xA1A))
+#define g_cntA (*(volatile uint8 *)f19_dsegAt(0xA1A))
+#define g_cntB (*(volatile uint8 *)f19_dsegAt(0xA1B))
+#define g_cntC (*(volatile uint8 *)f19_dsegAt(0xA1C))
+#define g_cntD (*(volatile uint8 *)f19_dsegAt(0xA1D))
+#define byte_20A1B (*(volatile uint8 *)f19_dsegAt(0xA1B))
+#define blinkTimer (*(volatile uint8 *)f19_dsegAt(0xA1C))
+#define byte_20A1D (*(volatile uint8 *)f19_dsegAt(0xA1D))
 /* drawLine/clipper cells (START dseg): clipMaxX=0xD25 clipMaxY=0xD27,
  * lineX0=0xD2B lineX1=0xD2D lineY0=0xD2F lineY1=0xD31 — verified vs
  * lst/start_en_ada.lst drawLine (sub_1C083) store order. */

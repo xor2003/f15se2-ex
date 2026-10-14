@@ -31,7 +31,7 @@ struct TileSceneObject {
 #pragma pack()
 
 /* ==== seg000:0x104c ==== */
-void printError(char *msg) {
+void printError(const char *msg) {
     drawStringBothPages(msg, 0, 0x60, 0xF);
     getch();
 }

@@ -94,7 +94,7 @@ static int16 *f19_descPtr(void *o) {
         return (int16 *)o;
     return (int16 *)f19_dsegAt((uint16)(uintptr_t)o);
 }
-void  sub_13B76(void *o, char *s, int16 x, int16 y) {
+void  sub_13B76(void *o, const char *s, int16 x, int16 y) {
     /* seg000:0x3b76 — drawStringAt over a page-descriptor cell (shared engine
      * text service; identical routine exists in F-15 as drawStringAt). */
     drawStringAt(f19_descPtr(o), s, x, y);
@@ -276,8 +276,8 @@ void  sub_14E9C(void) {
 void  sub_14EDA(void) { f19_pitArmed = 0; }
 
 /* ---- string/move helpers ------------------------------------------------ */
-void  sub_15120(char *d, char *s) { mystrcpy(d, s); }
-void  sub_1513B(char *d, char *s) { mystrcpy(d, s); }  /* seg000:0x513b near->far strcpy */
+void  sub_15120(char *d, const char *s) { mystrcpy(d, s); }
+void  sub_1513B(char *d, const char *s) { mystrcpy(d, s); }  /* seg000:0x513b near->far strcpy */
 void  sub_15152(char *d, const char *s) { mystrcpy(d, s); }  /* seg000:0x5152 far->near strcpy */
 void  sub_15189(char *d, char *s) { mystrcat(d, s); }      /* seg000:0x5189 strcat */
 void  sub_151D4(void *d, int8 v, int16 n) { memset(d, v, (uint16)n); }

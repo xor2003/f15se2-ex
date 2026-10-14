@@ -14,7 +14,7 @@ extern FILE *f19_fileHandle;
 #define terrainTileBlock ((uint8 *)f19_stSpace.m_terrainTileBlock)
 
 extern void f19_parseGrid(void);                /* seg000:0x73df */
-extern void f19_replaceExtension(char *path, char *ext);             /* seg000:0x7534 */
+extern void f19_replaceExtension(char *path, const char *ext);             /* seg000:0x7534 */
 extern int16 f19_showMsgWaitKey(const char *m); /* seg000:0x7518 */
 
 struct TerrainPtrTable { uint16 entries[32]; };  /* entries = dseg offsets */

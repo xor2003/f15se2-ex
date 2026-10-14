@@ -96,9 +96,6 @@ int16 sub_1E172(int16 h, int16 lo, int16 hi, int16 mode) {
     return (int16)SDL_SeekIO(io, off, wh[mode]);
 }
 
-/* FILE*-style globals used by stgrid.c/stparse.c collapse onto the table */
-int16 f19_fdOf(FILE *f) { return (int16)(intptr_t)f; }
-
 /* 0f43:000a — EXEC-overlay-load an MZ file's load image into an f19 seg
  * block and return the block handle. START uses it for "scenery0.exe"
  * (the string-table resource): the original probes free memory, allocs a

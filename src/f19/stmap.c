@@ -8,7 +8,6 @@ typedef struct { int16 f0, f1;
                  uint8 flag, padT[9]; } RingType;
 #define objectActive ((int8 *)f19_stSpace.m_objectActive)
 /* tileMarksOn -> f19stvars.h dseg:0xBE48 */
-#define byte_20A1A timerCounter   /* shared/timer.c 60 Hz tick — was PIT-ISR cell */
 #define pathWpB (*(int16 *)((uint8 *)f19_stSpace.m_f19_targets + 4))
 #define pathWpC (*(int16 *)((uint8 *)f19_stSpace.m_f19_targets + 4))
 #define pathWpD (*(int16 *)((uint8 *)f19_stSpace.m_f19_targets + 4))
@@ -90,9 +89,9 @@ struct UnitRec38 {
     int16 pad[0x1c];
     int16 f38, f3A, f3C, f3E, f40;
 };
-extern void sub_15120(char *d, char *s);      /* seg000:0x5120 mystrcpy */
+extern void sub_15120(char *d, const char *s);      /* seg000:0x5120 mystrcpy */
 extern void sub_13FB3(int16 n, char *buf);    /* seg000:0x3fb3 numToStr */
-extern void sub_13B76(void *o, char *s, int16 x, int16 y); /* drawObjString */
+extern void sub_13B76(void *o, const char *s, int16 x, int16 y); /* drawObjString */
 extern void sub_14622(void *o, int16 x0, int16 y0, int16 x1, int16 y1);
 extern void mystrcat(char *d, const char *s);
 struct ObjF04 { int16 pad[2]; int16 f04; int16 f06, f08, f0A; };
@@ -840,11 +839,11 @@ void f19_sub_11366(int16 *view, struct SelRow *row, int16 *pd) {
         byte_27E5A = 1;
     }
     if (i == 0x4800) {          /* UP */
-        register int16 h;
+        int16 hLim;
         word_2CA64 -= view[1];
         if (flag2C7CE == 1 && view[3] == (int16)word_2CA60 &&
-            ((h = view[4] - view[1]) || 1) && (int16)word_2CA64 <= h)
-            word_2CA64 = h;
+            ((hLim = view[4] - view[1]) || 1) && (int16)word_2CA64 <= hLim)
+            word_2CA64 = hLim;
         else if (view[4] > (int16)word_2CA64)
             word_2CA64 = view[4];
         byte_27E52 = 1;

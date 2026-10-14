@@ -854,7 +854,7 @@ void drawAirspeedTape(void) {
     gfx_copyRect(*g_pageOffscreen, 0, 0x96, *g_pageFront, 0, 0x96, 0x21, 0x32);
     rung = g_engineThrust / 5;
     for (i = -3; i < 3; i++) {
-        register int16 sx, sy;
+        int16 sx, sy;
         setDrawColor(7);
         sx = rung + i;
         sy = 0xBA - rung;

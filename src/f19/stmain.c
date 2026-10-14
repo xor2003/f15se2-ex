@@ -9,7 +9,6 @@
 #include "f19lang.h"
 #include <setjmp.h>
 
-#define byte_20A1A timerCounter   /* shared/timer.c 60 Hz tick — was PIT-ISR cell */
 #define byte_2B388 (*(uint8 *)((uint8 *)f19_stSpace.m_gridBuf1 + 20))
 #define objectActive ((uint8 *)f19_stSpace.m_objectActive)
 
@@ -377,7 +376,7 @@ tier_alloc:
     sub_146E3();
     *word_2B942 = 0;
     f19_drawStoreIcons();
-    sub_14622((void *)(intptr_t)(uint16)word_200E6, 0, 0, 0x13F, 0xC7);
+    sub_14622((void *)F19_PDESC(word_200E6), 0, 0, 0x13F, 0xC7);
 
     if (commData->f70 == 1) {
         gameData->f38 = 1;

@@ -10,8 +10,8 @@
 #define objectActive ((uint8 *)f19_stSpace.m_objectActive)
 
 extern void sub_14622(void *o, int16 a, int16 b, int16 c, int16 d); /* clearRect */
-extern void sub_13B76(void *o, char *s, int16 x, int16 y); /* drawStringAt */
-extern void sub_15120(char *d, char *s);
+extern void sub_13B76(void *o, const char *s, int16 x, int16 y); /* drawStringAt */
+extern void sub_15120(char *d, const char *s);
 extern void sub_15189(char *d, char *s);
 extern void sub_13D15(int16 *pg, char *s, int16 a, int16 b, int16 c,
                       int16 d);
@@ -56,7 +56,7 @@ void f19_sub_12754(void *t, int16 idx, int16 *pd) {
     char   flags;
     char   numbuf[8];
     int16  m;
-    register int16 id;
+    int16 id;
 
     cr[0] = 0x0D; cr[1] = 0;
     v[0]  = 0x89; v[1] = 0;

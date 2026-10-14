@@ -42,15 +42,12 @@ extern void blinkWidget(MenuItem *item, int16 *gfxPage);
 #define MENUITEM_HAS_SPRITE  0x0800
 #define MENUITEM_SPRITE_BLINK 0x1000
 
-#define KEYCODE_ENTER      0x000d
-#define KEYCODE_ESC        0x001b
+/* KEYCODE_ENTER/ESC, JOY_DEADZONE_LO/HI come from const.h (same values). */
 #define KEYCODE_ALTQ       0x1000
 #define KEYCODE_LEFTARROW  0x4b00
 #define KEYCODE_RIGHTARROW 0x4d00
 #define KEYCODE_UPARROW    0x4800
 #define KEYCODE_DNARROW    0x5000
-#define JOY_DEADZONE_LO    0x4e
-#define JOY_DEADZONE_HI    0xb2
 
 
 
@@ -116,7 +113,7 @@ void processMenuItems(MenuItem *items, int16 unused, int16 itemCount, int16 curs
     char p[2]; char a[2]; int16 b; char c[2]; int16 d; int16 e; char f[2];
     int16 g; int16 h; int16 i; int16 j; int16 k; int16 l; int16 m; int16 n; int16 o;
     int16 w;
-    register int16 *ip;
+    int16 *ip;
     (void)unused;
     (void)b; (void)e; (void)g; (void)h; (void)i; (void)j;
     (void)k; (void)l; (void)m; (void)n; (void)o; (void)w;
