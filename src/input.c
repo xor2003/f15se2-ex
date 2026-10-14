@@ -587,6 +587,15 @@ static uint16 biosWord(SDL_Scancode sc, SDL_Keymod mod) {
         return 0;
     }
 
+    /* BIOS extended codes for modified F-keys: Shift+Fx bumps the scan by
+     * 0x19 (0x54-0x5D), Ctrl+Fx by 0x23 (0x5E-0x67), Alt+Fx by 0x2D
+     * (0x68-0x71). The game switches on the full word for external views. */
+    if (scan >= 0x3B && scan <= 0x44) {
+        if (mod & SDL_KMOD_SHIFT) scan += 0x19;
+        else if (mod & SDL_KMOD_CTRL) scan += 0x23;
+        else if (mod & SDL_KMOD_ALT)  scan += 0x2D;
+    }
+
     /* Alt forces AL = 0 (BIOS reports the scan code alone for Alt combos). */
     if (mod & SDL_KMOD_ALT)
         return (uint16)scan << 8;
@@ -1075,9 +1084,42 @@ static void pollRawJoystickMenu(void) {
 
 /* --- the single event pump ------------------------------------------------- */
 
+/* F19_KEYS / F15_KEYS: comma-separated BIOS key words pushed one-per-pump once
+ * the BIOS ring drains — a scripted-input hook for headless driving (the
+ * offscreen/dummy video drivers deliver no keyboard events) and deterministic
+ * CI test drives. */
+static uint16 s_keyScript[256];
+static int s_keyScriptLen = -1, s_keyScriptIdx;
+static uint32 s_keyScriptLastMs;
+
+static void pumpScriptedKeys(void) {
+    const char *s;
+    uint32 now;
+    if (s_keyScriptLen < 0) {
+        s_keyScriptLen = 0;
+        s = getenv("F19_KEYS");
+        if (!s) s = getenv("F15_KEYS");
+        while (s && *s && s_keyScriptLen < 256) {
+            s_keyScript[s_keyScriptLen++] = (uint16)strtol(s, NULL, 0);
+            s = strchr(s, ',');
+            if (s) s++;
+        }
+    }
+    /* Pace the feed: screens that clearKeybuf between transitions would eat a
+     * key queued during a previous screen's tail, so only push once the ring
+     * has been empty for a beat (the target screen is then actively polling). */
+    now = SDL_GetTicks();
+    if (s_keyScriptIdx < s_keyScriptLen && ringHead == ringTail
+        && now - s_keyScriptLastMs >= 300) {
+        ringPush(s_keyScript[s_keyScriptIdx++]);
+        s_keyScriptLastMs = now;
+    }
+}
+
 void input_pumpEvents(void) {
     SDL_Event ev;
     uint16 replayWord;
+    pumpScriptedKeys();
     /* Every key-polling wait loop funnels through here, so advance the game
      * clock too: this is what drives the tick counters those loops spin on, and
      * what keeps the window responsive on a poll-only frame. */

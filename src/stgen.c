@@ -9,6 +9,7 @@
 #include "strand.h"
 #include "stterr.h"
 #include "comm.h"
+#include "game/game.h"
 #include "log.h"
 #include "const.h"
 #include "shared/common.h"
@@ -64,8 +65,8 @@ void missionGenerate() {
     difficultySaved = gameData->difficulty;
     theaterSaved = gameData->theater & 3;
     flag4Saved = gameData->isCampaignMission;
-    parseWorld(worldFiles[gameData->theater]);
-    mystrcpy(regnPlhPtr, plhFiles[gameData->theater]);
+    parseWorld(gameWorldFile(gameData->theater));
+    mystrcpy(regnPlhPtr, gamePlhFile(gameData->theater));
     parseGridTerrain();
     runGenerator();
 }

@@ -140,18 +140,21 @@ void FAR CDECL gfx_dacCycle();                                                  
 int FAR CDECL gfx_setFont(uint16 ch, uint16 fontIdx);                                                                             /* slot 0x2f: setup font metrics */
 int gfx_getGlyphAdvance(uint32 codepoint, uint16 fontIdx);                                                                        /* native UTF-aware font metric */
 int gfx_getStringAdvanceUtf8(const char *text, uint16 fontIdx);                                                                   /* native UTF-aware line metric */
+int gfx_nextCodepointAdvance(const char **p, uint16 fontIdx);                                                                     /* decode UTF-8 cp at *p, advance ptr, return its width */
+void gfx_setStringTranslator(const char *(*fn)(const char *));                                                                    /* draw-time string translation hook (F-19 RU mode) */
 void gfx_invalidateTtfTextOverlayRect(int x1, int y1, int x2, int y2);
 int FAR CDECL gfx_getRowOffset(int y);                                                                                            /* slot 0x3a: returns y*320 */
 /* dseg:0xbe4 */
 void FAR CDECL gfx_setMode13(void);          /* slot 0x3c: switch to 320x200 (lo-res) */
 void FAR CDECL gfx_setFadeSteps(int steps);  /* slot 0x3d: setFadeSteps */
-int FAR CDECL gfx_calcRowAddr(int y, int x); /* slot 0x3e: calcRowAddr */
+int FAR CDECL gfx_calcRowAddr(int col, int row); /* slot 0x3e: calcRowAddr → row*320+col */
 /* dseg:0xbf3 */
 int FAR CDECL gfx_getModecode();                                              /* slot 0x3f: returns 3 (MCGA) */
 void FAR CDECL gfx_setOvlVal1(int val);                                       /* slot 0x40: writes ds:0xcc */
 void FAR CDECL gfx_setOvlVal2(int val);                                       /* slot 0x41: writes ds:0xce */
 void FAR CDECL gfx_setDac(uint16 palIdx);                                     /* slot 0x44: set VGA DAC palette */
 void gfx_setDacRange(uint16 startReg, uint16 count, const uint8 *vgaTriples); /* native INT 10h AX=1012h: load DAC register block */
+void gfx_dacRefreshUi(void);                                                  /* per-tick re-apply of the current UI record to DAC[0..15] */
 void FAR CDECL gfx_waitRetrace();                                             /* slot 0x45: wait for vblank */
 void FAR CDECL gfx_flipPage();                                                /* slot 0x46: vblank + flip to VGA */
 void FAR CDECL gfx_blitSpriteClipped(int16 *ptr);                             /* slot 0x47: sprite variant */

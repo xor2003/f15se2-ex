@@ -1736,6 +1736,7 @@ int main() {
         int16 combined[9] = {};
         long camBase = 0, camX = 0, camY = 0;
         int shade = 0;
+        uint32 visMask = 0;
         model[0] = 0; // render mode
         model[1] = kCollisionPlaneCount;
         for (int plane = 0; plane < kCollisionPlaneCount; ++plane)
@@ -1747,7 +1748,7 @@ int main() {
         resetSceneState();
         require(r3d_objTransformFar(reinterpret_cast<char *>(model), 0, 0, 0,
                                     0, kSceneRelY, 0,
-                                    combined, &camBase, &camX, &camY, &shade) == 0 &&
+                                    combined, &camBase, &camX, &camY, &shade, &visMask) == 0 &&
                     g_posVisibleFlag == 1,
                 "GL transform preserves original four-plane containment collision");
 
@@ -1755,7 +1756,7 @@ int main() {
         resetSceneState();
         require(r3d_objTransformFar(reinterpret_cast<char *>(model), 0, 0, 0,
                                     0, kSceneRelY, 0,
-                                    combined, &camBase, &camX, &camY, &shade) == 0 &&
+                                    combined, &camBase, &camX, &camY, &shade, &visMask) == 0 &&
                     g_posVisibleFlag == 0,
                 "GL transform rejects a point outside one model plane");
 
@@ -1765,7 +1766,7 @@ int main() {
         g_spinAngle = f15::math::legacy::angleFromWord(kSpinAngle);
         require(r3d_objTransformFar(reinterpret_cast<char *>(model), 0, 0, 0,
                                     0, kSceneRelY, 0,
-                                    combined, &camBase, &camX, &camY, &shade) == 0 &&
+                                    combined, &camBase, &camX, &camY, &shade, &visMask) == 0 &&
                     g_objTransform[kTransformOpcodeIndex] == kSpinAngle &&
                     g_posVisibleFlag == 0,
                 "GL transform advances past a spinning point-form prefix");
@@ -1774,7 +1775,7 @@ int main() {
         resetSceneState();
         require(r3d_objTransformFar(reinterpret_cast<char *>(model), 0, 0, 0,
                                     0, kSceneRelY, 0,
-                                    combined, &camBase, &camX, &camY, &shade) == 0 &&
+                                    combined, &camBase, &camX, &camY, &shade, &visMask) == 0 &&
                     g_posVisibleFlag == 0,
                 "GL transform does not treat point forms as collision volumes");
     }

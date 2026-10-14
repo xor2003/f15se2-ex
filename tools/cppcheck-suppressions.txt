@@ -1,0 +1,7 @@
+// cppcheck suppressions — one `checkId:file[:line]` per line.
+//
+// eg3drast.c sprite-run decoder uses an explicit push/pop stack machine:
+// stState[]/stParent[] are only read after --sp returns to a slot written by
+// the push arm. cppcheck cannot prove the pairing and flags the pops as
+// uninitialized reads.
+legacyUninitvar:src/eg3drast.c

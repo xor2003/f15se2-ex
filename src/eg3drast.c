@@ -53,11 +53,6 @@ enum ModelDisplayListConstant {
 #define SHADOW_COLOR_INDEX 0 /* COLOR_BLACK */
 static int g_shadowDraw = 0;
 
-int far r3d_objTransformFar(char far *model, int yaw, int pitch, int roll,
-                            int posX, int posY, int posZ,
-                            int16 *combined, long *camBase, long *camX, long *camY,
-                            int *shade);
-
 /* ---- scratch globals defined in egdata.c but not declared in a header ---- */
 extern int16 g_dirtyRectMinY, g_dirtyRectMaxY;
 extern int16 g_rasterDeltaX, g_rasterDeltaY;
@@ -145,6 +140,8 @@ static unsigned udiv32by16(unsigned long numerator, unsigned denominator) {
  * projects to a large off-screen coord rather than a clamped ±0x7f00. */
 static unsigned long udiv32by16_full(unsigned long num, unsigned den) {
     if (den == 0) return 0xffffffffUL;
+    /* The old code calculated the same result one bit at a time. Keep the
+     * original 32-bit values, but use the CPU's division instruction. */
     return (unsigned long)((uint32)num / (uint32)den);
 }
 
@@ -1153,13 +1150,15 @@ static void renderPrimitiveCommand(unsigned char far **pp) {
             /* On a GL vector frame the only faces reaching here are the left-MFD
              * terrain-map tiles (the main/target 3D views render through the r3d
              * backend, not this span rasterizer). Submit the face as a native-res
-             * filled polygon instead of rasterizing spans into the page. The face
-             * is an UNORDERED set of boundary edges (each an arbitrary-orientation
-             * v_a->v_b) — fine for the span fill, but GL_POLYGON needs the vertices
-             * in loop order, so walk the edge adjacency around the cycle (matching
-             * on the projected endpoints; the map has no near-plane clipping, so the
-             * int coords are exact). blitOffset folds the viewport origin into
-             * absolute 320-space. Software frames fall through to the span fill. */
+             * filled polygon AND fall through to the span fill — the tile draw is
+             * one-shot (zoom/scroll redraw), so a vector-only face would survive a
+             * single frame and leave the map black; the page bake persists it like
+             * DOS VRAM. The face is an UNORDERED set of boundary edges (each an
+             * arbitrary-orientation v_a->v_b) — fine for the span fill, but
+             * GL_POLYGON needs the vertices in loop order, so walk the edge
+             * adjacency around the cycle (matching on the projected endpoints;
+             * the map has no near-plane clipping, so the int coords are exact).
+             * blitOffset folds the viewport origin into absolute 320-space. */
             if (r2d_vectorActive()) {
                 struct { short ax, ay, bx, by; uint8 used; } eg[64];
                 short ring[64 * 2];
@@ -1177,7 +1176,6 @@ static void renderPrimitiveCommand(unsigned char far **pp) {
                         ne++;
                     }
                 }
-                p += cnt + 1; /* vertex indices + the colour byte */
                 if (ne >= 2) {
                     short curX = eg[0].bx, curY = eg[0].by;
                     eg[0].used = 1;
@@ -1205,8 +1203,6 @@ static void renderPrimitiveCommand(unsigned char far **pp) {
                  * edge to match the viewport extent. */
                 r2d_submitPoly(ring, nv, colorLut[colorByte] + g_objShade,
                                vx, vy, vx + g_clipMaxX + 1, vy + g_clipMaxY + 1);
-                *pp = p;
-                return;
             }
         }
         resetScanlineSpansImpl();
@@ -2585,7 +2581,7 @@ void far projectSceneShadow(char far *model, int yaw, int posX, int posY, int po
 int far r3d_objTransformFar(char far *model, int yaw, int pitch, int roll,
                             int posX, int posY, int posZ,
                             int16 *combined, long *camBase, long *camX, long *camY,
-                            int *shade) {
+                            int *shade, uint32 *visMask) {
     int i;
     unsigned char far *p;
     g_objRenderMode = *(unsigned char far *)model;
@@ -2643,8 +2639,19 @@ int far r3d_objTransformFar(char far *model, int yaw, int pitch, int roll,
      * state. The GL bridge used to omit the display-list walk entirely, which
      * made rendered mountains non-solid. Point and edge-run forms have no plane
      * table, matching processSceneObject's early returns for those opcodes. */
-    if (((*p) & MODEL_OPCODE_MASK) < MODEL_OPCODE_EDGERUN)
-        rotatePoint3d(g_objTransform[0], g_objRelY, g_objRelX, &p);
+    {
+        int isModel = ((*p) & MODEL_OPCODE_MASK) < MODEL_OPCODE_EDGERUN;
+        if (isModel)
+            rotatePoint3d(g_objTransform[0], g_objRelY, g_objRelX, &p);
+        /* rotatePoint3d's g_vtxSignMask doubles as the GL face/line visibility
+         * mask: the display list gates every primitive on a bit of this mask
+         * (normals vs the model-space camera direction), and a z-buffer alone
+         * keeps faces the original culls outright — e.g. the F-19's tail-cone
+         * covers its recessed engine nozzles only via the cull. Non-model
+         * forms have no faces, so their mask is unused (all-ones). */
+        if (visMask)
+            *visMask = isModel ? (uint32)g_vtxSignMask.Value : 0xffffffffu;
+    }
     return 0;
 }
 

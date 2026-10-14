@@ -304,6 +304,8 @@ During replay, RNG and frame checksum mismatches are logged as blackbox
 divergence errors. The first divergence tick is the best starting point for
 `--blackbox-pause-tick`.
 
+The executable detects which game the assets belong to (F-15 Strike Eagle II or F-19 Stealth Fighter) from signature files; if a directory contains assets for more than one supported game it refuses to guess — pick one with `--game-id` (`f15` or `f19`) or the `F15SE2_GAME_ID` environment variable. F-19 runs on its own ported modules (START/EGAME/END under `src/f19/`); its four theaters — Libya, Persian Gulf, North Cape, Central Europe — work end to end.
+
 ## Releases
 
 Prebuilt, self-contained packages for Linux, Windows and macOS are produced automatically for every version tag and attached to the corresponding [GitHub Release](https://github.com/neuviemeporte/f15se2-ex/releases):

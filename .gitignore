@@ -1,5 +1,6 @@
 .vscode/
 build/
+build-*/
 debug_build/
 bin/
 *.log
@@ -37,6 +38,7 @@ __pycache__/
 /android/app/libs/*.aar
 /android/local.properties
 /build-*/
+build
 /_blackbox.rec
 build-net/
 build-base/

@@ -5,6 +5,7 @@
 #include "png_asset.h"
 
 #include "asset_path.h"
+#include "common.h"
 #include "../gfx.h"
 #include "../gfx_impl.h"
 #include "../log.h"
@@ -19,15 +20,6 @@ namespace fs = std::filesystem;
 
 enum { INDEX8_COLOR_COUNT = 256, RGBA_PIXEL_BYTES = 4 };
 
-/* Derive the canonical PNG replacement name from a legacy image filename. */
-static bool replacementName(const char *legacyFilename, std::string *name) {
-    if (!legacyFilename || !legacyFilename[0]) return false;
-    fs::path path{legacyFilename};
-    if (path.is_absolute()) return false;
-    path.replace_extension(".png");
-    *name = path.generic_string();
-    return true;
-}
 
 /* Scale indexed replacement pixels into legacy logical dimensions without changing indices. */
 static bool copyScaledIndices(SDL_Surface *source, SDL_Surface *destination) {
@@ -122,14 +114,17 @@ static bool copyScaledTruecolor(SDL_Surface *source, SDL_Surface *destination) {
     return true;
 }
 
-/* Load a PNG replacement, preserving indexed pixels when possible and scaling to logical dimensions. */
-int loadReplacementPng(const char *legacyFilename, SDL_Surface *destination) {
-    std::string relativeName{};
-    char replacementPath[1024]{};
-    if (!destination || !replacementName(legacyFilename, &relativeName)) return 0;
-    const bool replacementFound = findAssetReplacement(
-        relativeName.c_str(), replacementPath, sizeof(replacementPath));
-    if (!replacementFound) {
+/* Load a PNG replacement, preserving indexed pixels when possible and scaling
+ * to logical dimensions. The lookup goes through findReplacementAssetPath so
+ * per-game filename aliases and all replacement roots (F15_REPLACEMENT_ROOT,
+ * its converted_assets_all subtree, game-dir packs) resolve like every other
+ * modern asset. */
+static int loadReplacementPngResolved(const char *legacyFilename,
+                                      SDL_Surface *destination,
+                                      char *replacementPath, size_t pathSize,
+                                      int pageBackground) {
+    if (!destination) return 0;
+    if (!findReplacementAssetPath(legacyFilename, ".png", replacementPath, pathSize)) {
         return 0;
     }
 
@@ -149,6 +144,8 @@ int loadReplacementPng(const char *legacyFilename, SDL_Surface *destination) {
             SDL_DestroySurface(source);
             return 0;
         }
+        /* An indexed replacement means no truecolor page background. */
+        if (pageBackground) gfx_setPageReplacementSurface(NULL);
         loaded = copyScaledIndices(source, destination);
         /*
          * PIC/SPR data contains palette indices only. The original callers
@@ -160,6 +157,19 @@ int loadReplacementPng(const char *legacyFilename, SDL_Surface *destination) {
          * against its current DAC palette; a future native-color renderer can
          * retain the source surface without changing this compatibility path. */
         loaded = copyScaledTruecolor(source, destination);
+        if (loaded && pageBackground) {
+            /* Legacy cockpit save-unders still operate on the indexed page.
+             * Populate it without replacing the VGA palette, while retaining
+             * the source-resolution truecolor image for presentation. */
+            SDL_Surface *pageTruecolor =
+                SDL_ConvertSurface(source, SDL_PIXELFORMAT_RGBA32);
+            if (pageTruecolor) {
+                gfx_setPageReplacementSurface(pageTruecolor);
+                gfx_setPageReplacementIndexedBase(destination);
+            } else {
+                loaded = 0;
+            }
+        }
     }
     if (loaded) {
         LogInfo(("asset replacement: loaded %s for %s (%dx%d)",
@@ -172,21 +182,40 @@ int loadReplacementPng(const char *legacyFilename, SDL_Surface *destination) {
     return loaded;
 }
 
+int loadReplacementPng(const char *legacyFilename, SDL_Surface *destination) {
+    char replacementPath[1024]{};
+    return loadReplacementPngResolved(legacyFilename, destination,
+                                      replacementPath, sizeof(replacementPath), 0);
+}
+
 /* Load a replacement PNG directly into a legacy full-page image buffer. */
 int loadReplacementPngToPage(const char *legacyFilename, int page) {
     (void)page; /* The port uses one page backbuffer. */
-    return loadReplacementPng(legacyFilename, gfx_getCurPageSurface());
+    char replacementPath[1024]{};
+    const int loaded = loadReplacementPngResolved(legacyFilename, gfx_getCurPageSurface(),
+                                                  replacementPath, sizeof(replacementPath), 1);
+    /* Match showPicFile: replacing a page also replaces its retained text.
+     * Failed replacement attempts must leave the current screen untouched. */
+    if (loaded) gfx_clearTtfTextOverlay();
+    return loaded;
 }
 
 /* Load a replacement PNG into a sprite buffer while preserving the sprite header contract. */
 int loadReplacementPngToSprite(const char *legacyFilename, int segment) {
     SDL_Surface *destination = gfx_getSpriteSurface(segment);
-    return destination ? loadReplacementPng(legacyFilename, destination) : 0;
+    char replacementPath[1024]{};
+    const int loaded = loadReplacementPngResolved(legacyFilename, destination,
+                                                  replacementPath, sizeof(replacementPath), 0);
+    if (loaded) gfx_setSpriteReplacementPng(segment, replacementPath);
+    return loaded;
 }
 
 /* Load and scale a replacement for the split-field high-resolution title image. */
 int loadReplacementPngToHiResTitle(const char *legacyFilename) {
-    const int loaded = loadReplacementPng(legacyFilename, gfx_getHiResSurface());
+    char replacementPath[1024]{};
+    const int loaded = loadReplacementPngResolved(legacyFilename, gfx_getHiResSurface(),
+                                                  replacementPath, sizeof(replacementPath), 0);
     if (loaded) gfx_presentHiRes();
+    else gfx_setHiResReplacementSurface(NULL);
     return loaded;
 }

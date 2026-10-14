@@ -13,6 +13,7 @@
 #include "gfx.h"
 #include "gfx_impl.h"
 #include "r3d.h"
+#include "game/game.h"
 #include "slot.h"
 #include "const.h"
 #include "comm.h"
@@ -112,7 +113,7 @@ int egame_main(void) { /* GCOVR_EXCL_LINE: interactive entry point */
 void drawCockpit() {
     initMissionStrings();
     load15Flt3d3();
-    strcpy(regnStr, scenarioPlh[gameData->theater]);
+    strcpy(regnStr, gamePlhFile(gameData->theater));
     loadRegion3D();
     {
         /* Verify the mesh decoder against the just-loaded world models, once

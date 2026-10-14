@@ -96,7 +96,21 @@ inline char *itoa(int value, char *str, int base) {
 }
 
 inline char *strupr(char *s) {
-    for (char *p = s; *p; p++) *p = toupper((unsigned char)*p);
+    for (char *p = s; *p; p++) {
+        unsigned char b = (unsigned char)*p;
+        /* UTF-8 Cyrillic: fold lowercase to uppercase in place (length-stable).
+         * D0 B0-BF (а-п) -> D0 90-9F (А-П); D1 80-8F (р-я) -> D0 A0-AF (Р-Я);
+         * D1 91 (ё) -> D0 81 (Ё). Lead bytes are left for the next pass. */
+        if (b == 0xD0 && (unsigned char)p[1] >= 0xB0 && (unsigned char)p[1] <= 0xBF) {
+            p++; *p = (char)((unsigned char)*p - 0x20);   /* а-п -> А-П */
+        } else if (b == 0xD1 && (unsigned char)p[1] >= 0x80 && (unsigned char)p[1] <= 0x8F) {
+            *p++ = (char)0xD0; *p = (char)((unsigned char)*p + 0x20); /* р-я -> Р-Я */
+        } else if (b == 0xD1 && (unsigned char)p[1] == 0x91) {
+            *p++ = (char)0xD0; *p = (char)0x81;           /* ё -> Ё */
+        } else {
+            *p = (char)toupper(b);
+        }
+    }
     return s;
 }
 

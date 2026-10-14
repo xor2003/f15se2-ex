@@ -32,6 +32,7 @@
 
 #include "fontdata.h"
 #include "shared/bitmap_font_replacement.h"
+#include "fontdata_ru.h"
 
 /* The SDL window and renderer are owned here: the graphics layer brings up the
  * video output and every gfx_* function presents through it. The original game
@@ -986,10 +987,30 @@ static void gfx_fpsTick(void) {
     }
 }
 
+/* F19_DUMP / F15_DUMP: save the presented page so headless drives (F19_QS +
+ * F19_KEYS) can verify rendered output. Dumps the 2D page surface — cockpit
+ * instruments included — before the 3D/GL composite that r2d_present layers
+ * on top. */
+static void gfx_dumpPage(int page) {
+    static int en = -1, n;
+    SDL_Surface *pg;
+    char path[64];
+    if (en < 0) en = (getenv("F19_DUMP") || getenv("F15_DUMP")) ? 1 : 0;
+    if (!en) return;
+    pg = ensurePage(page);
+    if (!pg) return;
+    SDL_SaveBMP(pg, "/tmp/f19frame.bmp");
+    if (n < 400) {
+        snprintf(path, sizeof(path), "/tmp/f19seq_%03d.bmp", n++);
+        SDL_SaveBMP(pg, path);
+    }
+}
+
 /* Push a page's surface to the active 2D backend (GL composite or software
  * renderer) via the r2d seam (vsync-paced present). */
 static void gfx_presentPage(int page) {
     gfx_fpsTick();
+    gfx_dumpPage(page);
     /* During the hi-res title, the page-0 framebuffer still holds the prior
      * 320x200 image (e.g. labs.pic). Redirect generic flips/commits to the
      * hi-res title surface so frame-pacing presents don't clobber it. */
@@ -1263,6 +1284,20 @@ static const uint8 *g_fontWidthTables[8] = {
 static uint8 g_fontHeightsArr[8] = {5, 8, 7, 6, 7, 6, 4, 0};
 static uint8 g_fontMaxWidths[8] = {4, 8, 6, 6, 8, 6, 0, 0};
 
+/* Legacy bitmap-font advance for a single glyph — the MGRAPHIC charWidth
+ * slot's semantics (width table entry, max-width fallback). */
+int gfx_charWidthLegacy(int ch, int font) {
+    const uint8 *widths;
+    int w;
+    if (font < 0 || font >= 8) return 8;
+    widths = g_fontWidthTables[font];
+    if (ch >= 0x20 && ch < 0x80 && widths) {
+        w = widths[ch - 0x20];
+        if (w > 0) return w;
+    }
+    return g_fontMaxWidths[font] > 0 ? g_fontMaxWidths[font] : 8;
+}
+
 /* Bitmap pointers per font index — NULL means no bitmap available */
 static uint8 *g_fontBitmapPtrs[8] = {
     (uint8 *)g_font0_bitmaps, (uint8 *)g_font1_bitmaps, NULL, (uint8 *)g_font3_bitmaps,
@@ -1337,6 +1372,78 @@ static void cleanupReplacementFonts(void) {
         g_freetypeLibrary = NULL;
     }
 #endif
+}
+
+/* ---- Boriss RU Cyrillic glyph lookup -------------------------------------
+ * The authentic Boriss Software (1990) font planes live in fontdata_ru.h as
+ * [96][height] tables covering legacy slots 0x20-0x7F, where Cyrillic glyphs
+ * replace the Latin letters in KOI-7 order. For UTF-8 input the ASCII table
+ * keeps serving Latin; Unicode Cyrillic codepoints are resolved here to the
+ * corresponding KOI-7 slot so both scripts share one font instance.
+ * Slot order: А..Я = A B W G D E V Z I J K L M N O P R S T U F H C ^ [ ] _ Y X \ @ Q */
+static const uint8 g_ruKoi7Upper[32] = {
+    0x41, 0x42, 0x57, 0x47, 0x44, 0x45, 0x56, 0x5A,
+    0x49, 0x4A, 0x4B, 0x4C, 0x4D, 0x4E, 0x4F, 0x50,
+    0x52, 0x53, 0x54, 0x55, 0x46, 0x48, 0x43, 0x5E,
+    0x5B, 0x5D, 0x5F, 0x59, 0x58, 0x5C, 0x40, 0x51};
+
+static int ruCyrillicSlot(uint32 codepoint) {
+    if (codepoint == 0x401) return 0x45;            /* Ё -> Е slot */
+    if (codepoint == 0x451) return 0x65;            /* ё -> е slot */
+    if (codepoint >= 0x410 && codepoint <= 0x42F)
+        return g_ruKoi7Upper[codepoint - 0x410];
+    if (codepoint >= 0x430 && codepoint <= 0x44F)
+        return g_ruKoi7Upper[codepoint - 0x430] + 0x20;
+    return -1;
+}
+
+static const uint8 *ruFontGlyphRows(uint16 fontIdx, int slot) {
+    if (slot < 0x20 || slot > 0x7f) return NULL;
+    switch (fontIdx) {
+        case 0: return ru_font0_bitmaps[slot - 0x20];
+        case 1: return ru_font1_bitmaps[slot - 0x20];
+        case 3: return ru_font3_bitmaps[slot - 0x20];
+        case 4: return ru_font4_bitmaps[slot - 0x20];
+        case 5: return ru_font5_bitmaps[slot - 0x20];
+        default: return NULL;
+    }
+}
+
+static int ruFontGlyphAdvance(uint16 fontIdx, int slot) {
+    switch (fontIdx) {
+        case 0: return 4;                            /* HUD font: fixed pitch */
+        case 1: return ru_font1_widths[slot - 0x20];
+        case 3: return ru_font3_widths[slot - 0x20];
+        case 4: return ru_font4_widths[slot - 0x20];
+        case 5: return ru_font5_widths[slot - 0x20];
+        default: return 8;
+    }
+}
+
+/* Draw-time string translator (F-19 registers f19_translate; F-15 leaves it
+ * NULL). Applied in drawStringCore and gfx_getStringAdvanceUtf8 so layout and
+ * rendering see the same text. */
+static const char *(*g_stringTranslator)(const char *) = NULL;
+void gfx_setStringTranslator(const char *(*fn)(const char *)) {
+    g_stringTranslator = fn;
+}
+
+static int decodeUtf8Codepoint(const char *text, uint32 *codepointOut, int *byteCountOut);
+
+/* Decode the UTF-8 codepoint at *p (falling back to one raw byte on invalid
+ * input), advance *p past it and return its glyph advance in `fontIdx`.
+ * Shared by the F-19 word-wrap loops, which walk the string byte-wise. */
+int gfx_nextCodepointAdvance(const char **p, uint16 fontIdx) {
+    uint32 codepoint;
+    int byteCount = 1;
+    uint8 ch = (uint8)**p;
+    if (!decodeUtf8Codepoint(*p, &codepoint, &byteCount)) {
+        codepoint = ch;
+        byteCount = 1;
+    }
+    (*p) += byteCount;
+    if (byteCount == 1 && (ch & 0x80)) return 0;    /* color escape */
+    return gfx_getGlyphAdvance(codepoint, fontIdx);
 }
 
 static const ReplacementFontGlyph *findReplacementFontGlyph(uint16 fontIdx, uint32 codepoint) {
@@ -1817,8 +1924,8 @@ static int drawReplacementTtfGlyph(uint16 fontIdx, uint32 codepoint, FT_UInt pre
             coverage = freetypeBitmapPixel(bitmap, col, row);
             if (coverage != 0) {
                 blended = blendReplacementTtfPixel(dstRow[px], (uint8)color, coverage);
+                dstRow[px] = blended;
                 if (submit) r2d_submitPoint(px, py, blended);
-                else dstRow[px] = blended;
             }
         }
     }
@@ -2643,6 +2750,7 @@ static void drawStringCore(int16 *params, const char *string,
 #endif
 
     if (!string || !params) return;
+    if (g_stringTranslator) string = g_stringTranslator(string);
 
     /* The font tables are file-scope arrays in this module; in the merged
      * single-process build they are reached directly as native pointers (the
@@ -2729,6 +2837,7 @@ static void drawStringCore(int16 *params, const char *string,
             glyph = bitmaps + (codepoint - 0x20) * (uint16)rowSize;
             advance = widthTab ? widthTab[codepoint - 0x20] : 8;
         } else if (codepoint >= 0x80) {
+            int ruSlot;
             extraGlyph = findReplacementFontGlyph(fontIdx, codepoint);
 #ifdef F15_HAVE_FREETYPE
             if (!extraGlyph) extraGlyph = cacheReplacementTtfGlyph(fontIdx, codepoint);
@@ -2736,6 +2845,9 @@ static void drawStringCore(int16 *params, const char *string,
             if (extraGlyph) {
                 glyph = extraGlyph->rows;
                 advance = extraGlyph->width;
+            } else if ((ruSlot = ruCyrillicSlot(codepoint)) >= 0 &&
+                       (glyph = ruFontGlyphRows(fontIdx, ruSlot)) != NULL) {
+                advance = ruFontGlyphAdvance(fontIdx, ruSlot);
             } else if (bitmaps) {
                 glyph = bitmaps + ('?' - 0x20) * (uint16)rowSize;
                 advance = widthTab ? widthTab['?' - 0x20] : 8;
@@ -2758,8 +2870,14 @@ static void drawStringCore(int16 *params, const char *string,
                     if ((bits & (uint8)(0x80u >> col)) != 0 &&
                         px >= clipL && px <= clipR &&
                         px >= 0 && px < surfW) {
+                        /* Always write the page: under GL it is composited every
+                         * frame, so one-shot text (panel labels, "TRACKCAM AHEAD")
+                         * persists like DOS video memory; the vector point alone
+                         * would vanish after this frame. Inside the 3D viewport
+                         * the composite is transparent, so the vector still rules
+                         * what shows there. */
+                        dstRow[px] = (uint8)color;
                         if (submit) r2d_submitPoint(px, py, color);
-                        else dstRow[px] = (uint8)color;
                     }
                 }
             }
@@ -3047,6 +3165,15 @@ static const uint8 g_palettes[5][48] = {
  * register block): the shared surface palette is rewritten in place so every
  * page recolours on the next present. setupDac (egsys.c) drives the 0x10-0xFF
  * flight/cockpit colours through this; gfx_setDac uses it for the 0-15 block. */
+/* The last 16 VGA RGB triples written to DAC[0..15] — whether by a 256-entry
+ * setupDac load (the flight scene) or a gfx_setDac record. The original driver's
+ * timer ISR re-applied DAC[0..15] every tick (sub_11CAD -> gfx_setDac) before the
+ * fire-colour cycle (gfx_dacCycle) overwrote index 0x0d, so the visible low
+ * palette always tracked the last palette write rather than going stale. We
+ * mirror that by snapshotting every 0-15 write and re-applying it each tick. */
+static uint8 s_dacLow16[48];
+static uint8 s_dacLow16Valid = 0;
+
 void gfx_setDacRange(uint16 startReg, uint16 count, const uint8 *vgaTriples) {
     SDL_Color colors[256];
     uint16 i;
@@ -3054,6 +3181,13 @@ void gfx_setDacRange(uint16 startReg, uint16 count, const uint8 *vgaTriples) {
     if ((uint32)startReg + count > 256) count = (uint16)(256 - startReg);
     if (!gfxPalette) gfxPalette = gfx_buildPalette();
     if (!gfxPalette) return;
+    /* Snapshot writes that cover DAC[0..15] so the per-tick refresh can restore
+     * them — the last low-palette write wins (flight's 256-entry setupDac block
+     * gives standard-VGA 0-15; a gfx_setDac record overwrites just those 16). */
+    if (startReg == 0 && count >= 16 && vgaTriples != s_dacLow16) {
+        memcpy(s_dacLow16, vgaTriples, 48);
+        s_dacLow16Valid = 1;
+    }
     for (i = 0; i < count; i++) {
         /* 6-bit VGA value -> 8-bit (shift left 2, replicate top 2 bits). */
         int r = vgaTriples[i * 3] << 2, g = vgaTriples[i * 3 + 1] << 2, b = vgaTriples[i * 3 + 2] << 2;
@@ -3070,6 +3204,16 @@ void FAR CDECL gfx_setDac(uint16 palIdx) {
     if (palIdx > 4) return;
     gfx_setDacRange(0, 16, g_palettes[palIdx]);
     gfx_waitRetrace();
+}
+
+/* Re-apply the last DAC[0..15] palette write without a retrace wait — the
+ * native form of the ISR's per-tick low-palette refresh. Called from the 60 Hz
+ * tick so entries 0-15 stay on the last loaded palette (flight's standard-VGA
+ * setupDac block, or the last gfx_setDac record) after the fire-cycle and any
+ * transient writes. */
+void gfx_dacRefreshUi(void) {
+    if (s_dacLow16Valid)
+        gfx_setDacRange(0, 16, s_dacLow16);
 }
 
 /* ---- Slot 0x21: gfx_setColor ---- */
@@ -3299,6 +3443,7 @@ void FAR CDECL gfx_dirtyRect2(const int16 *spanMinBuf, uint16 yMin, uint16 yMax)
             width = (uint16)(LOGICAL_WIDTH - col0);
         rects[rectCount++] = SDL_Rect{col0, row, width, 1};
     }
+    /* Fill all rows in one SDL call instead of setting every pixel here. */
     if (rectCount != 0)
         SDL_FillSurfaceRects(surf, rects, rectCount, fill);
 }
@@ -3323,6 +3468,11 @@ int gfx_getGlyphAdvance(uint32 codepoint, uint16 fontIdx) {
         if (!glyph) glyph = cacheReplacementTtfGlyph(fontIdx, codepoint);
 #endif
         if (glyph) return glyph->width;
+        {
+            int ruSlot = ruCyrillicSlot(codepoint);
+            if (ruSlot >= 0 && ruFontGlyphRows(fontIdx, ruSlot))
+                return ruFontGlyphAdvance(fontIdx, ruSlot);
+        }
         /* No replacement glyph covers this codepoint: fall back to the
          * default advance. (Legacy high bytes are color escapes, but those
          * never reach this API — callers gate them before decoding.) */
@@ -3339,6 +3489,7 @@ int gfx_getStringAdvanceUtf8(const char *text, uint16 fontIdx) {
     int drawnChars;
     if (!text) return 0;
     if (fontIdx >= 8) return 0;
+    if (g_stringTranslator) text = g_stringTranslator(text);
     tryLoadReplacementFont(fontIdx);
 #ifdef F15_HAVE_FREETYPE
     if (g_fontReplacementTtfFaces[fontIdx]) {

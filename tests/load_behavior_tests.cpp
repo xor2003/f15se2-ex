@@ -7,6 +7,7 @@
 #include "strand.h"
 
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
@@ -123,7 +124,7 @@ enum class LoaderFile {
 };
 
 struct DrawCall {
-    const char *text;
+    char text[256];
     int x;
     int y;
     int color;
@@ -552,7 +553,13 @@ void fileClose(SDL_IOStream *handle) {
 
 void drawStringBothPages(const char *text, int x, int y, int color) {
     require(g_drawCalls < kDrawLogCapacity, "3D loader draw log capacity is sufficient");
-    g_drawLog[g_drawCalls++] = {text, x, y, color};
+    /* The loader may pass a pointer into its own stack frame (diskBMsg); copy
+     * the text so the log remains valid after the callee returns. */
+    DrawCall &call = g_drawLog[g_drawCalls++];
+    std::snprintf(call.text, sizeof(call.text), "%s", text);
+    call.x = x;
+    call.y = y;
+    call.color = color;
 }
 
 void gfx_flipPage(void) { ++g_flipCalls; }
@@ -588,6 +595,10 @@ void r3d_submit(const R3DSubmit *) {}
 void r3d_submitLine(const R3DLine *) {}
 void r3d_endScene(void) {}
 struct GameComm *commData = nullptr;
+/* Isolation target has no descriptor registry: the default "F15" label keeps
+ * the original "Please insert F15 Disk B" prompt text. extern "C" because the
+ * engine .c TUs (compiled as C++) see game.h's extern "C" declarations. */
+extern "C" const char *gameDiskLabel(void) { return "F15"; }
 
 int main() {
     resetLoadState();

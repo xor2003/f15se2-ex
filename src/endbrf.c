@@ -10,6 +10,7 @@
 #include "enaward.h"
 #include "enbrief.h"
 #include "endbrf.h"
+#include "game/game.h"
 
 extern int16 menuItemUnused;
 extern uint8 animExitFlag;
@@ -58,20 +59,24 @@ insert_scenario:
     misc_getKey();
 
 open_theater:
-    if (!canLoadPicOrReplacement(theaterSprFiles[gameData->theater]))
+    if (!canLoadPicOrReplacement(gameTheaterSprFile(gameData->theater)))
         goto insert_scenario;
 
     gfx_waitRetrace();
     gfx_setFadeSteps(9);
     spriteBufSeg = gfx_allocSpriteBuf();
-    loadPic(theaterSprFiles[gameData->theater], spriteBufSeg);
+    loadPic(gameTheaterSprFile(gameData->theater), spriteBufSeg);
     a = spriteBufSeg;
 
     goto open_dbicons;
 
 insert_diska:
     clearRect(debriefPage, 0, 0, 319, 199);
-    drawStringCentered(debriefPage, "Please insert F15 Disk A", 0, 90, 319);
+    {
+        char diskAMsg[64];
+        snprintf(diskAMsg, sizeof(diskAMsg), "Please insert %s Disk A", gameDiskLabel());
+        drawStringCentered(debriefPage, diskAMsg, 0, 90, 319);
+    }
     debriefPage[6] = 4;
     drawStringCentered(debriefPage, "<Press a key when ready>", 0, 100, 319);
     debriefPage[6] = 1;

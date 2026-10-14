@@ -59,6 +59,9 @@ GLOBAL_DEF = re.compile(r"^" + _SCALAR + r"\s+(.+?);")
 def _declarator_names(rest):
     if "(" in rest:  # function declaration/definition, not a variable
         return
+    # MSC-era code spells far pointers 'type far *name'; the keyword is storage
+    # noise, not part of the declarator.
+    rest = re.sub(r"\b(?:far|near|huge|__far|__near|__huge)\b", "", rest)
     rest = re.sub(r"\{[^}]*\}", "{}", rest)  # brace initializers may contain commas
     for decl in rest.split(","):
         name = re.match(r"\s*\*?\s*([A-Za-z_]\w*)", decl)

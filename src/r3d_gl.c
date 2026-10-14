@@ -105,10 +105,15 @@ int r3dgl_wantGL(void) {
 
 /* MSAA multisampling for the GL framebuffer. 4x is effectively free on any desktop
  * GPU and noticeably cleans up the flat-shaded polygon edges and the native-res
- * vector HUD. gfx_impl.c retries with 0 if the context won't come up with it. */
-static const int GL_MSAA_SAMPLES = 4;
+ * vector HUD. gfx_impl.c retries with 0 if the context won't come up with it.
+ * F15_MSAA=0 disables (llvmpipe's multisample resolve has a crash path that
+ * F-19's point-heavy far terrain trips). */
+static int GL_MSAA_SAMPLES(void) {
+    const char *e = SDL_getenv("F15_MSAA");
+    return e ? (int)SDL_strtol(e, NULL, 0) : 4;
+}
 
-int r3dgl_msaaSamples(void) { return GL_MSAA_SAMPLES; }
+int r3dgl_msaaSamples(void) { return GL_MSAA_SAMPLES(); }
 
 void r3dgl_setGLAttributes(int msaaSamples) {
     glPlatformSetAttributes();
@@ -132,7 +137,7 @@ int r3dgl_initContext(SDL_Window *win) {
     }
     SDL_GL_MakeCurrent(win, s_ctx);
     SDL_GL_SetSwapInterval(1);
-    if (!glPlatformInit(&s_glFogCoordf, GL_MSAA_SAMPLES)) {
+    if (!glPlatformInit(&s_glFogCoordf, GL_MSAA_SAMPLES())) {
         SDL_GL_DestroyContext(s_ctx);
         s_ctx = NULL;
         return 0;
@@ -284,6 +289,16 @@ static void addShowRect(int x, int y, int w, int h) {
     s_nShowRects++;
 }
 
+static int inShowRect(int x, int y) {
+    int i;
+    for (i = 0; i < s_nShowRects; i++) {
+        const SDL_Rect *r = &s_showRects[i];
+        if (x >= r->x && x < r->x + r->w && y >= r->y && y < r->y + r->h)
+            return 1;
+    }
+    return 0;
+}
+
 static float s_proj[16];     /* column-major GL projection for the active scene */
 static int s_sceneVp[4];     /* window-px viewport/scissor of the active 3D scene, for
                               * re-establishing the scene state in gl_endScene */
@@ -305,6 +320,7 @@ typedef struct {
     int16 combined[9];
     long camBase, camX, camY; /* camera-space origin axes (screen-X, screen-Y, depth) */
     int shade, colorBase, curLod;
+    uint32 visMask;       /* g_vtxSignMask: per-normal visibility bits (r3d_objTransformFar) */
     int posZ;             /* object world altitude (0 = ground/sea), for wire ground test */
     int sortHi, sortLo;   /* normalized origin depth (sort key, farthest = largest) */
     int immediate;        /* flat ground/sea (posZ==0, no sort flag): drawn first/behind */
@@ -315,6 +331,12 @@ typedef struct {
 static GlSub s_subs[GL_MAX_SUBS];
 static int s_nSub;
 static int s_subOverflow;
+/* Deferred depth-point queue (see flushDepthPoints): detail-4 F-19 collapses
+ * hundreds of distant subs to dots per frame, and per-dot GL_BLEND/POINT_SMOOTH/
+ * MSAA toggles crash llvmpipe's emit queue, so dots batch to scene end. */
+#define GL_MAX_DEPTH_PTS 16384
+static struct { float x, y, depth; int color; } s_depthPts[GL_MAX_DEPTH_PTS];
+static int s_nDepthPts;
 
 typedef R3DReplacementPrim GlbPrim;
 typedef R3DReplacementMesh GlbMesh;
@@ -513,9 +535,6 @@ static int s_lineOverflow;
  * MSAA state toggles plus a draw call each — enough to overflow llvmpipe's
  * emit queue. Dots accumulate here and draw as one GL_POINTS batch at scene
  * end (the depth buffer sorts them; draw order between dots is moot). */
-#define GL_MAX_DEPTH_PTS 16384
-static struct { float x, y, depth; int color; } s_depthPts[GL_MAX_DEPTH_PTS];
-static int s_nDepthPts;
 
 /* INDEX8 -> RGBA8888 conversion scratch, shared by the page composite, the sprite
  * textures and the sub-view backdrop snapshot. */
@@ -597,6 +616,17 @@ static int peekSortFlag(const uint8 *model, const uint8 *limit) {
  * pass real sheets also catches it.) */
 static const int GL_FLAT_SPAN = 8;
 
+/* Upper bound for display-list bounds checks. Default: the shared F-15 world
+ * model buffer. F-19's streams live in its own seg004 block — a foreign address
+ * range that fails every `p < limit` test against this buffer, so the game sets
+ * the real bound once via r3dgl_setWorld3dLimit. */
+static const uint8 *s_world3dLimit;
+static const uint8 *world3dLimit(void) {
+    return s_world3dLimit ? s_world3dLimit
+                          : (const uint8 *)g_world3dData + WORLD3D_DATA_SIZE;
+}
+void r3dgl_setWorld3dLimit(const uint8 *limit) { s_world3dLimit = limit; }
+
 /* Relief is a static property of the model, but a frame has many instances of a few
  * models (terrain tiles), so cache the verdict per model pointer; reset each frame
  * (the world data can reload between regions). */
@@ -613,8 +643,7 @@ static int modelIsFlat(const char *model) {
 
     fillPools(&pools);
     flat = 0; /* undecodable / non-model -> treat as solid (z-buffer it; the safe side) */
-    if (r3dmesh_decode((const uint8 *)model,
-                       (const uint8 *)g_world3dData + WORLD3D_DATA_SIZE,
+    if (r3dmesh_decode((const uint8 *)model, world3dLimit(),
                        &pools, colorLut, &s_mesh) >= 0) {
         l = &s_mesh.lods[0];
         if (l->form == MESH_FORM_MODEL && l->nVerts > 0) {
@@ -672,10 +701,16 @@ static const float FOG_DENSITY = 0.0003f;   /* GL_EXP/EXP2: higher = haze closes
 //static const float FOG_DENSITY = 0.0003f;   /* GL_EXP/EXP2: higher = haze closes in sooner */
 
 /* Emit one vertex with its fog distance = its forward depth z (planar), bypassing GL's
- * eye-distance derivation. Falls back to a plain vertex if glFogCoordf is unavailable. */
+ * eye-distance derivation. Falls back to a plain vertex if glFogCoordf is unavailable.
+ * The emitted xyz is scaled by GL_EYE_SHRINK: F-19's far terrain reaches eye coords
+ * near ±2^31 which overflows llvmpipe's internal fixed-point setup (segfault in
+ * libgallium). A uniform homogeneous scale preserves NDC and depth-buffer results
+ * exactly (clip = M·e·k cancels in the w divide), a power of two scales floats
+ * losslessly, and fog keeps the true depth via the separate fog-coord attribute. */
+#define GL_EYE_SHRINK (1.0f / 1024.0f)
 static void fogVertex(float x, float y, float z) {
     if (s_glFogCoordf) s_glFogCoordf(z);
-    glVertex3f(x, y, z);
+    glVertex3f(x * GL_EYE_SHRINK, y * GL_EYE_SHRINK, z * GL_EYE_SHRINK);
 }
 
 static const char *gl_name(void) {
@@ -712,9 +747,13 @@ static void buildProjection(int Wv, int Hv, int cx, int cy, float fGate) {
     float zb = -2.0f / (1.0f / dNear - 1.0f / fGate);
     float za = -1.0f - zb / dNear;
     float *m = s_proj;
+    /* zb is scaled by GL_EYE_SHRINK: fogVertex emits eye coords at 1/1024 so the
+     * whole clip vector (including w=ez) scales by the same factor — NDC and
+     * depth ordering identical, but the magnitudes stay inside llvmpipe's
+     * fixed-point rasterizer range. */
     m[0] = ax; m[4] = 0;  m[8]  = az; m[12] = 0;
     m[1] = 0;  m[5] = by; m[9]  = bz; m[13] = 0;
-    m[2] = 0;  m[6] = 0;  m[10] = za; m[14] = zb;
+    m[2] = 0;  m[6] = 0;  m[10] = za; m[14] = zb * GL_EYE_SHRINK;
     m[3] = 0;  m[7] = 0;  m[11] = 1;  m[15] = 0;
 }
 
@@ -955,6 +994,7 @@ static void gl_beginScene(const R3DScene *s) {
      * at the gl_endScene anchor (after the 3D, before the HUD), so don't compose it
      * here. */
     r2d_vectorBeginFrame(R2D_COMPOSE_NONE);
+    s_nDepthPts = 0; /* drop any dots left over if a prior scene ended early */
 
     if (s_wide < 0) {
         /* Widescreen 3D (Hor+): on by default; F15_WIDESCREEN=0 forces 4:3. The
@@ -1092,7 +1132,7 @@ static void gl_beginScene(const R3DScene *s) {
     /* Sky/ground background sphere (detail >= 3) drawn first (farthest) with the
      * depth test off so it stays behind everything; the 3D projection is then
      * restored for the objects. */
-    if ((char)g_detailLevel >= 3)
+    if ((char)g_detailLevel >= 3 && !g_skyFlatOnly)
         glDrawSphere(sphOrtho[0], sphOrtho[1], sphOrtho[2], sphOrtho[3],
                      glPlatformDrawSky());
     glMatrixMode(GL_PROJECTION);
@@ -1158,6 +1198,7 @@ static void gl_submit(const R3DSubmit *o) {
     GlSub *r;
     int16 combined[9];
     long camBase, camTransX, camTransY, depth;
+    uint32 visMask;
     int shade, shift, i;
 
     if (s_nSub >= GL_MAX_SUBS) {
@@ -1167,7 +1208,8 @@ static void gl_submit(const R3DSubmit *o) {
 
     if (r3d_objTransformFar((char far *)o->mesh, o->yaw, o->pitch, o->roll,
                             o->posX, o->posY, o->posZ,
-                            combined, &camBase, &camTransX, &camTransY, &shade))
+                            combined, &camBase, &camTransX, &camTransY, &shade,
+                            &visMask))
         return; /* frustum-culled */
 
     r = &s_subs[s_nSub];
@@ -1179,6 +1221,7 @@ static void gl_submit(const R3DSubmit *o) {
     r->camX = camTransX;
     r->camY = camTransY;
     r->shade = shade;
+    r->visMask = visMask;
     r->colorBase = g_objColorBase;
     r->curLod = g_curLod;
     r->posZ = o->posZ;
@@ -1192,8 +1235,7 @@ static void gl_submit(const R3DSubmit *o) {
      * The lowest-LOD ground tile (colorBase 0x400) is always flat (its non-ground
      * faces are junk that would otherwise read as relief). */
     r->immediate = (!o->shadow && o->posZ == 0 &&
-                    !peekSortFlag((const uint8 *)o->mesh,
-                                  (const uint8 *)g_world3dData + WORLD3D_DATA_SIZE) &&
+                    !peekSortFlag((const uint8 *)o->mesh, world3dLimit()) &&
                     (g_objColorBase == 0x400 || modelIsFlat((const char *)o->mesh)));
     r->seq = s_nSub;
     s_nSub++;
@@ -1248,7 +1290,12 @@ static int s_paintSeq; /* primitives drawn so far this frame (reset in gl_endSce
 /* Bias the next primitive one draw-step toward the camera. Call OUTSIDE glBegin/End,
  * before each primitive, so draw order breaks coplanar depth ties. */
 static void paintBias(void) {
-    glPolygonOffset(0.0f, -(float)(s_paintSeq++) * GL_PAINT_BIAS);
+    /* Cap the running bias: F-19's tile count pushes seq orders of magnitude past
+     * F-15's per frame, and llvmpipe's fixed-point depth-offset path segfaults on
+     * extreme unit values. A bounded seq still orders every coplanar surface. */
+    int seq = s_paintSeq < 0x4000 ? s_paintSeq : 0x4000;
+    glPolygonOffset(0.0f, -(float)seq * GL_PAINT_BIAS);
+    s_paintSeq++;
 }
 
 /* Round anti-aliased points come from GL_POINT_SMOOTH's coverage-blended alpha. The
@@ -1261,16 +1308,16 @@ static void beginSmoothPoints(void) {
     glEnable(GL_POINT_SMOOTH);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    /* One fixed size for the whole batch — the original drew these as fixed
-     * 1px dots at any range; distance cueing comes from the shade color. A
-     * per-point glPointSize can't sit inside glBegin and forced a pipeline-
-     * state update between dots. */
+    /* One fixed size per point batch — the original drew these as fixed 1px dots
+     * at any range; distance cueing comes from the shade colour. Per-point
+     * glPointSize also forced a pipeline-state update between every dot, which
+     * trips a llvmpipe emit-queue bug on F-19's point-heavy far terrain. */
     glPointSize(s_pixelScale > 1.0f ? s_pixelScale : 1.0f);
 }
 static void endSmoothPoints(void) {
     glDisable(GL_BLEND);
     glDisable(GL_POINT_SMOOTH);
-    if (GL_MSAA_SAMPLES > 0) glEnable(GL_MULTISAMPLE);
+    if (GL_MSAA_SAMPLES() > 0) glEnable(GL_MULTISAMPLE);
 }
 
 static void queueDepthPoint(float x, float y, long depth32, int colorIdx) {
@@ -1407,8 +1454,7 @@ static void compareGlbReplacementWithLegacy(const GlSub *r, GlbMesh *mesh) {
     mesh->compared = 1;
 
     fillPools(&pools);
-    if (r3dmesh_decode((const uint8 *)r->model,
-                       (const uint8 *)g_world3dData + WORLD3D_DATA_SIZE,
+    if (r3dmesh_decode((const uint8 *)r->model, world3dLimit(),
                        &pools, colorLut, &legacy) < 0) {
         LogWarn(("asset replacement compare: failed to decode legacy 3D shape %d for %s", r->shapeId, mesh->path));
         return;
@@ -1562,8 +1608,7 @@ static void drawSub(const GlSub *r) {
     }
 
     fillPools(&pools);
-    if (r3dmesh_decode((const uint8 *)r->model,
-                       (const uint8 *)g_world3dData + WORLD3D_DATA_SIZE,
+    if (r3dmesh_decode((const uint8 *)r->model, world3dLimit(),
                        &pools, colorLut, &s_mesh) < 0)
         return;
     l = &s_mesh.lods[0];
@@ -1723,6 +1768,11 @@ static void drawSub(const GlSub *r) {
         int ring[R3DMESH_MAX_FACE_EDGES + 1];
         int n, k, cur, prev, deg;
         if (f->nEdges < 3) continue;
+        /* Normal-visibility gate (renderPrimitiveCommand): the face's opcode
+         * selects one sign-mask bit — the face draws only when its visibility
+         * normal passes. A pure z-buffer draw keeps faces the original culls,
+         * e.g. the tail-cone cap that covers the F-19's recessed nozzles. */
+        if (!(r->visMask & (1u << f->cullNormal))) continue;
         /* Colour filters from renderPrimitiveCommand: 0xff is transparent, and the
          * lowest-LOD flat ground tile (colorBase == 0x400) draws only its
          * colorByte==1 ground face — the rest of that tile's faces are junk. */
@@ -1792,8 +1842,12 @@ static void drawSub(const GlSub *r) {
         float ul = SDL_sqrtf(ux * ux + uy * uy + uz * uz);
         if (ul > 1e-3f) { ux /= ul; uy /= ul; uz /= ul; }
         for (i = 0; i < l->nLines; i++) {
-            MeshEdge *e = &l->edges[l->lines[i].edge];
+            MeshEdge *e;
             float ax, ay, az, bx, by, bz, lx, ly, lz, len;
+            /* testVisibilityMask: the line's own mask word ANDs against the
+             * sign mask — a hidden wire draws nothing. */
+            if (!(l->lines[i].visMask & r->visMask)) continue;
+            e = &l->edges[l->lines[i].edge];
             if (e->va >= l->nVerts || e->vb >= l->nVerts) continue;
             ax = vx_[e->va]; ay = vy_[e->va]; az = vd_[e->va] * 65536.0f;
             bx = vx_[e->vb]; by = vy_[e->vb]; bz = vd_[e->vb] * 65536.0f;
@@ -2011,8 +2065,9 @@ static void gl_endScene(void) {
     for (i = 0; i < s_nLine; i++) drawGlLine(&s_lines[i]);
     s_nLine = 0;
 
-    /* Deferred sub-pixel/edge-run dots: one batch, after the world geometry
-     * so the depth buffer sorts them. */
+    /* Deferred sub-pixel/edge-run dots: one batch, after the world geometry so
+     * the depth buffer sorts them (draw order between dots is moot). */
+    if (s_mainScene) glEnable(GL_FOG);
     flushDepthPoints();
 
     glDisable(GL_FOG);
@@ -2640,16 +2695,6 @@ static unsigned pageHashBytes(unsigned k, const uint8 *src, size_t size) {
     }
     while (size-- != 0) k = (k ^ *src++) * 16777619u;
     return k;
-}
-
-static int inShowRect(int x, int y) {
-    int i;
-    for (i = 0; i < s_nShowRects; i++) {
-        const SDL_Rect *r = &s_showRects[i];
-        if (x >= r->x && x < r->x + r->w && y >= r->y && y < r->y + r->h)
-            return 1;
-    }
-    return 0;
 }
 
 /* Fold the page's visible output: pixels, palette, show-through rectangles and

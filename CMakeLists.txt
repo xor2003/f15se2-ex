@@ -230,7 +230,7 @@ set(F15SE2_SOURCES
     ${SRC_DIR}/shared/structured_asset_replacement.c
     ${SRC_DIR}/shared/filepic.c
 
-    # f15 launcher
+    # f15 launcher + multi-game descriptor registry
     ${SRC_DIR}/f15.c
     ${SRC_DIR}/dosfunc.c
     ${SRC_DIR}/log.c
@@ -244,6 +244,70 @@ set(F15SE2_SOURCES
     ${SRC_DIR}/menu_pointer.c
     ${SRC_DIR}/hdsprite.c
     ${SRC_DIR}/cockpit3d.cpp
+    ${SRC_DIR}/game/gamedesc.c
+    ${SRC_DIR}/game/desc_f15.c
+    ${SRC_DIR}/game/desc_f19.c
+
+    # f19 (merged START module — native port of the f19ru reconstruction)
+    ${SRC_DIR}/f19/cleanup.c
+    ${SRC_DIR}/f19/drawstr.c
+    ${SRC_DIR}/f19/eg3dload.c
+    ${SRC_DIR}/f19/eg3dmap.c
+    ${SRC_DIR}/f19/eg3dview.c
+    ${SRC_DIR}/f19/egcombat.c
+    ${SRC_DIR}/f19/egflight.c
+    ${SRC_DIR}/f19/egframe.c
+    ${SRC_DIR}/f19/eginstr.c
+    ${SRC_DIR}/f19/egkeys.c
+    ${SRC_DIR}/f19/egmain.c
+    ${SRC_DIR}/f19/egmath.c
+    ${SRC_DIR}/f19/egrender.c
+    ${SRC_DIR}/f19/egtacmap.c
+    ${SRC_DIR}/f19/egtarget.c
+    ${SRC_DIR}/f19/egui.c
+    ${SRC_DIR}/f19/f19r3d.c
+    # f19 (merged END module — native port of the f19ru reconstruction)
+    ${SRC_DIR}/f19/enalloc.c
+    ${SRC_DIR}/f19/enaward.c
+    ${SRC_DIR}/f19/enbrief.c
+    ${SRC_DIR}/f19/enbrief2.c
+    ${SRC_DIR}/f19/endevt.c
+    ${SRC_DIR}/f19/endrawstr.c
+    ${SRC_DIR}/f19/enfile2.c
+    ${SRC_DIR}/f19/enmain.c
+    ${SRC_DIR}/f19/enskel.c
+    ${SRC_DIR}/f19/enstr.c
+    ${SRC_DIR}/f19/enworld.c
+    ${SRC_DIR}/f19/f19envars.c
+
+    ${SRC_DIR}/f19/enfile.c
+    ${SRC_DIR}/f19/f19egdata.c
+    ${SRC_DIR}/f19/f19egsvc.c
+    ${SRC_DIR}/f19/f19crt.c
+    ${SRC_DIR}/f19/f19data.c
+    ${SRC_DIR}/f19/f19file.c
+    ${SRC_DIR}/f19/f19ovl.c
+    ${SRC_DIR}/f19/f19seg.c
+    ${SRC_DIR}/f19/f19stvars.c
+    ${SRC_DIR}/f19/f19egvars.c
+    ${SRC_DIR}/f19/f19lang.c
+    ${SRC_DIR}/f19/f19stubs.c
+    ${SRC_DIR}/f19/stalloc.c
+    ${SRC_DIR}/f19/starm.c
+    ${SRC_DIR}/f19/stgen.c
+    ${SRC_DIR}/f19/stgrid.c
+    ${SRC_DIR}/f19/stload.c
+    ${SRC_DIR}/f19/stmain.c
+    ${SRC_DIR}/f19/stmap.c
+    ${SRC_DIR}/f19/stmenu.c
+    ${SRC_DIR}/f19/stobjb.c
+    ${SRC_DIR}/f19/stobj.c
+    ${SRC_DIR}/f19/stpanel.c
+    ${SRC_DIR}/f19/stparse.c
+    ${SRC_DIR}/f19/stpilot.c
+    ${SRC_DIR}/f19/stpinp.c
+    ${SRC_DIR}/f19/stterr.c
+    ${SRC_DIR}/f19/stutil.c
 
     # start
     ${SRC_DIR}/stmain.c
@@ -433,6 +497,12 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID MATCHES "Clang"
         message(STATUS "Building with sanitizers: ${SANITIZER_LIST}")
         add_compile_options(-fsanitize=${SANITIZER_LIST} -fno-omit-frame-pointer -g)
         add_link_options(-fsanitize=${SANITIZER_LIST})
+        # The decompiled dseg overlays are packed byte arrays cast to structs
+        # everywhere — misaligned access is architectural, not a bug. Drop the
+        # check so remaining UBSan signal (index, null, nonnull) stays usable.
+        if(UBSAN)
+            add_compile_options(-fno-sanitize=alignment)
+        endif()
     endif()
 
     # Coverage instrumentation (directory scope, so the core library and every
@@ -935,6 +1005,7 @@ if(F15SE2_ORIGINAL_ASSETS AND F15SE2_CONVERTED_ASSETS
 endif()
 add_behavior_test(utf8_behavior_tests SOURCES
     ${SRC_DIR}/shared/utf8.c)
+add_behavior_test(game_detect_tests LINK_CORE)
 add_behavior_test(gameplay_behavior_tests LINK_CORE)
 add_behavior_test(fixed_math_backend_tests LINK_CORE)
 add_behavior_test(typed_rotation_tests LINK_CORE)
@@ -992,6 +1063,8 @@ add_behavior_test(eg_stubs_behavior_tests LINK_CORE)
 add_behavior_test(eg3drast_internal_behavior_tests SOURCES ${SRC_DIR}/egdata.c)
 add_behavior_test(start_behavior_tests LINK_CORE)
 add_behavior_test(log_behavior_tests LINK_CORE)
+add_behavior_test(f19_behavior_tests LINK_CORE)
+add_behavior_test(f19_mission_gen_tests LINK_CORE)
 add_behavior_test(terrain_capacity_tests LINK_CORE)
 add_behavior_test(vgapal_behavior_tests SOURCES ${SRC_DIR}/vgapal.c DEFS main=vgapal_program_main)
 

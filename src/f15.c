@@ -21,9 +21,11 @@
 #include "joystick.h"
 #include "r3d.h"
 #include "input.h"
+#include "egdata.h"
 #include "shared/common.h"
 #include "shared/blackbox.h"
 #include "shared/blackbox_cli.h"
+#include "game/game.h"
 
 #include <stdio.h>
 #include <stddef.h>
@@ -50,6 +52,7 @@ int start_main(void);
 int egame_main(void);
 int end_main(void);
 bool setGamePath(const char *path);
+const char *getGamePath(void);
 bool verifyGameAssets();
 #include "bundled_campaign.h"
 #ifdef F15_NET
@@ -68,11 +71,14 @@ static void app_quit(void) {
 }
 
 void usage(int errcode) {
-    printf("Usage: f15se2-ex [--help] [--nointro] [--game path] [--campaign id] [--campaign-sortie id-or-phase] [--scenario id] [--scenario-base stem]\n"
+    printf("Usage: f15se2-ex [--help] [--nointro] [--game path] [--game-id id] [--campaign id] [--campaign-sortie id-or-phase] [--scenario id] [--scenario-base stem]\n"
            "--nointro      Skip intro sequence\n"
            "--verbose      Enable verbose/debug logging (on DOS, written to F15.LOG)\n"
            "--game path    Path to directory containing game assets, can also use\n"
            "               F15SE2_DIR env var, default is current directory\n"
+           "--game-id id   Force game selection when the directory holds assets for\n"
+           "               more than one supported game; can also use\n"
+           "               F15SE2_GAME_ID env var\n"
            "--campaign id  Load campaign.json from replacement assets, for example\n"
            "               SVN/campaign.json; can also use F15_CAMPAIGN env var\n"
            "--campaign-sortie id-or-phase\n"
@@ -101,6 +107,9 @@ int main(int argc, char *argv[]) {
     const char *scenarioArg = NULL;
     const char *scenarioBaseArg = NULL;
     const char *gameDir = getenv("F15SE2_DIR");
+    const char *gameIdArg = getenv("F15SE2_GAME_ID");
+    const GameDesc *game;
+    char gameErr[512];
     BlackboxCliOptions blackboxOptions;
 #ifdef F15_NET
     F15NetOpts netOpts;
@@ -120,6 +129,11 @@ int main(int argc, char *argv[]) {
             if (i + 1 >= argc) { printf("Option requires an argument: --game\n"); usage(1); }
             if (!setGamePath(argv[i + 1])) goto shutdown;
             gameDir = argv[i + 1];
+            i++;
+        }
+        else if (strcmp(optStr, "--game-id") == 0) {
+            if (i + 1 >= argc) { printf("Option requires an argument: --game-id\n"); usage(1); }
+            gameIdArg = argv[i + 1];
             i++;
         }
         else if (strcmp(optStr, "--campaign") == 0) {
@@ -207,6 +221,25 @@ int main(int argc, char *argv[]) {
     }
 #endif
 
+    /* Game selection: --game-id/F15SE2_GAME_ID forces a game; otherwise the
+     * asset dir is probed for each game's signature files. Exactly one match
+     * selects it; zero or several is an error. The descriptor supplies the
+     * asset manifest, filename aliases, theater tables and the module entry
+     * points used below. */
+    game = gameSelectForDir(getGamePath(), gameIdArg, gameErr, sizeof(gameErr));
+    if (!game) {
+        printf("%s\n", gameErr);
+        SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Initialization failed", gameErr, NULL);
+        goto shutdown;
+    }
+    log_set_app(game->cliId);
+    LogInfo(("game: running %s", game->displayName));
+
+    /* Descriptor -> engine render flags: the renderer reads plain globals so
+     * it never links the game registry (unit tests pull the renderer without
+     * the descriptor tables). */
+    g_skyFlatOnly = (int16)game->flatSkyOnly;
+
     if (!verifyGameAssets()) goto shutdown;
     gfx_videoInit();
     game_init(showIntro);
@@ -227,20 +260,20 @@ int main(int argc, char *argv[]) {
         int err;
         log_set_app("start");
         blackbox_logPhase("start");
-        err = start_main();
-        log_set_app("f15");
+        err = game->start();
+        log_set_app(game->cliId);
         if (err != RET_MENU) break;
 
         log_set_app("egame");
         blackbox_logPhase("egame");
-        err = egame_main();
-        log_set_app("f15");
+        err = game->egame();
+        log_set_app(game->cliId);
         if (err == 0) break;
 
         log_set_app("end");
         blackbox_logPhase("end");
-        err = end_main();
-        log_set_app("f15");
+        err = game->end();
+        log_set_app(game->cliId);
         if (err != RET_DEBRIEFING) break;
     }
 
