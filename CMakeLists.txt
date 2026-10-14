@@ -220,6 +220,7 @@ set(F15SE2_SOURCES
     ${SRC_DIR}/shared/drawstr.c
     ${SRC_DIR}/shared/textfmt.c
     ${SRC_DIR}/shared/utf8.c
+    ${SRC_DIR}/shared/structured_asset_replacement.c
     ${SRC_DIR}/shared/filepic.c
 
     # f15 launcher
@@ -806,6 +807,10 @@ target_compile_options(signed_ratio_behavior_tests PRIVATE
 add_behavior_test(file_io_behavior_tests LINK_CORE)
 add_behavior_test(asset_path_behavior_tests LINK_CORE)
 add_behavior_test(png_asset_behavior_tests LINK_CORE)
+add_behavior_test(structured_asset_replacement_behavior_tests LINK_CORE)
+set(F15SE2_ASSET_TOOL_COMMAND
+    "python3 ${CMAKE_CURRENT_SOURCE_DIR}/tools/f15assets/cli.py"
+    CACHE STRING "Asset converter command for structured full validation")
 if(F15SE2_ORIGINAL_ASSETS AND F15SE2_CONVERTED_ASSETS
    AND IS_DIRECTORY "${F15SE2_ORIGINAL_ASSETS}"
    AND IS_DIRECTORY "${F15SE2_CONVERTED_ASSETS}")
@@ -816,9 +821,17 @@ if(F15SE2_ORIGINAL_ASSETS AND F15SE2_CONVERTED_ASSETS
     set_tests_properties(png_asset_full_validation_tests PROPERTIES
         LABELS "assets;integration"
         TIMEOUT 120)
+    add_behavior_test(structured_asset_full_validation_tests LINK_CORE
+        DEFS
+            F15_ORIGINAL_ASSETS="${F15SE2_ORIGINAL_ASSETS}"
+            F15_CONVERTED_ASSETS="${F15SE2_CONVERTED_ASSETS}"
+            F15_ASSET_TOOL_COMMAND="${F15SE2_ASSET_TOOL_COMMAND}")
+    set_tests_properties(structured_asset_full_validation_tests PROPERTIES
+        LABELS "assets;integration"
+        TIMEOUT 120)
 else()
     message(STATUS
-        "Skipping PNG full validation: set F15SE2_ORIGINAL_ASSETS and "
+        "Skipping PNG/structured full validation: set F15SE2_ORIGINAL_ASSETS and "
         "F15SE2_CONVERTED_ASSETS to existing directories")
 endif()
 add_behavior_test(utf8_behavior_tests SOURCES
