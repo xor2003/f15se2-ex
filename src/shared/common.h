@@ -50,6 +50,7 @@ int loadReplacementPngToHiResTitle(const char *filename);
 #endif
 
 /* functions provided by file_io.c / file_*.inc - case-insensitive asset I/O */
+const char *getGamePath(void);
 SDL_IOStream *openFile(const char *filename, int mode);
 SDL_IOStream *createFile(const char *filename, int attr);
 void setCustomWorldScenario(const char *scenario);

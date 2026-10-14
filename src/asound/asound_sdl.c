@@ -18,10 +18,12 @@
 
 #include "../shared/asset_compare.h"
 #include "asound_model.h"
+#include "asound_mt32.h"
 #include "asound_music_replacement.h"
 #include "asound_replacements.h"
 #include "asopl.h"
 #include "compressed_audio.h"
+#include "rsound_model.h"
 #if F15_FM_EMULATION
 /* opl3.h has no extern "C" guard of its own; this TU compiles as C++ but opl3.c
  * is built as C, so the declarations must use C linkage to match. */
@@ -41,6 +43,7 @@ extern "C" {
 #include <dos.h>
 #include "slot.h"
 #include "common.h" /* openFile */
+#include "game/game.h" /* gameActive */
 #include "input.h"  /* input_keyWaiting / input_setMode */
 #include "log.h"
 #include "shared/blackbox.h"
@@ -67,6 +70,13 @@ static bool g_ready;                              /* device opened */
 static AsoundU8 *g_blob;
 static int g_blobSize;
 static bool g_smpActive;
+
+/* Roland MT-32 backend state (RSOUND.EXE port). Active when libmt32emu is
+ * compiled in and control/pcm ROMs were found; see asound_mt32.c for the
+ * discovery order and F15_AUDIO_BACKEND override. */
+static RsoundDriver g_rsnd;
+static bool g_mt32Active;
+static bool g_mt32Tried;
 static const AsoundU8 *g_smpData{};
 static double g_smpPos; /* fractional read position (bytes) */
 static int g_smpSize{};
@@ -183,9 +193,42 @@ static void asnd_startSample(AsoundU16 start, AsoundU16 end) {
     g_smpActive = true;
 }
 
+/* Pick the Roland backend: F15_AUDIO_BACKEND=opl|adlib forces the AdLib path,
+ * mt32 forces Roland (a failed open is then a logged error), default auto
+ * uses MT-32 whenever the library and ROMs are present. */
+static const RsoundData *asnd_rsoundData(void) {
+    const GameDesc *g = gameActive();
+    return (g && g->id == GAMEID_F19) ? &rsound_data_f19 : &rsound_data_f15;
+}
+
+static void asnd_selectBackend(void) {
+    const char *be;
+    if (g_mt32Tried) return;
+    g_mt32Tried = true;
+    be = SDL_getenv("F15_AUDIO_BACKEND");
+    if (be && (!SDL_strcasecmp(be, "opl") || !SDL_strcasecmp(be, "adlib") ||
+               !SDL_strcasecmp(be, "off"))) {
+        return;
+    }
+    if (!asound_mt32_open(ASND_OUT_RATE)) {
+        if (be && !SDL_strcasecmp(be, "mt32")) {
+            LogWarn(("mt32: F15_AUDIO_BACKEND=mt32 but the synth could not "
+                     "open (missing ROMs?) - falling back to AdLib"));
+        }
+        return;
+    }
+    rsound_init(&g_rsnd, asnd_rsoundData(), asound_mt32_midi,
+                asound_mt32_sysex, NULL);
+    g_mt32Active = true;
+    LogInfo(("mt32: Roland backend active (game %s)",
+             asnd_rsoundData() == &rsound_data_f19 ? "f19" : "f15"));
+}
+
 /* One 60 Hz service tick: advance streams, apply events to the OPL shadow, run
  * the per-tick pitch-slide/noise/drone updates, then flush to the chip. This is
- * asdrv_timer + asdrv_noise from the DOS glue, minus the hardware I/O. */
+ * asdrv_timer + asdrv_noise from the DOS glue, minus the hardware I/O.
+ * Under MT-32 the RSOUND sequencer is ticked instead; the ASOUND model still
+ * runs so digitized voice cues (SAMPLE_RANGE events) keep working. */
 static void asnd_tick(void) {
     AsoundDriver *drv = sound_driver_state();
     AsoundEvent events[32];
@@ -193,12 +236,16 @@ static void asnd_tick(void) {
     for (size_t i = 0; i < count; i++) {
         if (events[i].type == ASOUND_EVENT_SAMPLE_RANGE) {
             asnd_startSample(events[i].a, events[i].b);
-        } else {
+        } else if (!g_mt32Active) {
             asopl_apply_event(&g_opl, drv, &events[i]);
         }
     }
-    asopl_service_tick(&g_opl, drv);
-    asopl_noise_tick(&g_opl);
+    if (g_mt32Active) {
+        rsound_tick(&g_rsnd);
+    } else {
+        asopl_service_tick(&g_opl, drv);
+        asopl_noise_tick(&g_opl);
+    }
     asnd_syncChip();
 }
 
@@ -281,7 +328,11 @@ static void SDLCALL asnd_callback(void *user, SDL_AudioStream *stream,
         if (chunk > ASND_CHUNK) chunk = ASND_CHUNK;
 
 #if F15_FM_EMULATION
-        OPL3_GenerateStream(&g_chip, buf, (uint32_t)chunk);
+        if (g_mt32Active) {
+            asound_mt32_render(buf, chunk);
+        } else {
+            OPL3_GenerateStream(&g_chip, buf, (uint32_t)chunk);
+        }
 #else
         /* The chip produces the FM itself; only digitized speech needs PCM. */
         SDL_memset(buf, 0, chunk * 2 * sizeof(Sint16));
@@ -324,6 +375,7 @@ static void asnd_openDevice(void) {
     asopl_init(&g_opl);
     asnd_resetChip();
     asnd_invalidateHwShadow();
+    asnd_selectBackend();
     g_tickAccum = g_samplesPerTick;
     SDL_ResumeAudioStreamDevice(g_stream);
     g_ready = true;
@@ -333,6 +385,14 @@ static void asnd_openDevice(void) {
  * if the device is already running. */
 static void asnd_resetSynth(AsoundU16 setupValue) {
     sound_driver_setup(setupValue, /*driver_segment=*/1); /* nonzero: enables intro */
+    if (g_mt32Active) {
+        /* setup slot: MPU reset + re-upload the timbre dump (like the original) */
+        rsound_init(&g_rsnd, asnd_rsoundData(), asound_mt32_midi,
+                    asound_mt32_sysex, NULL);
+        g_smpActive = false;
+        g_compressedIntroActive = false;
+        return;
+    }
     asopl_init(&g_opl);
     asopl_set_drone_pitch(&g_opl, 0);
     asopl_set_drone_enable(&g_opl, 0);
@@ -359,6 +419,7 @@ int FAR CDECL audio_shutdown(void) {
     if (!g_ready) return 0;
     SDL_LockMutex(g_lock);
     sound_driver_shutdown();
+    if (g_mt32Active) rsound_shutdown(&g_rsnd);
     asopl_reset(&g_opl);
     asnd_resetChip();
     asnd_invalidateHwShadow();
@@ -375,19 +436,23 @@ int FAR CDECL audio_playSound(int soundId) {
      * target tick. This also prevents a backlog of obsolete sounds. */
     if (!g_ready || blackbox_fastForwarding()) return 0;
     SDL_LockMutex(g_lock);
-    int r = sound_driver_dispatch_sound((AsoundU16)soundId);
+    int r = g_mt32Active ? rsound_dispatch_sound(&g_rsnd, soundId)
+                         : sound_driver_dispatch_sound((AsoundU16)soundId);
     SDL_UnlockMutex(g_lock);
     return r;
 }
 
 /* Voices 0-2 carry the intro melody; all three idle (stream_ptr cleared) once a
- * set of intro/release streams has played out. */
+ * set of intro/release streams has played out. Under MT-32 the intro is done
+ * when every RSOUND channel has run its stream dry. */
 static bool asnd_introVoicesActive(void) {
     AsoundDriver *drv = sound_driver_state();
     bool active;
     SDL_LockMutex(g_lock);
-    active = drv->streams[0].stream_ptr || drv->streams[1].stream_ptr ||
-             drv->streams[2].stream_ptr;
+    active = g_mt32Active ? (bool)rsound_intro_active(&g_rsnd)
+                        : (bool)(drv->streams[0].stream_ptr ||
+                                 drv->streams[1].stream_ptr ||
+                                 drv->streams[2].stream_ptr);
     SDL_UnlockMutex(g_lock);
     return active;
 }
@@ -418,6 +483,32 @@ int FAR CDECL audio_playIntro(void) {
         g_compressedIntroActive = false;
         SDL_UnlockMutex(g_lock);
         LogInfo(("asound: compressed intro music finished"));
+        return 0;
+    }
+
+    if (g_mt32Active) {
+        /* RSOUND play_intro: run the program chain until every channel is
+         * dry; a keypress jumps to the final program (rsound_intro_skip)
+         * and the tail plays out, like the original. */
+        LogInfo(("asound: playing intro music (Roland MT-32)"));
+        SDL_LockMutex(g_lock);
+        rsound_start_intro(&g_rsnd);
+        SDL_UnlockMutex(g_lock);
+        input_setMode(INPUT_MODE_MENU);
+        {
+            Uint64 deadline = SDL_GetTicksNS() + 5 * 60 * SDL_NS_PER_SECOND;
+            bool skipped = false;
+            while (asnd_introVoicesActive() && SDL_GetTicksNS() < deadline) {
+                if (!skipped && input_keyWaiting()) {
+                    skipped = true;
+                    SDL_LockMutex(g_lock);
+                    rsound_intro_skip(&g_rsnd);
+                    SDL_UnlockMutex(g_lock);
+                }
+                SDL_DelayNS(2 * SDL_NS_PER_MS);
+            }
+        }
+        LogInfo(("asound: intro music finished"));
         return 0;
     }
 
@@ -470,7 +561,8 @@ int FAR CDECL audio_engineDroneOn(void) {
     if (!g_ready || blackbox_fastForwarding()) return 0;
     SDL_LockMutex(g_lock);
     sound_driver_enable_drone();
-    asopl_set_drone_enable(&g_opl, 1);
+    if (g_mt32Active) rsound_drone_on(&g_rsnd);
+    else asopl_set_drone_enable(&g_opl, 1);
     SDL_UnlockMutex(g_lock);
     return 0;
 }
@@ -479,7 +571,8 @@ int FAR CDECL audio_engineDroneOff(void) {
     if (!g_ready || blackbox_fastForwarding()) return 0;
     SDL_LockMutex(g_lock);
     sound_driver_disable_drone();
-    asopl_set_drone_enable(&g_opl, 0);
+    if (g_mt32Active) rsound_drone_off(&g_rsnd);
+    else asopl_set_drone_enable(&g_opl, 0);
     SDL_UnlockMutex(g_lock);
     return 0;
 }
@@ -490,7 +583,8 @@ int FAR CDECL audio_setEnginePitch(int knots, int thrust) {
     AsoundU16 pitch = (knots < 0) ? 0 : (knots > 0x02bc ? 0x02bc : (AsoundU16)knots);
     SDL_LockMutex(g_lock);
     sound_driver_set_drone_pitch(pitch);
-    asopl_set_drone_pitch(&g_opl, pitch);
+    if (g_mt32Active) rsound_set_drone_pitch(&g_rsnd, pitch);
+    else asopl_set_drone_pitch(&g_opl, pitch);
     SDL_UnlockMutex(g_lock);
     return 0;
 }

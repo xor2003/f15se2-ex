@@ -391,11 +391,14 @@ endif()
 if(AUDIO)
     list(APPEND EGAME_SOURCES
         ${SRC_DIR}/asound/asound_model.c
+        ${SRC_DIR}/asound/asound_mt32.c
         ${SRC_DIR}/asound/asound_music_replacement.c
         ${SRC_DIR}/asound/asound_replacements.c
         ${SRC_DIR}/asound/asopl.c
         ${SRC_DIR}/asound/compressed_audio.c
         ${SRC_DIR}/asound/asound_sdl.c
+        ${SRC_DIR}/asound/rsound_model.c
+        ${SRC_DIR}/asound/rsound_data.c
     )
 else()
     list(APPEND EGAME_SOURCES ${SRC_DIR}/asound/nsound.c)
@@ -549,6 +552,32 @@ target_include_directories(f15se2_core PRIVATE
 if(AUDIO AND FM_EMULATION)
     target_include_directories(f15se2_core PRIVATE ${nuked_opl3_SOURCE_DIR})
     target_compile_definitions(f15se2_core PRIVATE F15_FM_EMULATION=1)
+endif()
+
+# Roland MT-32 backend (RSOUND.EXE port): optional libmt32emu. ROMs are
+# discovered at runtime (see asound_mt32.c) — only the library is needed here.
+if(AUDIO)
+    find_package(MT32Emu CONFIG QUIET)
+    if(NOT MT32Emu_FOUND)
+        find_library(MT32EMU_LIBRARY NAMES mt32emu
+            HINTS ${F15_MT32EMU_ROOT}/lib /home/xor/vcpkg/packages/libmt32emu_x64-linux/lib)
+        find_path(MT32EMU_INCLUDE_DIR mt32emu/mt32emu.h
+            HINTS ${F15_MT32EMU_ROOT}/include /home/xor/vcpkg/packages/libmt32emu_x64-linux/include)
+        if(MT32EMU_LIBRARY AND MT32EMU_INCLUDE_DIR)
+            add_library(MT32Emu::mt32emu UNKNOWN IMPORTED)
+            set_target_properties(MT32Emu::mt32emu PROPERTIES
+                IMPORTED_LOCATION "${MT32EMU_LIBRARY}"
+                INTERFACE_INCLUDE_DIRECTORIES "${MT32EMU_INCLUDE_DIR}")
+            set(MT32Emu_FOUND TRUE)
+        endif()
+    endif()
+    if(MT32Emu_FOUND)
+        target_link_libraries(f15se2_core PRIVATE MT32Emu::mt32emu)
+        target_compile_definitions(f15se2_core PRIVATE F15_HAVE_MT32EMU=1)
+        message(STATUS "MT-32 backend enabled (libmt32emu found)")
+    else()
+        message(STATUS "MT-32 backend disabled (libmt32emu not found); AdLib/OPL only")
+    endif()
 endif()
 # Keep the log.h diagnostics live (the Log* macros compile out without DEBUG).
 target_compile_definitions(f15se2_core PUBLIC DEBUG)
