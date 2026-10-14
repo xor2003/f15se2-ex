@@ -102,6 +102,23 @@ static Uint64 s_paceCapNs = 0;
 static bool s_showFps = false;
 static int  s_fpsValue = 0;
 
+/* Direct-framebuffer present: blit the paletted page straight into the window
+ * surface (INDEX8 / mode 13h) and let SDL push it to VRAM + program the VGA DAC,
+ * skipping the SDL_Renderer + per-frame texture upload. Used on fixed-resolution
+ * targets with no compositor/scaling (DOS); desktop keeps the renderer for its
+ * resizable, scaled window. */
+static bool s_directFB = false;
+/* Optional fixed cap for the no-vsync DOS framebuffer, in nanoseconds per frame. */
+static bool s_pace = false;
+static Uint64 s_paceCapNs = 0;
+
+/* FPS overlay (toggle: Alt+P, handled in input.c). Frames are counted per present
+ * in gfx_presentPage; the shown value refreshes ~2x/second so it reads steady. It's
+ * drawn into the page's upper-left, so it composites through whatever backend is
+ * active. */
+static bool s_showFps = false;
+static int  s_fpsValue = 0;
+
 /* Forward declarations for the page-surface model, used by gfx_videoShutdown
  * before their definitions further down. */
 static GfxState FAR *gfx_getState(void);
@@ -181,10 +198,10 @@ void gfx_videoInit(void) {
 #ifdef __DJGPP__
         /* DOS: raw VGA/VESA, no compositor or window scaling — create the window at
          * the native 320x200 page size and go fullscreen so it lands on mode 13h. */
-        sdlWindow = SDL_CreateWindow("F-15 SE2 EX v0.9.0", LOGICAL_WIDTH,
+        sdlWindow = SDL_CreateWindow("F-15 SE2 EX " F15_VERSION, LOGICAL_WIDTH,
                                      LOGICAL_HEIGHT, SDL_WINDOW_FULLSCREEN);
 #else
-        sdlWindow = SDL_CreateWindow(F15_WINDOW_TITLE, INITIAL_WINDOW_WIDTH,
+        sdlWindow = SDL_CreateWindow("F-15 SE2 EX " F15_VERSION, INITIAL_WINDOW_WIDTH,
                                      INITIAL_WINDOW_HEIGHT, SDL_WINDOW_RESIZABLE);
 #endif
         if (!sdlWindow)

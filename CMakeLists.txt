@@ -33,6 +33,12 @@ option(BLACKBOX_AUTO_RECORD
 # through the front end each run.
 option(AUTOSTART "Skip menus and start a mission directly (DEBUG_AUTOSTART)" OFF)
 
+# When OFF, the whole sound subsystem is compiled out: the SDL3/OPL3/Sound Blaster
+# backend (asound/) and the Nuked-OPL3 emulator are dropped and replaced with the
+# silent nsound.c no-op backend. Handy for bring-up on a new platform where the
+# audio path is unproven — isolates hangs to (or away from) the sound code.
+option(AUDIO "Build the sound subsystem (SDL3 OPL3/Sound Blaster backend)" ON)
+
 # The DJGPP toolchain (build-scripts/i586-pc-msdosdjgpp.cmake) sets
 # CMAKE_SYSTEM_NAME=DOS. DOS has no GPU/OpenGL, so the GL backend is compiled out
 # there and the software rasterizer is the only 3D backend.
@@ -93,14 +99,15 @@ else()
         message(STATUS "System SDL3 not found, building it from source")
         include(FetchContent)
         if(F15_DOS)
-            # DOS support landed after 3.4.12; pin the commit that carries the DOS
-            # video/timer/audio backends and the DJGPP toolchain.
+            # DOS support landed after 3.4.12; pin a commit that carries the DOS
+            # video/timer/audio backends and the DJGPP toolchain, the audio
+            # ring-buffer fairness fix (PR #16288), and the direct gameport
+            # joystick read (the BIOS INT 15h axis read it replaces cost tens of
+            # milliseconds per call on real hardware).
             FetchContent_Declare(
                 SDL3
-                URL "https://github.com/libsdl-org/SDL/archive/e442a9a5e1d6eb2621e9206f5176c53b0d034e09.tar.gz"
-                URL_HASH SHA256=8ebc84ff04c076c0e6249c885fc1efc6dc5f13a411b31de8621478646ff76bcf
-                PATCH_COMMAND ${CMAKE_COMMAND} -DSDL_SOURCE_DIR=<SOURCE_DIR>
-                    -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/patch_sdl_dos_audio.cmake
+                URL "https://github.com/libsdl-org/SDL/archive/015489c672f24feed28c2aa2cdd6176df95329f3.tar.gz"
+                URL_HASH SHA256=50c373115702974928c760f6e752aae33b69dcc51b4c2d909c35b30f41283a52
                 UPDATE_DISCONNECTED TRUE
             )
         else()
@@ -121,17 +128,36 @@ else()
     endif()
 endif()
 
+# FM synthesis. Off-DOS there is no OPL chip, so the AdLib register stream has to
+# be synthesized (Nuked-OPL3) and mixed into the PCM output. On DOS every Sound
+# Blaster SDL can drive carries an OPL at 388h, so the default writes the chip and
+# leaves the emulator out (smaller binary, no synthesis CPU cost). Build with
+# -DFM_EMULATION=ON for a DOS card without an FM part.
+if(F15_DOS)
+    set(FM_EMULATION_DEFAULT OFF)
+else()
+    set(FM_EMULATION_DEFAULT ON)
+endif()
+option(FM_EMULATION "Synthesize FM in software (Nuked-OPL3) instead of driving the AdLib port; always ON off-DOS" ${FM_EMULATION_DEFAULT})
+if(NOT F15_DOS AND NOT FM_EMULATION)
+    message(STATUS "FM_EMULATION forced ON: only DOS can drive an OPL chip directly")
+    set(FM_EMULATION ON)
+endif()
+
 # Nuked-OPL3: the YM3812/OPL2 emulator that turns the ported AdLib driver's
 # register state into PCM. Header-light (opl3.c/.h), no CMake of its own, so we
-# just pull the sources and compile opl3.c into the target (as C).
+# just pull the sources and compile opl3.c into the target (as C). Only needed
+# when FM is synthesized, so skip the fetch otherwise.
 include(FetchContent)
-FetchContent_Declare(
-    nuked_opl3
-    GIT_REPOSITORY "https://github.com/nukeykt/Nuked-OPL3.git"
-    GIT_TAG "cfedb09efc03f1d7b5fc1f04dd449d77d8c49d50"  # master has no release tags
-    UPDATE_DISCONNECTED TRUE
-)
-FetchContent_MakeAvailable(nuked_opl3)
+if(AUDIO AND FM_EMULATION)
+    FetchContent_Declare(
+        nuked_opl3
+        GIT_REPOSITORY "https://github.com/nukeykt/Nuked-OPL3.git"
+        GIT_TAG "cfedb09efc03f1d7b5fc1f04dd449d77d8c49d50"  # master has no release tags
+        UPDATE_DISCONNECTED TRUE
+    )
+    FetchContent_MakeAvailable(nuked_opl3)
+endif()
 FetchContent_Declare(
     quick_digest5
     GIT_REPOSITORY "https://github.com/nthnn/QuickDigest5.git"
@@ -261,13 +287,20 @@ set(EGAME_SOURCES
     ${SRC_DIR}/egtick.c
     ${SRC_DIR}/eginput.c
     ${SRC_DIR}/egstubs.c
-
-    # audio: ported ASOUND AdLib driver on SDL3
-    ${SRC_DIR}/asound/asound_model.c
-    ${SRC_DIR}/asound/asopl.c
-    ${SRC_DIR}/asound/compressed_audio.c
-    ${SRC_DIR}/asound/asound_sdl.c
 )
+
+# audio backend: the real ASOUND AdLib driver on SDL3, or the silent nsound.c
+# no-op backend (AUDIO=OFF). Both satisfy the same audio_* / loadF15DgtlBin ABI.
+if(AUDIO)
+    list(APPEND EGAME_SOURCES
+        ${SRC_DIR}/asound/asound_model.c
+        ${SRC_DIR}/asound/asopl.c
+        ${SRC_DIR}/asound/compressed_audio.c
+        ${SRC_DIR}/asound/asound_sdl.c
+    )
+else()
+    list(APPEND EGAME_SOURCES ${SRC_DIR}/asound/nsound.c)
+endif()
 
 if(ANDROID)
     # Android exposes OpenGL ES rather than desktop OpenGL. r3d_gles.c reuses
@@ -382,9 +415,15 @@ endif()
 set(F15SE2_CORE_SOURCES ${F15SE2_SOURCES})
 list(REMOVE_ITEM F15SE2_CORE_SOURCES ${SRC_DIR}/f15.c)
 
+# opl3.c (the OPL emulator) is only pulled in when FM is synthesized.
+set(AUDIO_SOURCES "")
+if(AUDIO AND FM_EMULATION)
+    list(APPEND AUDIO_SOURCES ${nuked_opl3_SOURCE_DIR}/opl3.c)
+endif()
+
 add_library(f15se2_core STATIC
     ${F15SE2_CORE_SOURCES}
-    ${nuked_opl3_SOURCE_DIR}/opl3.c
+    ${AUDIO_SOURCES}
     ${quick_digest5_SOURCE_DIR}/src/quickdigest5.cpp
 )
 target_include_directories(f15se2_core BEFORE PUBLIC
@@ -395,9 +434,12 @@ target_include_directories(f15se2_core BEFORE PUBLIC
 )
 target_include_directories(f15se2_core PRIVATE
     ${SRC_DIR}/asound
-    ${nuked_opl3_SOURCE_DIR}
     ${quick_digest5_SOURCE_DIR}/include
 )
+if(AUDIO AND FM_EMULATION)
+    target_include_directories(f15se2_core PRIVATE ${nuked_opl3_SOURCE_DIR})
+    target_compile_definitions(f15se2_core PRIVATE F15_FM_EMULATION=1)
+endif()
 # Keep the log.h diagnostics live (the Log* macros compile out without DEBUG).
 target_compile_definitions(f15se2_core PUBLIC DEBUG)
 if(AUTOSTART)
@@ -469,6 +511,21 @@ elseif(UNIX)
     set_target_properties(${F15SE2_APP_TARGET} PROPERTIES
         BUILD_WITH_INSTALL_RPATH TRUE
         INSTALL_RPATH "$ORIGIN")
+endif()
+
+# Put each routine and object in its own section so the DOS linker can discard
+# unused translated code. This reduces the Release binary without changing the
+# instruction set or tuning for a particular processor.
+if(F15_DOS)
+    target_compile_options(f15se2_core PRIVATE
+        $<$<CONFIG:Release>:-ffunction-sections>
+        $<$<CONFIG:Release>:-fdata-sections>
+    )
+    target_compile_options(f15se2 PRIVATE
+        $<$<CONFIG:Release>:-ffunction-sections>
+        $<$<CONFIG:Release>:-fdata-sections>
+    )
+    target_link_options(f15se2 PRIVATE $<$<CONFIG:Release>:-Wl,--gc-sections>)
 endif()
 
 # Autogenerate header file with version string
@@ -594,6 +651,10 @@ endif()
 if(NOT ANDROID)
     include(cmake/PackageRuntime.cmake)
 endif()
+
+# The behavior tests and coverage targets are host-only (they run under ctest with
+# SDL dummy drivers and std::thread); they aren't cross-built for the DOS target.
+if(NOT F15_DOS)
 
 # The behavior tests and coverage targets are host-only (they run under ctest with
 # SDL dummy drivers and std::thread); they aren't cross-built for the DOS target.
@@ -873,7 +934,6 @@ if(COVERAGE)
 endif()
 endif() # NOT ANDROID
 
-#==============================================================================
 # Install / packaging (desktop only — Android packages via its own Gradle path)
 #==============================================================================
 if(NOT ANDROID)
@@ -978,4 +1038,6 @@ if(WIN32)
     endif()
 endif()
 endif() # NOT ANDROID
+=======
+
 endif() # NOT F15_DOS (host-only tests + coverage)

@@ -1130,7 +1130,6 @@ void input_pumpEvents(void) {
                 gfx_toggleFullscreen();
                 break;
             }
-<<<<<<< HEAD
             /* Host-only diagnostic shortcut: never enqueue it as a game key, so
              * taking a dump cannot perturb the run being investigated. */
             if (ev.key.scancode == SDL_SCANCODE_F10 && (ev.key.mod & SDL_KMOD_CTRL) &&

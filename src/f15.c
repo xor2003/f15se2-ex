@@ -82,6 +82,7 @@ static void app_quit(void) {
 void usage(int errcode) {
     printf("Usage: f15se2-ex [--help] [--nointro] [--game path] [--campaign id] [--campaign-sortie id-or-phase] [--scenario id] [--scenario-base stem]\n"
            "--nointro      Skip intro sequence\n"
+           "--verbose      Enable verbose/debug logging (on DOS, written to F15.LOG)\n"
            "--game path    Path to directory containing game assets, can also use\n"
            "               F15SE2_DIR env var, default is current directory\n"
            "--campaign id  Load campaign.json from replacement assets, for example\n"
@@ -117,6 +118,7 @@ int main(int argc, char *argv[]) {
         const char* optStr = argv[i];
         if (strcmp(optStr, "--help") == 0) usage(0);
         else if (strcmp(optStr, "--nointro") == 0) showIntro = 0;
+        else if (strcmp(optStr, "--verbose") == 0) log_set_verbose();
         else if (strcmp(optStr, "--game") == 0) {
             if (i + 1 >= argc) { printf("Option requires an argument: --game\n"); usage(1); }
             if (!setGamePath(argv[i + 1])) goto shutdown;
