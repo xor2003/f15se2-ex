@@ -128,6 +128,10 @@ extern const GameDesc g_gameDescF19 = {
     NULL, 0,
     f19CampaignOrder, 4,
     0 /* hasHiResTitle: F-19 ships no TITLE640.PIC */,
+    /* flatSkyOnly: the original's detail level caps below the sphere-horizon
+     * threshold, so F-19's sky is always the flat two-band horizon — keep it
+     * even at the port's extended detail 4. */
+    1,
     "assets/f19",
     /* F-19 conversions go under converted_assets_f19; the F-15 pack name must
      * not match, or its same-named PNGs (TITLE16/ADV/COCKPIT/...) would shadow

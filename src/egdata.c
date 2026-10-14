@@ -571,7 +571,7 @@ int16 sign3dg = 0x3232;
  * common egdata globals. Without them populated, transformModelVerticesFar
  * early-returns and the shared-vertex terrain-surface quads never project.
  * load3D3() calls this after reading the counts so both bindings stay in sync. */
-void f19_setSharedVertCounts(size_t nRefs, size_t nX, size_t nY, size_t nZ) {
+void set3D3VertCounts(size_t nRefs, size_t nX, size_t nY, size_t nZ) {
     size3d3_3 = nRefs;
     size3d3_4 = nX;
     size3d3_5 = nY;
@@ -677,9 +677,9 @@ uint8 g_horizonSkyColor = 3;
 uint8 g_horizonGroundColor = 6;
 int16 g_horizonSideFlag = 0;
 /* g_skyFlatOnly: force the flat two-band horizon (drawFlatHorizon) at every
- * detail level, skipping the detail>=3 gradient sphere. F-19 sets this — the
- * sphere exists in its binary (sub_204FE) but is unreachable there since the
- * original caps detail at 2, so F-19's real sky is always the flat bands. */
+ * detail level, skipping the detail>=3 gradient sphere. Copied from
+ * GameDesc::flatSkyOnly by f15.c at game selection — renderer code reads the
+ * plain global so it never needs to link the game registry. */
 int16 g_skyFlatOnly = 0;
 
 /* g_objShade: object-shading flag, written by the 3D shape renderer. */

@@ -94,6 +94,10 @@ typedef struct GameDesc {
     int campaignOrderCount;
 
     int hasHiResTitle;          /* TITLE640.PIC (640x350 EGA title) exists */
+    /* Engine renders the flat two-band horizon at every detail level instead
+     * of enabling the gradient projection sphere at detail >= 3 (F-19's
+     * original code never reaches detail 3, so its sky is always flat). */
+    int flatSkyOnly;
     const char *bundledRoot;    /* bundled HD-art dir: "assets" or "assets/f19" */
     /* Converted-asset pack dir name, searched beside the game dir and in the
      * cwd. Per-game so one game's converted tree never shadows another game's

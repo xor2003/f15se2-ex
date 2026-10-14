@@ -131,6 +131,7 @@ extern const GameDesc g_gameDescF15SE2 = {
     f15ScenarioMenu, 5,
     f15CampaignOrder, 4,
     1 /* hasHiResTitle */,
+    0 /* flatSkyOnly: F-15's gradient sphere horizon starts at detail 3 */,
     "assets",
     "converted_assets_all",
     GAMEENGINE_MPS_CLASSIC,

@@ -114,7 +114,7 @@ extern size_t size3d3_4;
 extern size_t size3d3_5;
 extern size_t size3d3_6;
 extern size_t size3d3_3;
-void f19_setSharedVertCounts(size_t nRefs, size_t nX, size_t nY, size_t nZ);
+void set3D3VertCounts(size_t nRefs, size_t nX, size_t nY, size_t nZ);
 extern int16 sign3dg;
 extern const uint8 g_theaterGrids[];
 extern int16 g_unusedLoadDoneFlag;

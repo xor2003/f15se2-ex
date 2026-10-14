@@ -21,6 +21,7 @@
 #include "joystick.h"
 #include "r3d.h"
 #include "input.h"
+#include "egdata.h"
 #include "shared/common.h"
 #include "game/game.h"
 
@@ -184,6 +185,11 @@ int main(int argc, char *argv[]) {
     }
     log_set_app(game->cliId);
     LogInfo(("game: running %s", game->displayName));
+
+    /* Descriptor -> engine render flags: the renderer reads plain globals so
+     * it never links the game registry (unit tests pull the renderer without
+     * the descriptor tables). */
+    g_skyFlatOnly = (int16)game->flatSkyOnly;
 
     if (!verifyGameAssets()) goto shutdown;
     gfx_videoInit();

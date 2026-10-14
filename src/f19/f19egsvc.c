@@ -359,14 +359,12 @@ void f19eg_runGameLoop(void) {
 int f19eg_main(void);
 void f19_egDsegLoad(void);
 void f19_langInit(void);
-extern int16 g_skyFlatOnly;              /* shared egdata.c */
 int f19_egame_main(void) {
     f19_egDsegLoad();
     f19_langInit();
-    /* The original never reaches detail>=3, so its sky is always the flat
-     * two-band horizon (cyan over sea/land), never the gradient sphere the
-     * shared engine would draw at the port's detail 4. */
-    g_skyFlatOnly = 1;
+    /* flatSkyOnly in desc_f19.c keeps the flat two-band horizon at every
+     * detail level — the original never reaches detail>=3, so its sky is
+     * never the shared engine's gradient sphere. */
     return f19eg_main();
 }
 
