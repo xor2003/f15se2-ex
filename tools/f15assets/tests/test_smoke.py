@@ -11,10 +11,117 @@ import tempfile
 import unittest
 import wave
 import zipfile
+from unittest import mock
 
 from f15assets import decode_pic_asset, encode_pic_asset, export_3d3_to_gltf, export_3d3_to_glb, export_3d3_shape_gltfs, export_3d3_gltf_to_glb
 from f15assets import parse_3d3, build_3d3, parse_3dg, build_3dg, parse_3dt, build_3dt, parse_wld, build_wld
 from tools.f15assets import cli as cli_module
+from tools.f15assets.create_cockpit import DISPLAYS, FOCAL_LENGTH, create_cockpit
+
+
+class CockpitGeneratorTest(unittest.TestCase):
+    def setUp(self):
+        self.workdir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.workdir.cleanup)
+        self.base = pathlib.Path(self.workdir.name)
+        self.image = self.base / "256PIT.png"
+        self.image.write_bytes(base64.b64decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aD1sAAAAASUVORK5CYII="))
+        self.output = self.base / "cockpit.glb"
+        with contextlib.redirect_stdout(io.StringIO()):
+            create_cockpit(self.image, self.output)
+        self.data = self.output.read_bytes()
+        magic, version, length = struct.unpack_from("<4sII", self.data)
+        self.assertEqual((magic, version, length), (b"glTF", 2, len(self.data)))
+        json_length, chunk_type = struct.unpack_from("<I4s", self.data, 12)
+        self.assertEqual(chunk_type, b"JSON")
+        self.document = json.loads(self.data[20:20 + json_length])
+        binary_length, chunk_type = struct.unpack_from("<I4s", self.data, 20 + json_length)
+        self.assertEqual(chunk_type, b"BIN\0")
+        self.binary = self.data[28 + json_length:]
+        self.assertEqual(len(self.binary), binary_length)
+        self.meshes = {mesh["name"]: mesh for mesh in self.document["meshes"]}
+
+    def values(self, name, attribute):
+        primitive = self.meshes[name]["primitives"][0]
+        accessor = self.document["accessors"][primitive["attributes"][attribute]]
+        view = self.document["bufferViews"][accessor["bufferView"]]
+        dimensions = int(accessor["type"][-1])
+        offset = view.get("byteOffset", 0) + accessor.get("byteOffset", 0)
+        return list(struct.iter_unpack("<" + "f" * dimensions,
+                    self.binary[offset:offset + accessor["count"] * dimensions * 4]))
+
+    def test_front_live_projection_and_bindings(self):
+        for name, (x, y, width, height) in DISPLAYS:
+            primitive = self.meshes[name]["primitives"][0]
+            self.assertEqual(self.document["materials"][primitive["material"]]["name"], name)
+            corners = [(x, y), (x + width, y), (x + width, y + height), (x, y + height)]
+            for point, index in zip(self.values(name, "POSITION"), (0, 2, 1, 0, 3, 2)):
+                px, py, pz = point
+                self.assertAlmostEqual(160 + px * FOCAL_LENGTH / -pz, corners[index][0], places=4)
+                self.assertAlmostEqual(100 - py * FOCAL_LENGTH / -pz, corners[index][1], places=4)
+            self.assertEqual(self.values(name, "TEXCOORD_0"),
+                             [(0, 0), (1, 1), (1, 0), (0, 0), (0, 1), (1, 1)])
+        for name in ("control_grip", "control_column", "control_thumb_hat"):
+            for _, y, z in self.values(name, "POSITION"):
+                self.assertGreater(100 - y * FOCAL_LENGTH / -z, 200)
+
+    def test_solid_interior_and_bounded_geometry(self):
+        self.assertEqual(len(self.document["images"]), 1)
+        image_view = self.document["bufferViews"][self.document["images"][0]["bufferView"]]
+        offset = image_view.get("byteOffset", 0)
+        self.assertEqual(self.binary[offset:offset + image_view["byteLength"]], self.image.read_bytes())
+        for name in ("left_console", "right_console", "seat_cushion", "seat_back", "seat_shell",
+                     "headrest", "rear_bulkhead", "harness_left_shoulder", "harness_buckle",
+                     "throttle_quadrant", "throttle_lever_0", "left_panel_0_switch_0_0"):
+            primitive = self.meshes[name]["primitives"][0]
+            material = self.document["materials"][primitive["material"]]
+            self.assertNotIn("baseColorTexture", material["pbrMetallicRoughness"])
+            points = self.values(name, "POSITION")
+            for axis in range(3):
+                self.assertGreater(max(p[axis] for p in points), min(p[axis] for p in points))
+        self.assertLess(len(self.meshes), 256)
+        self.assertLess(sum(len(self.values(name, "POSITION")) for name in self.meshes), 30000)
+        for view in self.document["bufferViews"]:
+            self.assertEqual(view.get("byteOffset", 0) % 4, 0)
+            self.assertLessEqual(view.get("byteOffset", 0) + view["byteLength"], len(self.binary))
+        for name in self.meshes:
+            self.assertEqual(len(self.values(name, "POSITION")) % 3, 0)
+            self.assertEqual(len(self.values(name, "POSITION")), len(self.values(name, "TEXCOORD_0")))
+
+    def test_textured_consoles_replace_small_switches(self):
+        with contextlib.redirect_stdout(io.StringIO()):
+            create_cockpit(self.image, self.output, self.image)
+        data = self.output.read_bytes()
+        length = struct.unpack_from("<I", data, 12)[0]
+        document = json.loads(data[20:20 + length])
+        meshes = {mesh["name"]: mesh for mesh in document["meshes"]}
+        self.assertEqual(len(document["images"]), 2)
+        for side in ("left", "right"):
+            for module in range(3):
+                name = f"{side}_panel_{module}_texture"
+                primitive = meshes[name]["primitives"][0]
+                material = document["materials"][primitive["material"]]
+                self.assertEqual(material["pbrMetallicRoughness"]["baseColorTexture"]["index"], 1)
+                self.assertEqual(document["accessors"][primitive["attributes"]["POSITION"]]["count"], 6)
+        self.assertFalse(any("_switch_" in name for name in meshes))
+        self.assertIn("throttle_lever_0", meshes)
+        self.assertIn("display_radar", meshes)
+        self.assertLess(len(meshes), len(self.meshes))
+        with contextlib.redirect_stdout(io.StringIO()):
+            create_cockpit(self.image, self.output, self.image)
+        self.assertEqual(self.output.read_bytes(), data)
+
+    def test_console_texture_rejects_non_png(self):
+        invalid = self.base / "invalid.png"
+        invalid.write_bytes(b"not a PNG")
+        with self.assertRaisesRegex(ValueError, "Console texture must be a PNG"):
+            create_cockpit(self.image, self.output, invalid)
+
+    def test_deterministic_generation(self):
+        with contextlib.redirect_stdout(io.StringIO()):
+            create_cockpit(self.image, self.output)
+        self.assertEqual(self.output.read_bytes(), self.data)
 
 
 class SmokeConvertersTest(unittest.TestCase):

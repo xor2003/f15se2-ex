@@ -1899,12 +1899,19 @@ def _write_soviet_vietnam_starter_art(out_dir: Path) -> list[dict[str, str]]:
                         rng.randrange(12, 34),
                     ),
                 )
-            wash = wash.resize((w, h), resample=Image.Resampling.BICUBIC).filter(ImageFilter.GaussianBlur(blur_size))
+            # Blur before the upscale: the small wash blurs in microseconds,
+            # while the same radius at full 4K resolution costs seconds.
+            wash = wash.filter(ImageFilter.GaussianBlur(blur_size)).resize(
+                (w, h), resample=Image.Resampling.BICUBIC)
             base = Image.alpha_composite(base, wash)
-            grain = Image.effect_noise((w, h), 22).convert("L")
+            # Grain and fibers are soft low-frequency textures; building them at
+            # quarter size keeps generation cheap at 3840x2100 and looks the
+            # same after the required upscale.
+            qw, qh = max(1, w // 4), max(1, h // 4)
+            grain = Image.effect_noise((qw, qh), 22).convert("L").resize((w, h), resample=Image.Resampling.BILINEAR)
             grain_rgba = Image.merge("RGBA", (grain, grain, grain, Image.new("L", (w, h), 255)))
             base = Image.blend(base, grain_rgba, 0.055)
-            fiber = Image.new("RGBA", (max(1, w // 4), max(1, h // 4)), (0, 0, 0, 0))
+            fiber = Image.new("RGBA", (max(1, qw // 4), max(1, qh // 4)), (0, 0, 0, 0))
             fiber_draw = ImageDraw.Draw(fiber, "RGBA")
             for y in range(0, fiber.size[1], 3):
                 shade = rng.randrange(180, 240)
@@ -1917,11 +1924,13 @@ def _write_soviet_vietnam_starter_art(out_dir: Path) -> list[dict[str, str]]:
 
         def save_rgb(path: Path, image: Any) -> None:
             path.parent.mkdir(parents=True, exist_ok=True)
-            raster_paint(image, sum(path.name.encode("utf-8"))).convert("RGB").save(path)
+            raster_paint(image, sum(path.name.encode("utf-8"))).convert("RGB").save(
+                path, compress_level=1)
 
         def save_rgba(path: Path, image: Any) -> None:
             path.parent.mkdir(parents=True, exist_ok=True)
-            raster_paint(image, sum(str(path).encode("utf-8")), preserve_alpha=True).save(path)
+            raster_paint(image, sum(str(path).encode("utf-8")), preserve_alpha=True).save(
+                path, compress_level=1)
 
         def gradient(size: tuple[int, int], top: tuple[int, int, int], bottom: tuple[int, int, int]) -> Any:
             w, h = size
