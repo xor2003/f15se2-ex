@@ -130,8 +130,8 @@ each against shared-reader externs. `buf3d3`, `g_modelVertX/Y/Z`,
 - `f19stubs.c`: `sub_140A3` noop → `f19_seedRng()`; `sub_150BA` currently
   `return 0` (was `getTimeOfDay()`, pinned — see the confirmed seed bug).
   Affects RNG seeding / start state — touch with care.
-- `stmain.c`: `CommData.detailLevel` at comm+0x32 seeded to `2` (max detail);
-  `F19_QS` seeds `commData->f70` quick-start.
+- `stmain.c`: `CommData.detailLevel` at comm+0x32 seeded to `4` (the extended
+  level, F-15 parity); `F19_QS` seeds `commData->f70` quick-start.
 - `gfx_impl.c` `gfx_dumpPage()` + `F19_DUMP`: frame capture for headless tests.
 - `egframe.c`: `F19_POS*`/`F19_ALT`/`F19_PITCH`/`F19_HEAD`/`F19_DAY` env hooks.
 
@@ -246,6 +246,27 @@ F-19 3D now routes through the shared GL backend (`f19r3d.c` → `r3d_submit` �
 `insertOutlineEdges` walk semantics: `attr, v0, v1, ..., v0, -1` per group —
 each edge is prev→current, the ring repeats v0 to close (drop the dup for
 GL_POLYGON).
+
+## F-19 detail level 4 ("extended", F-15 parity)
+
+- Alt-D decrements, wrapping below 0 back to 4; default is 4. Levels 0–2 are
+  the original behavior; level 3 = level-2 distances + sphere horizon;
+  level 4 = extended.
+- `egkeys.c setupLodDistances`: at detail 4 all six `colorLut+0x10` LOD bands
+  and the `colorLut+0x20` object-cull distance are `0x7fff` (nothing
+  distance-culls, finest model always). Levels ≤3 clamp to the level-2 table.
+- `eg3dmap.c projectObjects`: detail 4 replaces the sparse directional ±2
+  sample walk with a dense square walk radius 7 per LOD (`process3dg` +
+  `submitTileObjects`, which is the extracted original tile-submit body),
+  bounds = `g_lodGridDim` (+2 border for LOD4), magnitude cap `0x7800` keeps
+  tile distances inside the Q16 transform accumulators.
+- `egtacmap.c updateTargetingHud`: detail 4 sets `lodM=8` — dot→model depth
+  gates widen to −0x100, model pick to −0x80, and `highAlt` depthShift
+  ballooning is disabled.
+- Sphere horizon (`drawProjectionSphere`/`glDrawSphere`) activates at
+  detail≥3 in both renderers — shared code, no F-19-side work needed.
+- Verified under Xvfb :99, no sound: GL and SW both show the curved
+  white→blue→red-haze horizon, runway clutter, distant mountains/hangars.
 
 ## Notes / gotchas
 

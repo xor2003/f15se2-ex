@@ -337,8 +337,30 @@ int far transformAndCullObjectFar(int, int, int); /* sub_208D9 (seg001:0x9e9) */
 void far projectSceneObject(char far *model, int yaw, int pitch, int roll,
                            int relX, int relY, int flag);   /* sub_20716 */
 
+/* Submit every scene object in one grid tile (col,row) — the full-detail tile
+ * branch shared by the sparse sample walk and the detail-4 dense walk. */
+static void submitTileObjects(int16 lod, int16 cell, int16 col, int16 row) {
+    int16 subIdx;
+    g_objColorBase = (g_detailLevel >= 2) ? 0 : ((uint8)lod << 8);
+    g_curTileEntry = (struct TileSceneObject *)(((uint8 *)f19_dsegAt(matrix3dt_2[lod][cell])));
+    for (subIdx = 0; matrix3dt[lod][cell] > (uint16)subIdx; subIdx++) {
+        if (g_curTileEntry->shape & 0x80) {
+            g_modelStreamPtr = (char FAR *)(g_world3dData + (uint16)lookupTileEntry(lod, subIdx, col, row));
+            if (g_modelStreamPtr == (char FAR *)g_world3dData) {
+                g_modelStreamPtr = (char FAR *)(g_world3dData + buf3d3[g_curTileEntry->shape & 0x7f]);
+            }
+        } else {
+            g_modelStreamPtr = (char FAR *)(g_world3dData + buf3d3[g_curTileEntry->shape]);
+        }
+        f19_submit((char *)g_modelStreamPtr, 0, 0, 0,
+                   g_curTileEntry->x, g_curTileEntry->y, g_curTileEntry->z);
+        g_curTileEntry++;
+        g_objColorBase++;
+    }
+}
+
 void projectObjects(int16 heading, int16 rangeGate, int32 worldX, int32 worldY, int32 worldZ) {
-    int16 gridX, gridY, dirSector, fracX, subIdx, fracY, sampleIdx, tmp0, tileX, tileY, tmp1, cell;
+    int16 gridX, gridY, dirSector, fracX, fracY, sampleIdx, tmp0, tileX, tileY, tmp1, cell;
     int32 scaled;
 
     g_proj3d.x = worldX;
@@ -369,6 +391,7 @@ void projectObjects(int16 heading, int16 rangeGate, int32 worldX, int32 worldY, 
         if ((uint32)scaled < 0x7FFFUL) {
             g_tileWorldSize = (int16)(((uint32)scaled < 2UL) ? 2UL : (uint32)scaled);
             for (sampleIdx = 0;; sampleIdx++) {
+                if (g_detailLevel >= 4) break; /* detail 4: the dense walk below replaces this sparse pattern */
                 if (g_curLod == 4 && g_detailLevel >= 2) {
                     if (sampleIdx == 15) {
                         break;
@@ -406,24 +429,7 @@ void projectObjects(int16 heading, int16 rangeGate, int32 worldX, int32 worldY, 
                     goto next_iter;
                 }
                 if (sampleIdx >= 4 || g_detailLevel >= 2) {
-                    g_objColorBase = (g_detailLevel >= 2) ? 0 : ((uint8)g_curLod << 8);
-                    g_curTileEntry = (struct TileSceneObject *)(((uint8 *)f19_dsegAt(matrix3dt_2[g_curLod][cell])));
-                    for (subIdx = 0; matrix3dt[g_curLod][cell] > (uint16)subIdx; subIdx++) {
-                        if (g_curTileEntry->shape & 0x80) {
-                            g_modelStreamPtr = (char FAR *)(g_world3dData + (uint16)lookupTileEntry(g_curLod, subIdx, tileX + gridX, tileY + gridY));
-                            if (g_modelStreamPtr == (char FAR *)g_world3dData) {
-                                g_modelStreamPtr = (char FAR *)(g_world3dData + buf3d3[g_curTileEntry->shape & 0x7f]);
-                            }
-                        } else {
-                            g_modelStreamPtr = (char FAR *)(g_world3dData + buf3d3[g_curTileEntry->shape]);
-                        }
-                        f19_submit((char *)g_modelStreamPtr, 0, 0, 0,
-                                           g_curTileEntry->x,
-                                           g_curTileEntry->y,
-                                           g_curTileEntry->z);
-                        g_curTileEntry++;
-                        g_objColorBase++;
-                    }
+                    submitTileObjects(g_curLod, cell, tileX + gridX, tileY + gridY);
                 } else {
                     if (g_curLod == 4) {
                         g_curTileEntry = (struct TileSceneObject *)(((uint8 *)f19_dsegAt(matrix3dt_2[g_curLod][cell])));
@@ -436,6 +442,39 @@ void projectObjects(int16 heading, int16 rangeGate, int32 worldX, int32 worldY, 
                     }
                 }
             next_iter:;
+            }
+            /* Detail level 4 ("extended", same as F-15): replace the sparse
+             * directional ±2 walk above with a dense omnidirectional square out
+             * to a fixed radius — extends draw distance and fills the gaps the
+             * sparse pattern leaves (objects vanishing then reappearing through
+             * their LODs). The bounds mirror process3dg's own clamp so the walk
+             * never samples off-grid; the 0x7800 magnitude cap keeps tile
+             * distances inside the Q16 transform accumulators. */
+            if (g_detailLevel >= 4) {
+                const int radius = 7;
+                int gx, gy;
+                for (gy = -radius; gy <= radius; gy++) {
+                    for (gx = -radius; gx <= radius; gx++) {
+                        int col = tileX + gx, row = tileY + gy;
+                        int bc = col, br = row;
+                        if (g_curLod == 4) { bc += 2; br += 2; }
+                        if (bc < 0 || br < 0 ||
+                            bc >= g_lodGridDim[g_curLod] || br >= g_lodGridDim[g_curLod])
+                            continue;
+                        g_objLocalX = fracX - (gx << 12) - 0x800;
+                        g_objLocalY = fracY - (gy << 12) - 0x800;
+                        if ((int32)g_objLocalX * g_objLocalX +
+                            (int32)g_objLocalY * g_objLocalY +
+                            (int32)g_tileWorldSize * g_tileWorldSize >=
+                            (int32)0x7800 * 0x7800)
+                            continue;
+                        setViewPosition(g_objLocalX, g_objLocalY, g_tileWorldSize);
+                        cell = process3dg(g_curLod, col, row);
+                        if (cell == -1)
+                            continue;
+                        submitTileObjects(g_curLod, cell, col, row);
+                    }
+                }
             }
         }
     } while (1);

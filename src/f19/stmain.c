@@ -159,10 +159,11 @@ void f19_sub_10010(void) {
         commData->f2a = 1;
 
     /* SU.EXE stored the graphics detail preference at comm+0x32 (EGAME reads
-     * it as g_detailLevel); with no SU in this port, seed max detail — the
-     * in-game detail key still cycles it down. */
+     * it as g_detailLevel); with no SU in this port, seed the extended level
+     * (4, like F-15's modecode-3 max) — the in-game detail key still cycles
+     * it down. */
     if (commData->detailLevel == 0)
-        commData->detailLevel = 2;
+        commData->detailLevel = 4;
 
     /* Test hook (cf. F19_KEYS): F19_QS seeds the original's quick-start flag,
      * skipping the title/menu flow straight into a generated "Sid" mission so

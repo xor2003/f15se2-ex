@@ -1130,7 +1130,7 @@ void drawWorldObject(int16 shapeId, int32 worldX, int32 worldY, int16 altitude,
  * every smoke particle, sim object, projectile and the wreck through the
  * 3D symbol pipeline; finish with the HUD targeting reticle. */
 void updateTargetingHud(void) {
-    int16 i, best, thresh, cur, highAlt, prox, zz;
+    int16 i, best, thresh, cur, highAlt, prox, zz, lodM;
     int8 fl;
 
     zz = 0;
@@ -1190,7 +1190,13 @@ void updateTargetingHud(void) {
         }
     }
     thresh = 0x4B << (6 - g_nightMode);
-    highAlt = (g_hudVisible != 0 && (uint16)(g_nearestThreatRange + g_viewZ) > 0x5DC) ? 1 : 0;
+    /* Detail level 4 ("extended", F-15 parity): disables the high-altitude
+     * depthShift ballooning, and widens the dot->model depth band by lodM to
+     * -0x100 — the engine's established far model range (same as the
+     * particle/wreck gates above/below). */
+    lodM = (g_detailLevel >= 4) ? 8 : 1;
+    highAlt = (g_detailLevel >= 4) ? 0 :
+              ((g_hudVisible != 0 && (uint16)(g_nearestThreatRange + g_viewZ) > 0x5DC) ? 1 : 0);
     if ((g_airTargetLock & 0x80) && (uint16)g_airTargetLock != 0xFFFF) {
         i = g_airTargetLock - 0x80;
         cur = computeTargetBearing(g_simObjects[i].posX,
@@ -1219,7 +1225,7 @@ void updateTargetingHud(void) {
                                  g_simObjects[i].alt);
             if (g_projDepth < 0) {
                 g_projDepth >>= highAlt;
-                if (g_projDepth > -0x20) {
+                if (g_projDepth > -0x20 * lodM) {
                     if (g_simObjects[i].alt < 999 && g_nightMode == 0) {
                         prox = 0;
                         if ((g_planeTable[g_closestThreatIndex].flags & 0x200) &&
@@ -1237,7 +1243,7 @@ void updateTargetingHud(void) {
                                             2 - signOf(highAlt));
                     }
                     drawWorldObject(((int16 *)&g_objTypes[g_simObjects[i].spec].pad1A)
-                                    [g_projDepth > -0x10 ? 0 : 1],
+                                    [g_projDepth > -0x10 * lodM ? 0 : 1],
                                     g_simObjects[i].worldX, g_simObjects[i].worldY,
                                     g_simObjects[i].alt, g_simObjects[i].heading.w,
                                     g_simObjects[i].pitch, g_simObjects[i].bank.w,
@@ -1258,7 +1264,7 @@ void updateTargetingHud(void) {
             computeAimProjection(g_projectiles[i].mapX, g_projectiles[i].mapY,
                                  g_projectiles[i].alt);
             if (g_vprojXlo != -1) {
-                if (g_projDepth > -0x20)
+                if (g_projDepth > -0x20 * lodM)
                     drawWorldObject(sams[g_projectiles[i].specIdx].modelId,
                                     (int32)(uint16)g_projectiles[i].mapX << 5,
                                     (int32)(uint16)g_projectiles[i].mapY << 5,
