@@ -55,20 +55,20 @@ static SDL_Texture *gfxSoftwarePresentTexture;
 static int gfxSoftwarePresentTextureW;
 static int gfxSoftwarePresentTextureH;
 static SDL_PixelFormat gfxSoftwarePresentTextureFormat;
-static uint32 *gfxSoftwarePresentPixels;
-static size_t gfxSoftwarePresentPixelCapacity;
 static uint32 gfxSoftwarePresentPalette[256];
 static int gfxSoftwarePresentPaletteGen = -1;
 static SDL_Surface *gfxPageReplacementSurface;
 static SDL_Surface *gfxPageCompositeSurface;
 static SDL_Surface *gfxPageReplacementIndexedBase;
 
-static void gfx_expandIndexedSurface(SDL_Surface *surf, uint32 *dst,
+/* Convert the game's 256-color image directly into the reusable texture. This
+ * avoids copying a second full-screen buffer into the texture every frame. */
+static void gfx_expandIndexedSurface(SDL_Surface *surf, void *pixels, int dstPitch,
                                      const uint32 *palette) {
     int y;
     for (y = 0; y < surf->h; y++) {
         const uint8 *src = (const uint8 *)surf->pixels + (size_t)y * surf->pitch;
-        uint32 *dstRow = dst + (size_t)y * surf->w;
+        uint32 *dstRow = (uint32 *)((uint8 *)pixels + (size_t)y * dstPitch);
         int x = 0;
         for (; x + 4 <= surf->w; x += 4) {
             dstRow[x] = palette[src[x]];
@@ -204,9 +204,6 @@ void gfx_videoShutdown(void) {
         SDL_DestroyTexture(gfxSoftwarePresentTexture);
         gfxSoftwarePresentTexture = NULL;
     }
-    SDL_free(gfxSoftwarePresentPixels);
-    gfxSoftwarePresentPixels = NULL;
-    gfxSoftwarePresentPixelCapacity = 0;
     if (sdlRenderer) SDL_DestroyRenderer(sdlRenderer);
     if (sdlWindow) SDL_DestroyWindow(sdlWindow);
     SDL_Quit();
@@ -579,41 +576,15 @@ static bool gfxHiResActive = false;
  * window. */
 static void gfx_presentSurfaceSW(SDL_Surface *surf, int virtW, int virtH, int shake) {
     R2DMapping m;
-    SDL_PixelFormat uploadFormat = surf ? surf->format : SDL_PIXELFORMAT_UNKNOWN;
-    const void *uploadPixels = surf ? surf->pixels : NULL;
-    int uploadPitch = surf ? surf->pitch : 0;
+    SDL_PixelFormat uploadFormat;
     int win_w, win_h;
     SDL_FRect dst;
-    int x, y;
+    int x;
     if (!surf || !sdlRenderer) return;
     if (virtW <= 0) virtW = surf->w;
     if (virtH <= 0) virtH = surf->h;
-    if (surf->format == SDL_PIXELFORMAT_INDEX8) {
-        size_t pixelCount = (size_t)surf->w * (size_t)surf->h;
-        SDL_Palette *palette = SDL_GetSurfacePalette(surf);
-        if (!palette) return;
-        if (pixelCount > gfxSoftwarePresentPixelCapacity) {
-            uint32 *pixels = (uint32 *)SDL_realloc(gfxSoftwarePresentPixels,
-                                                   pixelCount * sizeof(*pixels));
-            if (!pixels) return;
-            gfxSoftwarePresentPixels = pixels;
-            gfxSoftwarePresentPixelCapacity = pixelCount;
-        }
-        if (gfxSoftwarePresentPaletteGen != gfxPaletteGen) {
-            for (x = 0; x < 256; x++) {
-                const SDL_Color c = palette->colors[x];
-                gfxSoftwarePresentPalette[x] = ((uint32)c.r << 16) |
-                                               ((uint32)c.g << 8) |
-                                               (uint32)c.b;
-            }
-            gfxSoftwarePresentPaletteGen = gfxPaletteGen;
-        }
-        gfx_expandIndexedSurface(surf, gfxSoftwarePresentPixels,
-                                 gfxSoftwarePresentPalette);
-        uploadFormat = SDL_PIXELFORMAT_XRGB8888;
-        uploadPixels = gfxSoftwarePresentPixels;
-        uploadPitch = surf->w * (int)sizeof(*gfxSoftwarePresentPixels);
-    }
+    uploadFormat = (surf->format == SDL_PIXELFORMAT_INDEX8)
+        ? SDL_PIXELFORMAT_XRGB8888 : surf->format;
     if (!gfxSoftwarePresentTexture ||
         gfxSoftwarePresentTextureW != surf->w ||
         gfxSoftwarePresentTextureH != surf->h ||
@@ -628,7 +599,31 @@ static void gfx_presentSurfaceSW(SDL_Surface *surf, int virtW, int virtH, int sh
         gfxSoftwarePresentTextureFormat = uploadFormat;
         SDL_SetTextureBlendMode(gfxSoftwarePresentTexture, SDL_BLENDMODE_NONE);
     }
-    if (!SDL_UpdateTexture(gfxSoftwarePresentTexture, NULL, uploadPixels, uploadPitch)) return;
+    if (surf->format == SDL_PIXELFORMAT_INDEX8) {
+        /* Convert the game's 256-color image directly into the reusable texture.
+         * This avoids copying a second full-screen buffer into the texture
+         * every frame. */
+        SDL_Palette *palette = SDL_GetSurfacePalette(surf);
+        void *texturePixels;
+        int texturePitch;
+        if (!palette) return;
+        /* Rebuild the color table only when the game's palette changes. */
+        if (gfxSoftwarePresentPaletteGen != gfxPaletteGen) {
+            for (x = 0; x < 256; x++) {
+                const SDL_Color c = palette->colors[x];
+                gfxSoftwarePresentPalette[x] = ((uint32)c.r << 16) |
+                                               ((uint32)c.g << 8) |
+                                               (uint32)c.b;
+            }
+            gfxSoftwarePresentPaletteGen = gfxPaletteGen;
+        }
+        if (!SDL_LockTexture(gfxSoftwarePresentTexture, NULL, &texturePixels, &texturePitch)) return;
+        gfx_expandIndexedSurface(surf, texturePixels, texturePitch,
+                                 gfxSoftwarePresentPalette);
+        SDL_UnlockTexture(gfxSoftwarePresentTexture);
+    } else {
+        if (!SDL_UpdateTexture(gfxSoftwarePresentTexture, NULL, surf->pixels, surf->pitch)) return;
+    }
     SDL_SetTextureScaleMode(gfxSoftwarePresentTexture,
                             (surf->w == virtW && surf->h == virtH) ? SDL_SCALEMODE_NEAREST : SDL_SCALEMODE_LINEAR);
 
@@ -2533,15 +2528,18 @@ static void drawStringCore(int16 *params, const char *string,
         if (glyph) {
             for (row = 0; row < height; row++) {
                 int py = y + row;
-                uint8 bits;
+                const uint8 bits = glyph[row];
                 uint8 *dstRow;
                 if (py < clipT || py > clipB) continue; /* row outside window */
                 if (py < 0 || py >= surfH) continue;    /* off the surface */
-                bits = glyph[row];
                 dstRow = base + (size_t)py * pitch;
                 for (col = 0; col < 8; col++) {
                     int px = x + col;
-                    if ((bits & 0x80) && px >= clipL && px <= clipR &&
+                    /* Glyph rows are packed MSB first. Test each source bit
+                     * directly so integer promotion cannot affect later
+                     * columns differently between GCC and MSVC. */
+                    if ((bits & (uint8)(0x80u >> col)) != 0 &&
+                        px >= clipL && px <= clipR &&
                         px >= 0 && px < surfW) {
                         /* Always write the page: under GL it is composited every
                          * frame, so one-shot text (panel labels, "TRACKCAM AHEAD")
@@ -2552,7 +2550,6 @@ static void drawStringCore(int16 *params, const char *string,
                         dstRow[px] = (uint8)color;
                         if (submit) r2d_submitPoint(px, py, color);
                     }
-                    bits <<= 1;
                 }
             }
         }
@@ -3126,6 +3123,7 @@ void FAR CDECL gfx_dirtyRect2(const int16 *spanMinBuf, uint16 yMin, uint16 yMax)
             width = (uint16)(LOGICAL_WIDTH - col0);
         rects[rectCount++] = (SDL_Rect){col0, row, width, 1};
     }
+    /* Fill all rows in one SDL call instead of setting every pixel here. */
     if (rectCount != 0)
         SDL_FillSurfaceRects(surf, rects, rectCount, fill);
 }

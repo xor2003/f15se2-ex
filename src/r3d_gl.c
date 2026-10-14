@@ -197,7 +197,6 @@ static void addShowRect(int x, int y, int w, int h) {
     s_nShowRects++;
 }
 
-/* Is page-space pixel (x,y) inside any show-through rect? */
 static int inShowRect(int x, int y) {
     int i;
     for (i = 0; i < s_nShowRects; i++) {
@@ -207,6 +206,7 @@ static int inShowRect(int x, int y) {
     }
     return 0;
 }
+
 static float s_proj[16];     /* column-major GL projection for the active scene */
 static int s_sceneVp[4];     /* window-px viewport/scissor of the active 3D scene, for
                               * re-establishing the scene state in gl_endScene */
@@ -1522,7 +1522,7 @@ static void gl_submit(const R3DSubmit *o) {
     if (r3d_objTransformFar((char far *)o->mesh, o->yaw, o->pitch, o->roll,
                             o->posX, o->posY, o->posZ,
                             combined, &camBase, &camTransX, &camTransY, &shade,
-                            &visMask, world3dLimit()))
+                            &visMask))
         return; /* frustum-culled */
 
     r = &s_subs[s_nSub];
@@ -2940,10 +2940,8 @@ void r3dgl_drawImageWindowBoxX(R2DImage *img, float boxLeftX) {
 }
 
 /* The retained page as a persistent GL texture + the dirty key it was built for.
- * Re-uploaded ONLY when its visible output could have changed (below), so the page
- * is NOT re-converted/re-uploaded every frame — the flight fire-palette cycle bumps
- * the global palette generation every frame but touches only its 9 fire entries, so
- * a cockpit that doesn't use them stays cached. */
+ * Re-uploaded only when the indexed page, palette, show-through rectangles or
+ * dimensions change, rather than being converted and uploaded every frame. */
 static GLuint s_pageTex;
 static unsigned s_pageKey;
 static int s_pageTexW, s_pageTexH;

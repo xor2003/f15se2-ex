@@ -34,6 +34,16 @@
 #include "r3d_replacement.h"
 #include "inttype.h"
 
+/* Packed model display-list byte fields. Keep these hexadecimal because they
+ * are masks and tags in the original stream, not numeric quantities. */
+enum ModelDisplayListConstant {
+    MODEL_OPCODE_MASK = 0x3f,
+    MODEL_OPCODE_EDGERUN = 0x3e,
+    MODEL_OPCODE_POINT = 0x3f,
+    MODEL_STORE_TRANSFORM_MASK = 0x60,
+    MODEL_TRANSFORM_SLOT_MASK = 0x03
+};
+
 /* Set while rendering an aircraft ground shadow (projectSceneShadow): the object's
  * faces/edges fill flat black instead of their model colour. Captured per object
  * into the depth-sorted record so deferred draws recover it. This is the software
@@ -41,11 +51,6 @@
  * GPU backend does the flattened translucent version). */
 #define SHADOW_COLOR_INDEX 0 /* COLOR_BLACK */
 static int g_shadowDraw = 0;
-
-int far r3d_objTransformFar(char far *model, int yaw, int pitch, int roll,
-                            int posX, int posY, int posZ,
-                            int16 *combined, long *camBase, long *camX, long *camY,
-                            int *shade);
 
 /* ---- scratch globals defined in egdata.c but not declared in a header ---- */
 extern int16 g_dirtyRectMinY, g_dirtyRectMaxY;
@@ -143,6 +148,8 @@ static unsigned udiv32by16(unsigned long num, unsigned den) {
  * projects to a large off-screen coord rather than a clamped ±0x7f00. */
 static unsigned long udiv32by16_full(unsigned long num, unsigned den) {
     if (den == 0) return 0xffffffffUL;
+    /* The old code calculated the same result one bit at a time. Keep the
+     * original 32-bit values, but use the CPU's division instruction. */
     return (unsigned long)((uint32)num / (uint32)den);
 }
 
@@ -306,7 +313,7 @@ int far advanceModelPointerLod(void) {
 /* seg001 0x0A36 — storeObjTransformByOpcode: g_objTransform[opcode] = spinAngle */
 void storeObjTransformByOpcode(void) {
     unsigned char far *p = (unsigned char far *)g_modelStreamPtr;
-    int idx = (*p) & 3;
+    int idx = (*p) & MODEL_TRANSFORM_SLOT_MASK;
     g_objTransform[idx] = g_spinAngle;
 }
 
@@ -2415,12 +2422,12 @@ static void processSceneObject(void) {
         return;
     }
 
-    op = (*p) & 0x3f;
-    if (op == 0x3f) {
+    op = (*p) & MODEL_OPCODE_MASK;
+    if (op == MODEL_OPCODE_POINT) {
         sceneObjPoint(p);
         return;
     }
-    if (op == 0x3e) {
+    if (op == MODEL_OPCODE_EDGERUN) {
         sceneObjEdgeRun(p);
         return;
     }
@@ -2542,8 +2549,8 @@ static void projectSceneObjectImpl(char far *model, R3DReplacementMesh *replacem
         return;
     }
     cl = opcode;
-    if ((opcode & 0x60) == 0x60) { /* storeObjTransformByOpcode */
-        int idx = (*p) & 3;
+    if ((opcode & MODEL_STORE_TRANSFORM_MASK) == MODEL_STORE_TRANSFORM_MASK) {
+        int idx = (*p) & MODEL_TRANSFORM_SLOT_MASK;
         p++;
         g_objTransform[idx] = g_spinAngle;
     }
@@ -2616,8 +2623,9 @@ void far projectSceneShadow(char far *model, int yaw, int posX, int posY, int po
 int far r3d_objTransformFar(char far *model, int yaw, int pitch, int roll,
                             int posX, int posY, int posZ,
                             int16 *combined, long *camBase, long *camX, long *camY,
-                            int *shade, uint32 *visMask, const uint8 *limit) {
+                            int *shade, uint32 *visMask) {
     int i;
+    unsigned char far *p;
     g_objRenderMode = *(unsigned char far *)model;
     g_objTransform[1] = yaw;
     g_objTransform[2] = pitch;
@@ -2632,10 +2640,11 @@ int far r3d_objTransformFar(char far *model, int yaw, int pitch, int roll,
      * one of its own transform slots with the runtime spin angle (rotating radar
      * dishes / SAM launchers). projectSceneObject does this before building the
      * orientation matrix; peek the same opcode here so the GL model spins too. */
-    {
-        unsigned char far *p = (unsigned char far *)model + 1; /* past render-mode byte */
-        skipDisplayListByLod(&p);
-        if ((*p & 0x60) == 0x60) g_objTransform[(*p) & 3] = g_spinAngle;
+    p = (unsigned char far *)model + 1; /* past render-mode byte */
+    skipDisplayListByLod(&p);
+    if ((*p & MODEL_STORE_TRANSFORM_MASK) == MODEL_STORE_TRANSFORM_MASK) {
+        g_objTransform[(*p) & MODEL_TRANSFORM_SLOT_MASK] = g_spinAngle;
+        p++;
     }
 
     /* Distance shade — identical to processSceneObject. */
@@ -2666,56 +2675,24 @@ int far r3d_objTransformFar(char far *model, int yaw, int pitch, int roll,
     *camX = JOIN32(g_camTransXLo, g_camTransXHi);
     *camY = JOIN32(g_camTransYLo, g_camTransYHi);
 
-    /* Face/line visibility mask — rotatePoint3d's g_vtxSignMask. The display
-     * list gates every primitive on a bit of this mask (normals vs the
-     * model-space camera direction), and the GPU draw still needs it: a
-     * z-buffer alone keeps faces the original culls outright, so e.g. the
-     * F-19's tail-cone covers its recessed engine nozzles only because that
-     * face is culled, not z-tested. Computed on the FINEST LOD's normal table —
-     * the one r3dmesh_decode descends to (near branch of every LOD header). */
-    if (visMask) {
-        int dirX, dirY, dirZ;
-        const uint8 *np;
-        unsigned long lo = 0xffffUL, hi = 0xffffUL;
-        int cnt;
-        {   /* g_objDir*, identical to rotatePoint3d: direction to the camera in
-             * model space (the relative-position triple negated, then put
-             * through the inverse-orientation matrix when the object rotates). */
-            int rx = -(int)g_objRelX;             /* relX negated */
-            int ry = -(int)g_objRelY;             /* relY negated */
-            int rz = -(int)g_objTransform[0];     /* relZ negated */
-            if (g_objHasRotation == 0) {
-                dirX = rx; dirY = rz; dirZ = ry;
-            } else {
-                int16 *m = g_objOrientMatrix;
-                transposeOrientationMatrix();
-                dirX = dirRound(imul16(ry, m[6]) + imul16(rz, m[3]) + imul16(rx, m[0]));
-                dirY = dirRound(imul16(ry, m[7]) + imul16(rz, m[4]) + imul16(rx, m[1]));
-                dirZ = dirRound(imul16(ry, m[8]) + imul16(rz, m[5]) + imul16(rx, m[2]));
-                transposeOrientationMatrix();
-            }
-        }
-        np = (const uint8 *)model + 1;
-        while (np < limit && (np[0] & 0x80)) np += 3;
-        if (np < limit && (np[0] & 0x60) == 0x60) np++; /* storeObjTransform */
-        if (np < limit && (np[0] & 0x3f) < 0x3e) {      /* MODEL form */
-            cnt = np[0] & 0x1f;
-            np++;
-            for (i = 0; i < cnt; i++) {
-                unsigned long bit = 1UL << i;
-                long dot;
-                if (np + 8 > limit) break;
-                dot = imul16(rdI16(np), dirX)
-                    + imul16(rdI16(np + 2), dirZ)
-                    + imul16(rdI16(np + 4), dirY);
-                if (dot < (long)rdI16(np + 6)) {
-                    lo ^= bit & 0xffffUL;
-                    hi ^= bit >> 16;
-                }
-                np += 8;
-            }
-        }
-        *visMask = (uint32)(hi << 16) | (uint32)lo;
+    /* rotatePoint3d also performs the original point-in-convex-volume test: if
+     * the camera lies behind all four-or-more model planes it increments
+     * g_posVisibleFlag. Flight, missiles, and AI consume that flag as collision
+     * state. The GL bridge used to omit the display-list walk entirely, which
+     * made rendered mountains non-solid. Point and edge-run forms have no plane
+     * table, matching processSceneObject's early returns for those opcodes. */
+    {
+        int isModel = ((*p) & MODEL_OPCODE_MASK) < MODEL_OPCODE_EDGERUN;
+        if (isModel)
+            rotatePoint3d(g_objTransform[0], g_objRelY, g_objRelX, &p);
+        /* rotatePoint3d's g_vtxSignMask doubles as the GL face/line visibility
+         * mask: the display list gates every primitive on a bit of this mask
+         * (normals vs the model-space camera direction), and a z-buffer alone
+         * keeps faces the original culls outright — e.g. the F-19's tail-cone
+         * covers its recessed engine nozzles only via the cull. Non-model
+         * forms have no faces, so their mask is unused (all-ones). */
+        if (visMask)
+            *visMask = isModel ? (uint32)g_vtxSignMask.Value : 0xffffffffu;
     }
     return 0;
 }
